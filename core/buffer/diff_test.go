@@ -1,0 +1,174 @@
+package buffer
+
+import (
+	"bytes"
+	"testing"
+
+	"github.com/thebanri/limoni/core/cell"
+)
+
+func TestDiffNoChanges(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 5)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	out := make([]byte, 0, 1024)
+	out, err := Diff(front, back, out)
+	if err != nil {
+		t.Fatalf("Diff hatası: %v", err)
+	}
+
+	if len(out) != 0 {
+		t.Errorf("Değişiklik yokken çıktı üretilmemeliydi. Çıktı: %q", string(out))
+	}
+}
+
+func TestDiffCharacterChange(t *testing.T) {
+	area := cell.NewRect(0, 0, 5, 2)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// (1, 0)'da bir karakter değiştir
+	front.SetCell(1, 0, cell.Cell{Content: 'A'})
+
+	out := make([]byte, 0, 1024)
+	out, _ = Diff(front, back, out)
+
+	// Beklenen: İmleç konumlandırma "\x1b[1;2HA" (y+1=1, x+1=2) ve ardından "A"
+	expected := "\x1b[1;2HA"
+	if !bytes.Equal(out, []byte(expected)) {
+		t.Errorf("Beklenen çıktı: %q, Alınan: %q", expected, string(out))
+	}
+
+	// Back tamponunun güncellendiğini doğrula
+	if back.Get(1, 0).Content != 'A' {
+		t.Errorf("Back tamponu güncellenmedi")
+	}
+}
+
+func TestDiffStyleTransitions(t *testing.T) {
+	area := cell.NewRect(0, 0, 5, 2)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// (0, 0)'da Bold ve TrueColor Fg stilinde 'B' yaz
+	style := cell.Style{
+		Fg:       cell.NewColorRGB(255, 0, 0),
+		Bg:       cell.NewColorDefault(),
+		Modifier: cell.ModifierBold,
+	}
+	front.SetCell(0, 0, cell.Cell{Content: 'B', Style: style})
+
+	out := make([]byte, 0, 1024)
+	out, _ = Diff(front, back, out)
+
+	// Beklenen: İmleç (\x1b[1;1H) + Fg RGB (\x1b[38;2;255;0;0m) + Bold (\x1b[1m) + 'B' + Reset style at frame end (\x1b[0m)
+	if !bytes.Contains(out, []byte("B")) {
+		t.Errorf("Çıktıda karakter bulunamadı: %q", string(out))
+	}
+	if !bytes.Contains(out, []byte("\x1b[38;2;255;0;0m")) {
+		t.Errorf("Çıktıda renk kodu bulunamadı: %q", string(out))
+	}
+	if !bytes.Contains(out, []byte("\x1b[1m")) {
+		t.Errorf("Çıktıda Bold kodu bulunamadı: %q", string(out))
+	}
+	if !bytes.HasSuffix(out, []byte("\x1b[0m")) {
+		t.Errorf("Kare sonunda stil sıfırlama kodu bulunamadı: %q", string(out))
+	}
+}
+
+func TestDiffModifierRemoval(t *testing.T) {
+	area := cell.NewRect(0, 0, 5, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// front tamponunda (0,0) Bold 'A', (1,0) normal 'B' yapalım
+	front.SetCell(0, 0, cell.Cell{
+		Content: 'A',
+		Style:   cell.Style{Modifier: cell.ModifierBold},
+	})
+	front.SetCell(1, 0, cell.Cell{
+		Content: 'B',
+		Style:   cell.Style{Modifier: cell.ModifierReset},
+	})
+
+	out := make([]byte, 0, 1024)
+	out, _ = Diff(front, back, out)
+
+	// Çıktıda Bold 'A' dan Normal 'B' ye geçerken \x1b[0m (reset) bulunmalıdır.
+	// Tam çıktı: \x1b[1;1H\x1b[1mA\x1b[0mB
+	expected := "\x1b[1;1H\x1b[1mA\x1b[0mB"
+	if !bytes.Equal(out, []byte(expected)) {
+		t.Errorf("Beklenen çıktı: %q, Alınan: %q", expected, string(out))
+	}
+}
+
+// BENCHMARKS
+// 120x40 çözünürlüğünde terminal ekranı için performans testleri.
+
+func BenchmarkDiff_NoChanges(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40) // 4800 hücre
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Ön bellek ayırma
+	out := make([]byte, 0, 8192)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		out = out[:0]
+		out, _ = Diff(front, back, out)
+	}
+}
+
+func BenchmarkDiff_PartialChanges(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40) // 4800 hücre
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Ekranın %10'unu değiştir (TUI uygulamaları için gerçekçi senaryo)
+	for y := uint16(0); y < 40; y += 10 {
+		for x := uint16(0); x < 120; x += 10 {
+			front.SetCell(x, y, cell.Cell{
+				Content: 'X',
+				Style: cell.Style{
+					Fg: cell.NewColorANSI(9),
+					Bg: cell.NewColorANSI(0),
+				},
+			})
+		}
+	}
+
+	out := make([]byte, 0, 16384)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		out = out[:0]
+		// Her turda back tamponunu sıfırlayarak değişikliklerin tekrar diff'e düşmesini sağlıyoruz
+		back.Clear()
+		out, _ = Diff(front, back, out)
+	}
+}
+
+func BenchmarkDiff_FullChanges(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Tüm hücreleri rastgele doldur
+	style := cell.Style{Fg: cell.NewColorRGB(100, 200, 50)}
+	for y := uint16(0); y < 40; y++ {
+		for x := uint16(0); x < 120; x++ {
+			front.SetCell(x, y, cell.Cell{Content: 'A', Style: style})
+		}
+	}
+
+	out := make([]byte, 0, 65536)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		out = out[:0]
+		back.Clear()
+		out, _ = Diff(front, back, out)
+	}
+}
