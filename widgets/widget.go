@@ -24,3 +24,49 @@ type Widget interface {
 	//   - maxArea: Üst bileşenin bu widget için ayırabileceği maksimum alan sınırları.
 	SizeHint(maxArea cell.Rect) (width, height uint16)
 }
+
+// DrawFocusRing, belirtilen alanın etrafına 1 hücrelik kalın kesikli odak halkası (parlak bir çerçeve) çizer.
+func DrawFocusRing(buf *buffer.Buffer, area cell.Rect, style cell.Style) {
+	if area.Width < 2 || area.Height < 2 {
+		return
+	}
+	// Yatay kesikli çizgiler
+	for col := area.X + 1; col < area.X+area.Width-1; col++ {
+		if c := buf.Get(col, area.Y); c != nil {
+			c.Content = '╍'
+			c.Style = style
+		}
+		if c := buf.Get(col, area.Y+area.Height-1); c != nil {
+			c.Content = '╍'
+			c.Style = style
+		}
+	}
+	// Dikey kesikli çizgiler
+	for row := area.Y + 1; row < area.Y+area.Height-1; row++ {
+		if c := buf.Get(area.X, row); c != nil {
+			c.Content = '╏'
+			c.Style = style
+		}
+		if c := buf.Get(area.X+area.Width-1, row); c != nil {
+			c.Content = '╏'
+			c.Style = style
+		}
+	}
+	// Köşe birleşimleri (kalın köşeler)
+	if c := buf.Get(area.X, area.Y); c != nil {
+		c.Content = '┏'
+		c.Style = style
+	}
+	if c := buf.Get(area.X+area.Width-1, area.Y); c != nil {
+		c.Content = '┓'
+		c.Style = style
+	}
+	if c := buf.Get(area.X, area.Y+area.Height-1); c != nil {
+		c.Content = '┗'
+		c.Style = style
+	}
+	if c := buf.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
+		c.Content = '┛'
+		c.Style = style
+	}
+}

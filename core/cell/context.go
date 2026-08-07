@@ -1,5 +1,7 @@
 package cell
 
+import "image"
+
 // Context, alt bileşenlerin (widget) çizim yaparken kullandığı stack-allocated bağlam yapısıdır.
 // Değer kopyalaması (pass-by-value) ile aktarıldığı için heap allocation oluşturmaz ve bellek dostudur.
 // Bu sayede alt bileşenler, üst bileşenlerinin çizim sınırlarını ve stil kararlarını otomatik olarak devralır.
@@ -14,6 +16,21 @@ type Context struct {
 	// RegisterClick, widget'ların çizim sırasında tıklanabilir bölgeler (click areas)
 	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
 	RegisterClick func(area Rect, handler func())
+
+	// RegisterImage, widget'ların çizim sırasında resim çizdirme taleplerini
+	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
+	RegisterImage func(area Rect, img image.Image, zIndex int)
+
+	// RegisterFocus, widget'ların çizim sırasında odaklanabilir (focusable) olduklarını
+	// bildirmesini sağlayan, terminal odak yöneticisi tarafından doldurulan callback köprüsüdür.
+	RegisterFocus func(id string)
+
+	// SetFocus, widget'ların tıklandıklarında veya bir olay anında odağı kendi üzerlerine
+	// almalarını sağlayan, odak yöneticisi tarafından doldurulan callback köprüsüdür.
+	SetFocus func(id string)
+
+	// FocusedID, aktif olarak odaklanmış olan bileşenin ID'sini taşır.
+	FocusedID string
 }
 
 // NewContext yeni bir Context örneği oluşturup döndürür.

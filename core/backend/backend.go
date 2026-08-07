@@ -204,6 +204,19 @@ func (b *Backend) Size() (uint16, uint16, error) {
 	return ws.Col, ws.Row, nil
 }
 
+// CellPixelSize terminal hücresinin piksel cinsinden genişlik ve yüksekliğini döner.
+// Eğer terminal piksel bilgilerini raporlamıyorsa veya hata oluşursa varsayılan olarak (10, 20) döner.
+func (b *Backend) CellPixelSize() (uint16, uint16, error) {
+	ws, err := unix.IoctlGetWinsize(int(b.out.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
+		return 10, 20, err
+	}
+	if ws.Col == 0 || ws.Row == 0 || ws.Xpixel == 0 || ws.Ypixel == 0 {
+		return 10, 20, nil
+	}
+	return ws.Xpixel / ws.Col, ws.Ypixel / ws.Row, nil
+}
+
 // Write doğrudan terminal çıkışına veri yazar.
 func (b *Backend) Write(p []byte) (int, error) {
 	return b.out.Write(p)

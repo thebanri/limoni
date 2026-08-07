@@ -267,6 +267,11 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			// Alt bileşene daraltılmış alan ve birleştirilmiş stil bağlamını aktar
 			childCtx := cell.NewContext(childArea, blockStyle)
+			childCtx.RegisterClick = ctx.RegisterClick
+			childCtx.RegisterImage = ctx.RegisterImage
+			childCtx.RegisterFocus = ctx.RegisterFocus
+			childCtx.SetFocus = ctx.SetFocus
+			childCtx.FocusedID = ctx.FocusedID
 			b.Child.Draw(childCtx, buf)
 		}
 	}
