@@ -122,6 +122,8 @@ type AppState struct {
 	Drag3DLastX  int
 	Drag3DLastY  int
 	AppleImg     image.Image
+	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü"
+	ThreeDStyle  string // "Dokulu", "Dolu Renkli", "Kafes"
 
 	// Pencere boyutlandırma (Resizing) özellikleri
 	IsResizingModal  bool
@@ -363,6 +365,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Limoni Doku Dosyasi Acilamadi (Cift Yol Denendi): %v\n", err)
 	}
 
+	state.ThreeDModel = "Küp"
+	state.ThreeDStyle = "Dokulu"
+
 	// 30 FPS zamanlayıcısı (~33ms)
 	ticker := time.NewTicker(33 * time.Millisecond)
 	defer ticker.Stop()
@@ -517,6 +522,32 @@ func main() {
 						state.LastKey = "Tablo Yukarı (Ok Tuşu)"
 					} else if ev.Key.Type == backend.KeyEsc {
 						t.FocusManager().SetFocused("")
+					}
+				}
+
+				// Grafik sekmesi klavye kısayolları
+				if state.ActiveTab == "Grafik" {
+					if ev.Key.Type == backend.KeyRune {
+						switch ev.Key.Ch {
+						case '1':
+							state.ThreeDModel = "Küp"
+							state.LastKey = "Model: Küp"
+						case '2':
+							state.ThreeDModel = "Piramit"
+							state.LastKey = "Model: Piramit"
+						case '3':
+							state.ThreeDModel = "Dörtyüzlü"
+							state.LastKey = "Model: Dörtyüzlü"
+						case '4':
+							state.ThreeDStyle = "Dokulu"
+							state.LastKey = "Stil: Dokulu"
+						case '5':
+							state.ThreeDStyle = "Dolu Renkli"
+							state.LastKey = "Stil: Dolu Renkli"
+						case '6':
+							state.ThreeDStyle = "Kafes"
+							state.LastKey = "Stil: Kafes"
+						}
 					}
 				}
 
@@ -1068,7 +1099,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(notificationModePopup, popupArea)
 
 		case "Grafik":
-			// Grafik sekmesini yatayda iki eşit bölüme ayır: Sol tarafta Canvas, Sağ tarafta Gerçek Resim (Image)
+			// Grafik sekmesini yatayda iki eşit bölüme ayır: Sol tarafta Canvas, Sağ tarafta Resim ve Kontroller
 			grafikLay := layout.NewFlexLayout(
 				layout.Horizontal,
 				1,
@@ -1076,6 +1107,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				layout.Percentage(50),
 			)
 			grafikChunks := grafikLay.Split(bodyChunks[1])
+
+			// Sağ tarafı dikey olarak ikiye böl: Üstte Gerçek Resim, Altta 3D Model Kontrolleri
+			sağLay := layout.NewFlexLayout(
+				layout.Vertical,
+				1,
+				layout.Percentage(50),
+				layout.Percentage(50),
+			)
+			sağChunks := sağLay.Split(grafikChunks[1])
 
 			// 1. SOL TARAF: Braille Vektör Canvas
 			w := uint16(0)
@@ -1105,38 +1145,71 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					state.Drag3DLastY = int(ev.Y)
 				})
 
-				// 3D Küp Modeli Tanımı (Köşeler ve Kenarlar)
-				cubeVertices := []graphics.Vertex3D{
-					{X: -1.0, Y: -1.0, Z: -1.0},
-					{X: 1.0, Y: -1.0, Z: -1.0},
-					{X: 1.0, Y: 1.0, Z: -1.0},
-					{X: -1.0, Y: 1.0, Z: -1.0},
-					{X: -1.0, Y: -1.0, Z: 1.0},
-					{X: 1.0, Y: -1.0, Z: 1.0},
-					{X: 1.0, Y: 1.0, Z: 1.0},
-					{X: -1.0, Y: 1.0, Z: 1.0},
-				}
+				// 3D Model Tanımları (Köşeler ve Yüzler)
+				var vertices []graphics.Vertex3D
+				var faces [][]int
 
-
-
-				cubeFaces := [][]int{
-					{0, 1, 2, 3}, // Front (Z = -1)
-					{5, 4, 7, 6}, // Back (Z = 1)
-					{1, 5, 6, 2}, // Right (X = 1)
-					{4, 0, 3, 7}, // Left (X = -1)
-					{3, 2, 6, 7}, // Top (Y = 1)
-					{4, 5, 1, 0}, // Bottom (Y = -1)
+				switch state.ThreeDModel {
+				case "Piramit":
+					// Kare tabanlı Piramit (Apex tepe noktası)
+					vertices = []graphics.Vertex3D{
+						{X: -1.0, Y: 0.6, Z: -1.0}, // 0: sol-ön
+						{X: 1.0, Y: 0.6, Z: -1.0},  // 1: sağ-ön
+						{X: 1.0, Y: 0.6, Z: 1.0},   // 2: sağ-arka
+						{X: -1.0, Y: 0.6, Z: 1.0},  // 3: sol-arka
+						{X: 0.0, Y: -1.2, Z: 0.0},  // 4: tepe (apex)
+					}
+					faces = [][]int{
+						{3, 2, 1, 0}, // Taban
+						{0, 1, 4},    // Ön yüz
+						{1, 2, 4},    // Sağ yüz
+						{2, 3, 4},    // Arka yüz
+						{3, 0, 4},    // Sol yüz
+					}
+				case "Dörtyüzlü":
+					// Düzgün Dörtyüzlü (Üçgen Piramit)
+					vertices = []graphics.Vertex3D{
+						{X: 0.0, Y: -1.2, Z: 0.0},    // 0: tepe
+						{X: -1.0, Y: 0.8, Z: -0.8},   // 1: sol-ön
+						{X: 1.0, Y: 0.8, Z: -0.8},    // 2: sağ-ön
+						{X: 0.0, Y: 0.8, Z: 1.2},     // 3: arka
+					}
+					faces = [][]int{
+						{1, 2, 3}, // Taban
+						{0, 2, 1}, // Ön-Sol
+						{0, 3, 2}, // Ön-Sağ
+						{0, 1, 3}, // Arka
+					}
+				default: // "Küp"
+					vertices = []graphics.Vertex3D{
+						{X: -1.0, Y: -1.0, Z: -1.0},
+						{X: 1.0, Y: -1.0, Z: -1.0},
+						{X: 1.0, Y: 1.0, Z: -1.0},
+						{X: -1.0, Y: 1.0, Z: -1.0},
+						{X: -1.0, Y: -1.0, Z: 1.0},
+						{X: 1.0, Y: -1.0, Z: 1.0},
+						{X: 1.0, Y: 1.0, Z: 1.0},
+						{X: -1.0, Y: 1.0, Z: 1.0},
+					}
+					faces = [][]int{
+						{0, 1, 2, 3}, // Front (Z = -1)
+						{5, 4, 7, 6}, // Back (Z = 1)
+						{1, 5, 6, 2}, // Right (X = 1)
+						{4, 0, 3, 7}, // Left (X = -1)
+						{3, 2, 6, 7}, // Top (Y = 1)
+						{4, 5, 1, 0}, // Bottom (Y = -1)
+					}
 				}
 
 				projected := make([]struct {
 					x, y    int
 					visible bool
-				}, len(cubeVertices))
+				}, len(vertices))
 
 				canvasW := float64(virtualW)
 				canvasH := float64(virtualH)
 
-				for i, v := range cubeVertices {
+				for i, v := range vertices {
 					// Eksen rotasyonları uygula (RotateY first, then RotateX!)
 					v = v.RotateY(state.RotY)
 					v = v.RotateX(state.RotX)
@@ -1151,52 +1224,118 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					}{x: int(px), y: int(py), visible: visible}
 				}
 
+				// Yüzey renkleri (Dolu Renkli mod için prizmatik renk geçişleri)
+				faceColors := []cell.Color{
+					cell.NewColorRGB(0, 255, 255),   // Neon Turkuaz
+					cell.NewColorRGB(255, 0, 255),   // Neon Pembe
+					cell.NewColorRGB(255, 255, 0),   // Neon Sarı
+					cell.NewColorRGB(0, 255, 0),     // Neon Yeşil
+					cell.NewColorRGB(255, 128, 0),   // Neon Turuncu
+					cell.NewColorRGB(0, 128, 255),   // Neon Mavi
+				}
+
 				// Yüzeyleri kapla ve kenarlıkları çiz
 				style := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
-				for _, face := range cubeFaces {
+				for faceIdx, face := range faces {
+					if len(face) < 3 {
+						continue
+					}
+
 					p0 := projected[face[0]]
 					p1 := projected[face[1]]
 					p2 := projected[face[2]]
-					p3 := projected[face[3]]
 
-					if !p0.visible || !p1.visible || !p2.visible || !p3.visible {
+					if !p0.visible || !p1.visible || !p2.visible {
 						continue
+					}
+
+					var p3 struct {
+						x, y    int
+						visible bool
+					}
+					isQuad := len(face) == 4
+					if isQuad {
+						p3 = projected[face[3]]
+						if !p3.visible {
+							continue
+						}
 					}
 
 					// 2D Winding / Back-face Culling Testi
 					cross := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
 					if cross < 0 {
-						if state.AppleImg != nil {
-							uv0 := graphics.UV{U: 0.0, V: 1.0}
-							uv1 := graphics.UV{U: 1.0, V: 1.0}
-							uv2 := graphics.UV{U: 1.0, V: 0.0}
-							uv3 := graphics.UV{U: 0.0, V: 0.0}
+						if state.ThreeDStyle == "Dokulu" && state.AppleImg != nil {
+							if isQuad {
+								uv0 := graphics.UV{U: 0.0, V: 1.0}
+								uv1 := graphics.UV{U: 1.0, V: 1.0}
+								uv2 := graphics.UV{U: 1.0, V: 0.0}
+								uv3 := graphics.UV{U: 0.0, V: 0.0}
 
-							canvas.DrawTexturedTriangle(
-								graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
-								graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
-								graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-								uv0, uv1, uv2, state.AppleImg,
-							)
-							canvas.DrawTexturedTriangle(
-								graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
-								graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-								graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
-								uv0, uv2, uv3, state.AppleImg,
-							)
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									uv0, uv1, uv2, state.AppleImg,
+								)
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									uv0, uv2, uv3, state.AppleImg,
+								)
+							} else {
+								uv0 := graphics.UV{U: 0.0, V: 1.0}
+								uv1 := graphics.UV{U: 1.0, V: 1.0}
+								uv2 := graphics.UV{U: 0.5, V: 0.0}
+
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									uv0, uv1, uv2, state.AppleImg,
+								)
+							}
+						} else if state.ThreeDStyle == "Dolu Renkli" {
+							col := faceColors[faceIdx%len(faceColors)]
+							faceStyle := cell.Style{Fg: col}
+							if isQuad {
+								canvas.DrawFilledTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									faceStyle,
+								)
+								canvas.DrawFilledTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									faceStyle,
+								)
+							} else {
+								canvas.DrawFilledTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									faceStyle,
+								)
+							}
 						}
 
-						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin/çizgilerin görünmesini engeller)
+						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin görünmesini engeller)
 						canvas.DrawLine(p0.x, p0.y, p1.x, p1.y, style)
 						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, style)
-						canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, style)
-						canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, style)
+						if isQuad {
+							canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, style)
+							canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, style)
+						} else {
+							canvas.DrawLine(p2.x, p2.y, p0.x, p0.y, style)
+						}
 					}
 				}
 			}
 
 			canvasBlock := widgets.Block{
-				Title:          " 📦 3D KÜP (Sürükleyerek Döndürün) ",
+				Title:          fmt.Sprintf(" 📦 3D %s (%s) ", state.ThreeDModel, state.ThreeDStyle),
 				TitleAlignment: widgets.AlignLeft,
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
@@ -1205,7 +1344,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(canvasBlock, grafikChunks[0])
 
-			// 2. SAĞ TARAF: Gerçek Görsel Gösterimi (Native Image) - 2 saniyede bir değişen resmi çiz
+			// 2. SAĞ ÜST TARAF: Gerçek Görsel Gösterimi (Native Image)
 			imageBlock := widgets.Block{
 				Title:          " GERÇEK RESİM GÖSTERİMİ ",
 				TitleAlignment: widgets.AlignLeft,
@@ -1214,7 +1353,57 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 0, 255)},
 				Child:          widgets.Image{Img: state.ActiveImg, ZIndex: -1, ForceHalfBlock: true},
 			}
-			f.RenderWidget(imageBlock, grafikChunks[1])
+			f.RenderWidget(imageBlock, sağChunks[0])
+
+			// 3. SAĞ ALT TARAF: 3D Model Kontrol Paneli
+			modelLabel := " [1] Küp "
+			if state.ThreeDModel == "Küp" {
+				modelLabel = " 🔴 [1] Küp (Aktif) "
+			}
+			piramitLabel := " [2] Piramit "
+			if state.ThreeDModel == "Piramit" {
+				piramitLabel = " 🔴 [2] Piramit (Aktif) "
+			}
+			dortyuzluLabel := " [3] Dörtyüzlü "
+			if state.ThreeDModel == "Dörtyüzlü" {
+				dortyuzluLabel = " 🔴 [3] Dörtyüzlü (Aktif) "
+			}
+
+			dokuluLabel := " [4] Dokulu (Elma Görseli) "
+			if state.ThreeDStyle == "Dokulu" {
+				dokuluLabel = " 🟢 [4] Dokulu (Aktif) "
+			}
+			doluLabel := " [5] Dolu Renkli (Prizmatik) "
+			if state.ThreeDStyle == "Dolu Renkli" {
+				doluLabel = " 🟢 [5] Dolu Renkli (Aktif) "
+			}
+			kafesLabel := " [6] Kafes (Tel Kafes) "
+			if state.ThreeDStyle == "Kafes" {
+				kafesLabel = " 🟢 [6] Kafes (Aktif) "
+			}
+
+			var ctrlLines []string
+			ctrlLines = append(ctrlLines, "Model Seçimi (Klavye 1-3):")
+			ctrlLines = append(ctrlLines, "  "+modelLabel)
+			ctrlLines = append(ctrlLines, "  "+piramitLabel)
+			ctrlLines = append(ctrlLines, "  "+dortyuzluLabel)
+			ctrlLines = append(ctrlLines, "")
+			ctrlLines = append(ctrlLines, "Render Stili (Klavye 4-6):")
+			ctrlLines = append(ctrlLines, "  "+dokuluLabel)
+			ctrlLines = append(ctrlLines, "  "+doluLabel)
+			ctrlLines = append(ctrlLines, "  "+kafesLabel)
+			ctrlLines = append(ctrlLines, "")
+			ctrlLines = append(ctrlLines, "💡 Sürükleyerek 3D uzayda döndürün.")
+
+			ctrlBlock := widgets.Block{
+				Title:          " 3D MODEL KONTROLLERİ ",
+				TitleAlignment: widgets.AlignLeft,
+				Borders:        widgets.BorderAll,
+				BorderSymbols:  widgets.SymbolsRounded,
+				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 255, 128)},
+				Child:          widgets.List{Items: ctrlLines},
+			}
+			f.RenderWidget(ctrlBlock, sağChunks[1])
 
 		case "Playground":
 			// Playground sekmesini sol (ayarlar - 30 sütun) ve sağ (canlı önizleme - Fill) olarak ikiye böl
