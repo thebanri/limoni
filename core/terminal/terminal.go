@@ -291,6 +291,7 @@ func (t *Terminal) DebugMode() bool {
 
 // drawDebugOverlay, çizilen tüm widget'ların sınırlarını kesikli çizgilerle kaplar
 // ve köşelerine widget türünü, boyutlarını ve z-index katmanını belirten etiketler yazar.
+// Z-Order Kırpma (Layout Clipping) özelliği sayesinde üstte kalan katmanlar alttakilerin çizgilerini örter.
 func (t *Terminal) drawDebugOverlay() {
 	borderStyle := cell.Style{
 		Fg: cell.NewColorRGB(255, 0, 255), // Parlak Mor / Magenta
@@ -310,43 +311,59 @@ func (t *Terminal) drawDebugOverlay() {
 
 		// Yatay kesikli çizgiler
 		for col := area.X; col < area.X+area.Width; col++ {
-			if c := t.front.Get(col, area.Y); c != nil {
-				c.Content = '╌'
-				c.Style = borderStyle
+			if !isObscured(col, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+				if c := t.front.Get(col, area.Y); c != nil {
+					c.Content = '╌'
+					c.Style = borderStyle
+				}
 			}
-			if c := t.front.Get(col, area.Y+area.Height-1); c != nil {
-				c.Content = '╌'
-				c.Style = borderStyle
+			if !isObscured(col, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+				if c := t.front.Get(col, area.Y+area.Height-1); c != nil {
+					c.Content = '╌'
+					c.Style = borderStyle
+				}
 			}
 		}
 		// Dikey kesikli çizgiler
 		for row := area.Y; row < area.Y+area.Height; row++ {
-			if c := t.front.Get(area.X, row); c != nil {
-				c.Content = '╎'
-				c.Style = borderStyle
+			if !isObscured(area.X, row, reg.ZIndex, t.frame.DebugRegions) {
+				if c := t.front.Get(area.X, row); c != nil {
+					c.Content = '╎'
+					c.Style = borderStyle
+				}
 			}
-			if c := t.front.Get(area.X+area.Width-1, row); c != nil {
-				c.Content = '╎'
-				c.Style = borderStyle
+			if !isObscured(area.X+area.Width-1, row, reg.ZIndex, t.frame.DebugRegions) {
+				if c := t.front.Get(area.X+area.Width-1, row); c != nil {
+					c.Content = '╎'
+					c.Style = borderStyle
+				}
 			}
 		}
 
 		// Köşeleri birleştir
-		if c := t.front.Get(area.X, area.Y); c != nil {
-			c.Content = '┌'
-			c.Style = borderStyle
+		if !isObscured(area.X, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+			if c := t.front.Get(area.X, area.Y); c != nil {
+				c.Content = '┌'
+				c.Style = borderStyle
+			}
 		}
-		if c := t.front.Get(area.X+area.Width-1, area.Y); c != nil {
-			c.Content = '┐'
-			c.Style = borderStyle
+		if !isObscured(area.X+area.Width-1, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+			if c := t.front.Get(area.X+area.Width-1, area.Y); c != nil {
+				c.Content = '┐'
+				c.Style = borderStyle
+			}
 		}
-		if c := t.front.Get(area.X, area.Y+area.Height-1); c != nil {
-			c.Content = '└'
-			c.Style = borderStyle
+		if !isObscured(area.X, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+			if c := t.front.Get(area.X, area.Y+area.Height-1); c != nil {
+				c.Content = '└'
+				c.Style = borderStyle
+			}
 		}
-		if c := t.front.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
-			c.Content = '┘'
-			c.Style = borderStyle
+		if !isObscured(area.X+area.Width-1, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+			if c := t.front.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
+				c.Content = '┘'
+				c.Style = borderStyle
+			}
 		}
 
 		// Sol üst köşeye boyut ve tür etiketi bas
@@ -354,11 +371,27 @@ func (t *Terminal) drawDebugOverlay() {
 		for idx, r := range label {
 			col := area.X + 1 + uint16(idx)
 			if col < area.X+area.Width-1 {
-				if c := t.front.Get(col, area.Y); c != nil {
-					c.Content = r
-					c.Style = textStyle
+				if !isObscured(col, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+					if c := t.front.Get(col, area.Y); c != nil {
+						c.Content = r
+						c.Style = textStyle
+					}
 				}
 			}
 		}
 	}
+}
+
+// isObscured, belirtilen koordinatın hedef z-index değerinden daha yüksek bir katmanda/modalda
+// kalıp kalmadığını denetler (Hata ayıklama katmanlarının birbirini ezmesini önler).
+func isObscured(x, y uint16, zIndex int, regions []DebugRegion) bool {
+	for _, other := range regions {
+		if other.ZIndex > zIndex {
+			if x >= other.Area.X && x < other.Area.X+other.Area.Width &&
+				y >= other.Area.Y && y < other.Area.Y+other.Area.Height {
+				return true
+			}
+		}
+	}
+	return false
 }
