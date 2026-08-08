@@ -12,41 +12,53 @@ type Markdown struct {
 	Content string
 	// Style, varsayılan metin stilini tanımlar.
 	Style cell.Style
+
+	// Caching fields to avoid heap allocation on draw loops
+	lastContent string
+	lastStyle   cell.Style
+	cachedLines []markdownLine
+}
+
+type markdownLine struct {
+	isDivider bool
+	isHeader  bool
+	prefix    string
+	segments  []StyledSegment
 }
 
 type StyledSegment struct {
+	Style     cell.Style
+	Words     []string
+	WordRunes [][]rune // Pre-calculated runes for word wrap length calculations and printing!
+}
+
+type rawSegment struct {
 	Text  string
 	Style cell.Style
 }
 
-func (m Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	if m.Content == "" || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
+func (m *Markdown) parse(baseStyle cell.Style) {
+	if m.Content == m.lastContent && m.Style == m.lastStyle {
 		return
 	}
 
-	baseStyle := ctx.Style.Merge(m.Style)
+	m.lastContent = m.Content
+	m.lastStyle = m.Style
+	m.cachedLines = nil
+
 	lines := strings.Split(m.Content, "\n")
-	y := ctx.Area.Y
-	maxY := ctx.Area.Y + ctx.Area.Height
-
 	for _, rawLine := range lines {
-		if y >= maxY {
-			break
-		}
-
 		line := strings.TrimSpace(rawLine)
 
 		// 1. Horizontal Divider: ---
 		if line == "---" {
-			divStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(100, 100, 100)})
-			for col := ctx.Area.X; col < ctx.Area.X+ctx.Area.Width; col++ {
-				buf.SetCell(col, y, cell.Cell{Content: '┄', Style: divStyle})
-			}
-			y++
+			m.cachedLines = append(m.cachedLines, markdownLine{
+				isDivider: true,
+			})
 			continue
 		}
 
-		// 2. Headers: # Title, ## Title
+		// 2. Headers & Lists
 		lineStyle := baseStyle
 		prefix := ""
 		isHeader := false
@@ -73,26 +85,70 @@ func (m Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			prefix = "• "
 		}
 
-		segments := parseInlineStyles(line, lineStyle)
+		rawSegments := parseInlineStyles(line, lineStyle)
+		var segments []StyledSegment
+		for _, rawSeg := range rawSegments {
+			words := strings.Split(rawSeg.Text, " ")
+			var wordRunes [][]rune
+			for _, word := range words {
+				wordRunes = append(wordRunes, []rune(word))
+			}
+			segments = append(segments, StyledSegment{
+				Style:     rawSeg.Style,
+				Words:     words,
+				WordRunes: wordRunes,
+			})
+		}
 
-		// Word Wrap ve Çizim
+		m.cachedLines = append(m.cachedLines, markdownLine{
+			isHeader: isHeader,
+			prefix:   prefix,
+			segments: segments,
+		})
+	}
+}
+
+func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if m.Content == "" || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
+		return
+	}
+
+	baseStyle := ctx.Style.Merge(m.Style)
+	m.parse(baseStyle)
+
+	y := ctx.Area.Y
+	maxY := ctx.Area.Y + ctx.Area.Height
+
+	for _, line := range m.cachedLines {
+		if y >= maxY {
+			break
+		}
+
+		if line.isDivider {
+			divStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(100, 100, 100)})
+			for col := ctx.Area.X; col < ctx.Area.X+ctx.Area.Width; col++ {
+				buf.SetCell(col, y, cell.Cell{Content: '┄', Style: divStyle})
+			}
+			y++
+			continue
+		}
+
 		currX := ctx.Area.X
 		indent := uint16(0)
-		if prefix != "" {
-			buf.SetString(ctx.Area.X, y, prefix, baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}))
-			currX += uint16(len(prefix))
+		if line.prefix != "" {
+			buf.SetString(ctx.Area.X, y, line.prefix, baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}))
+			currX += uint16(len(line.prefix))
 			indent = currX - ctx.Area.X
 		}
 
-		for _, seg := range segments {
-			words := strings.Split(seg.Text, " ")
-			for idx, word := range words {
+		for _, seg := range line.segments {
+			for idx, wordRunes := range seg.WordRunes {
 				if idx > 0 && currX < ctx.Area.X+ctx.Area.Width {
 					buf.SetCell(currX, y, cell.Cell{Content: ' ', Style: seg.Style})
 					currX++
 				}
 
-				wordLen := uint16(len([]rune(word)))
+				wordLen := uint16(len(wordRunes))
 				// Eğer kelime satıra sığmıyorsa alt satıra geç (ve indent uygula)
 				if currX+wordLen >= ctx.Area.X+ctx.Area.Width {
 					y++
@@ -103,7 +159,7 @@ func (m Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 
 				// Kelimeyi çiz
-				for _, r := range word {
+				for _, r := range wordRunes {
 					if currX >= ctx.Area.X+ctx.Area.Width {
 						break
 					}
@@ -114,7 +170,7 @@ func (m Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		// Satır sonu: Eğer başlık ise altını boş bırakıp 2 satır atla
-		if isHeader {
+		if line.isHeader {
 			y += 2
 		} else {
 			y++
@@ -122,19 +178,27 @@ func (m Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
-func (m Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
-	lines := strings.Split(m.Content, "\n")
-	h := uint16(len(lines))
-	for _, l := range lines {
-		if strings.HasPrefix(l, "# ") || strings.HasPrefix(l, "## ") {
-			h += 2
+func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
+	baseStyle := cell.Style{}.Merge(m.Style)
+	m.parse(baseStyle)
+
+	h := uint16(0)
+	for _, line := range m.cachedLines {
+		if line.isDivider {
+			h++
+			continue
+		}
+		if line.isHeader {
+			h += 3
+		} else {
+			h++
 		}
 	}
 	return maxArea.Width, h
 }
 
-func parseInlineStyles(text string, baseStyle cell.Style) []StyledSegment {
-	var segments []StyledSegment
+func parseInlineStyles(text string, baseStyle cell.Style) []rawSegment {
+	var segments []rawSegment
 	runes := []rune(text)
 	var curr []rune
 	i := 0
@@ -144,7 +208,7 @@ func parseInlineStyles(text string, baseStyle cell.Style) []StyledSegment {
 	for i < n {
 		if i+1 < n && runes[i] == '*' && runes[i+1] == '*' {
 			if len(curr) > 0 {
-				segments = append(segments, StyledSegment{Text: string(curr), Style: style})
+				segments = append(segments, rawSegment{Text: string(curr), Style: style})
 				curr = nil
 			}
 			if (style.Modifier & cell.ModifierBold) != 0 {
@@ -155,7 +219,7 @@ func parseInlineStyles(text string, baseStyle cell.Style) []StyledSegment {
 			i += 2
 		} else if runes[i] == '*' {
 			if len(curr) > 0 {
-				segments = append(segments, StyledSegment{Text: string(curr), Style: style})
+				segments = append(segments, rawSegment{Text: string(curr), Style: style})
 				curr = nil
 			}
 			if (style.Modifier & cell.ModifierItalic) != 0 {
@@ -166,7 +230,7 @@ func parseInlineStyles(text string, baseStyle cell.Style) []StyledSegment {
 			i++
 		} else if runes[i] == '`' {
 			if len(curr) > 0 {
-				segments = append(segments, StyledSegment{Text: string(curr), Style: style})
+				segments = append(segments, rawSegment{Text: string(curr), Style: style})
 				curr = nil
 			}
 			codeStyle := baseStyle.Merge(cell.Style{
@@ -182,14 +246,14 @@ func parseInlineStyles(text string, baseStyle cell.Style) []StyledSegment {
 			if i < n {
 				i++
 			}
-			segments = append(segments, StyledSegment{Text: string(codeRunes), Style: codeStyle})
+			segments = append(segments, rawSegment{Text: string(codeRunes), Style: codeStyle})
 		} else {
 			curr = append(curr, runes[i])
 			i++
 		}
 	}
 	if len(curr) > 0 {
-		segments = append(segments, StyledSegment{Text: string(curr), Style: style})
+		segments = append(segments, rawSegment{Text: string(curr), Style: style})
 	}
 	return segments
 }

@@ -39,7 +39,7 @@ func TestMarkdownRendering(t *testing.T) {
 	buf := buffer.NewBuffer(cell.NewRect(0, 0, 40, 10))
 	mdText := "# Title\nThis is **bold** text.\n- Item 1\n- Item 2"
 
-	md := Markdown{
+	md := &Markdown{
 		Content: mdText,
 		Style:   cell.Style{},
 	}
@@ -64,5 +64,20 @@ func TestMarkdownRendering(t *testing.T) {
 	}
 	if !bulletFound {
 		t.Errorf("Bullet item marker '•' not found in buffer output")
+	}
+}
+
+func BenchmarkMarkdownDraw(b *testing.B) {
+	mdText := "# Limoni TUI\nRatatui'den *daha esnek* ve **performanslı**.\n- CSS Grid yerleşimi.\n- Bayer dither geçişleri.\n- Dairesel `avatar` maskeleme."
+	md := &Markdown{
+		Content: mdText,
+		Style:   cell.Style{},
+	}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 80, 24))
+	ctx := cell.NewContext(cell.NewRect(0, 0, 80, 24), cell.Style{})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		md.Draw(ctx, buf)
 	}
 }

@@ -42,6 +42,9 @@ type Terminal struct {
 	transitionActive   bool
 	transitionProgress float64
 	transitionOldBuf   *buffer.Buffer
+
+	// Hata ayıklama (Debug / Layout Inspector) durumu
+	debugMode bool
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -97,6 +100,11 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// Geliştiriciye çizim karesi bağlamını (Frame) sunarak bileşenleri çizdir
 	if fn != nil {
 		fn(t.frame)
+	}
+
+	// Hata ayıklama modu aktifse, ekranın üzerine yerleşim sınırlarını kapla (HUD Overlay)
+	if t.debugMode {
+		t.drawDebugOverlay()
 	}
 
 	// Eğer dither geçişi aktifse, front tamponunu harmanla
@@ -269,4 +277,88 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 // FocusManager, terminalin odak yöneticisini döndürür.
 func (t *Terminal) FocusManager() *FocusManager {
 	return t.frame.FocusManager
+}
+
+// SetDebugMode, hata ayıklama (Layout Inspector) modunu açar veya kapatır.
+func (t *Terminal) SetDebugMode(active bool) {
+	t.debugMode = active
+}
+
+// DebugMode, hata ayıklama modunun açık olup olmadığını döner.
+func (t *Terminal) DebugMode() bool {
+	return t.debugMode
+}
+
+// drawDebugOverlay, çizilen tüm widget'ların sınırlarını kesikli çizgilerle kaplar
+// ve köşelerine widget türünü, boyutlarını ve z-index katmanını belirten etiketler yazar.
+func (t *Terminal) drawDebugOverlay() {
+	borderStyle := cell.Style{
+		Fg: cell.NewColorRGB(255, 0, 255), // Parlak Mor / Magenta
+		Bg: cell.NewColorRGB(35, 20, 35),
+	}
+	textStyle := cell.Style{
+		Fg:       cell.NewColorRGB(255, 255, 255),
+		Bg:       cell.NewColorRGB(255, 0, 255),
+		Modifier: cell.ModifierBold,
+	}
+
+	for _, reg := range t.frame.DebugRegions {
+		area := reg.Area
+		if area.Width == 0 || area.Height == 0 {
+			continue
+		}
+
+		// Yatay kesikli çizgiler
+		for col := area.X; col < area.X+area.Width; col++ {
+			if c := t.front.Get(col, area.Y); c != nil {
+				c.Content = '╌'
+				c.Style = borderStyle
+			}
+			if c := t.front.Get(col, area.Y+area.Height-1); c != nil {
+				c.Content = '╌'
+				c.Style = borderStyle
+			}
+		}
+		// Dikey kesikli çizgiler
+		for row := area.Y; row < area.Y+area.Height; row++ {
+			if c := t.front.Get(area.X, row); c != nil {
+				c.Content = '╎'
+				c.Style = borderStyle
+			}
+			if c := t.front.Get(area.X+area.Width-1, row); c != nil {
+				c.Content = '╎'
+				c.Style = borderStyle
+			}
+		}
+
+		// Köşeleri birleştir
+		if c := t.front.Get(area.X, area.Y); c != nil {
+			c.Content = '┌'
+			c.Style = borderStyle
+		}
+		if c := t.front.Get(area.X+area.Width-1, area.Y); c != nil {
+			c.Content = '┐'
+			c.Style = borderStyle
+		}
+		if c := t.front.Get(area.X, area.Y+area.Height-1); c != nil {
+			c.Content = '└'
+			c.Style = borderStyle
+		}
+		if c := t.front.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
+			c.Content = '┘'
+			c.Style = borderStyle
+		}
+
+		// Sol üst köşeye boyut ve tür etiketi bas
+		label := fmt.Sprintf(" %s [%dx%d] z:%d ", reg.WidgetType, area.Width, area.Height, reg.ZIndex)
+		for idx, r := range label {
+			col := area.X + 1 + uint16(idx)
+			if col < area.X+area.Width-1 {
+				if c := t.front.Get(col, area.Y); c != nil {
+					c.Content = r
+					c.Style = textStyle
+				}
+			}
+		}
+	}
 }

@@ -1,7 +1,9 @@
 package terminal
 
 import (
+	"fmt"
 	"image"
+	"strings"
 
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
@@ -56,6 +58,15 @@ type Frame struct {
 
 	// activeLayerID, çizim sırasında mevcut katmanın ID'sini tutar.
 	activeLayerID string
+
+	// DebugRegions, bu çizim karesinde çizilen widget'ların yerleşim alanlarını saklar.
+	DebugRegions []DebugRegion
+}
+
+type DebugRegion struct {
+	Area       cell.Rect
+	WidgetType string
+	ZIndex     int
 }
 
 // NewFrame, belirtilen buffer ve odak yöneticisi üzerinde çizim yapacak yeni bir Frame örneği oluşturur.
@@ -67,6 +78,7 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 		FocusManager: focusMgr,
 		ActiveModal:  nil,
 		Layers:       make([]Layer, 0, 4),
+		DebugRegions: make([]DebugRegion, 0, 32),
 	}
 }
 
@@ -78,6 +90,7 @@ func (f *Frame) Reset() {
 	f.ActiveModal = nil
 	f.Layers = f.Layers[:0]
 	f.activeLayerID = ""
+	f.DebugRegions = f.DebugRegions[:0]
 }
 
 // RegisterModal, bu karede çizilen aktif bir modal katmanı kaydeder.
@@ -219,6 +232,29 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	if w == nil {
 		return
 	}
+
+	// Hata ayıklama bölgesi olarak kaydet
+	wType := fmt.Sprintf("%T", w)
+	if idx := strings.Index(wType, "."); idx != -1 {
+		wType = wType[idx+1:]
+	}
+	zIndex := 0
+	if f.activeLayerID != "" {
+		for _, l := range f.Layers {
+			if l.ID == f.activeLayerID {
+				zIndex = l.ZIndex
+				break
+			}
+		}
+	} else if f.ActiveModal != nil && ContainsRect(f.ActiveModal.Area, area) {
+		zIndex = 10
+	}
+	f.DebugRegions = append(f.DebugRegions, DebugRegion{
+		Area:       area,
+		WidgetType: wType,
+		ZIndex:     zIndex,
+	})
+
 	var defStyle cell.Style
 	defStyle.Reset()
 

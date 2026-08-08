@@ -99,6 +99,9 @@ type AppState struct {
 	ModalOffsetY        int
 	ModalDragBaseX      int
 	ModalDragBaseY      int
+
+	// Hata ayıklama modu
+	DebugMode bool
 }
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
@@ -244,6 +247,7 @@ func main() {
 		PlaygroundMode:     "Vector",
 		MouseModeChecked:   true,
 		ThemeSelected:      "Koyu",
+		DebugMode:          false,
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
 		Processes: []ProcessInfo{
@@ -317,6 +321,13 @@ func main() {
 			switch ev.Type {
 			case backend.EventKey:
 				focused := t.FocusManager().Focused()
+
+				// Hata ayıklama modunu (Layout Inspector) her koşulda en öncelikli global kısayol olarak dinle
+				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'd' && ev.Key.Ctrl {
+					state.DebugMode = !state.DebugMode
+					state.LastKey = fmt.Sprintf("Hata Ayıklama Katmanı Toggled: %v", state.DebugMode)
+					break
+				}
 
 				// Eğer Çıkış Onay Modali açıksa, klavye girdilerini sadece onun butonlarına yönlendir
 				if state.ShowExitDialog {
@@ -444,8 +455,11 @@ func main() {
 					} else if ev.Key.Type == backend.KeyEsc {
 						t.FocusManager().SetFocused("")
 					}
-				} else {
-					// Genel klavye kontrolleri (Metin kutusu odaklı değilse)
+				}
+
+				// Genel kısayollar: Eğer kullanıcı aktif olarak metin yazma alanında değilse
+				// ?, q ve Esc tuşlarının genel pencere olaylarını tetiklemesine izin ver.
+				if focused != "username_input" {
 					if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?' {
 						state.ShowHelpDialog = true
 						state.ModalOffsetX = 0
@@ -459,7 +473,7 @@ func main() {
 						state.ModalOffsetX = 0
 						state.ModalOffsetY = 0
 						state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
-						t.FocusManager().SetFocused("exit_dialog_btn_1") // Varsayılan odak güvenli olsun ("Hayır")
+						t.FocusManager().SetFocused("exit_dialog_btn_1")
 						state.LastKey = "Çıkış Onay Modali Açıldı"
 						break
 					}
@@ -541,6 +555,7 @@ func main() {
 
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
 func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
+	t.SetDebugMode(state.DebugMode)
 	t.Draw(func(f *terminal.Frame) {
 		// Dinamik renk teması seçimi
 		var mainColor, accentColor cell.Color
@@ -1221,7 +1236,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  sym,
 				BorderStyle:    cell.Style{Fg: accentColor},
-				Child: widgets.Markdown{
+				Child: &widgets.Markdown{
 					Content: "# Limoni TUI\nRatatui'den *daha esnek* ve **performanslı**.\n- CSS Grid yerleşimi.\n- Bayer dither geçişleri.\n- Dairesel `avatar` maskeleme.",
 					Style:   cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
 				},
@@ -1451,7 +1466,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			helpChunks := helpLay.Split(helpInner)
 
 			// Sol Taraf: Markdown Metni
-			mdHelp := widgets.Markdown{
+			mdHelp := &widgets.Markdown{
 				Content: `# Limoni Kısayolları
 - **Tab / Shift+Tab:** Menüler arası geçiş.
 - **Yön Tuşları:** Playground Düzen Yönü.
