@@ -173,12 +173,24 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 
 ---
 
-## 5. Gelecek Yol Haritası (Faz 20)
+- **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers) [TAMAMLANDI]**
+  - `widgets.Transducer` ve lokal dither sekme geçişleri ile animasyonlu modal geçişleri tamamlandı.
+- **Faz 21: 3 Boyutlu Vektör Grafik Motoru (3D Wireframe Graphics Engine) [TAMAMLANDI]**
+  - Perspektif projeksiyon (`Project`) ve eksen rotasyon (`RotateX`/`RotateY`/`RotateZ`) fonksiyonları eklendi.
+  - Braille Canvas üzerinde otomatik dönen ve sol tık sürüklemeyle yönlendirilebilen 3D Küp entegrasyonu tamamlandı.
+
+---
+
+## 5. Gelecek Yol Haritası (Faz 22 - Faz 23)
 
 Projeyi devralan ajanın sırasıyla gerçekleştirmesi beklenen sonraki aşamalar:
 
-1. **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers)**:
-   - Form listesi elemanları açılırken veya sekmeler değişirken listedeki satırların sırayla soldan/sağdan kayarak gelmesini (slide-in) veya kararak belirmesini (fade-in) sağlayan animasyonlu widget kapsayıcıları tasarlamak.
+1. **Faz 22: Komut Paleti ve Kısayol Yönlendirici (Command Palette & Keybindings)**:
+   - `Ctrl+P` ile açılan, tüm sekmeler ve eylemler arasında bulanık arama (fuzzy search) yapıp tetikleyen bir Komut Paleti (Command Palette) widget'ı tasarlamak.
+   - Declarative klavye kısayol yöneticisi paketi geliştirip event loop'a bağlamak.
+2. **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma (Table Cell Spanning & Column Resizing)**:
+   - Tablonun sütun sınırlarının fareyle sürüklenerek genişletilip daraltılabilmesi.
+   - `colSpan` ve `rowSpan` özellikleriyle tablo içinde birleşik hücre desteği kazandırmak.
 
 ## 6. Dosya Yapısı (Güncel)
 

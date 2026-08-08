@@ -14,6 +14,7 @@ import (
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -110,6 +111,14 @@ type AppState struct {
 
 	// Hata ayıklama modu
 	DebugMode bool
+
+	// 3D Grafik Motoru özellikleri
+	RotX         float64
+	RotY         float64
+	RotZ         float64
+	IsDragging3D bool
+	Drag3DLastX  int
+	Drag3DLastY  int
 
 	// Pencere boyutlandırma (Resizing) özellikleri
 	IsResizingModal  bool
@@ -221,6 +230,13 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 	if state.HelpDialogAnim != nil {
 		state.HelpDialogAnim.Update(now)
 	}
+
+	// 3D otomatik rotasyon güncellemesi
+	if !state.IsDragging3D {
+		state.RotX = math.Mod(state.RotX+1.0, 360.0)
+		state.RotY = math.Mod(state.RotY+1.5, 360.0)
+		state.RotZ = math.Mod(state.RotZ+0.5, 360.0)
+	}
 }
 
 func main() {
@@ -269,6 +285,9 @@ func main() {
 		MouseModeChecked:   true,
 		ThemeSelected:      "Koyu",
 		DebugMode:          false,
+		RotX:               30.0,
+		RotY:               45.0,
+		RotZ:               0.0,
 		IsResizingModal:     false,
 		HelpDialogW:         64,
 		HelpDialogH:         16,
@@ -547,10 +566,18 @@ func main() {
 						if newH > 30 { newH = 30 }
 						state.HelpDialogW = newW
 						state.HelpDialogH = newH
+					} else if state.IsDragging3D {
+						dx := int(ev.Mouse.X) - state.Drag3DLastX
+						dy := int(ev.Mouse.Y) - state.Drag3DLastY
+						state.RotY = math.Mod(state.RotY+float64(dx)*1.5, 360.0)
+						state.RotX = math.Mod(state.RotX+float64(dy)*1.5, 360.0)
+						state.Drag3DLastX = int(ev.Mouse.X)
+						state.Drag3DLastY = int(ev.Mouse.Y)
 					}
 				} else if ev.Mouse.Button == backend.MouseRelease {
 					state.IsDraggingModal = false
 					state.IsResizingModal = false
+					state.IsDragging3D = false
 				}
 
 				// Fare olayını otomatik tıklama yönlendiriciye ilet (RouteMouseEvent) - sadece sol tıklamaları yönlendir
@@ -1002,7 +1029,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				ItemStyle:     cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
 				SelectedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: accentColor, Modifier: cell.ModifierBold},
 				DisabledStyle: cell.Style{Fg: cell.NewColorRGB(100, 100, 100)},
-				BorderStyle:   cell.Style{Fg: mainColor},
+				BorderStyle:   cell.Style{Fg: notifBorderCol},
 			}
 
 			notifBlock := widgets.Block{
@@ -1047,45 +1074,71 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			canvas := state.Canvas
 
-			cyan := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
-			magenta := cell.Style{Fg: cell.NewColorRGB(255, 0, 255)}
-			yellow := cell.Style{Fg: cell.NewColorRGB(255, 255, 0)}
-			green := cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}
-
 			virtualW := int(w) * 2
 			virtualH := int(h) * 4
 
 			if virtualW > 2 && virtualH > 2 {
-				// Çerçeve (Rectangle)
-				canvas.DrawRect(0, 0, virtualW, virtualH, yellow)
+				// 3D rotasyon sürüklemesi için tıklama alanını kaydet
+				f.RegisterClickHandler(grafikChunks[0], func(ev backend.MouseEvent) {
+					state.IsDragging3D = true
+					state.Drag3DLastX = int(ev.X)
+					state.Drag3DLastY = int(ev.Y)
+				})
 
-				// Merkez Daire (Circle)
-				cx := virtualW / 2
-				cy := virtualH / 2
-				r := virtualH / 4
-				if r > virtualW/4 {
-					r = virtualW / 4
-				}
-				if r > 0 {
-					// Daire boyutunu PulseVal animasyonuyla dinamik büyüt/küçült
-					pulse := state.PulseVal.Value()
-					r = int(float64(r) * (0.7 + 0.4*pulse))
-
-					canvas.DrawCircle(cx, cy, r, cyan)
-					// Daire içi artı (Cross)
-					canvas.DrawLine(cx-r+2, cy, cx+r-2, cy, green)
-					canvas.DrawLine(cx, cy-r+2, cx, cy+r-2, green)
+				// 3D Küp Modeli Tanımı (Köşeler ve Kenarlar)
+				cubeVertices := []graphics.Vertex3D{
+					{X: -1.0, Y: -1.0, Z: -1.0},
+					{X: 1.0, Y: -1.0, Z: -1.0},
+					{X: 1.0, Y: 1.0, Z: -1.0},
+					{X: -1.0, Y: 1.0, Z: -1.0},
+					{X: -1.0, Y: -1.0, Z: 1.0},
+					{X: 1.0, Y: -1.0, Z: 1.0},
+					{X: 1.0, Y: 1.0, Z: 1.0},
+					{X: -1.0, Y: 1.0, Z: 1.0},
 				}
 
-				// İkinci dereceden Bezier dalgası
-				canvas.DrawBezierQuadratic(2, virtualH-4, virtualW/2, cy+4, virtualW-3, virtualH-4, 50, magenta)
+				cubeEdges := [][2]int{
+					{0, 1}, {1, 2}, {2, 3}, {3, 0}, // Ön yüz
+					{4, 5}, {5, 6}, {6, 7}, {7, 4}, // Arka yüz
+					{0, 4}, {1, 5}, {2, 6}, {3, 7}, // Bağlantı çizgileri
+				}
 
-				// Üçüncü dereceden Bezier dalgası
-				canvas.DrawBezierCubic(2, 4, virtualW/3, virtualH/3, 2*virtualW/3, 2*virtualH/3, virtualW-3, 4, 50, yellow)
+				projected := make([]struct {
+					x, y    int
+					visible bool
+				}, len(cubeVertices))
+
+				canvasW := float64(virtualW)
+				canvasH := float64(virtualH)
+
+				for i, v := range cubeVertices {
+					// Eksen rotasyonları uygula
+					v = v.RotateX(state.RotX)
+					v = v.RotateY(state.RotY)
+					v = v.RotateZ(state.RotZ)
+
+					// Projeksiyon (Mesafe: 3.5, Ölçek: canvas yüksekliğinin %40'ı)
+					scale := canvasH * 0.40
+					px, py, visible := graphics.Project(v, canvasW, canvasH, 3.5, scale)
+					projected[i] = struct {
+						x, y    int
+						visible bool
+					}{x: int(px), y: int(py), visible: visible}
+				}
+
+				// Çizgileri Canvas'a çiz (Neon Turkuaz renk stiliyle)
+				style := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
+				for _, edge := range cubeEdges {
+					p1 := projected[edge[0]]
+					p2 := projected[edge[1]]
+					if p1.visible && p2.visible {
+						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, style)
+					}
+				}
 			}
 
 			canvasBlock := widgets.Block{
-				Title:          " BRAILLE VEKTÖR GRAFİĞİ ",
+				Title:          " 📦 3D KÜP (Sürükleyerek Döndürün) ",
 				TitleAlignment: widgets.AlignLeft,
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
