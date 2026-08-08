@@ -582,7 +582,7 @@ func main() {
 						dx := int(ev.Mouse.X) - state.Drag3DLastX
 						dy := int(ev.Mouse.Y) - state.Drag3DLastY
 						state.RotY = math.Mod(state.RotY+float64(dx)*1.5, 360.0)
-						state.RotX = math.Mod(state.RotX+float64(dy)*1.5, 360.0)
+						state.RotX = math.Mod(state.RotX-float64(dy)*1.5, 360.0)
 						state.Drag3DLastX = int(ev.Mouse.X)
 						state.Drag3DLastY = int(ev.Mouse.Y)
 					}

@@ -190,9 +190,23 @@ func (c *Canvas) DrawTexturedTriangle(p0, p1, p2 graphics.Vertex2D, uv0, uv1, uv
 				col := img.At(imgMinX+tx, imgMinY+ty)
 				r, g, b, a := col.RGBA()
 
-				// Sadece görünür pikselleri çiz (saydam alanları korumak için alfa eşiği)
-				if a > 32768 {
-					style := cell.Style{Fg: cell.NewColorRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))}
+				uR := uint8(r>>8)
+				uG := uint8(g>>8)
+				uB := uint8(b>>8)
+
+				// Gri/beyaz dama tahtası arka planı tespit edip şeffaf yap (color-keying)
+				isGray := false
+				diff1 := int(uR) - int(uG)
+				diff2 := int(uG) - int(uB)
+				if diff1 < 0 { diff1 = -diff1 }
+				if diff2 < 0 { diff2 = -diff2 }
+				if diff1 <= 15 && diff2 <= 15 {
+					isGray = true
+				}
+
+				// Sadece görünür ve arka plan olmayan pikselleri çiz
+				if a > 32768 && !isGray {
+					style := cell.Style{Fg: cell.NewColorRGB(uR, uG, uB)}
 					c.Set(x, y, style)
 				}
 			}
