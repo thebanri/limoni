@@ -29,8 +29,17 @@ func ApplyDitherFade(newBuf *buffer.Buffer, oldBuf *buffer.Buffer, progress floa
 	h := newBuf.Area.Height
 
 	for y := uint16(0); y < h; y++ {
+		// Metin veya border karakteri içeren satırlarda hücre hücre geçiş
+		// yapılmaz. Böylece bir kelimenin karakterleri eski ve yeni frame'den
+		// karışık gelerek okunamaz hale gelmez.
+		textRow := transitionRowHasGlyph(oldBuf, newBuf, y, w)
+		rowThreshold := (float64(y) + 0.5) / float64(h)
+
 		for x := uint16(0); x < w; x++ {
 			threshold := bayer4x4[y%4][x%4]
+			if textRow {
+				threshold = rowThreshold
+			}
 			if progress < threshold {
 				// oldBuf hücresini newBuf'a kopyala
 				oldCell := oldBuf.Get(x+oldBuf.Area.X, y+oldBuf.Area.Y)
@@ -41,4 +50,19 @@ func ApplyDitherFade(newBuf *buffer.Buffer, oldBuf *buffer.Buffer, progress floa
 			}
 		}
 	}
+}
+
+// transitionRowHasGlyph, bir satırda karakter/border bulunduğunu belirler.
+// Boş veya yalnızca renkli grafik hücrelerinde Bayer dither korunur; metin
+// satırlarında ise bütün satır birlikte geçiş yapar.
+func transitionRowHasGlyph(oldBuf, newBuf *buffer.Buffer, y, width uint16) bool {
+	for x := uint16(0); x < width; x++ {
+		oldCell := oldBuf.Get(x+oldBuf.Area.X, y+oldBuf.Area.Y)
+		newCell := newBuf.Get(x+newBuf.Area.X, y+newBuf.Area.Y)
+		if (oldCell != nil && oldCell.Content != ' ' && oldCell.Content != 0) ||
+			(newCell != nil && newCell.Content != ' ' && newCell.Content != 0) {
+			return true
+		}
+	}
+	return false
 }

@@ -112,3 +112,22 @@ func (c *Cell) Reset() {
 	c.Content = ' '
 	c.Style.Reset()
 }
+
+// RuneContinuation, 2 sütun genişliğindeki karakterlerin ikinci yarısını işaretlemek için kullanılan özel Unicode değeridir.
+const RuneContinuation rune = 0xFFFE
+
+// RuneWidth, verilen karakterin terminalde kaç sütun genişliğinde çizileceğini hesaplar.
+func RuneWidth(r rune) int {
+	if r >= 0x1F000 && r <= 0x1FFFF {
+		return 2
+	}
+	// Yaygın emojiler ve CJK (Uzak Doğu) karakter grupları
+	if (r >= 0x2600 && r <= 0x27BF) ||
+		(r >= 0x2E80 && r <= 0x9FFF) ||
+		(r >= 0xF900 && r <= 0xFAFF) ||
+		(r >= 0xFF00 && r <= 0xFFEF) {
+		return 2
+	}
+	return 1
+}
+

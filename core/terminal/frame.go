@@ -233,10 +233,16 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		return
 	}
 
-	// Hata ayıklama bölgesi olarak kaydet
+	// Hata ayıklama bölgesi olarak kaydet. Overlay widget'ları çizim için
+	// tam ekran alanı kullanabilir; DebugArea ile gerçek görünür sınırlarını
+	// ayrıca bildirebilirler.
 	wType := fmt.Sprintf("%T", w)
 	if idx := strings.Index(wType, "."); idx != -1 {
 		wType = wType[idx+1:]
+	}
+	debugArea := area
+	if provider, ok := w.(interface{ DebugArea(cell.Rect) cell.Rect }); ok {
+		debugArea = provider.DebugArea(area)
 	}
 	zIndex := 0
 	if f.activeLayerID != "" {
@@ -250,7 +256,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		zIndex = 10
 	}
 	f.DebugRegions = append(f.DebugRegions, DebugRegion{
-		Area:       area,
+		Area:       debugArea,
 		WidgetType: wType,
 		ZIndex:     zIndex,
 	})

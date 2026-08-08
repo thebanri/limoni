@@ -174,21 +174,33 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 ---
 
 - **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers) [TAMAMLANDI]**
-  - `widgets.Transducer` ve lokal dither sekme geçişleri ile animasyonlu modal geçişleri tamamlandı.
+  - `widgets.Transducer` ve dither tabanlı sekme/modal geçişleri tamamlandı.
+  - Sekme geçişindeki bozuk/parçalı yazıları önlemek için çift dither uygulaması kaldırıldı; eski ve yeni frame artık Terminal seviyesindeki tekil geçiş motorunda güvenli şekilde harmanlanır.
+  - Debug HUD, dither geçişinden sonra çizilecek şekilde sıralandı; böylece debug sınırları ve etiketleri geçiş efekti tarafından soluklaştırılmaz.
+  - Geçiş sırasında geçici gövde buffer'ı yerine tam frame geçişi kullanıldığı için widget metinleri temiz hücrelerle karışmaz ve koordinat kayması oluşmaz.
+  - Metin veya border içeren satırlar geçiş sırasında atomik olarak değiştirilir; karakterlerin eski/yeni frame arasında parçalanması engellenir. Boş/grafik hücrelerde Bayer dither korunur.
 - **Faz 21: 3 Boyutlu Vektör Grafik Motoru (3D Wireframe Graphics Engine) [TAMAMLANDI]**
   - Perspektif projeksiyon (`Project`) ve eksen rotasyon (`RotateX`/`RotateY`/`RotateZ`) fonksiyonları eklendi.
   - Braille Canvas üzerinde otomatik dönen ve sol tık sürüklemeyle yönlendirilebilen 3D Küp entegrasyonu tamamlandı.
 
+- **Faz 22: Komut Paleti ve Kısayol Yönlendirici (Command Palette & Keybindings) [TAMAMLANDI]**
+  - `Ctrl+P` ile açılan, tüm sekmeler ve eylemler arasında bulanık arama (fuzzy search) yapıp tetikleyen `CommandPalette` widget'ı (`widgets/command_palette.go`) geliştirildi.
+  - `CommandItem` (Label, Detail, Category, Handler) yapısı ve `CommandPaletteState` (IsOpen, Query, Selected, ScrollOffset, MaxVisible) durum yönetimi kodlandı.
+  - VS Code tarzı puanlama (ardışık eşleşme, kelime başı, CamelCase bonusları) içeren `FuzzyMatch` ve `FuzzyFilter` bulanık arama motoru (`widgets/fuzzy.go`) tamamlandı.
+  - Declarative klavye kısayol yöneticisi `KeybindingManager` (`widgets/keybinding.go`) geliştirildi; `Register`/`Handle`/`ToCommandItems` API'leri ile event loop'a bağlandı.
+  - `formatKeybinding` kısayolları okunabilir metne (örn. `Ctrl+P`, `Shift+Tab`, `↑`) dönüştürür.
+  - Demo'ya (`examples/demo/main.go`) entegre edildi: `Ctrl+P` ile aç/kapa, palet açıkken tüm tuşlar palete yönlendirilir, `Enter` seçili komutu çalıştırır.
+  - Komut paletinden 3D model veya render stili seçildiğinde otomatik olarak `Grafik` sekmesine geçilir; seçilen değişiklik doğrudan görünür.
+  - `CommandPalette.DebugArea()` ve `Frame.RenderWidget` debug-area provider köprüsü ile panelin debug sınırı gerçek ortalanmış panel alanında gösterilir; tam terminal alanı yanlışlıkla panel sınırı olarak raporlanmaz.
+  - Birim testleri eklendi: `widgets/command_palette_test.go`, `widgets/keybinding_test.go`, `widgets/fuzzy_test.go`.
+
 ---
 
-## 5. Gelecek Yol Haritası (Faz 22 - Faz 23)
+## 5. Gelecek Yol Haritası (Faz 23)
 
 Projeyi devralan ajanın sırasıyla gerçekleştirmesi beklenen sonraki aşamalar:
 
-1. **Faz 22: Komut Paleti ve Kısayol Yönlendirici (Command Palette & Keybindings)**:
-   - `Ctrl+P` ile açılan, tüm sekmeler ve eylemler arasında bulanık arama (fuzzy search) yapıp tetikleyen bir Komut Paleti (Command Palette) widget'ı tasarlamak.
-   - Declarative klavye kısayol yöneticisi paketi geliştirip event loop'a bağlamak.
-2. **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma (Table Cell Spanning & Column Resizing)**:
+1. **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma (Table Cell Spanning & Column Resizing)**:
    - Tablonun sütun sınırlarının fareyle sürüklenerek genişletilip daraltılabilmesi.
    - `colSpan` ve `rowSpan` özellikleriyle tablo içinde birleşik hücre desteği kazandırmak.
 
@@ -211,8 +223,8 @@ limoni/
 │   │   ├── termios_linux # Unix ioctl çağrıları ile Pure Go Raw Mode kontrolü\ n│   │   ├── parser.go     # Klavye/mouse/focus/hover ANSI dizi çözümleyicisi
 │   │   └── backend.go    # SIGWINCH ve 25ms ESC timeout asenkron Event Loop
 │   └── terminal/
-│       ├── frame.go      # Kare çizim bağlamı, Click handler kaydı, Layer API
-│       ├── terminal.go   # Terminal yöneticisi, Draw döngüsü, Multi-layer Mouse Router
+│       ├── frame.go      # Kare çizim bağlamı, Click handler kaydı, Layer API, DebugArea provider
+│       ├── terminal.go   # Terminal yöneticisi, Draw döngüsü, Multi-layer Mouse Router, Debug HUD
 │       ├── focus.go      # FocusManager: Tab/Shift-Tab navigasyonu
 │       └── modal.go      # Modal, Layer, LayerType yapıları, CenterRect, ContainsRect
 ├── layout/
@@ -230,7 +242,10 @@ limoni/
 │   ├── popup.go          # Açılır menü (dropdown) widget'ı
 │   ├── canvas.go         # Braille 2x4 alt piksel çözünürlüklü çizim alanı
 │   ├── vector.go         # Bresenham çizgi, daire, dikdörtgen, bezier eğri çizimi
-│   └── image.go          # Kitty/Sixel/iTerm2/HalfBlock resim gösterimi
+│   ├── image.go          # Kitty/Sixel/iTerm2/HalfBlock resim gösterimi
+│   ├── command_palette.go # Faz 22: Komut Paleti (Ctrl+P, fuzzy arama, CommandItem)
+│   ├── keybinding.go     # Faz 22: Declarative klavye kısayol yöneticisi (KeybindingManager)
+│   └── fuzzy.go          # Faz 22: VS Code tarzı bulanık arama motoru (FuzzyMatch/FuzzyFilter)
 ├── animation/
 │   ├── float.go          # Zaman tabanlı float interpolasyonu
 │   ├── color.go          # RGB renk geçiş animasyonu

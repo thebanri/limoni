@@ -21,13 +21,6 @@ import (
 	"github.com/thebanri/limoni/widgets"
 )
 
-var bayer4x4 = [4][4]float64{
-	{0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0},
-	{12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0},
-	{3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0},
-	{15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0},
-}
-
 type ProcessInfo struct {
 	PID    string
 	Name   string
@@ -101,15 +94,15 @@ type AppState struct {
 	CPUHistory     []float64
 
 	// Sürükleme ve Yardım Modali özellikleri
-	ShowHelpDialog      bool
-	HelpDialogAnim      *animation.Float
-	IsDraggingModal     bool
-	DragMouseStartX     int
-	DragMouseStartY     int
-	ModalOffsetX        int
-	ModalOffsetY        int
-	ModalDragBaseX      int
-	ModalDragBaseY      int
+	ShowHelpDialog  bool
+	HelpDialogAnim  *animation.Float
+	IsDraggingModal bool
+	DragMouseStartX int
+	DragMouseStartY int
+	ModalOffsetX    int
+	ModalOffsetY    int
+	ModalDragBaseX  int
+	ModalDragBaseY  int
 
 	// Hata ayıklama modu
 	DebugMode bool
@@ -122,7 +115,8 @@ type AppState struct {
 	Drag3DLastX  int
 	Drag3DLastY  int
 	AppleImg     image.Image
-	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü"
+	ColaImg      image.Image
+	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü", "Kola Şişesi"
 	ThreeDStyle  string // "Dokulu", "Dolu Renkli", "Kafes"
 
 	// Pencere boyutlandırma (Resizing) özellikleri
@@ -131,6 +125,10 @@ type AppState struct {
 	ModalResizeBaseH int
 	HelpDialogW      int
 	HelpDialogH      int
+
+	// Komut Paleti ve Kısayol Yöneticisi
+	CmdPalette *widgets.CommandPaletteState
+	KeyManager *widgets.KeybindingManager
 }
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
@@ -293,9 +291,9 @@ func main() {
 		RotX:               30.0,
 		RotY:               45.0,
 		RotZ:               0.0,
-		IsResizingModal:     false,
-		HelpDialogW:         64,
-		HelpDialogH:         16,
+		IsResizingModal:    false,
+		HelpDialogW:        64,
+		HelpDialogH:        16,
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
 		Processes: []ProcessInfo{
@@ -365,8 +363,109 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Limoni Doku Dosyasi Acilamadi (Cift Yol Denendi): %v\n", err)
 	}
 
+	// Kola şişesi texture'ı: kullanıcı internetten indirdiği PNG'yi
+	// examples/demo/cola_bottle.png veya çalışma dizinindeki cola_bottle.png
+	// konumuna koyabilir. Dosya yoksa örneği çalışır tutmak için apple.png fallback'i kullanılır.
+	colaFile, colaErr := os.Open("examples/demo/cola_bottle.png")
+	if colaErr != nil {
+		colaFile, colaErr = os.Open("cola_bottle.png")
+	}
+	if colaErr == nil {
+		defer colaFile.Close()
+		colaImg, _, decodeErr := image.Decode(colaFile)
+		if decodeErr == nil {
+			state.ColaImg = colaImg
+		} else {
+			fmt.Fprintf(os.Stderr, "Kola Doku Cozumleme Hatasi: %v\n", decodeErr)
+		}
+	} else {
+		state.ColaImg = state.AppleImg
+		fmt.Fprintf(os.Stderr, "Kola texture bulunamadı; apple.png fallback kullanılıyor: %v\n", colaErr)
+	}
+
 	state.ThreeDModel = "Küp"
 	state.ThreeDStyle = "Dokulu"
+
+	// Komut Paleti ve Kısayol Yöneticisi başlat
+	state.CmdPalette = widgets.NewCommandPaletteState()
+	state.KeyManager = widgets.NewKeybindingManager()
+
+	// Navigasyon kısayolları kaydet
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
+		Label: "Komut Paletini Aç/Kapa", Category: "Genel",
+		Handler: func() { state.CmdPalette.Toggle() },
+	})
+
+	// Sekme navigasyon komutlarını Command Palette'e kaydet
+	cmdItems := []widgets.CommandItem{
+		{Label: "Giriş Sekmesine Git", Detail: "", Category: "Navigasyon",
+			Handler: func() {
+				if state.ActiveTab != "Giriş" {
+					state.ActiveTab = "Giriş"
+					t.FocusManager().SetFocused("")
+					state.TransitionStartTime = time.Now()
+					state.IsTransitioning = true
+				}
+			}},
+		{Label: "Ayarlar Sekmesine Git", Detail: "", Category: "Navigasyon",
+			Handler: func() {
+				if state.ActiveTab != "Ayarlar" {
+					state.ActiveTab = "Ayarlar"
+					t.FocusManager().SetFocused("")
+					state.TransitionStartTime = time.Now()
+					state.IsTransitioning = true
+				}
+			}},
+		{Label: "Grafik Sekmesine Git", Detail: "", Category: "Navigasyon",
+			Handler: func() {
+				if state.ActiveTab != "Grafik" {
+					state.ActiveTab = "Grafik"
+					t.FocusManager().SetFocused("")
+					state.TransitionStartTime = time.Now()
+					state.IsTransitioning = true
+				}
+			}},
+		{Label: "Playground Sekmesine Git", Detail: "", Category: "Navigasyon",
+			Handler: func() {
+				if state.ActiveTab != "Playground" {
+					state.ActiveTab = "Playground"
+					t.FocusManager().SetFocused("")
+					state.TransitionStartTime = time.Now()
+					state.IsTransitioning = true
+				}
+			}},
+
+		{Label: "Yardım Panelini Aç", Detail: "?", Category: "Görünüm",
+			Handler: func() {
+				state.ShowHelpDialog = true
+				state.ModalOffsetX = 0
+				state.ModalOffsetY = 0
+				state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+			}},
+		{Label: "Hata Ayıklama Modunu Aç/Kapa", Detail: "Ctrl+D", Category: "Görünüm",
+			Handler: func() { state.DebugMode = !state.DebugMode }},
+
+		{Label: "3D Model: Küp", Detail: "1", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Küp" }},
+		{Label: "3D Model: Piramit", Detail: "2", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Piramit" }},
+		{Label: "3D Model: Dörtyüzlü", Detail: "3", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Dörtyüzlü" }},
+		{Label: "3D Model: Kola Şişesi", Detail: "7", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Kola Şişesi" }},
+		{Label: "Render Stili: Dokulu", Detail: "4", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dokulu" }},
+		{Label: "Render Stili: Dolu Renkli", Detail: "5", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dolu Renkli" }},
+		{Label: "Render Stili: Kafes", Detail: "6", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Kafes" }},
+	}
+
+	// KeybindingManager'dan otomatik olarak kısayol komutlarını da ekle
+	cmdItems = append(cmdItems, state.KeyManager.ToCommandItems()...)
+	state.CmdPalette.AllItems = cmdItems
+	state.CmdPalette.Filtered = widgets.FuzzyFilter("", cmdItems)
 
 	// 30 FPS zamanlayıcısı (~33ms)
 	ticker := time.NewTicker(33 * time.Millisecond)
@@ -389,6 +488,16 @@ func main() {
 			switch ev.Type {
 			case backend.EventKey:
 				focused := t.FocusManager().Focused()
+
+				// Palet açıksa tüm tuşları ona yönlendir. Ctrl+P burada
+				// paleti kapatır; kapalıyken aşağıdaki KeybindingManager açar.
+				if state.CmdPalette.HandleKey(ev.Key) {
+					break
+				}
+				// Declarative kısayolların merkezi yönlendiricisi.
+				if state.KeyManager.Handle(ev.Key) {
+					break
+				}
 
 				// Hata ayıklama modunu (Layout Inspector) her koşulda en öncelikli global kısayol olarak dinle
 				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'd' && ev.Key.Ctrl {
@@ -538,6 +647,9 @@ func main() {
 						case '3':
 							state.ThreeDModel = "Dörtyüzlü"
 							state.LastKey = "Model: Dörtyüzlü"
+						case '7':
+							state.ThreeDModel = "Kola Şişesi"
+							state.LastKey = "Model: Kola Şişesi"
 						case '4':
 							state.ThreeDStyle = "Dokulu"
 							state.LastKey = "Stil: Dokulu"
@@ -611,10 +723,18 @@ func main() {
 						newW := state.ModalResizeBaseW + dx
 						newH := state.ModalResizeBaseH + dy
 						// Sınırlandırmalar (minimum/maksimum boyutlar)
-						if newW < 40 { newW = 40 }
-						if newW > 100 { newW = 100 }
-						if newH < 10 { newH = 10 }
-						if newH > 30 { newH = 30 }
+						if newW < 40 {
+							newW = 40
+						}
+						if newW > 100 {
+							newW = 100
+						}
+						if newH < 10 {
+							newH = 10
+						}
+						if newH > 30 {
+							newH = 30
+						}
 						state.HelpDialogW = newW
 						state.HelpDialogH = newH
 					} else if state.IsDragging3D {
@@ -656,6 +776,8 @@ func main() {
 					progress = 1.0
 					state.IsTransitioning = false
 					t.SetTransitionActive(false)
+				} else {
+					t.SetTransitionActive(true)
 				}
 				t.SetTransitionProgress(progress)
 			}
@@ -682,13 +804,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		var mainColor, accentColor cell.Color
 		switch state.ThemeSelected {
 		case "Koyu":
-			mainColor = cell.NewColorRGB(0, 255, 255)   // Cyan
-			accentColor = cell.NewColorRGB(0, 255, 0)   // Yeşil
+			mainColor = cell.NewColorRGB(0, 255, 255) // Cyan
+			accentColor = cell.NewColorRGB(0, 255, 0) // Yeşil
 		case "Açık":
-			mainColor = cell.NewColorRGB(0, 100, 255)  // Mavi
+			mainColor = cell.NewColorRGB(0, 100, 255)     // Mavi
 			accentColor = cell.NewColorRGB(200, 200, 200) // Açık Gri
 		case "Renkli":
-			mainColor = cell.NewColorRGB(255, 165, 0)  // Turuncu
+			mainColor = cell.NewColorRGB(255, 165, 0)   // Turuncu
 			accentColor = cell.NewColorRGB(255, 0, 255) // Magenta / Mor
 		}
 
@@ -752,7 +874,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		// Sol Panel (Menü Bölmesi) - Dikeyde 5 adet buton ve esnek boşluk içerir
 		menuLay := layout.NewFlexLayout(
 			layout.Vertical,
-			1, // Butonlar arasında 1 satır boşluk
+			1,               // Butonlar arasında 1 satır boşluk
 			layout.Fixed(3), // Giriş Butonu
 			layout.Fixed(3), // Ayarlar Butonu
 			layout.Fixed(3), // Grafik Butonu
@@ -794,6 +916,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						t.FocusManager().SetFocused("") // Sekme değiştirince önceki odağı sıfırla
 						state.TransitionStartTime = time.Now()
 						state.IsTransitioning = true
+						t.SetTransitionActive(true)
 					}
 				}
 			})
@@ -808,26 +931,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		// Çıkış buton alanı koordinatını kaydet
 		state.ExitButtonArea = menuChunks[4]
 
-		// Dither geçiş ilerleme hesabı
-		tabTransitionProgress := 1.0
-		if state.IsTransitioning {
-			elapsed := time.Since(state.TransitionStartTime)
-			tabTransitionProgress = float64(elapsed) / float64(250*time.Millisecond)
-			if tabTransitionProgress > 1.0 {
-				tabTransitionProgress = 1.0
-			}
-		}
-
-		var origBuf *buffer.Buffer
-		var tempBuf *buffer.Buffer
-		origBodyArea := bodyChunks[1]
-
-		if tabTransitionProgress < 1.0 {
-			tempBuf = buffer.NewBuffer(cell.NewRect(0, 0, origBodyArea.Width, origBodyArea.Height))
-			origBuf = f.Buffer
-			f.Buffer = tempBuf
-			bodyChunks[1] = cell.NewRect(0, 0, origBodyArea.Width, origBodyArea.Height)
-		}
+		// Sekme geçişi Terminal seviyesindeki dither motoru tarafından uygulanır.
+		// Böylece eski frame ile yeni frame tüm hücrelerde doğru şekilde harmanlanır;
+		// gövdeyi ayrı bir geçici buffer'a çizip gösterilmeyen hücreleri temiz bırakmayız.
 
 		// Sağ Panel (İçerik Paneli) Çizimi
 		switch state.ActiveTab {
@@ -895,11 +1001,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				},
 				Rows: tableRows,
 				Constraints: []widgets.TableConstraint{
-					{Type: widgets.ConstraintFixed, Value: 6},   // PID
+					{Type: widgets.ConstraintFixed, Value: 6},       // PID
 					{Type: widgets.ConstraintPercentage, Value: 30}, // Name
-					{Type: widgets.ConstraintFixed, Value: 8},   // CPU
-					{Type: widgets.ConstraintFixed, Value: 12},  // Memory
-					{Type: widgets.ConstraintFill},               // Status
+					{Type: widgets.ConstraintFixed, Value: 8},       // CPU
+					{Type: widgets.ConstraintFixed, Value: 12},      // Memory
+					{Type: widgets.ConstraintFill},                  // Status
 				},
 				State:     state.TableState,
 				GridStyle: cell.Style{Fg: cell.NewColorRGB(70, 70, 70)},
@@ -955,7 +1061,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			// 2. İç form elemanlarını çiz
 			f.RenderWidget(label{text: "Tab / Shift+Tab veya Ok tuşları ile odaklanıp Space ile seçin.", style: cell.Style{Fg: cell.NewColorRGB(160, 160, 160), Modifier: cell.ModifierItalic}}, formChunks[0])
-			
+
 			// Kullanıcı adı kutusu
 			inputBorderCol := cell.NewColorRGB(100, 100, 100)
 			if t.FocusManager().Focused() == "username_input" {
@@ -1166,13 +1272,52 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						{2, 3, 4},    // Arka yüz
 						{3, 0, 4},    // Sol yüz
 					}
+				case "Kola Şişesi":
+					// Düşük poligonlu kola şişesi: dört yatay halka ve
+					// halkalar arasında UV kaplı quad yüzler.
+					const bottleSegments = 10
+					rings := []struct {
+						y, radius float64
+					}{
+						{y: 1.15, radius: 0.62},  // taban
+						{y: 0.55, radius: 0.68},  // gövde altı
+						{y: -0.55, radius: 0.68}, // gövde üstü
+						{y: -0.82, radius: 0.34}, // omuz
+						{y: -1.18, radius: 0.30}, // boyun
+					}
+					for _, ring := range rings {
+						for s := 0; s < bottleSegments; s++ {
+							angle := 2 * math.Pi * float64(s) / bottleSegments
+							vertices = append(vertices, graphics.Vertex3D{
+								X: ring.radius * math.Cos(angle),
+								Y: ring.y,
+								Z: ring.radius * math.Sin(angle),
+							})
+						}
+					}
+					for r := 0; r < len(rings)-1; r++ {
+						for s := 0; s < bottleSegments; s++ {
+							next := (s + 1) % bottleSegments
+							base := r * bottleSegments
+							top := (r + 1) * bottleSegments
+							faces = append(faces, []int{base + s, base + next, top + next, top + s})
+						}
+					}
+					// Alt ve üst kapaklar.
+					bottom := make([]int, bottleSegments)
+					top := make([]int, bottleSegments)
+					for s := 0; s < bottleSegments; s++ {
+						bottom[s] = s
+						top[s] = (len(rings)-1)*bottleSegments + s
+					}
+					faces = append(faces, bottom, top)
 				case "Dörtyüzlü":
 					// Düzgün Dörtyüzlü (Üçgen Piramit)
 					vertices = []graphics.Vertex3D{
-						{X: 0.0, Y: -1.2, Z: 0.0},    // 0: tepe
-						{X: -1.0, Y: 0.8, Z: -0.8},   // 1: sol-ön
-						{X: 1.0, Y: 0.8, Z: -0.8},    // 2: sağ-ön
-						{X: 0.0, Y: 0.8, Z: 1.2},     // 3: arka
+						{X: 0.0, Y: -1.2, Z: 0.0},  // 0: tepe
+						{X: -1.0, Y: 0.8, Z: -0.8}, // 1: sol-ön
+						{X: 1.0, Y: 0.8, Z: -0.8},  // 2: sağ-ön
+						{X: 0.0, Y: 0.8, Z: 1.2},   // 3: arka
 					}
 					faces = [][]int{
 						{1, 2, 3}, // Taban
@@ -1226,16 +1371,25 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 				// Yüzey renkleri (Dolu Renkli mod için prizmatik renk geçişleri)
 				faceColors := []cell.Color{
-					cell.NewColorRGB(0, 255, 255),   // Neon Turkuaz
-					cell.NewColorRGB(255, 0, 255),   // Neon Pembe
-					cell.NewColorRGB(255, 255, 0),   // Neon Sarı
-					cell.NewColorRGB(0, 255, 0),     // Neon Yeşil
-					cell.NewColorRGB(255, 128, 0),   // Neon Turuncu
-					cell.NewColorRGB(0, 128, 255),   // Neon Mavi
+					cell.NewColorRGB(0, 255, 255), // Neon Turkuaz
+					cell.NewColorRGB(255, 0, 255), // Neon Pembe
+					cell.NewColorRGB(255, 255, 0), // Neon Sarı
+					cell.NewColorRGB(0, 255, 0),   // Neon Yeşil
+					cell.NewColorRGB(255, 128, 0), // Neon Turuncu
+					cell.NewColorRGB(0, 128, 255), // Neon Mavi
 				}
 
-				// Yüzeyleri kapla ve kenarlıkları çiz
-				style := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
+				textureImg := state.AppleImg
+				if state.ThreeDModel == "Kola Şişesi" && state.ColaImg != nil {
+					textureImg = state.ColaImg
+				}
+
+				// Yüzeyleri kapla ve kenarlıkları çiz. Texture modunda neon cyan
+				// kenarlar resmin üzerine baskın gelip mavi renk karışımı oluşturmasın.
+				wireStyle := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
+				if state.ThreeDStyle == "Dokulu" {
+					wireStyle = cell.Style{Fg: cell.NewColorRGB(150, 150, 150)}
+				}
 				for faceIdx, face := range faces {
 					if len(face) < 3 {
 						continue
@@ -1264,7 +1418,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					// 2D Winding / Back-face Culling Testi
 					cross := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
 					if cross < 0 {
-						if state.ThreeDStyle == "Dokulu" && state.AppleImg != nil {
+						if state.ThreeDStyle == "Dokulu" && textureImg != nil {
 							if isQuad {
 								uv0 := graphics.UV{U: 0.0, V: 1.0}
 								uv1 := graphics.UV{U: 1.0, V: 1.0}
@@ -1275,13 +1429,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-									uv0, uv1, uv2, state.AppleImg,
+									uv0, uv1, uv2, textureImg,
 								)
 								canvas.DrawTexturedTriangle(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
 									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
-									uv0, uv2, uv3, state.AppleImg,
+									uv0, uv2, uv3, textureImg,
 								)
 							} else {
 								uv0 := graphics.UV{U: 0.0, V: 1.0}
@@ -1292,7 +1446,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-									uv0, uv1, uv2, state.AppleImg,
+									uv0, uv1, uv2, textureImg,
 								)
 							}
 						} else if state.ThreeDStyle == "Dolu Renkli" {
@@ -1322,13 +1476,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						}
 
 						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin görünmesini engeller)
-						canvas.DrawLine(p0.x, p0.y, p1.x, p1.y, style)
-						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, style)
+						canvas.DrawLine(p0.x, p0.y, p1.x, p1.y, wireStyle)
+						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, wireStyle)
 						if isQuad {
-							canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, style)
-							canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, style)
+							canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, wireStyle)
+							canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, wireStyle)
 						} else {
-							canvas.DrawLine(p2.x, p2.y, p0.x, p0.y, style)
+							canvas.DrawLine(p2.x, p2.y, p0.x, p0.y, wireStyle)
 						}
 					}
 				}
@@ -1368,8 +1522,12 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			if state.ThreeDModel == "Dörtyüzlü" {
 				dortyuzluLabel = " 🔴 [3] Dörtyüzlü (Aktif) "
 			}
+			colaLabel := " [7] Kola Şişesi "
+			if state.ThreeDModel == "Kola Şişesi" {
+				colaLabel = " 🔴 [7] Kola Şişesi (Aktif) "
+			}
 
-			dokuluLabel := " [4] Dokulu (Elma Görseli) "
+			dokuluLabel := " [4] Dokulu (PNG Texture) "
 			if state.ThreeDStyle == "Dokulu" {
 				dokuluLabel = " 🟢 [4] Dokulu (Aktif) "
 			}
@@ -1383,10 +1541,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 
 			var ctrlLines []string
-			ctrlLines = append(ctrlLines, "Model Seçimi (Klavye 1-3):")
+			ctrlLines = append(ctrlLines, "Model Seçimi (Klavye 1-3 / 7):")
 			ctrlLines = append(ctrlLines, "  "+modelLabel)
 			ctrlLines = append(ctrlLines, "  "+piramitLabel)
 			ctrlLines = append(ctrlLines, "  "+dortyuzluLabel)
+			ctrlLines = append(ctrlLines, "  "+colaLabel)
 			ctrlLines = append(ctrlLines, "")
 			ctrlLines = append(ctrlLines, "Render Stili (Klavye 4-6):")
 			ctrlLines = append(ctrlLines, "  "+dokuluLabel)
@@ -1460,11 +1619,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(label{text: dirText, style: cell.Style{Fg: accentColor}}, ctrlRows[2])
 
 			// Tıklama alanları (Fare ile yön değiştirme)
-			horizClickArea := cell.NewRect(ctrlRows[2].X + 1, ctrlRows[2].Y, 9, 1)
+			horizClickArea := cell.NewRect(ctrlRows[2].X+1, ctrlRows[2].Y, 9, 1)
 			f.RegisterClickHandler(horizClickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundDir = layout.Horizontal
 			})
-			vertClickArea := cell.NewRect(ctrlRows[2].X + 12, ctrlRows[2].Y, 9, 1)
+			vertClickArea := cell.NewRect(ctrlRows[2].X+12, ctrlRows[2].Y, 9, 1)
 			f.RegisterClickHandler(vertClickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundDir = layout.Vertical
 			})
@@ -1516,15 +1675,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(label{text: borderText, style: cell.Style{Fg: accentColor}}, ctrlRows[6])
 
 			// Tıklama alanları (Kenarlık değiştirme)
-			ovalArea := cell.NewRect(ctrlRows[6].X + 1, ctrlRows[6].Y, 7, 1)
+			ovalArea := cell.NewRect(ctrlRows[6].X+1, ctrlRows[6].Y, 7, 1)
 			f.RegisterClickHandler(ovalArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Rounded"
 			})
-			doubleArea := cell.NewRect(ctrlRows[6].X + 10, ctrlRows[6].Y, 7, 1)
+			doubleArea := cell.NewRect(ctrlRows[6].X+10, ctrlRows[6].Y, 7, 1)
 			f.RegisterClickHandler(doubleArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Double"
 			})
-			thickArea := cell.NewRect(ctrlRows[6].X + 19, ctrlRows[6].Y, 8, 1)
+			thickArea := cell.NewRect(ctrlRows[6].X+19, ctrlRows[6].Y, 8, 1)
 			f.RegisterClickHandler(thickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Thick"
 			})
@@ -1541,15 +1700,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(label{text: modText, style: cell.Style{Fg: accentColor}}, ctrlRows[8])
 
 			// Tıklama alanları (Mod değiştirme)
-			circleModeArea := cell.NewRect(ctrlRows[8].X + 1, ctrlRows[8].Y, 9, 1)
+			circleModeArea := cell.NewRect(ctrlRows[8].X+1, ctrlRows[8].Y, 9, 1)
 			f.RegisterClickHandler(circleModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Vector"
 			})
-			matrixModeArea := cell.NewRect(ctrlRows[8].X + 12, ctrlRows[8].Y, 9, 1)
+			matrixModeArea := cell.NewRect(ctrlRows[8].X+12, ctrlRows[8].Y, 9, 1)
 			f.RegisterClickHandler(matrixModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Matrix"
 			})
-			chartModeArea := cell.NewRect(ctrlRows[8].X + 23, ctrlRows[8].Y, 9, 1)
+			chartModeArea := cell.NewRect(ctrlRows[8].X+23, ctrlRows[8].Y, 9, 1)
 			f.RegisterClickHandler(chartModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Chart"
 			})
@@ -1707,24 +1866,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Child:          childWidget,
 			}
 			f.RenderWidget(canvasBlock, canvasArea)
-		}
-
-		if tabTransitionProgress < 1.0 {
-			f.Buffer = origBuf
-			bodyChunks[1] = origBodyArea
-
-			// Bayer 4x4 matrisi kullanarak lokal dither geçişini uygula
-			for y := uint16(0); y < origBodyArea.Height; y++ {
-				for x := uint16(0); x < origBodyArea.Width; x++ {
-					threshold := bayer4x4[y%4][x%4]
-					if tabTransitionProgress >= threshold {
-						cellPtr := tempBuf.Get(x, y)
-						if cellPtr != nil {
-							f.Buffer.SetCell(origBodyArea.X+x, origBodyArea.Y+y, *cellPtr)
-						}
-					}
-				}
-			}
 		}
 
 		// 4. Footer (Alt Bilgi Satırı) Çizimi
@@ -1895,6 +2036,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Child:   widgets.Image{Img: state.ActiveImg, CircleMask: true, ForceHalfBlock: true},
 			}
 			f.RenderWidget(avatarBlock, helpChunks[1])
+		}
+
+		// 7. KOMUT PALETİ OVERLAY ÇİZİMİ (En üst katman)
+		if state.CmdPalette.IsOpen {
+			palette := widgets.CommandPalette{
+				State: state.CmdPalette,
+			}
+			f.RenderWidget(palette, f.Buffer.Area)
 		}
 	})
 }

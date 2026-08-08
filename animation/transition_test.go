@@ -32,7 +32,7 @@ func TestApplyDitherFade(t *testing.T) {
 		}
 	}
 
-	// Test progress = 0.5 (half 'A's, half 'B's based on Bayer threshold)
+	// Test progress = 0.5: glyph içeren satırlar bütün olarak geçer
 	testBuf2 := buffer.NewBuffer(cell.NewRect(0, 0, 4, 4))
 	copy(testBuf2.Content, newBuf.Content)
 	ApplyDitherFade(testBuf2, oldBuf, 0.5)
@@ -47,10 +47,9 @@ func TestApplyDitherFade(t *testing.T) {
 		}
 	}
 
-	// For a 4x4 grid (16 cells) and a 0.5 threshold, exactly 7 cells should be 'A' (threshold > 0.5)
-	// and 9 cells should be 'B' (threshold <= 0.5)
-	if countA != 7 || countB != 9 {
-		t.Errorf("Expected 7 'A's and 9 'B's at progress 0.5, got %d 'A's and %d 'B's", countA, countB)
+	// Dört satırın iki tanesi eski, iki tanesi yeni frame'de kalmalı.
+	if countA != 8 || countB != 8 {
+		t.Errorf("Expected 8 'A's and 8 'B's at progress 0.5, got %d 'A's and %d 'B's", countA, countB)
 	}
 
 	// Test progress = 1.0 (should remain newBuf completely, so all 'B')

@@ -172,3 +172,41 @@ func BenchmarkDiff_FullChanges(b *testing.B) {
 		out, _ = Diff(front, back, out)
 	}
 }
+
+func TestDiffWideCharacters(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// SetString ile emoji yaz
+	style := cell.Style{}
+	front.SetString(0, 0, "🔴A", style)
+
+	// front buffer hücrelerini doğrula
+	if front.Get(0, 0).Content != '🔴' {
+		t.Errorf("Beklenen emoji U+1F534, alınan: %c", front.Get(0, 0).Content)
+	}
+	if front.Get(1, 0).Content != cell.RuneContinuation {
+		t.Errorf("Beklenen continuation karakteri U+FFFE, alınan: %x", front.Get(1, 0).Content)
+	}
+	if front.Get(2, 0).Content != 'A' {
+		t.Errorf("Beklenen karakter A, alınan: %c", front.Get(2, 0).Content)
+	}
+
+	out := make([]byte, 0, 1024)
+	out, err := Diff(front, back, out)
+	if err != nil {
+		t.Fatalf("Diff hatası: %v", err)
+	}
+
+	// 🔴 (U+1F534) utf-8 olarak 4 byte kaplar. A ise 1 byte.
+	// Diff çıktısında continuation hücresi (index 1) yazılmamalıdır.
+	// Yani sadece 🔴 ve A yazılmalıdır.
+	if !bytes.Contains(out, []byte("🔴")) {
+		t.Errorf("Çıktı emojiyi içermeliydi: %q", string(out))
+	}
+	if !bytes.Contains(out, []byte("A")) {
+		t.Errorf("Çıktı 'A' karakterini içermeliydi: %q", string(out))
+	}
+}
+

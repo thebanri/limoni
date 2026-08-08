@@ -83,11 +83,21 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 			break
 		}
 
+		w := cell.RuneWidth(r)
+		if currX+uint16(w) > b.Area.Width {
+			break // Sınır dışına taşmayı engelle
+		}
+
 		idx := y*b.Area.Width + currX
 		b.Content[idx].Content = r
 		b.Content[idx].Style = style
 
-		currX++
+		if w == 2 {
+			b.Content[idx+1].Content = cell.RuneContinuation
+			b.Content[idx+1].Style = style
+		}
+
+		currX += uint16(w)
 		input = input[size:]
 	}
 }

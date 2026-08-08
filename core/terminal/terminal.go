@@ -102,14 +102,18 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		fn(t.frame)
 	}
 
-	// Hata ayıklama modu aktifse, ekranın üzerine yerleşim sınırlarını kapla (HUD Overlay)
-	if t.debugMode {
-		t.drawDebugOverlay()
-	}
-
-	// Eğer dither geçişi aktifse, front tamponunu harmanla
+	// Eğer dither geçişi aktifse, önce görüntü tamponunu harmanla.
+	// Debug HUD bundan sonra çizilir; böylece debug çizgileri ve etiketleri
+	// geçiş efekti tarafından soluklaştırılmaz veya bozulmaz.
 	if t.transitionActive && t.transitionOldBuf != nil {
 		animation.ApplyDitherFade(t.front, t.transitionOldBuf, t.transitionProgress)
+	}
+
+	// Hata ayıklama modu aktifse, geçişin üzerine yerleşim sınırlarını çiz.
+	if t.debugMode {
+		// Tüm widget'ların debug bölgelerini göster. Bölgeler kendi z-index ve
+		// çizim sıralarına göre birbirini örter; hiçbir widget hariç tutulmaz.
+		t.drawDebugOverlay()
 	}
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
@@ -292,6 +296,9 @@ func (t *Terminal) DebugMode() bool {
 // drawDebugOverlay, çizilen tüm widget'ların sınırlarını kesikli çizgilerle kaplar
 // ve köşelerine widget türünü, boyutlarını ve z-index katmanını belirten etiketler yazar.
 // Z-Order Kırpma (Layout Clipping) özelliği sayesinde üstte kalan katmanlar alttakilerin çizgilerini örter.
+//
+// Debug bölgeleri z-index ve çizim sırasına göre kırpılır. En üstteki
+// widget'ın kendi sınırı ve etiketi yine çizilir; hiçbir widget gizlenmez.
 func (t *Terminal) drawDebugOverlay() {
 	borderStyle := cell.Style{
 		Fg: cell.NewColorRGB(255, 0, 255), // Parlak Mor / Magenta
@@ -303,7 +310,7 @@ func (t *Terminal) drawDebugOverlay() {
 		Modifier: cell.ModifierBold,
 	}
 
-	for _, reg := range t.frame.DebugRegions {
+	for regionIndex, reg := range t.frame.DebugRegions {
 		area := reg.Area
 		if area.Width == 0 || area.Height == 0 {
 			continue
@@ -311,13 +318,13 @@ func (t *Terminal) drawDebugOverlay() {
 
 		// Yatay kesikli çizgiler
 		for col := area.X; col < area.X+area.Width; col++ {
-			if !isObscured(col, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+			if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 				if c := t.front.Get(col, area.Y); c != nil {
 					c.Content = '╌'
 					c.Style = borderStyle
 				}
 			}
-			if !isObscured(col, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+			if !isObscured(col, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 				if c := t.front.Get(col, area.Y+area.Height-1); c != nil {
 					c.Content = '╌'
 					c.Style = borderStyle
@@ -326,13 +333,13 @@ func (t *Terminal) drawDebugOverlay() {
 		}
 		// Dikey kesikli çizgiler
 		for row := area.Y; row < area.Y+area.Height; row++ {
-			if !isObscured(area.X, row, reg.ZIndex, t.frame.DebugRegions) {
+			if !isObscured(area.X, row, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 				if c := t.front.Get(area.X, row); c != nil {
 					c.Content = '╎'
 					c.Style = borderStyle
 				}
 			}
-			if !isObscured(area.X+area.Width-1, row, reg.ZIndex, t.frame.DebugRegions) {
+			if !isObscured(area.X+area.Width-1, row, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 				if c := t.front.Get(area.X+area.Width-1, row); c != nil {
 					c.Content = '╎'
 					c.Style = borderStyle
@@ -341,25 +348,25 @@ func (t *Terminal) drawDebugOverlay() {
 		}
 
 		// Köşeleri birleştir
-		if !isObscured(area.X, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 			if c := t.front.Get(area.X, area.Y); c != nil {
 				c.Content = '┌'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X+area.Width-1, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X+area.Width-1, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 			if c := t.front.Get(area.X+area.Width-1, area.Y); c != nil {
 				c.Content = '┐'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 			if c := t.front.Get(area.X, area.Y+area.Height-1); c != nil {
 				c.Content = '└'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X+area.Width-1, area.Y+area.Height-1, reg.ZIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X+area.Width-1, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 			if c := t.front.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
 				c.Content = '┘'
 				c.Style = borderStyle
@@ -371,7 +378,7 @@ func (t *Terminal) drawDebugOverlay() {
 		for idx, r := range label {
 			col := area.X + 1 + uint16(idx)
 			if col < area.X+area.Width-1 {
-				if !isObscured(col, area.Y, reg.ZIndex, t.frame.DebugRegions) {
+				if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
 					if c := t.front.Get(col, area.Y); c != nil {
 						c.Content = r
 						c.Style = textStyle
@@ -382,15 +389,17 @@ func (t *Terminal) drawDebugOverlay() {
 	}
 }
 
-// isObscured, belirtilen koordinatın hedef z-index değerinden daha yüksek bir katmanda/modalda
-// kalıp kalmadığını denetler (Hata ayıklama katmanlarının birbirini ezmesini önler).
-func isObscured(x, y uint16, zIndex int, regions []DebugRegion) bool {
-	for _, other := range regions {
-		if other.ZIndex > zIndex {
-			if x >= other.Area.X && x < other.Area.X+other.Area.Width &&
-				y >= other.Area.Y && y < other.Area.Y+other.Area.Height {
-				return true
-			}
+// isObscured, bir debug bölgesinin hücresinin daha üstteki bir bölge tarafından
+// örtülüp örtülmediğini denetler. Aynı z-index'te daha sonra çizilen bölge üsttedir.
+func isObscured(x, y uint16, zIndex, regionIndex int, regions []DebugRegion) bool {
+	for i := regionIndex + 1; i < len(regions); i++ {
+		other := regions[i]
+		if other.ZIndex < zIndex {
+			continue
+		}
+		if x >= other.Area.X && x < other.Area.X+other.Area.Width &&
+			y >= other.Area.Y && y < other.Area.Y+other.Area.Height {
+			return true
 		}
 	}
 	return false
