@@ -162,13 +162,23 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 
 ---
 
-## 5. Gelecek Yol Haritası (Faz 18)
+- **Faz 18: TUI Yerleşim Müfettişi ve Hata Ayıklama Katmanı (Layout Inspector / Debug HUD) [TAMAMLANDI]**
+  - Çizilen tüm widget'ların türlerini, boyutlarını ve z-index değerlerini otomatik kaydeden `DebugRegions` yapısı kodlandı.
+  - `Ctrl+D` kısayoluyla tetiklenen, üst katmanların alt katmanların çizgilerini örtmesini sağlayan pixel-perfect **Z-Order Kırpma (Layout Clipping)** özellikli Debug HUD katmanı entegre edildi.
+  - Odaklanmış tablolarda ve butonlarda tuşların yutulmasını önleyen global öncelikli klavye yönlendirme sistemi (Keyboard Focus Fix) uygulandı.
+
+- **Faz 19: İnteraktif Fare ile Pencere Yeniden Boyutlandırma (Resizable Window Modals) [TAMAMLANDI]**
+  - Kısayol Yardım penceresinin sağ alt köşesine mor renkli `◢` yeniden boyutlandırma tutamacı çizildi ve click/drag takibi entegre edildi.
+  - Kullanıcı fareyle sürükledikçe pencere boyutunun dinamik güncellenmesi sağlandı (min: 40x10, maks: 100x30). İçerideki Flex layout bölmeleri pencere boyutuna göre Markdown ve profil avatarını dinamik/oransal olarak yeniden boyutlandırır.
+
+---
+
+## 5. Gelecek Yol Haritası (Faz 20)
 
 Projeyi devralan ajanın sırasıyla gerçekleştirmesi beklenen sonraki aşamalar:
 
-1. **Faz 18: TUI Yerleşim Müfettişi ve Hata Ayıklama Katmanı (Layout Inspector / Debug HUD)**:
-   - Geliştiriciler için özel bir kısayolla (örn. `Ctrl+D`) aktifleşen interaktif bir TUI yerleşim HUD katmanı eklenmesi.
-   - Ekrandaki tüm Flex/Grid bölmelerinin sınırlarını (layout chunks) renkli çizgilerle çizen ve odak noktalarını görselleştiren hata ayıklama modu.
+1. **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers)**:
+   - Form listesi elemanları açılırken veya sekmeler değişirken listedeki satırların sırayla soldan/sağdan kayarak gelmesini (slide-in) veya kararak belirmesini (fade-in) sağlayan animasyonlu widget kapsayıcıları tasarlamak.
 
 ## 6. Dosya Yapısı (Güncel)
 

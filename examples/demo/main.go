@@ -102,6 +102,13 @@ type AppState struct {
 
 	// Hata ayıklama modu
 	DebugMode bool
+
+	// Pencere boyutlandırma (Resizing) özellikleri
+	IsResizingModal  bool
+	ModalResizeBaseW int
+	ModalResizeBaseH int
+	HelpDialogW      int
+	HelpDialogH      int
 }
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
@@ -248,6 +255,9 @@ func main() {
 		MouseModeChecked:   true,
 		ThemeSelected:      "Koyu",
 		DebugMode:          false,
+		IsResizingModal:     false,
+		HelpDialogW:         64,
+		HelpDialogH:         16,
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
 		Processes: []ProcessInfo{
@@ -505,9 +515,22 @@ func main() {
 						dy := int(ev.Mouse.Y) - state.DragMouseStartY
 						state.ModalOffsetX = state.ModalDragBaseX + dx
 						state.ModalOffsetY = state.ModalDragBaseY + dy
+					} else if state.IsResizingModal {
+						dx := int(ev.Mouse.X) - state.DragMouseStartX
+						dy := int(ev.Mouse.Y) - state.DragMouseStartY
+						newW := state.ModalResizeBaseW + dx
+						newH := state.ModalResizeBaseH + dy
+						// Sınırlandırmalar (minimum/maksimum boyutlar)
+						if newW < 40 { newW = 40 }
+						if newW > 100 { newW = 100 }
+						if newH < 10 { newH = 10 }
+						if newH > 30 { newH = 30 }
+						state.HelpDialogW = newW
+						state.HelpDialogH = newH
 					}
 				} else if ev.Mouse.Button == backend.MouseRelease {
 					state.IsDraggingModal = false
+					state.IsResizingModal = false
 				}
 
 				// Fare olayını otomatik tıklama yönlendiriciye ilet (RouteMouseEvent) - sadece sol tıklamaları yönlendir
@@ -1421,7 +1444,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 		// 6. KISAYOL YARDIM MODAL DIALOG ÇİZİMİ
 		if state.ShowHelpDialog {
-			helpW, helpH := uint16(64), uint16(16)
+			helpW := uint16(state.HelpDialogW)
+			helpH := uint16(state.HelpDialogH)
 			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
 
 			// Sürükleme offsetlerini uygula
@@ -1440,7 +1464,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			// Diyalog kutusu arka plan bloğu
 			helpBlock := widgets.Block{
-				Title:          " ⌨ KISAYOL YARDIMI (Fareyle Sürükleyin) ",
+				Title:          " ⌨ KISAYOL YARDIMI (Sürükle / Köşeden Boyutlandır) ",
 				TitleAlignment: widgets.AlignLeft,
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
@@ -1448,6 +1472,24 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Style:          cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
 			}
 			f.RenderWidget(helpBlock, helpArea)
+
+			// Sağ alt köşe yeniden boyutlandırma tutamacı çizimi
+			cornerX := helpArea.X + helpArea.Width - 1
+			cornerY := helpArea.Y + helpArea.Height - 1
+			if c := f.Buffer.Get(cornerX, cornerY); c != nil {
+				c.Content = '◢'
+				c.Style = cell.Style{Fg: accentColor, Modifier: cell.ModifierBold}
+			}
+
+			// Sağ alt köşe yeniden boyutlandırma tıklama alanını tanımla
+			resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
+			f.RegisterClickHandler(resizeHandleArea, func(ev backend.MouseEvent) {
+				state.IsResizingModal = true
+				state.DragMouseStartX = int(ev.X)
+				state.DragMouseStartY = int(ev.Y)
+				state.ModalResizeBaseW = state.HelpDialogW
+				state.ModalResizeBaseH = state.HelpDialogH
+			})
 
 			helpInner := cell.Rect{
 				X:      helpArea.X + 2,
