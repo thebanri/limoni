@@ -345,14 +345,21 @@ func main() {
 	}
 	state.TestImg2 = testImg2
 
-	// 3. apple.png dokusunu dosyadan yükle
+	// 3. apple.png dokusunu dosyadan yükle (hem root hem de examples/demo dizininden çalıştırılabilmesi için fallback'li)
 	appleFile, err := os.Open("examples/demo/apple.png")
+	if err != nil {
+		appleFile, err = os.Open("apple.png")
+	}
 	if err == nil {
 		defer appleFile.Close()
 		appleImg, _, err := image.Decode(appleFile)
 		if err == nil {
 			state.AppleImg = appleImg
+		} else {
+			fmt.Fprintf(os.Stderr, "Limoni Doku Cozumleme Hatasi: %v\n", err)
 		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Limoni Doku Dosyasi Acilamadi (Cift Yol Denendi): %v\n", err)
 	}
 
 	// 30 FPS zamanlayıcısı (~33ms)
@@ -581,8 +588,8 @@ func main() {
 					} else if state.IsDragging3D {
 						dx := int(ev.Mouse.X) - state.Drag3DLastX
 						dy := int(ev.Mouse.Y) - state.Drag3DLastY
-						state.RotY = math.Mod(state.RotY+float64(dx)*1.5, 360.0)
-						state.RotX = math.Mod(state.RotX-float64(dy)*1.5, 360.0)
+						state.RotX = math.Mod(state.RotX+float64(dx)*1.5, 360.0)
+						state.RotY = math.Mod(state.RotY-float64(dy)*1.5, 360.0)
 						state.Drag3DLastX = int(ev.Mouse.X)
 						state.Drag3DLastY = int(ev.Mouse.Y)
 					}
