@@ -18,6 +18,13 @@ import (
 	"github.com/thebanri/limoni/widgets"
 )
 
+var bayer4x4 = [4][4]float64{
+	{0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0},
+	{12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0},
+	{3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0},
+	{15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0},
+}
+
 type ProcessInfo struct {
 	PID    string
 	Name   string
@@ -92,6 +99,7 @@ type AppState struct {
 
 	// Sürükleme ve Yardım Modali özellikleri
 	ShowHelpDialog      bool
+	HelpDialogAnim      *animation.Float
 	IsDraggingModal     bool
 	DragMouseStartX     int
 	DragMouseStartY     int
@@ -208,6 +216,11 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 	if state.ExitDialogAnim != nil {
 		state.ExitDialogAnim.Update(now)
 	}
+
+	// Yardım diyalog animasyonu güncellemesi
+	if state.HelpDialogAnim != nil {
+		state.HelpDialogAnim.Update(now)
+	}
 }
 
 func main() {
@@ -246,6 +259,7 @@ func main() {
 		},
 		UsernameInputState: widgets.NewTextInputState(),
 		ExitDialogAnim:     animation.NewFloat(0.0),
+		HelpDialogAnim:     animation.NewFloat(0.0),
 		NotificationMode:   "Normal Mod",
 		NotifPopupState:    widgets.NewPopupState(),
 		PlaygroundDir:      layout.Horizontal,
@@ -375,7 +389,7 @@ func main() {
 				// Eğer Yardım Modali açıksa, sadece Esc ile kapat
 				if state.ShowHelpDialog {
 					if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?') {
-						state.ShowHelpDialog = false
+						state.HelpDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
 						state.IsDraggingModal = false
 					}
 					state.LastKey = "Yardım Paneli Kapatıldı"
@@ -471,10 +485,16 @@ func main() {
 				// ?, q ve Esc tuşlarının genel pencere olaylarını tetiklemesine izin ver.
 				if focused != "username_input" {
 					if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?' {
-						state.ShowHelpDialog = true
-						state.ModalOffsetX = 0
-						state.ModalOffsetY = 0
-						state.LastKey = "Yardım Paneli Açıldı"
+						if !state.ShowHelpDialog {
+							state.ShowHelpDialog = true
+							state.ModalOffsetX = 0
+							state.ModalOffsetY = 0
+							state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+							state.LastKey = "Yardım Paneli Açıldı"
+						} else {
+							state.HelpDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+							state.LastKey = "Yardım Paneli Kapatılıyor"
+						}
 						break
 					}
 
@@ -607,7 +627,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			})
 		}
 		if state.ShowHelpDialog {
-			helpW, helpH := uint16(64), uint16(16)
+			helpW := uint16(state.HelpDialogW)
+			helpH := uint16(state.HelpDialogH)
 			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
 			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
 			helpArea.Y = uint16(int(helpArea.Y) + state.ModalOffsetY)
@@ -693,8 +714,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					if state.ActiveTab != tabName {
 						state.ActiveTab = tabName
 						t.FocusManager().SetFocused("") // Sekme değiştirince önceki odağı sıfırla
-						t.SetTransitionActive(true)
-						t.SetTransitionProgress(0.0)
 						state.TransitionStartTime = time.Now()
 						state.IsTransitioning = true
 					}
@@ -710,6 +729,27 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 		// Çıkış buton alanı koordinatını kaydet
 		state.ExitButtonArea = menuChunks[4]
+
+		// Dither geçiş ilerleme hesabı
+		tabTransitionProgress := 1.0
+		if state.IsTransitioning {
+			elapsed := time.Since(state.TransitionStartTime)
+			tabTransitionProgress = float64(elapsed) / float64(250*time.Millisecond)
+			if tabTransitionProgress > 1.0 {
+				tabTransitionProgress = 1.0
+			}
+		}
+
+		var origBuf *buffer.Buffer
+		var tempBuf *buffer.Buffer
+		origBodyArea := bodyChunks[1]
+
+		if tabTransitionProgress < 1.0 {
+			tempBuf = buffer.NewBuffer(cell.NewRect(0, 0, origBodyArea.Width, origBodyArea.Height))
+			origBuf = f.Buffer
+			f.Buffer = tempBuf
+			bodyChunks[1] = cell.NewRect(0, 0, origBodyArea.Width, origBodyArea.Height)
+		}
 
 		// Sağ Panel (İçerik Paneli) Çizimi
 		switch state.ActiveTab {
@@ -1369,6 +1409,24 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(canvasBlock, canvasArea)
 		}
 
+		if tabTransitionProgress < 1.0 {
+			f.Buffer = origBuf
+			bodyChunks[1] = origBodyArea
+
+			// Bayer 4x4 matrisi kullanarak lokal dither geçişini uygula
+			for y := uint16(0); y < origBodyArea.Height; y++ {
+				for x := uint16(0); x < origBodyArea.Width; x++ {
+					threshold := bayer4x4[y%4][x%4]
+					if tabTransitionProgress >= threshold {
+						cellPtr := tempBuf.Get(x, y)
+						if cellPtr != nil {
+							f.Buffer.SetCell(origBodyArea.X+x, origBodyArea.Y+y, *cellPtr)
+						}
+					}
+				}
+			}
+		}
+
 		// 4. Footer (Alt Bilgi Satırı) Çizimi
 		footerStyle := cell.Style{Fg: cell.NewColorRGB(140, 140, 140), Bg: cell.NewColorRGB(30, 30, 30)}
 		footerText := fmt.Sprintf(" Boyut: %d x %d | FPS: %.1f | Kısayollar: ? | Sekmeler: Tab / Shift+Tab | Çıkış: 'q' / ESC", f.Buffer.Area.Width, f.Buffer.Area.Height, fps)
@@ -1452,8 +1510,20 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
 			helpArea.Y = uint16(int(helpArea.Y) + state.ModalOffsetY)
 
+			progress := state.HelpDialogAnim.Value()
+			if progress <= 0.001 && !state.HelpDialogAnim.IsAnimating() {
+				state.ShowHelpDialog = false
+				t.FocusManager().SetFocused("")
+				return
+			}
+
+			// Animasyonlu Y koordinat kaydırmasını hesapla (SlideDown)
+			offsetY := int(float64(f.Buffer.Area.Height) * (1.0 - progress))
+			animatedHelpArea := helpArea
+			animatedHelpArea.Y = uint16(int(animatedHelpArea.Y) + offsetY)
+
 			// Başlık çubuğu sürükleme tıklama alanını tanımla
-			titleBarArea := cell.NewRect(helpArea.X, helpArea.Y, helpW, 1)
+			titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
 			f.RegisterClickHandler(titleBarArea, func(ev backend.MouseEvent) {
 				state.IsDraggingModal = true
 				state.DragMouseStartX = int(ev.X)
@@ -1471,11 +1541,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				BorderStyle:    cell.Style{Fg: accentColor},
 				Style:          cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
 			}
-			f.RenderWidget(helpBlock, helpArea)
+			f.RenderWidget(helpBlock, animatedHelpArea)
 
 			// Sağ alt köşe yeniden boyutlandırma tutamacı çizimi
-			cornerX := helpArea.X + helpArea.Width - 1
-			cornerY := helpArea.Y + helpArea.Height - 1
+			cornerX := animatedHelpArea.X + animatedHelpArea.Width - 1
+			cornerY := animatedHelpArea.Y + animatedHelpArea.Height - 1
 			if c := f.Buffer.Get(cornerX, cornerY); c != nil {
 				c.Content = '◢'
 				c.Style = cell.Style{Fg: accentColor, Modifier: cell.ModifierBold}
@@ -1492,10 +1562,10 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			})
 
 			helpInner := cell.Rect{
-				X:      helpArea.X + 2,
-				Y:      helpArea.Y + 1,
-				Width:  helpArea.Width - 4,
-				Height: helpArea.Height - 2,
+				X:      animatedHelpArea.X + 2,
+				Y:      animatedHelpArea.Y + 1,
+				Width:  animatedHelpArea.Width - 4,
+				Height: animatedHelpArea.Height - 2,
 			}
 
 			// İçeriği yatay olarak iki kolona böl (Sol: Markdown, Sağ: Avatar Profil)
