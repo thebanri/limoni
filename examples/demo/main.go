@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/png"
 	"math"
 	"math/rand"
 	"os"
@@ -119,6 +120,7 @@ type AppState struct {
 	IsDragging3D bool
 	Drag3DLastX  int
 	Drag3DLastY  int
+	AppleImg     image.Image
 
 	// Pencere boyutlandırma (Resizing) özellikleri
 	IsResizingModal  bool
@@ -342,6 +344,16 @@ func main() {
 		}
 	}
 	state.TestImg2 = testImg2
+
+	// 3. apple.png dokusunu dosyadan yükle
+	appleFile, err := os.Open("examples/demo/apple.png")
+	if err == nil {
+		defer appleFile.Close()
+		appleImg, _, err := image.Decode(appleFile)
+		if err == nil {
+			state.AppleImg = appleImg
+		}
+	}
 
 	// 30 FPS zamanlayıcısı (~33ms)
 	ticker := time.NewTicker(33 * time.Millisecond)
@@ -1103,6 +1115,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					{0, 4}, {1, 5}, {2, 6}, {3, 7}, // Bağlantı çizgileri
 				}
 
+				cubeFaces := [][]int{
+					{0, 1, 2, 3}, // Front (Z = -1)
+					{5, 4, 7, 6}, // Back (Z = 1)
+					{1, 5, 6, 2}, // Right (X = 1)
+					{4, 0, 3, 7}, // Left (X = -1)
+					{3, 2, 6, 7}, // Top (Y = 1)
+					{4, 5, 1, 0}, // Bottom (Y = -1)
+				}
+
 				projected := make([]struct {
 					x, y    int
 					visible bool
@@ -1112,9 +1133,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				canvasH := float64(virtualH)
 
 				for i, v := range cubeVertices {
-					// Eksen rotasyonları uygula
-					v = v.RotateX(state.RotX)
+					// Eksen rotasyonları uygula (RotateY first, then RotateX!)
 					v = v.RotateY(state.RotY)
+					v = v.RotateX(state.RotX)
 					v = v.RotateZ(state.RotZ)
 
 					// Projeksiyon (Mesafe: 3.5, Ölçek: canvas yüksekliğinin %40'ı)
@@ -1124,6 +1145,42 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						x, y    int
 						visible bool
 					}{x: int(px), y: int(py), visible: visible}
+				}
+
+				// Yüzeyleri kapla
+				for _, face := range cubeFaces {
+					p0 := projected[face[0]]
+					p1 := projected[face[1]]
+					p2 := projected[face[2]]
+					p3 := projected[face[3]]
+
+					if !p0.visible || !p1.visible || !p2.visible || !p3.visible {
+						continue
+					}
+
+					// 2D Winding / Back-face Culling Testi
+					cross := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
+					if cross < 0 {
+						if state.AppleImg != nil {
+							uv0 := graphics.UV{U: 0.0, V: 1.0}
+							uv1 := graphics.UV{U: 1.0, V: 1.0}
+							uv2 := graphics.UV{U: 1.0, V: 0.0}
+							uv3 := graphics.UV{U: 0.0, V: 0.0}
+
+							canvas.DrawTexturedTriangle(
+								graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+								graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+								graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+								uv0, uv1, uv2, state.AppleImg,
+							)
+							canvas.DrawTexturedTriangle(
+								graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+								graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+								graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+								uv0, uv2, uv3, state.AppleImg,
+							)
+						}
+					}
 				}
 
 				// Çizgileri Canvas'a çiz (Neon Turkuaz renk stiliyle)

@@ -9,6 +9,16 @@ type Vertex3D struct {
 	X, Y, Z float64
 }
 
+// Vertex2D 2 boyutlu bir noktayı temsil eder.
+type Vertex2D struct {
+	X, Y float64
+}
+
+// UV doku (texture) koordinatlarını temsil eder.
+type UV struct {
+	U, V float64
+}
+
 // RotateX, noktayı X ekseni etrafında belirtilen derece cinsinden döndürür.
 func (v Vertex3D) RotateX(angle float64) Vertex3D {
 	rad := angle * math.Pi / 180.0
