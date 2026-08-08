@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"image"
+	"image/color"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -49,13 +50,11 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			for cx := uint16(0); cx < ctx.Area.Width; cx++ {
 				// Üst piksel (Background rengi olacak)
 				topCol := resized.At(int(cx), int(2*cy))
-				tr, tg, tb, _ := topCol.RGBA()
-				bgColor := cell.NewColorRGB(uint8(tr>>8), uint8(tg>>8), uint8(tb>>8))
+				bgColor := blendColor(topCol, ctx.Style.Bg)
 
 				// Alt piksel (Foreground rengi olacak)
 				botCol := resized.At(int(cx), int(2*cy+1))
-				br, bg, bb, _ := botCol.RGBA()
-				fgColor := cell.NewColorRGB(uint8(br>>8), uint8(bg>>8), uint8(bb>>8))
+				fgColor := blendColor(botCol, ctx.Style.Bg)
 
 				// Hücreyi güncelle
 				cellX := ctx.Area.X + cx
@@ -91,4 +90,33 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 // edilmek istenen maksimum alanı dolduracak şekilde maksimum satır ve sütun boyutunu döner.
 func (im Image) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, maxArea.Height
+}
+
+// blendColor, yarı-transparan veya tamamen transparan resim piksellerini
+// konteyner arka plan rengiyle alfa-harmanlama (alpha blending) formülüyle birleştirir.
+func blendColor(fgColor color.Color, bg cell.Color) cell.Color {
+	r, g, b, a := fgColor.RGBA()
+	if a == 0 {
+		return bg
+	}
+	if a == 65535 {
+		return cell.NewColorRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))
+	}
+
+	alpha := float64(a) / 65535.0
+
+	// Foreground renk kanalları
+	fgR := uint8(r >> 8)
+	fgG := uint8(g >> 8)
+	fgB := uint8(b >> 8)
+
+	// Background renk kanalları
+	bgR, bgG, bgB := bg.RGB()
+
+	// Alfa harmanlama formülü: C = C_fg * alpha + C_bg * (1 - alpha)
+	blendR := uint8(float64(fgR)*alpha + float64(bgR)*(1.0-alpha))
+	blendG := uint8(float64(fgG)*alpha + float64(bgG)*(1.0-alpha))
+	blendB := uint8(float64(fgB)*alpha + float64(bgB)*(1.0-alpha))
+
+	return cell.NewColorRGB(blendR, blendG, blendB)
 }
