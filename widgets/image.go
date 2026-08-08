@@ -50,20 +50,35 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			for cx := uint16(0); cx < ctx.Area.Width; cx++ {
 				// Üst piksel (Background rengi olacak)
 				topCol := resized.At(int(cx), int(2*cy))
+				_, _, _, ta := topCol.RGBA()
 				bgColor := blendColor(topCol, ctx.Style.Bg)
 
 				// Alt piksel (Foreground rengi olacak)
 				botCol := resized.At(int(cx), int(2*cy+1))
+				_, _, _, ba := botCol.RGBA()
 				fgColor := blendColor(botCol, ctx.Style.Bg)
 
 				// Hücreyi güncelle
 				cellX := ctx.Area.X + cx
 				cellY := ctx.Area.Y + cy
 				if c := buf.Get(cellX, cellY); c != nil {
-					c.Content = '▄'
-					c.Style.Fg = fgColor
-					c.Style.Bg = bgColor
 					c.Style.Modifier = cell.ModifierReset
+
+					if ta == 0 && ba == 0 {
+						// Her iki piksel de şeffaf -> Boşluk karakteri çizerek terminal varsayılan Fg'sinin çizilmesini engelle
+						c.Content = ' '
+						c.Style.Bg = ctx.Style.Bg
+					} else if ta > 0 && ba == 0 {
+						// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
+						c.Content = '▀'
+						c.Style.Fg = bgColor
+						c.Style.Bg = ctx.Style.Bg
+					} else {
+						// İkisi de dolu veya alt dolu -> Alt yarım blok (▄)
+						c.Content = '▄'
+						c.Style.Fg = fgColor
+						c.Style.Bg = bgColor
+					}
 				}
 			}
 		}
