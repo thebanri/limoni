@@ -50,6 +50,18 @@ func Diff(front, back *Buffer, out []byte) ([]byte, error) {
 				continue
 			}
 
+			// Eğer bu hücre bir native resim hücresi ise terminale yazma,
+			// ancak durum eşitlemesi için backCell'i güncelle ve cursor'ı ilerlet.
+			if frontCell.Content == cell.RuneImage {
+				*backCell = *frontCell
+				cursorX++
+				if cursorX >= width {
+					cursorX = 9999
+					cursorY = 9999
+				}
+				continue
+			}
+
 			// İmleç doğru konumda değilse konumlandır
 			if cursorX != x || cursorY != y {
 				out = appendCursor(out, x, y)

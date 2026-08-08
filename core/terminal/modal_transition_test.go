@@ -16,13 +16,13 @@ func TestModalScaleRect(t *testing.T) {
 		t.Errorf("ScaleRect at 0.0 size = (%d, %d); expected (0, 0)", r0.Width, r0.Height)
 	}
 
-	// Progress 0.5 -> Size 50x25, centered
+	// Progress 0.5 -> Size 50x26 (rounded to even), centered
 	r5 := ScaleRect(base, 0.5)
-	if r5.Width != 50 || r5.Height != 25 {
-		t.Errorf("ScaleRect at 0.5 size = (%d, %d); expected (50, 25)", r5.Width, r5.Height)
+	if r5.Width != 50 || r5.Height != 26 {
+		t.Errorf("ScaleRect at 0.5 size = (%d, %d); expected (50, 26)", r5.Width, r5.Height)
 	}
 	expectedX := base.X + (base.Width-50)/2
-	expectedY := base.Y + (base.Height-25)/2
+	expectedY := base.Y + (base.Height-26)/2
 	if r5.X != expectedX || r5.Y != expectedY {
 		t.Errorf("ScaleRect at 0.5 pos = (%d, %d); expected (%d, %d)", r5.X, r5.Y, expectedX, expectedY)
 	}

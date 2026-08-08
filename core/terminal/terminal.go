@@ -45,6 +45,12 @@ type Terminal struct {
 
 	// Hata ayıklama (Debug / Layout Inspector) durumu
 	debugMode bool
+
+	// mouseCaptureHandler, o an aktif olan fare sürükleme (capture) olay yöneticisidir.
+	mouseCaptureHandler func(ev backend.MouseEvent)
+
+	// lastLayersHash, bir önceki karedeki katmanların (modal/layers) durum özetidir.
+	lastLayersHash string
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -116,20 +122,27 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		t.drawDebugOverlay()
 	}
 
+	// Katman veya modal yapısının değiştiğini tespit et
+	currentLayersHash := t.layersHash()
+	layersChanged := (currentLayersHash != t.lastLayersHash)
+	t.lastLayersHash = currentLayersHash
+
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
 	proto := graphics.DetectProtocol()
 	if len(t.frame.ImageRegions) > 0 {
 		cellW, cellH, _ := t.backend.CellPixelSize()
 
-		imagesChanged := false
-		if len(t.frame.ImageRegions) != len(t.lastDrawnImages) {
-			imagesChanged = true
-		} else {
-			for i, reg := range t.frame.ImageRegions {
-				prev := t.lastDrawnImages[i]
-				if reg.Img != prev.Img || reg.Area != prev.Area || reg.ZIndex != prev.ZIndex {
-					imagesChanged = true
-					break
+		imagesChanged := layersChanged
+		if !imagesChanged {
+			if len(t.frame.ImageRegions) != len(t.lastDrawnImages) {
+				imagesChanged = true
+			} else {
+				for i, reg := range t.frame.ImageRegions {
+					prev := t.lastDrawnImages[i]
+					if reg.Img != prev.Img || reg.Area != prev.Area || reg.ZIndex != prev.ZIndex {
+						imagesChanged = true
+						break
+					}
 				}
 			}
 		}
@@ -162,7 +175,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 
 	// ── 2. ADIM: ASCII buffer'ı SYNC ile çiz (piksel katmanının ÜZERİNE) ──
-	// Bu, dialog/modal gibi ASCII widget'ların Kitty resminin önünde görünmesini sağlar.
+	// Bu, dialog/modal gibi ASCII widget'ların resmin önünde görünmesini sağlar.
 	t.backend.StartSyncUpdate()
 	t.writeBuf = t.writeBuf[:0]
 	var diffErr error
@@ -178,7 +191,6 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 			return err
 		}
 	}
-
 	t.backend.EndSyncUpdate()
 
 	return nil
@@ -191,17 +203,26 @@ func (t *Terminal) SetTransitionProgress(p float64) {
 
 // SetTransitionActive, dither-fade geçiş durumunu açar veya kapatır.
 func (t *Terminal) SetTransitionActive(active bool) {
-	t.transitionActive = active
-	if active {
-		w := t.back.Area.Width
-		h := t.back.Area.Height
-		if t.transitionOldBuf == nil || t.transitionOldBuf.Area.Width != w || t.transitionOldBuf.Area.Height != h {
-			t.transitionOldBuf = buffer.NewBuffer(cell.NewRect(0, 0, w, h))
-		}
-		// back tamponunun içeriğini oldBuf'a kopyala
-		if len(t.transitionOldBuf.Content) == len(t.back.Content) {
-			copy(t.transitionOldBuf.Content, t.back.Content)
-		}
+	if !active {
+		// Geçişi yalnızca pasifleştirme; eski frame'i de bırak.
+		// Aksi halde modal veya sonraki frame eski görüntüyü yeniden kullanabilir.
+		t.transitionActive = false
+		t.transitionProgress = 1.0
+		t.transitionOldBuf = nil
+		return
+	}
+	if t.transitionActive {
+		return
+	}
+	t.transitionActive = true
+	w := t.back.Area.Width
+	h := t.back.Area.Height
+	if t.transitionOldBuf == nil || t.transitionOldBuf.Area.Width != w || t.transitionOldBuf.Area.Height != h {
+		t.transitionOldBuf = buffer.NewBuffer(cell.NewRect(0, 0, w, h))
+	}
+	// back tamponunun içeriğini oldBuf'a kopyala
+	if len(t.transitionOldBuf.Content) == len(t.back.Content) {
+		copy(t.transitionOldBuf.Content, t.back.Content)
 	}
 }
 
@@ -215,6 +236,23 @@ func (t *Terminal) IsTransitionActive() bool {
 // Katmanlı render sistemi: En üstteki katmandaki bölgeler önceliklidir.
 // Olay bir bölgeyle eşleşip tetiklendiyse `true`, eşleşmediyse `false` döner.
 func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
+	// 0. Fare yakalama (mouse capture) kontrolü
+	if t.mouseCaptureHandler != nil {
+		t.mouseCaptureHandler(ev)
+		if ev.Button == backend.MouseRelease {
+			t.mouseCaptureHandler = nil
+		}
+		return true
+	}
+
+	// Tıklama alanları sadece buton basışlarında tetiklenir (hover/hareket yani MouseNone olaylarında değil)
+	if ev.Button == backend.MouseNone {
+		return false
+	}
+
+	// Normal yönlendirme öncesi frame capture isteklerini sıfırla
+	t.frame.mouseCaptureRequest = nil
+
 	// 1. Katman sistemi: En üstteki katmandan başlayarak aşağı doğru ara
 	if len(t.frame.Layers) > 0 {
 		topLayer := t.frame.TopLayer()
@@ -225,6 +263,10 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 					reg := t.frame.ClickRegions[i]
 					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) {
 						reg.Handler(ev)
+						if t.frame.mouseCaptureRequest != nil {
+							t.mouseCaptureHandler = t.frame.mouseCaptureRequest
+							t.frame.mouseCaptureRequest = nil
+						}
 						return true
 					}
 				}
@@ -236,8 +278,8 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 					return true // Katman içinde ama eşleşen alan yok → olayı yut
 				}
 			} else {
-				// En üst katmanın dışına tıklandı → ClickOutside tetikle
-				if topLayer.ClickOutside != nil {
+				// En üst katmanın dışına tıklandı → ClickOutside tetikle (sadece sol tıklama basınçlarında)
+				if ev.Button == backend.MouseLeft && !ev.Drag && topLayer.ClickOutside != nil {
 					topLayer.ClickOutside()
 				}
 				return true // Tıklamayı yut
@@ -254,13 +296,17 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 				reg := t.frame.ClickRegions[i]
 				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) {
 					reg.Handler(ev)
+					if t.frame.mouseCaptureRequest != nil {
+						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
+						t.frame.mouseCaptureRequest = nil
+					}
 					return true
 				}
 			}
 			return true // Modal içinde ama boşluğa tıklandı, olayı yut
 		} else {
-			// Modal dışı tıklama
-			if modal.ClickOutside != nil {
+			// Modal dışı tıklama (sadece sol tıklama basınçlarında)
+			if ev.Button == backend.MouseLeft && !ev.Drag && modal.ClickOutside != nil {
 				modal.ClickOutside()
 			}
 			return true
@@ -272,6 +318,10 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 		reg := t.frame.ClickRegions[i]
 		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) {
 			reg.Handler(ev)
+			if t.frame.mouseCaptureRequest != nil {
+				t.mouseCaptureHandler = t.frame.mouseCaptureRequest
+				t.frame.mouseCaptureRequest = nil
+			}
 			return true
 		}
 	}
@@ -403,4 +453,24 @@ func isObscured(x, y uint16, zIndex, regionIndex int, regions []DebugRegion) boo
 		}
 	}
 	return false
+}
+
+// layersHash, mevcut katmanların ve modal pencerelerin konum ve boyut özetini döner.
+// Bu özet değiştiğinde resimlerin yeniden çizilmesi zorlanır (grafik kirlenmesini önlemek için).
+func (t *Terminal) layersHash() string {
+	res := ""
+	for _, l := range t.frame.Layers {
+		res += fmt.Sprintf("%s:%d,%d,%d,%d;", l.ID, l.Area.X, l.Area.Y, l.Area.Width, l.Area.Height)
+	}
+	if t.frame.ActiveModal != nil {
+		res += fmt.Sprintf("modal:%s:%d,%d,%d,%d;", t.frame.ActiveModal.ID, t.frame.ActiveModal.Area.X, t.frame.ActiveModal.Area.Y, t.frame.ActiveModal.Area.Width, t.frame.ActiveModal.Area.Height)
+	}
+	return res
+}
+
+// ForceFullRedraw zorla tüm ekranın temizlenip baştan çizilmesini sağlar.
+func (t *Terminal) ForceFullRedraw() {
+	if t.back != nil {
+		t.back.Area.Width = 0
+	}
 }

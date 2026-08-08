@@ -84,6 +84,10 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 		}
 
 		w := cell.RuneWidth(r)
+		if w == 0 {
+			input = input[size:]
+			continue // Sıfır genişlikli birleştirici karakterleri atla, önceki hücreyi ezme
+		}
 		if currX+uint16(w) > b.Area.Width {
 			break // Sınır dışına taşmayı engelle
 		}

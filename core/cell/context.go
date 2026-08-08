@@ -1,6 +1,10 @@
 package cell
 
-import "image"
+import (
+	"image"
+
+	"github.com/thebanri/limoni/core/backend"
+)
 
 // Context, alt bileşenlerin (widget) çizim yaparken kullandığı stack-allocated bağlam yapısıdır.
 // Değer kopyalaması (pass-by-value) ile aktarıldığı için heap allocation oluşturmaz ve bellek dostudur.
@@ -16,6 +20,12 @@ type Context struct {
 	// RegisterClick, widget'ların çizim sırasında tıklanabilir bölgeler (click areas)
 	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
 	RegisterClick func(area Rect, handler func())
+
+	// RegisterMouse, widget'ların sürükleme ve diğer gelişmiş fare olaylarını yakalamasını sağlar.
+	RegisterMouse func(area Rect, handler func(ev backend.MouseEvent))
+
+	// CaptureMouse, widget'ların fareyi geçici olarak kendi üzerlerine yakalamasını sağlar (drag işlemleri için).
+	CaptureMouse func(handler func(ev backend.MouseEvent))
 
 	// RegisterImage, widget'ların çizim sırasında resim çizdirme taleplerini
 	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.

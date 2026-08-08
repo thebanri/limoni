@@ -71,6 +71,14 @@ func ScaleRect(base cell.Rect, progress float64) cell.Rect {
 	w := uint16(float64(base.Width) * progress)
 	h := uint16(float64(base.Height) * progress)
 
+	// Jitter (titreme) ve sub-pixel hizalama kaymalarını önlemek için w ve h değerlerini çifte yuvarla
+	if w%2 != 0 && w < base.Width {
+		w++
+	}
+	if h%2 != 0 && h < base.Height {
+		h++
+	}
+
 	x := base.X + (base.Width-w)/2
 	y := base.Y + (base.Height-h)/2
 

@@ -136,9 +136,7 @@ func main() {
 				}
 
 			case backend.EventMouse:
-				if ev.Mouse.Button == backend.MouseLeft && !ev.Mouse.Drag {
-					t.RouteMouseEvent(ev.Mouse)
-				}
+				t.RouteMouseEvent(ev.Mouse)
 
 			case backend.EventResize:
 				// Otomatik yeniden çizilecek

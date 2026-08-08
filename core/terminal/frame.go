@@ -61,6 +61,9 @@ type Frame struct {
 
 	// DebugRegions, bu çizim karesinde çizilen widget'ların yerleşim alanlarını saklar.
 	DebugRegions []DebugRegion
+
+	// mouseCaptureRequest, çizim sırasında bir widget tarafından talep edilen fare yakalama (capture) callback'idir.
+	mouseCaptureRequest func(ev backend.MouseEvent)
 }
 
 type DebugRegion struct {
@@ -91,6 +94,7 @@ func (f *Frame) Reset() {
 	f.Layers = f.Layers[:0]
 	f.activeLayerID = ""
 	f.DebugRegions = f.DebugRegions[:0]
+	f.mouseCaptureRequest = nil
 }
 
 // RegisterModal, bu karede çizilen aktif bir modal katmanı kaydeder.
@@ -296,7 +300,6 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		// Eski modal sistemi ile geriye dönük uyumluluk
 		isOutsideModal = true
 	} else if len(f.Layers) > 0 && f.ActiveModal == nil {
-		// Eski modal API kullanılmıyorsa ama yeni katman sistemi aktifse:
 		// Kök katmanda çizilen widget'lar, katmanlar varken engellenmeli.
 		isOutsideModal = true
 	}
@@ -310,6 +313,20 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		f.RegisterClickHandlerInLayer(clickArea, func(ev backend.MouseEvent) {
 			handler()
 		}, layerID)
+	}
+
+	ctx.RegisterMouse = func(mouseArea cell.Rect, handler func(ev backend.MouseEvent)) {
+		if isOutsideModal {
+			return
+		}
+		f.RegisterClickHandlerInLayer(mouseArea, handler, layerID)
+	}
+
+	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {
+		if isOutsideModal {
+			return
+		}
+		f.mouseCaptureRequest = handler
 	}
 
 	// Resim kaydını Frame'in ImageRegions listesine köprüle

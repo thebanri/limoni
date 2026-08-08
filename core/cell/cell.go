@@ -116,14 +116,26 @@ func (c *Cell) Reset() {
 // RuneContinuation, 2 sütun genişliğindeki karakterlerin ikinci yarısını işaretlemek için kullanılan özel Unicode değeridir.
 const RuneContinuation rune = 0xFFFE
 
+// RuneImage, yerel Sixel/Kitty resimleri tarafından kaplanan hücreleri işaretlemek için kullanılan özel Unicode değeridir.
+const RuneImage rune = 0xFFFF
+
 // RuneWidth, verilen karakterin terminalde kaç sütun genişliğinde çizileceğini hesaplar.
 func RuneWidth(r rune) int {
+	// Zero-width / combining characters
+	if (r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
+		(r >= 0x1F00 && r <= 0x1F1F) || // Combining diacritical marks
+		(r >= 0x0300 && r <= 0x036F) || // Combining Diacritical Marks
+		r == 0x200D || // Zero Width Joiner
+		r == 0x200B || // Zero Width Space
+		r == 0x200C || // Zero Width Non-Joiner
+		r == 0x00AD {  // Soft Hyphen
+		return 0
+	}
 	if r >= 0x1F000 && r <= 0x1FFFF {
 		return 2
 	}
 	// Yaygın emojiler ve CJK (Uzak Doğu) karakter grupları
-	if (r >= 0x2600 && r <= 0x27BF) ||
-		(r >= 0x2E80 && r <= 0x9FFF) ||
+	if (r >= 0x2E80 && r <= 0x9FFF) ||
 		(r >= 0xF900 && r <= 0xFAFF) ||
 		(r >= 0xFF00 && r <= 0xFFEF) {
 		return 2

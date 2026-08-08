@@ -2,162 +2,246 @@ package widgets
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
 
-// DialogButton, diyalog penceresindeki bir butonu ve tıklandığında çalışacak callback'i temsil eder.
+// DialogButton represents a button in the dialog.
 type DialogButton struct {
 	Text    string
 	Handler func()
 }
 
-// Dialog, premium tasarımlı, 3D gölgeli ve sekmeli odağa duyarlı bir modal pencere widget'ıdır.
+// Dialog is a premium, modern glassmorphism dialog widget with glowing gradient borders and blended shadows.
 type Dialog struct {
 	ID                 string
 	Title              string
 	Message            string
+	SubMessage         string
 	Buttons            []DialogButton
 	Style              cell.Style
+	HeaderStyle        cell.Style
 	BorderStyle        cell.Style
 	ButtonStyle        cell.Style
 	ButtonFocusedStyle cell.Style
 	BorderSymbols      BorderSymbols
+	Shadow             bool
 }
 
-// Draw, diyalog penceresini çizer, sağ/alt gölgelerini ekler ve butonlar için odak/tıklama alanlarını kaydeder.
+// Draw renders the premium glassmorphism dialog inside ctx.Area.
 func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	if di.ID == "" || ctx.Area.Width < 6 || ctx.Area.Height < 4 {
+	if di.ID == "" || ctx.Area.Width < 10 || ctx.Area.Height < 6 {
 		return
 	}
 
-	boxStyle := ctx.Style.Merge(di.Style)
-
-	// 1. 3D GÖLGE ÇİZİMİ
-	shadowStyle := cell.Style{Bg: cell.NewColorRGB(20, 20, 20), Fg: cell.NewColorRGB(20, 20, 20)}
-	// Dikey gölge (Sağ kenarda, 2 sütun genişliğinde)
-	for dy := 1; dy <= int(ctx.Area.Height); dy++ {
-		y := int(ctx.Area.Y) + dy
-		for dx := 0; dx < 2; dx++ {
-			x := int(ctx.Area.X) + int(ctx.Area.Width) + dx
-			if c := buf.Get(uint16(x), uint16(y)); c != nil {
-				c.Content = ' '
-				c.Style = shadowStyle
-			}
-		}
-	}
-	// Yatay gölge (Alt kenarda, 1 satır yüksekliğinde)
-	for dx := 2; dx < int(ctx.Area.Width)+2; dx++ {
-		x := int(ctx.Area.X) + dx
-		y := int(ctx.Area.Y) + int(ctx.Area.Height)
-		if c := buf.Get(uint16(x), uint16(y)); c != nil {
-			c.Content = ' '
-			c.Style = shadowStyle
-		}
+	if di.Shadow {
+		DrawShadow(buf, ctx.Area, 2, 1)
 	}
 
-	// 2. DIALOG ARKA PLAN TEMİZLEME VE DOLDURMA
-	for dy := 0; dy < int(ctx.Area.Height); dy++ {
-		y := ctx.Area.Y + uint16(dy)
-		for dx := 0; dx < int(ctx.Area.Width); dx++ {
-			x := ctx.Area.X + uint16(dx)
-			if c := buf.Get(x, y); c != nil {
+	boxW := ctx.Area.Width  // Tam genişlik - gölge widget içinde yok, dışarıda çizilir
+	boxH := ctx.Area.Height // Tam yükseklik
+	x := ctx.Area.X
+	y := ctx.Area.Y
+
+	// 0. FULL AREA WIPE — tüm dialog alanını tamamen temizle.
+	// ctx.Area.Width ve ctx.Area.Height, animasyonlu (ScaleRect) alana göre geldiğinden
+	// bu wipe her karede sadece o an görünen alanı kapsar.
+	fullDark := cell.NewColorRGB(12, 14, 18)
+	for dy := uint16(0); dy < ctx.Area.Height; dy++ {
+		for dx := uint16(0); dx < ctx.Area.Width; dx++ {
+			if c := buf.Get(x+dx, y+dy); c != nil {
 				c.Content = ' '
-				c.Style = boxStyle
+				c.Style = cell.Style{Fg: fullDark, Bg: fullDark}
 			}
 		}
 	}
 
-	// 3. KENARLIKLARIN ÇİZİMİ
-	borderStyle := ctx.Style.Merge(di.BorderStyle)
-	w, h := ctx.Area.Width, ctx.Area.Height
-	x, y := ctx.Area.X, ctx.Area.Y
+	// 1. GLASSMORPHISM BODY (Frosted glass / dark slate background)
+	for dy := uint16(0); dy < boxH; dy++ {
+		by := y + dy
+		for dx := uint16(0); dx < boxW; dx++ {
+			bx := x + dx
+			if c := buf.Get(bx, by); c != nil {
+				c.Content = ' '
+				c.Style.Bg = cell.NewColorRGB(18, 20, 24)
+				c.Style.Fg = cell.NewColorRGB(220, 225, 235)
+			}
+		}
+	}
+
+	// 3. GLOWING GRADIENT BORDERS
+	startCol := di.BorderStyle.Fg
+	if startCol.Type() == cell.ColorDefault {
+		startCol = cell.NewColorRGB(255, 80, 80) // Neon Red/Orange
+	}
+	endCol := di.ButtonFocusedStyle.Bg
+	if endCol.Type() == cell.ColorDefault {
+		endCol = cell.NewColorRGB(255, 0, 255) // Neon Magenta
+	}
 
 	sym := di.BorderSymbols
 	if sym.TopLeft == 0 {
-		sym = SymbolsDouble // Varsayılan olarak çift çizgi kenarlık
+		sym = SymbolsRounded
 	}
 
-	// Köşeler
-	buf.SetCell(x, y, cell.Cell{Content: sym.TopLeft, Style: borderStyle})
-	buf.SetCell(x+w-1, y, cell.Cell{Content: sym.TopRight, Style: borderStyle})
-	buf.SetCell(x, y+h-1, cell.Cell{Content: sym.BottomLeft, Style: borderStyle})
-	buf.SetCell(x+w-1, y+h-1, cell.Cell{Content: sym.BottomRight, Style: borderStyle})
-
-	// Yatay çizgiler
-	for col := x + 1; col < x+w-1; col++ {
-		buf.SetCell(col, y, cell.Cell{Content: sym.Horizontal, Style: borderStyle})
-		buf.SetCell(col, y+h-1, cell.Cell{Content: sym.Horizontal, Style: borderStyle})
-	}
-	// Dikey çizgiler
-	for row := y + 1; row < y+h-1; row++ {
-		buf.SetCell(x, row, cell.Cell{Content: sym.Vertical, Style: borderStyle})
-		buf.SetCell(x+w-1, row, cell.Cell{Content: sym.Vertical, Style: borderStyle})
+	// Helper to interpolate colors for gradient borders
+	getGradientColor := func(factor float64) cell.Color {
+		r1, g1, b1 := startCol.RGB()
+		r2, g2, b2 := endCol.RGB()
+		r := uint8(float64(r1) + float64(int(r2)-int(r1))*factor)
+		g := uint8(float64(g1) + float64(int(g2)-int(g1))*factor)
+		b := uint8(float64(b1) + float64(int(b2)-int(b1))*factor)
+		return cell.NewColorRGB(r, g, b)
 	}
 
-	// Butonların hemen üstüne kesikli yatay çizgi ayırıcı ekle
-	dividerY := y + h - 3
-	for col := x + 1; col < x+w-1; col++ {
-		buf.SetCell(col, dividerY, cell.Cell{Content: '┄', Style: borderStyle.Merge(cell.Style{Fg: cell.NewColorRGB(90, 90, 90)})})
+	// Draw top border with gradient
+	for col := x; col < x+boxW; col++ {
+		factor := float64(col-x) / float64(boxW)
+		gColor := getGradientColor(factor)
+		if c := buf.Get(col, y); c != nil {
+			if col == x {
+				c.Content = sym.TopLeft
+			} else if col == x+boxW-1 {
+				c.Content = sym.TopRight
+			} else {
+				c.Content = sym.Horizontal
+			}
+			c.Style.Fg = gColor
+		}
 	}
 
-	// Başlık çizimi (Ortalanmış)
+	// Draw bottom border with gradient
+	for col := x; col < x+boxW; col++ {
+		factor := float64(col-x) / float64(boxW)
+		gColor := getGradientColor(factor)
+		if c := buf.Get(col, y+boxH-1); c != nil {
+			if col == x {
+				c.Content = sym.BottomLeft
+			} else if col == x+boxW-1 {
+				c.Content = sym.BottomRight
+			} else {
+				c.Content = sym.Horizontal
+			}
+			c.Style.Fg = gColor
+		}
+	}
+
+	// Draw side borders with vertical gradient
+	for row := y + 1; row < y+boxH-1; row++ {
+		factor := float64(row-y) / float64(boxH)
+		gColor := getGradientColor(factor)
+		if c := buf.Get(x, row); c != nil {
+			c.Content = sym.Vertical
+			c.Style.Fg = gColor
+		}
+		if c := buf.Get(x+boxW-1, row); c != nil {
+			c.Content = sym.Vertical
+			c.Style.Fg = gColor
+		}
+	}
+
+	// Draw header separator line (subtle double line)
+	headerH := uint16(3)
+	sepY := y + headerH
+	for col := x + 1; col < x+boxW-1; col++ {
+		factor := float64(col-x) / float64(boxW)
+		gColor := getGradientColor(factor)
+		if c := buf.Get(col, sepY); c != nil {
+			c.Content = '─'
+			c.Style.Fg = blendWithColor(gColor, cell.NewColorRGB(18, 20, 24), 0.5) // Semi-glowing separator
+		}
+	}
+
+	// 4. HEADER TITLE
 	if di.Title != "" {
-		titleLen := uint16(len(di.Title))
-		if titleLen+4 < w {
-			titleX := x + (w-titleLen)/2
-			buf.SetString(titleX, y, di.Title, borderStyle.Merge(cell.Style{Modifier: cell.ModifierBold}))
+		titleLen := uint16(utf8.RuneCountInString(di.Title))
+		if titleLen < boxW {
+			titleX := x + (boxW-titleLen)/2
+			// Draw title with bold, bright white style
+			buf.SetString(titleX, y+1, di.Title, cell.Style{
+				Fg:       cell.NewColorRGB(255, 255, 255),
+				Bg:       buf.Get(titleX, y+1).Style.Bg,
+				Modifier: cell.ModifierBold,
+			})
 		}
 	}
 
-	// 4. MESAJIN ÇİZİMİ (Metin Kaydırma ve Ortalama)
-	msgY := y + 2
-	lines := splitMessage(di.Message, int(w)-4)
-	for i, line := range lines {
-		if msgY+uint16(i) < y+h-2 {
-			lineW := uint16(len(line))
-			lineX := x + (w-lineW)/2
-			buf.SetString(lineX, msgY+uint16(i), line, boxStyle)
+	// 5. MESSAGE & SUBMESSAGE
+	msgY := y + headerH + 2
+	bodyStyle := cell.Style{
+		Fg: cell.NewColorRGB(240, 245, 255),
+		Bg: buf.Get(x+2, msgY).Style.Bg,
+	}
+
+	if di.Message != "" {
+		lines := splitMessage(di.Message, int(boxW)-4)
+		for i, line := range lines {
+			lineW := uint16(utf8.RuneCountInString(line))
+			buf.SetString(x+(boxW-lineW)/2, msgY+uint16(i), line, bodyStyle.AddModifier(cell.ModifierBold))
+		}
+		msgY += uint16(len(lines)) - 1
+	}
+
+	if di.SubMessage != "" {
+		subY := msgY + 2
+		if subY >= y+boxH-2 {
+			subY = msgY + 1
+		}
+		subStyle := cell.Style{
+			Fg:       cell.NewColorRGB(140, 145, 160),
+			Bg:       buf.Get(x+2, subY).Style.Bg,
+			Modifier: cell.ModifierItalic,
+		}
+		subLen := uint16(utf8.RuneCountInString(di.SubMessage))
+		if subLen < boxW-4 {
+			buf.SetString(x+(boxW-subLen)/2, subY, di.SubMessage, subStyle)
 		}
 	}
 
-	// 5. BUTONLARIN ÇİZİMİ VE KÖPRÜLENMESİ
+	// 6. pill BUTTONS (High-Contrast Premium Pill Buttons)
 	if len(di.Buttons) > 0 {
 		totalBtnsW := 0
-		spacing := 3
+		spacing := 4
 		for i, btn := range di.Buttons {
 			if i > 0 {
 				totalBtnsW += spacing
 			}
-			totalBtnsW += len(btn.Text) + 4 // Örn: "[ Evet ]"
+			totalBtnsW += displayWidth(btn.Text) + 6 // " [ Evet ] " format
 		}
 
-		btnY := y + h - 2
-		btnX := x + (w-uint16(totalBtnsW))/2
+		btnY := y + boxH - 2
+		btnX := x + (boxW-uint16(totalBtnsW))/2
 
 		for i, btn := range di.Buttons {
 			btnID := fmt.Sprintf("%s_btn_%d", di.ID, i)
-
-			// Odak listesine buton ID'sini kaydet
 			if ctx.RegisterFocus != nil {
 				ctx.RegisterFocus(btnID)
 			}
 
-			isBtnFocused := (ctx.FocusedID == btnID)
+			isFocused := (ctx.FocusedID == btnID)
+			btnText := fmt.Sprintf(" [ %s ] ", btn.Text)
+			btnW := uint16(displayWidth(btnText))
 
-			btnText := fmt.Sprintf("[ %s ]", btn.Text)
-			btnW := uint16(len(btnText))
-
-			bStyle := boxStyle.Merge(di.ButtonStyle)
-			if isBtnFocused {
-				bStyle = bStyle.Merge(di.ButtonFocusedStyle)
+			bStyle := cell.Style{
+				Fg: cell.NewColorRGB(180, 185, 200),
+				Bg: cell.NewColorRGB(35, 40, 50),
+			}
+			if isFocused {
+				// Focused button glows neon (interpolated gradient color at button X position)
+				factor := float64(btnX-x) / float64(boxW)
+				btnGlow := getGradientColor(factor)
+				bStyle = cell.Style{
+					Fg:       cell.NewColorRGB(255, 255, 255),
+					Bg:       btnGlow,
+					Modifier: cell.ModifierBold,
+				}
 			}
 
-			// Buton metnini yaz
 			buf.SetString(btnX, btnY, btnText, bStyle)
 
-			// Tıklama alanını kaydet
+			// Register click handler
 			btnArea := cell.NewRect(btnX, btnY, btnW, 1)
 			if ctx.RegisterClick != nil {
 				handler := btn.Handler
@@ -176,11 +260,59 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
-// SizeHint, diyalog penceresinin esnek boyutlu olduğunu bildirir.
+// applyShadowMultiplier darkens the background and foreground colors of a cell by a factor.
+func applyShadowMultiplier(c *cell.Cell, factor float64) {
+	if c == nil {
+		return
+	}
+	if c.Style.Bg.Type() == cell.ColorRGB {
+		r, g, b := c.Style.Bg.RGB()
+		c.Style.Bg = cell.NewColorRGB(uint8(float64(r)*factor), uint8(float64(g)*factor), uint8(float64(b)*factor))
+	} else {
+		c.Style.Bg = cell.NewColorRGB(10, 12, 16)
+	}
+
+	if c.Style.Fg.Type() == cell.ColorRGB {
+		r, g, b := c.Style.Fg.RGB()
+		c.Style.Fg = cell.NewColorRGB(uint8(float64(r)*factor), uint8(float64(g)*factor), uint8(float64(b)*factor))
+	} else {
+		c.Style.Fg = cell.NewColorRGB(25, 30, 40)
+	}
+}
+
+// blendWithColor blends a cell color with a target solid color by a given alpha.
+func blendWithColor(orig cell.Color, target cell.Color, alpha float64) cell.Color {
+	r1, g1, b1 := orig.RGB()
+	r2, g2, b2 := target.RGB()
+	if orig.Type() == cell.ColorDefault {
+		return target
+	}
+	r := uint8(float64(r1)*(1-alpha) + float64(r2)*alpha)
+	g := uint8(float64(g1)*(1-alpha) + float64(g2)*alpha)
+	b := uint8(float64(b1)*(1-alpha) + float64(b2)*alpha)
+	return cell.NewColorRGB(r, g, b)
+}
+
+// displayWidth, karakterlerin terminaldeki görsel hücre genişliklerini hesaplar.
+func displayWidth(s string) int {
+	width := 0
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		if r == utf8.RuneError {
+			break
+		}
+		width += cell.RuneWidth(r)
+		s = s[size:]
+	}
+	return width
+}
+
+// SizeHint, diyalog bileşeninin esnek boyutlu çizilmesini bildirir.
 func (di Dialog) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, maxArea.Height
 }
 
+// splitMessage, uzun mesajları kutu genişliğine göre alt satırlara böler.
 func splitMessage(msg string, maxW int) []string {
 	if maxW <= 0 {
 		return []string{msg}
@@ -192,7 +324,7 @@ func splitMessage(msg string, maxW int) []string {
 	for _, word := range words {
 		if currentLine == "" {
 			currentLine = word
-		} else if len(currentLine)+1+len(word) <= maxW {
+		} else if utf8.RuneCountInString(currentLine)+1+utf8.RuneCountInString(word) <= maxW {
 			currentLine += " " + word
 		} else {
 			lines = append(lines, currentLine)
@@ -204,5 +336,3 @@ func splitMessage(msg string, maxW int) []string {
 	}
 	return lines
 }
-
-// splitWords, widgets/paragraph.go dosyasında zaten tanımlıdır (aynı pakettedir).

@@ -174,11 +174,15 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 ---
 
 - **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers) [TAMAMLANDI]**
-  - `widgets.Transducer` ve dither tabanlı sekme/modal geçişleri tamamlandı.
-  - Sekme geçişindeki bozuk/parçalı yazıları önlemek için çift dither uygulaması kaldırıldı; eski ve yeni frame artık Terminal seviyesindeki tekil geçiş motorunda güvenli şekilde harmanlanır.
+  - `widgets.Transducer` ve dither tabanlı modal/widget geçişleri tamamlandı.
+  - Sekme geçişlerinde eski frame'in metin/canvas üzerine parça parça taşınmasını önlemek için doğrudan temiz frame render'ı kullanılır; modal ve widget animasyonları bağımsız devam eder.
+  - `SetTransitionActive(false)` geçiş bayrağının yanında `transitionOldBuf` ve progress değerini de temizler; kapatılmış bir geçişin eski görüntüyü sonraki modal/frame üzerine taşıması engellenir.
   - Debug HUD, dither geçişinden sonra çizilecek şekilde sıralandı; böylece debug sınırları ve etiketleri geçiş efekti tarafından soluklaştırılmaz.
   - Geçiş sırasında geçici gövde buffer'ı yerine tam frame geçişi kullanıldığı için widget metinleri temiz hücrelerle karışmaz ve koordinat kayması oluşmaz.
-  - Metin veya border içeren satırlar geçiş sırasında atomik olarak değiştirilir; karakterlerin eski/yeni frame arasında parçalanması engellenir. Boş/grafik hücrelerde Bayer dither korunur.
+  - Terminal dither motorunda metin veya border içeren satırlar atomik olarak değiştirilebilir; karakterlerin eski/yeni frame arasında parçalanması engellenir.
+  - Modal açılışı, devam eden terminal frame geçişi iptal edilir; böylece `transitionOldBuf` içeriğinin dialog üzerine ikinci bir panel olarak basılması engellenir. Modal kendi ölçekleme animasyonunu bağımsız yürütür.
+  - Modal sandbox'ı tarafından çizimi engellenen arka plan widget'ları `DebugRegions` listesine kaydedilmez; Debug HUD görünmeyen panelleri modalın üzerinde yeniden çizmez.
+
 - **Faz 21: 3 Boyutlu Vektör Grafik Motoru (3D Wireframe Graphics Engine) [TAMAMLANDI]**
   - Perspektif projeksiyon (`Project`) ve eksen rotasyon (`RotateX`/`RotateY`/`RotateZ`) fonksiyonları eklendi.
   - Braille Canvas üzerinde otomatik dönen ve sol tık sürüklemeyle yönlendirilebilen 3D Küp entegrasyonu tamamlandı.

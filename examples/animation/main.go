@@ -118,10 +118,7 @@ func main() {
 				state.LastKey = fmt.Sprintf("Kod: %d, Karakter: %q", ev.Key.Type, string(ev.Key.Ch))
 
 			case backend.EventMouse:
-				if ev.Mouse.Button == backend.MouseLeft && !ev.Mouse.Drag {
-					// Tıklama olayını hedeflere yönlendir
-					t.RouteMouseEvent(ev.Mouse)
-				}
+				t.RouteMouseEvent(ev.Mouse)
 				state.LastMouse = fmt.Sprintf("Buton: %d, Pozisyon: (%d, %d)", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y)
 
 			case backend.EventResize:

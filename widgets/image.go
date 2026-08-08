@@ -85,11 +85,11 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
-	// Yerel grafik protokol modları: Metinlerin resmin arkasından taşmasını önlemek için alanı boşlukla temizle
+	// Yerel grafik protokol modları: Metinlerin resmin arkasından taşmasını önlemek için alanı resim işaretiyle doldur
 	for y := ctx.Area.Y; y < ctx.Area.Y+ctx.Area.Height; y++ {
 		for x := ctx.Area.X; x < ctx.Area.X+ctx.Area.Width; x++ {
 			if c := buf.Get(x, y); c != nil {
-				c.Content = ' '
+				c.Content = cell.RuneImage
 				c.Style.Reset()
 			}
 		}
