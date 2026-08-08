@@ -1117,11 +1117,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					{X: -1.0, Y: 1.0, Z: 1.0},
 				}
 
-				cubeEdges := [][2]int{
-					{0, 1}, {1, 2}, {2, 3}, {3, 0}, // Ön yüz
-					{4, 5}, {5, 6}, {6, 7}, {7, 4}, // Arka yüz
-					{0, 4}, {1, 5}, {2, 6}, {3, 7}, // Bağlantı çizgileri
-				}
+
 
 				cubeFaces := [][]int{
 					{0, 1, 2, 3}, // Front (Z = -1)
@@ -1155,7 +1151,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					}{x: int(px), y: int(py), visible: visible}
 				}
 
-				// Yüzeyleri kapla
+				// Yüzeyleri kapla ve kenarlıkları çiz
+				style := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
 				for _, face := range cubeFaces {
 					p0 := projected[face[0]]
 					p1 := projected[face[1]]
@@ -1188,16 +1185,12 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 								uv0, uv2, uv3, state.AppleImg,
 							)
 						}
-					}
-				}
 
-				// Çizgileri Canvas'a çiz (Neon Turkuaz renk stiliyle)
-				style := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
-				for _, edge := range cubeEdges {
-					p1 := projected[edge[0]]
-					p2 := projected[edge[1]]
-					if p1.visible && p2.visible {
+						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin/çizgilerin görünmesini engeller)
+						canvas.DrawLine(p0.x, p0.y, p1.x, p1.y, style)
 						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, style)
+						canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, style)
+						canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, style)
 					}
 				}
 			}
