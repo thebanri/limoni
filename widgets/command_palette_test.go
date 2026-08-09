@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
 
@@ -21,6 +22,20 @@ func testCommandItems() []CommandItem {
 	}
 }
 
+func TestCommandPaletteDrawRuneMarksWideContinuation(t *testing.T) {
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 4, 1))
+	width := drawRune(buf, 1, 0, '🔍', cell.Style{})
+	if width != 2 {
+		t.Fatalf("wide rune width = %d; 2 bekleniyordu", width)
+	}
+	if buf.Get(1, 0).Content != '🔍' {
+		t.Fatalf("wide rune ana hücreye yazılmadı")
+	}
+	if buf.Get(2, 0).Content != cell.RuneContinuation {
+		t.Fatalf("wide rune devam hücresi RuneContinuation olmalı")
+	}
+}
+
 func TestCommandPalette_DebugArea(t *testing.T) {
 	state := NewCommandPaletteState()
 	state.AllItems = testCommandItems()
@@ -29,8 +44,19 @@ func TestCommandPalette_DebugArea(t *testing.T) {
 	area := cell.NewRect(0, 0, 100, 30)
 	got := (CommandPalette{State: state}).DebugArea(area)
 
-	if got.X != 20 || got.Y != 2 || got.Width != 60 || got.Height != 7 {
-		t.Fatalf("DebugArea = %+v; Rect{20,2,60,7} bekleniyordu", got)
+	if got.X != 20 || got.Y != 2 || got.Width != 60 || got.Height != 8 {
+		t.Fatalf("DebugArea = %+v; Rect{20,2,60,8} bekleniyordu", got)
+	}
+}
+
+func TestCommandPalettePositionBottom(t *testing.T) {
+	state := NewCommandPaletteState()
+	state.AllItems = testCommandItems()
+	state.Open()
+	position := &CommandPalettePosition{Bottom: 1}
+	got := (CommandPalette{State: state, Position: position}).DebugArea(cell.NewRect(0, 0, 100, 30))
+	if got.X != 20 || got.Y != 21 || got.Width != 60 || got.Height != 8 {
+		t.Fatalf("bottom position = %+v; want Rect{20,21,60,8}", got)
 	}
 }
 

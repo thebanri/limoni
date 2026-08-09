@@ -136,9 +136,23 @@ func (cps *CommandPaletteState) HandleKey(ev backend.KeyEvent) bool {
 	}
 }
 
+// CommandPalettePosition controls an overlay's distance from terminal edges.
+// Use NewCommandPalettePosition so unspecified edges are initialized to -1.
+type CommandPalettePosition struct {
+	Top    int
+	Right  int
+	Bottom int
+	Left   int
+}
+
+func NewCommandPalettePosition() *CommandPalettePosition {
+	return &CommandPalettePosition{Top: -1, Right: -1, Bottom: -1, Left: -1}
+}
+
 // CommandPalette, Komut Paleti overlay widget'ıdır.
 type CommandPalette struct {
 	State       *CommandPaletteState
+	Position    *CommandPalettePosition
 	Style       cell.Style // Arka plan stili
 	InputStyle  cell.Style // Arama kutusu stili
 	ItemStyle   cell.Style // Normal öğe stili
@@ -146,14 +160,10 @@ type CommandPalette struct {
 	DetailStyle cell.Style // Kısayol/detay stili
 }
 
-// DebugArea, komut paletinin gerçek ekrandaki sınırını döndürür.
-// Çizim sırasında palette tam terminal alanını alır; panel ise bu alanın
-// içinde ortalandığı için Layout Inspector'a gerçek panel sınırını bildirir.
-func (cp CommandPalette) DebugArea(area cell.Rect) cell.Rect {
+func (cp CommandPalette) panelArea(area cell.Rect) cell.Rect {
 	if cp.State == nil || !cp.State.IsOpen || area.Width < 20 || area.Height < 6 {
 		return cell.Rect{}
 	}
-
 	paletteWidth := int(area.Width) * 60 / 100
 	if paletteWidth < 30 {
 		paletteWidth = 30
@@ -161,19 +171,55 @@ func (cp CommandPalette) DebugArea(area cell.Rect) cell.Rect {
 	if paletteWidth > int(area.Width)-4 {
 		paletteWidth = int(area.Width) - 4
 	}
-
 	visibleCount := len(cp.State.Filtered)
 	if visibleCount > cp.State.MaxVisible {
 		visibleCount = cp.State.MaxVisible
 	}
-	paletteHeight := 3 + visibleCount
+	paletteHeight := 4 + visibleCount
 	if paletteHeight > int(area.Height)-4 {
 		paletteHeight = int(area.Height) - 4
 	}
 
-	startX := int(area.X) + (int(area.Width)-paletteWidth)/2
-	startY := int(area.Y) + 2
-	return cell.NewRect(uint16(startX), uint16(startY), uint16(paletteWidth), uint16(paletteHeight))
+	// Position yoksa eski davranış: yatayda ortalı, üstten 2 satır.
+	x := int(area.X) + (int(area.Width)-paletteWidth)/2
+	y := int(area.Y) + 2
+	if cp.Position != nil {
+		p := cp.Position
+		if p.Left > 0 {
+			x = int(area.X) + p.Left
+		}
+		if p.Right > 0 {
+			x = int(area.X) + int(area.Width) - paletteWidth - p.Right
+		}
+		if p.Top > 0 {
+			y = int(area.Y) + p.Top
+		}
+		if p.Bottom > 0 {
+			y = int(area.Y) + int(area.Height) - paletteHeight - p.Bottom
+		}
+	}
+	if x < int(area.X) {
+		x = int(area.X)
+	}
+	if y < int(area.Y) {
+		y = int(area.Y)
+	}
+	maxX := int(area.X) + int(area.Width) - paletteWidth
+	maxY := int(area.Y) + int(area.Height) - paletteHeight
+	if x > maxX {
+		x = maxX
+	}
+	if y > maxY {
+		y = maxY
+	}
+	return cell.NewRect(uint16(x), uint16(y), uint16(paletteWidth), uint16(paletteHeight))
+}
+
+// DebugArea, komut paletinin gerçek ekrandaki sınırını döndürür.
+// Çizim sırasında palette tam terminal alanını alır; panel ise bu alanın
+// içinde ortalandığı için Layout Inspector'a gerçek panel sınırını bildirir.
+func (cp CommandPalette) DebugArea(area cell.Rect) cell.Rect {
+	return cp.panelArea(area)
 }
 
 // Draw, Komut Paleti'ni ekranın ortasına overlay olarak çizer.
@@ -187,27 +233,15 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
-	// Palet boyutları: genişliğin %60'ı, ortada
-	paletW := int(area.Width) * 60 / 100
-	if paletW < 30 {
-		paletW = 30
+	panel := cp.panelArea(area)
+	paletW := int(panel.Width)
+	paletH := int(panel.Height)
+	visibleCount := paletH - 4
+	if visibleCount < 0 {
+		visibleCount = 0
 	}
-	if paletW > int(area.Width)-4 {
-		paletW = int(area.Width) - 4
-	}
-
-	// Yükseklik: arama kutusu (3 satır) + sonuçlar (en fazla MaxVisible)
-	visibleCount := len(cp.State.Filtered)
-	if visibleCount > cp.State.MaxVisible {
-		visibleCount = cp.State.MaxVisible
-	}
-	paletH := 3 + visibleCount // 1 başlık + 1 input + 1 çizgi + sonuçlar
-	if paletH > int(area.Height)-4 {
-		paletH = int(area.Height) - 4
-	}
-
-	startX := int(area.X) + (int(area.Width)-paletW)/2
-	startY := int(area.Y) + 2 // Üstten biraz boşluk
+	startX := int(panel.X)
+	startY := int(panel.Y)
 
 	// Gölge efekti (sağ ve alt kenarda)
 	shadowStyle := cell.Style{Bg: cell.NewColorRGB(15, 15, 15), Fg: cell.NewColorRGB(15, 15, 15)}
@@ -266,14 +300,13 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	title := " ⌘ Komut Paleti "
 	titleRunes := []rune(title)
 	titleStart := startX + 2
-	for i, r := range titleRunes {
-		if titleStart+i >= startX+paletW-1 {
+	titleStyle := cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
+	titleX := titleStart
+	for _, r := range titleRunes {
+		if titleX >= startX+paletW-1 {
 			break
 		}
-		if c := buf.Get(uint16(titleStart+i), uint16(startY)); c != nil {
-			c.Content = r
-			c.Style = cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
-		}
+		titleX += drawRune(buf, titleX, startY, r, titleStyle)
 	}
 
 	// Alt çizgi
@@ -313,12 +346,9 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		inputStyle.Bg = cell.NewColorRGB(50, 50, 65)
 	}
 
-	// İkon
-	if c := buf.Get(uint16(startX+1), uint16(inputY)); c != nil {
-		c.Content = '🔍'
-		c.Style = inputStyle
-	}
-	searchIconWidth := 2 // Emoji genişliği
+	// İkon: geniş karakterin devam hücresini de işaretle; aksi halde eski frame
+	// içeriği ikinci hücrede kalıp paletin kenarında kayma/artefakt oluşturabilir.
+	searchIconWidth := drawRune(buf, startX+1, inputY, '🔍', inputStyle)
 
 	// Arama kutusu arka planı
 	for dx := 1 + searchIconWidth; dx < paletW-1; dx++ {
@@ -340,10 +370,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if x >= startX+paletW-1 {
 				break
 			}
-			if c := buf.Get(uint16(x), uint16(inputY)); c != nil {
-				c.Content = r
-				c.Style = phStyle
-			}
+			drawRune(buf, x, inputY, r, phStyle)
 		}
 	} else {
 		qRunes := []rune(queryText)
@@ -352,10 +379,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if x >= startX+paletW-1 {
 				break
 			}
-			if c := buf.Get(uint16(x), uint16(inputY)); c != nil {
-				c.Content = r
-				c.Style = inputStyle
-			}
+			drawRune(buf, x, inputY, r, inputStyle)
 		}
 	}
 
@@ -499,6 +523,26 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 }
 
 func (cp CommandPalette) SizeHint(maxArea cell.Rect) (width, height uint16) { return 0, 0 }
+
+// drawRune writes a rune and marks the continuation cell for wide terminal runes.
+// It returns the number of terminal columns consumed by the rune.
+func drawRune(buf *buffer.Buffer, x, y int, r rune, style cell.Style) int {
+	width := cell.RuneWidth(r)
+	if width <= 0 {
+		return 0
+	}
+	if c := buf.Get(uint16(x), uint16(y)); c != nil {
+		c.Content = r
+		c.Style = style
+	}
+	if width == 2 {
+		if c := buf.Get(uint16(x+1), uint16(y)); c != nil {
+			c.Content = cell.RuneContinuation
+			c.Style = style
+		}
+	}
+	return width
+}
 
 // computeMatchPositions, fuzzy arama sonucu eşleşen karakter konumlarını döndürür.
 func computeMatchPositions(queryLower, targetLower string) map[int]bool {

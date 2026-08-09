@@ -21,6 +21,8 @@ type ClickRegion struct {
 	// LayerID, bu tıklama bölgesinin hangi katmana ait olduğunu belirtir.
 	// Boş string ise kök (root) katmanına aittir.
 	LayerID string
+	// MouseOnly, MouseNone hareket/hover olaylarının da bu bölgeye yönlendirilmesini sağlar.
+	MouseOnly bool
 }
 
 // ImageRegion, ekranda grafik olarak çizdirilmek istenen bir resmi ve bu resmin
@@ -208,10 +210,31 @@ func (f *Frame) RegisterClickHandler(area cell.Rect, handler func(ev backend.Mou
 		return
 	}
 	f.ClickRegions = append(f.ClickRegions, ClickRegion{
-		Area:    area,
-		Handler: handler,
-		LayerID: f.activeLayerID,
+		Area:      area,
+		Handler:   handler,
+		LayerID:   f.activeLayerID,
+		MouseOnly: false,
 	})
+}
+
+func (f *Frame) registerMouseHandler(area cell.Rect, handler func(ev backend.MouseEvent), layerID string) {
+	if handler == nil {
+		return
+	}
+	f.ClickRegions = append(f.ClickRegions, ClickRegion{
+		Area:      area,
+		Handler:   handler,
+		LayerID:   layerID,
+		MouseOnly: true,
+	})
+}
+
+// CaptureMouse, aktif farenin sürükleme boyunca kayıtlı handler'a yönlendirilmesini sağlar.
+// Handler, MouseRelease olayını aldıktan sonra yakalama otomatik olarak bırakılır.
+func (f *Frame) CaptureMouse(handler func(ev backend.MouseEvent)) {
+	if handler != nil {
+		f.mouseCaptureRequest = handler
+	}
 }
 
 // RegisterClickHandlerInLayer, belirtilen katman ID'si altında bir tıklama alanı kaydeder.
@@ -319,7 +342,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		if isOutsideModal {
 			return
 		}
-		f.RegisterClickHandlerInLayer(mouseArea, handler, layerID)
+		f.registerMouseHandler(mouseArea, handler, layerID)
 	}
 
 	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {

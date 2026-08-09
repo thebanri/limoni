@@ -36,6 +36,33 @@ type MatrixStream struct {
 }
 
 // AppState, interaktif demo uygulamasının durumunu (state) temsil eder.
+func clampDialogOffset(screen cell.Rect, width, height uint16, offsetX, offsetY int) (int, int) {
+	centered := terminal.CenterRect(screen, width, height)
+	minX := -int(centered.X)
+	maxX := int(screen.Width) - int(centered.X) - int(width)
+	minY := -int(centered.Y)
+	maxY := int(screen.Height) - int(centered.Y) - int(height)
+	if maxX < minX {
+		maxX = minX
+	}
+	if maxY < minY {
+		maxY = minY
+	}
+	if offsetX < minX {
+		offsetX = minX
+	}
+	if offsetX > maxX {
+		offsetX = maxX
+	}
+	if offsetY < minY {
+		offsetY = minY
+	}
+	if offsetY > maxY {
+		offsetY = maxY
+	}
+	return offsetX, offsetY
+}
+
 type AppState struct {
 	// ActiveTab, sol menüde hangi sekmenin aktif olduğunu belirtir (örn. "Giriş", "Ayarlar").
 	ActiveTab string
@@ -73,8 +100,9 @@ type AppState struct {
 	ExitDialogAnim     *animation.Float
 
 	// Giriş sekmesindeki interaktif tablo durumu
-	TableState *widgets.TableState
-	Processes  []ProcessInfo
+	TableState   *widgets.TableState
+	Processes    []ProcessInfo
+	FormProgress *animation.Float
 
 	// Açılır menü durumu
 	NotificationMode string
@@ -116,7 +144,9 @@ type AppState struct {
 	Drag3DLastX  int
 	Drag3DLastY  int
 	AppleImg     image.Image
-	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü"
+	OBJModel     *graphics.Model3D
+	OBJPath      string
+	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü", "OBJ"
 	ThreeDStyle  string // "Dokulu", "Dolu Renkli", "Kafes"
 
 	// Pencere boyutlandırma (Resizing) özellikleri
@@ -133,6 +163,18 @@ type AppState struct {
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
 func (state *AppState) UpdateAnimations(now time.Time) {
+	// Giriş sekmesindeki progress bar 0 -> 100 -> 0 döngüsü
+	if state.FormProgress != nil {
+		if !state.FormProgress.IsAnimating() {
+			if state.FormProgress.Value() >= 99.9 {
+				state.FormProgress.AnimateTo(0, 4*time.Second, animation.EaseInOutSine)
+			} else {
+				state.FormProgress.AnimateTo(100, 4*time.Second, animation.EaseInOutSine)
+			}
+		}
+		state.FormProgress.Update(now)
+	}
+
 	// Daire daralma/genişleme pulse animasyonu
 	if state.PulseVal != nil {
 		if !state.PulseVal.IsAnimating() {
@@ -269,6 +311,7 @@ func main() {
 		LastMouse:         "Yok",
 		SettingsListState: widgets.NewListState(),
 		PulseVal:          animation.NewFloat(0),
+		FormProgress:      animation.NewFloat(0),
 		TabColors: map[string]*animation.Color{
 			"Giriş":      animation.NewColor(cell.NewColorRGB(0, 255, 0)),
 			"Ayarlar":    animation.NewColor(cell.NewColorRGB(120, 120, 120)),
@@ -366,6 +409,18 @@ func main() {
 	state.ThreeDModel = "Küp"
 	state.ThreeDStyle = "Dokulu"
 
+	// İsteğe bağlı Wavefront OBJ modeli: LIMONI_OBJ=/path/model.obj go run ./examples/demo
+	if objPath := os.Getenv("LIMONI_OBJ"); objPath != "" {
+		if model, objErr := graphics.LoadOBJ(objPath); objErr != nil {
+			fmt.Fprintf(os.Stderr, "OBJ modeli yüklenemedi: %v\n", objErr)
+		} else {
+			model.Normalize(2.4)
+			state.OBJModel = &model
+			state.OBJPath = objPath
+			state.ThreeDModel = "OBJ"
+		}
+	}
+
 	// Komut Paleti ve Kısayol Yöneticisi başlat
 	state.CmdPalette = widgets.NewCommandPaletteState()
 	state.KeyManager = widgets.NewKeybindingManager()
@@ -432,14 +487,19 @@ func main() {
 			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Piramit" }},
 		{Label: "3D Model: Dörtyüzlü", Detail: "3", Category: "3D Grafik",
 			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Dörtyüzlü" }},
-
-		{Label: "Render Stili: Dokulu", Detail: "4", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dokulu" }},
-		{Label: "Render Stili: Dolu Renkli", Detail: "5", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dolu Renkli" }},
-		{Label: "Render Stili: Kafes", Detail: "6", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Kafes" }},
 	}
+	if state.OBJModel != nil {
+		cmdItems = append(cmdItems, widgets.CommandItem{Label: "3D Model: OBJ Dosyası", Detail: "7", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "OBJ" }})
+	}
+	cmdItems = append(cmdItems,
+		widgets.CommandItem{Label: "Render Stili: Dokulu", Detail: "4", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dokulu" }},
+		widgets.CommandItem{Label: "Render Stili: Dolu Renkli", Detail: "5", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dolu Renkli" }},
+		widgets.CommandItem{Label: "Render Stili: Kafes", Detail: "6", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Kafes" }},
+	)
 
 	// KeybindingManager'dan otomatik olarak kısayol komutlarını da ekle
 	cmdItems = append(cmdItems, state.KeyManager.ToCommandItems()...)
@@ -950,6 +1010,20 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(descBlock, gisChunks[0])
 
+			// Form/uygulama bileşenleri demonstrasyonu: canlı CPU ilerleme çubuğu.
+			cpuValue := 0.0
+			if state.FormProgress != nil {
+				cpuValue = state.FormProgress.Value()
+			}
+			if gisChunks[0].Height > 3 && gisChunks[0].Width > 6 {
+				progressArea := cell.NewRect(gisChunks[0].X+2, gisChunks[0].Y+gisChunks[0].Height-2, gisChunks[0].Width-4, 1)
+				f.RenderWidget(widgets.ProgressBar{
+					Value: cpuValue, Min: 0, Max: 100, ShowPercent: true,
+					FilledStyle: cell.Style{Fg: accentColor},
+					EmptyStyle:  cell.Style{Fg: cell.NewColorRGB(70, 70, 85)},
+				}, progressArea)
+			}
+
 			// 2. ALT TARAF: Sistem süreç tablosu
 			tableRows := make([]widgets.TableRow, len(state.Processes)+2)
 			for i, p := range state.Processes {
@@ -1296,6 +1370,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						{0, 2, 1}, // Ön-Sol
 						{0, 3, 2}, // Ön-Sağ
 						{0, 1, 3}, // Arka
+					}
+				case "OBJ":
+					if state.OBJModel != nil {
+						vertices = state.OBJModel.Vertices
+						faces = state.OBJModel.Faces
 					}
 				default: // "Küp"
 					vertices = []graphics.Vertex3D{
@@ -1870,11 +1949,25 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
 				f.RegisterClickHandler(titleBarArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
 					state.IsDraggingModal = true
 					state.DragMouseStartX = int(ev.X)
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalDragBaseX = state.ModalOffsetX
 					state.ModalDragBaseY = state.ModalOffsetY
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsDraggingModal = false
+							return
+						}
+						if dragEv.Drag {
+							state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, 46, 9,
+								state.ModalDragBaseX+int(dragEv.X)-state.DragMouseStartX,
+								state.ModalDragBaseY+int(dragEv.Y)-state.DragMouseStartY)
+						}
+					})
 				})
 
 				exitDialog := widgets.Dialog{
@@ -1920,6 +2013,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			helpW := uint16(state.HelpDialogW)
 			helpH := uint16(state.HelpDialogH)
 			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
+			state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, helpW, helpH, state.ModalOffsetX, state.ModalOffsetY)
 
 			// Sürükleme offsetlerini uygula
 			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
@@ -1938,11 +2032,25 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
 				f.RegisterClickHandler(titleBarArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
 					state.IsDraggingModal = true
 					state.DragMouseStartX = int(ev.X)
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalDragBaseX = state.ModalOffsetX
 					state.ModalDragBaseY = state.ModalOffsetY
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsDraggingModal = false
+							return
+						}
+						if dragEv.Drag {
+							state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, helpW, helpH,
+								state.ModalDragBaseX+int(dragEv.X)-state.DragMouseStartX,
+								state.ModalDragBaseY+int(dragEv.Y)-state.DragMouseStartY)
+						}
+					})
 				})
 
 				// Diyalog kutusu arka plan bloğu
@@ -1967,11 +2075,40 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				// Sağ alt köşe yeniden boyutlandırma tıklama alanını tanımla
 				resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
 				f.RegisterClickHandler(resizeHandleArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
 					state.IsResizingModal = true
 					state.DragMouseStartX = int(ev.X)
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalResizeBaseW = state.HelpDialogW
 					state.ModalResizeBaseH = state.HelpDialogH
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsResizingModal = false
+							return
+						}
+						if !dragEv.Drag {
+							return
+						}
+						newW := state.ModalResizeBaseW + int(dragEv.X) - state.DragMouseStartX
+						newH := state.ModalResizeBaseH + int(dragEv.Y) - state.DragMouseStartY
+						if newW < 40 {
+							newW = 40
+						}
+						if newW > 100 {
+							newW = 100
+						}
+						if newH < 10 {
+							newH = 10
+						}
+						if newH > 30 {
+							newH = 30
+						}
+						state.HelpDialogW = newW
+						state.HelpDialogH = newH
+						state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, uint16(newW), uint16(newH), state.ModalOffsetX, state.ModalOffsetY)
+					})
 				})
 
 				helpInner := cell.Rect{
@@ -2015,6 +2152,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		if state.CmdPalette.IsOpen {
 			palette := widgets.CommandPalette{
 				State: state.CmdPalette,
+				// CSS benzeri konumlandırma: panel ekranın altından 2 satır yukarıda açılır.
+				Position: &widgets.CommandPalettePosition{Bottom: 2},
 			}
 			f.RenderWidget(palette, f.Buffer.Area)
 		}

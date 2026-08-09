@@ -84,6 +84,18 @@ const (
 	AlignRight
 )
 
+// Insets describes CSS-like outer or inner spacing in terminal cells.
+type Insets struct {
+	Top    uint16
+	Right  uint16
+	Bottom uint16
+	Left   uint16
+}
+
+func UniformInsets(value uint16) Insets {
+	return Insets{Top: value, Right: value, Bottom: value, Left: value}
+}
+
 // Block, terminal ekranında kenarlık çizebilen, arka plan dolgusu yapabilen
 // ve üstüne başlık (Title) yerleştirebilen en temel kapsayıcı (container) widget'tır.
 // Alt bileşenini (Child) otomatik olarak daraltılmış iç alana yönlendirir ve stil mirasını aktarır.
@@ -102,7 +114,12 @@ type Block struct {
 	// BorderStyle, kenarlık çizgilerinin rengini ve stilini belirler.
 	BorderStyle cell.Style
 
-	// İçerik ile kenarlık arasındaki boşluk hücre sayıları (padding).
+	// Margin, bloğun dışındaki CSS benzeri boşluktur. Margin alanı çizilmez.
+	Margin Insets
+
+	// Padding, içerik ile kenarlık arasındaki CSS benzeri iç boşluktur.
+	// Eski tekil PaddingLeft/Right/Top/Bottom alanları geriye dönük olarak desteklenir.
+	Padding       Insets
 	PaddingLeft   uint16
 	PaddingRight  uint16
 	PaddingTop    uint16
@@ -117,7 +134,7 @@ type Block struct {
 
 // Draw, bloğu ve kenarlıklarını çizer, arka planını doldurur ve alt bileşenin (Child) çizimini tetikler.
 func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	area := ctx.Area
+	area := insetRect(ctx.Area, b.Margin)
 	if area.Width == 0 || area.Height == 0 {
 		return
 	}
@@ -253,10 +270,10 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		// Kenarlık ve Padding paylarını ekle
-		left := offsetL + b.PaddingLeft
-		right := offsetR + b.PaddingRight
-		top := offsetT + b.PaddingTop
-		bottom := offsetB + b.PaddingBottom
+		left := offsetL + b.Padding.Left + b.PaddingLeft
+		right := offsetR + b.Padding.Right + b.PaddingRight
+		top := offsetT + b.Padding.Top + b.PaddingTop
+		bottom := offsetB + b.Padding.Bottom + b.PaddingBottom
 
 		if area.Width > left+right && area.Height > top+bottom {
 			childArea := cell.Rect{
@@ -279,7 +296,19 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
-// SizeHint, kenarlık ve dolgu paylarını üstüne koyarak bu bloğun kaplamak istediği en uygun alanı hesaplar.
+func insetRect(area cell.Rect, insets Insets) cell.Rect {
+	if area.Width <= insets.Left+insets.Right || area.Height <= insets.Top+insets.Bottom {
+		return cell.Rect{}
+	}
+	return cell.Rect{
+		X:      area.X + insets.Left,
+		Y:      area.Y + insets.Top,
+		Width:  area.Width - insets.Left - insets.Right,
+		Height: area.Height - insets.Top - insets.Bottom,
+	}
+}
+
+// SizeHint, kenarlık, margin ve dolgu paylarını hesaba katarak bu bloğun kaplamak istediği en uygun alanı hesaplar.
 func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	var offsetL, offsetR, offsetT, offsetB uint16
 	if (b.Borders & BorderLeft) != 0 {
@@ -295,8 +324,8 @@ func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		offsetB = 1
 	}
 
-	overheadW := offsetL + offsetR + b.PaddingLeft + b.PaddingRight
-	overheadH := offsetT + offsetB + b.PaddingTop + b.PaddingBottom
+	overheadW := offsetL + offsetR + b.Padding.Left + b.Padding.Right + b.PaddingLeft + b.PaddingRight + b.Margin.Left + b.Margin.Right
+	overheadH := offsetT + offsetB + b.Padding.Top + b.Padding.Bottom + b.PaddingTop + b.PaddingBottom + b.Margin.Top + b.Margin.Bottom
 
 	// Başlığın sığması için asgari genişlik sınırı
 	titleLen := uint16(0)

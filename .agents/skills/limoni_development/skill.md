@@ -200,13 +200,44 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 
 ---
 
-## 5. Gelecek Yol Haritası (Faz 23)
+- **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma [TAMAMLANDI]**
+  - `TableState.ResizeColumn` ile toplam tablo genişliğini koruyan sütun sürükleme sistemi eklendi.
+  - Sütun resize sırasında geçici slice tahsisi kaldırıldı; minimum sütun genişliği 2 hücre olarak korunuyor.
+  - `ColSpan` ve `RowSpan` hücre sahiplik matrisiyle çiziliyor.
+  - Geniş karakter/emoji clipping işlemi terminal hücre genişliğine göre çalışıyor.
+  - `widgets/table_test.go` içine spanning, resize ve geniş karakter testleri eklendi.
 
-Projeyi devralan ajanın sırasıyla gerçekleştirmesi beklenen sonraki aşamalar:
+- **Faz 24: Form Bileşenleri ve UI Box Model [TAMAMLANDI]**
+  - `Select` / dropdown, klavye navigasyonu, mouse seçimi ve hover state desteği eklendi.
+  - `Slider` bileşeni; klavye, mouse ve drag/capture desteğiyle tamamlandı.
+  - `ProgressBar` bileşeni eklendi; demo içinde 0→100→0 easing animasyonu kullanılıyor.
+  - `Block` widget'ına CSS benzeri `Margin`, `Padding` ve `Insets` API'si eklendi.
+  - `examples/forms` bağımsız örneği oluşturuldu.
+  - Click ve hover olayları ayrıştırıldı; `MouseRelease` toggle olaylarını tekrar çalıştırmıyor.
 
-1. **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma (Table Cell Spanning & Column Resizing)**:
-   - Tablonun sütun sınırlarının fareyle sürüklenerek genişletilip daraltılabilmesi.
-   - `colSpan` ve `rowSpan` özellikleriyle tablo içinde birleşik hücre desteği kazandırmak.
+- **Faz 25: Gelişmiş 3D Dosya Importu [DEVAM EDİYOR]**
+  - Bağımlılıksız Wavefront OBJ parser eklendi: vertex, polygon face, texture/normal index formatları ve negatif index desteği.
+  - `Model3D.Normalize` ile dosya modelleri mevcut perspektif renderer'a uygun ölçekleniyor.
+  - `LIMONI_OBJ=/path/model.obj go run ./examples/demo` ile demo'ya OBJ yüklenebiliyor.
+  - Örnek model: `examples/demo/cube.obj`.
+  - Sonraki işler: MTL/material, texture UV mapping, STL/PLY/glTF/GLB loader ve depth buffer.
+
+## 5. Gelecek Yol Haritası
+
+1. **Faz 25: 3D Dosya Importunu tamamla**
+   - MTL materyal ve OBJ texture koordinatlarını gerçek texture mapping'e bağlamak.
+   - STL ve PLY loader eklemek.
+   - Büyük model dosyalarında vertex/face limitleri ve güvenli bellek kullanımı.
+2. **Faz 26: Dashboard Table**
+   - Sütun sıralama, filtreleme, fuzzy search, virtual scrolling.
+   - Sticky header/sütunlar, çoklu seçim ve hücre bazlı style callback.
+3. **Faz 27: Rich Text ve Theme Sistemi**
+   - `Span`/`Line`/`Text` yapıları, merkezi tema token'ları, contrast/high-contrast tema.
+4. **Faz 28: Gelişmiş Event ve Layout Platformu**
+   - Capture/target/bubble event propagation, focus scope/group, flex alignment, overflow ve responsive box model.
+5. **Faz 29: Terminal Capability ve Developer Tooling**
+   - TrueColor/256 color/mouse/paste/graphics capability profili.
+   - Frame profiler, widget render süreleri, allocation benchmark ve widget showcase.
 
 ## 6. Dosya Yapısı (Güncel)
 
@@ -235,15 +266,18 @@ limoni/
 │   └── layout.go         # Flexbox yerleşim motoru (Fixed, Percentage, Ratio, Min, Max, Fill)
 ├── widgets/
 │   ├── widget.go         # Core Widget arayüzü (Draw ve SizeHint)
-│   ├── block.go          # Kenarlıklı, başlıklı, Padding'li Blok kapsayıcısı
+│   ├── block.go          # Kenarlıklı, başlıklı, Margin/Padding'li CSS box-model kapsayıcısı
 │   ├── paragraph.go      # Kelime kaydırmalı (Word wrap) çok satırlı metin widget'ı
 │   ├── list.go           # Seçilebilir, otomatik kaydırılabilir (scrolling) interaktif liste
-│   ├── table.go          # Esnek sütunlu tablo, başlık, ızgara çizgileri
+│   ├── table.go          # Faz 23: Span, rowSpan, column resize ve wide-cell clipping
 │   ├── dialog.go         # 3D gölgeli modal diyalog penceresi
 │   ├── textinput.go      # Tek satırlı interaktif metin girdisi
 │   ├── checkbox.go       # Onay kutusu [ ]/[x]
 │   ├── radio.go          # Tekli seçim aracı ( )/(*)
-│   ├── popup.go          # Açılır menü (dropdown) widget'ı
+│   ├── popup.go          # Açılır menü (dropdown) widget'ı ve hover highlight
+│   ├── select.go         # Klavye/mouse/hover destekli Select dropdown
+│   ├── slider.go         # Klavye/mouse/drag destekli Slider
+│   ├── progress.go       # Yüzde ve stil destekli ProgressBar
 │   ├── canvas.go         # Braille 2x4 alt piksel çözünürlüklü çizim alanı
 │   ├── vector.go         # Bresenham çizgi, daire, dikdörtgen, bezier eğri çizimi
 │   ├── image.go          # Kitty/Sixel/iTerm2/HalfBlock resim gösterimi
@@ -255,10 +289,14 @@ limoni/
 │   ├── color.go          # RGB renk geçiş animasyonu
 │   └── easing.go         # 15+ ivmelenme (easing) fonksiyonu
 ├── graphics/
-│   └── graphics.go       # Protokol algılama, Kitty/Sixel/iTerm2 kodlayıcıları
+│   ├── graphics.go       # Protokol algılama, Kitty/Sixel/iTerm2 kodlayıcıları
+│   ├── vector3d.go        # 3D vertex, rotation ve perspective projection
+│   └── obj.go            # Wavefront OBJ parser ve Model3D normalization
 └── examples/
-    ├── demo/main.go      # Tam interaktif demo (tüm Faz 1-9 özellikleri)
+    ├── demo/main.go      # Tam interaktif demo; tablo, form, 3D ve OBJ import
+    ├── demo/cube.obj     # OBJ import örneği
     ├── animation/main.go # Animasyon gösterisi
+    ├── forms/main.go     # Select, Slider, ProgressBar ve box-model örneği
     └── layer_demo/main.go # Faz 10: Katmanlı render, modal, popup demo
 ```
 

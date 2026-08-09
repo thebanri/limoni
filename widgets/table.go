@@ -86,6 +86,49 @@ func (ts *TableState) Prev() {
 	}
 }
 
+// ResizeColumn changes a column width while preserving the table's total width.
+// Growing a column shrinks columns to its right; shrinking it gives the freed
+// space to the last column. Every column keeps at least two cells.
+func (ts *TableState) ResizeColumn(index, delta int) bool {
+	if ts == nil || index < 0 || index >= len(ts.ColumnWidths)-1 || delta == 0 {
+		return false
+	}
+
+	const minWidth = 2
+	if delta > 0 {
+		remaining := delta
+		for i := len(ts.ColumnWidths) - 1; i > index && remaining > 0; i-- {
+			available := int(ts.ColumnWidths[i]) - minWidth
+			if available <= 0 {
+				continue
+			}
+			shrink := available
+			if shrink > remaining {
+				shrink = remaining
+			}
+			ts.ColumnWidths[i] -= uint16(shrink)
+			remaining -= shrink
+		}
+		actual := delta - remaining
+		if actual > 0 {
+			ts.ColumnWidths[index] += uint16(actual)
+		}
+		return actual > 0
+	}
+
+	requested := int(ts.ColumnWidths[index]) + delta
+	if requested < minWidth {
+		requested = minWidth
+	}
+	freed := int(ts.ColumnWidths[index]) - requested
+	if freed == 0 {
+		return false
+	}
+	ts.ColumnWidths[index] = uint16(requested)
+	ts.ColumnWidths[len(ts.ColumnWidths)-1] += uint16(freed)
+	return true
+}
+
 // Table, interaktif, esnek sütunlu, dikey kaydırılabilir ve hücre birleştirme destekli tablo bileşenidir.
 type Table struct {
 	ID            string
@@ -182,7 +225,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		sepX := ctx.Area.X
 		for i := 0; i < colsCount-1; i++ {
 			sepX += widths[i]
-			
+
 			// Her sütun sınırı için 1 genişliğinde dikey bir sürükleme tetikleyici alan tanımla
 			handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
 			colIdx := i
@@ -204,42 +247,10 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 							requestedNewW = 2
 						}
 
-						// Geçici bir kopya üzerinde boyutlandırma hesaplaması yap
-						tempWidths := make([]uint16, len(t.State.ColumnWidths))
-						copy(tempWidths, t.State.ColumnWidths)
-
-						diff := requestedNewW - int(tempWidths[colIdx])
-
-						if diff > 0 {
-							// Sütun genişliyor: Sağındaki sütunları sondan başlayarak daralt
-							remainingToShrink := diff
-							for j := len(tempWidths) - 1; j > colIdx; j-- {
-								maxShrink := int(tempWidths[j]) - 2 // minimum sütun genişliği 2
-								if maxShrink > 0 {
-									shrink := remainingToShrink
-									if shrink > maxShrink {
-										shrink = maxShrink
-									}
-									tempWidths[j] -= uint16(shrink)
-									remainingToShrink -= shrink
-									if remainingToShrink == 0 {
-										break
-									}
-								}
-							}
-							// Gerçekleşen daralma miktarı kadar sütunu genişlet
-							actualGrowth := diff - remainingToShrink
-							tempWidths[colIdx] += uint16(actualGrowth)
-
-						} else if diff < 0 {
-							// Sütun daralıyor: Açığa çıkan boşluğu en sondaki sütuna ekle
-							tempWidths[colIdx] = uint16(requestedNewW)
-							freedSpace := -diff
-							tempWidths[len(tempWidths)-1] += uint16(freedSpace)
-						}
-
-						// Değişiklikleri duruma (state) geri yansıt
-						copy(t.State.ColumnWidths, tempWidths)
+						// ResizeColumn toplam genişliği koruyarak sağdaki sütunları
+						// gerektiğinde daraltır; drag döngüsünde tahsisat yapmaz.
+						delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
+						t.State.ResizeColumn(colIdx, delta)
 					})
 				}
 			})
@@ -276,9 +287,13 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			cellIdx++
 
 			colSpan := cVal.ColSpan
-			if colSpan < 1 { colSpan = 1 }
+			if colSpan < 1 {
+				colSpan = 1
+			}
 			rowSpan := cVal.RowSpan
-			if rowSpan < 1 { rowSpan = 1 }
+			if rowSpan < 1 {
+				rowSpan = 1
+			}
 
 			cellsMap[[2]int{-1, colIdx}] = cVal
 
@@ -307,9 +322,13 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			cellIdx++
 
 			colSpan := cVal.ColSpan
-			if colSpan < 1 { colSpan = 1 }
+			if colSpan < 1 {
+				colSpan = 1
+			}
 			rowSpan := cVal.RowSpan
-			if rowSpan < 1 { rowSpan = 1 }
+			if rowSpan < 1 {
+				rowSpan = 1
+			}
 
 			cellsMap[[2]int{rIdx, colIdx}] = cVal
 
@@ -371,7 +390,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if currY >= ctx.Area.Y+ctx.Area.Height {
 		return
 	}
-	visibleRows := int(ctx.Area.Y+ctx.Area.Height - currY)
+	visibleRows := int(ctx.Area.Y + ctx.Area.Height - currY)
 	if visibleRows <= 0 {
 		return
 	}
@@ -463,9 +482,13 @@ func (t Table) drawSpanRow(
 		cellStyle := rowStyle.Merge(cellVal.Style)
 
 		colSpan := cellVal.ColSpan
-		if colSpan < 1 { colSpan = 1 }
+		if colSpan < 1 {
+			colSpan = 1
+		}
 		rowSpan := cellVal.RowSpan
-		if rowSpan < 1 { rowSpan = 1 }
+		if rowSpan < 1 {
+			rowSpan = 1
+		}
 
 		// Birleşik hücrenin toplam karakter genişliğini hesapla (komşu sütunlar + aralarındaki ızgaralar)
 		cellW := uint16(0)
@@ -514,14 +537,53 @@ func clipString(s string, maxW int) string {
 	if maxW <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= maxW {
+
+	width := 0
+	for _, r := range s {
+		runeWidth := cell.RuneWidth(r)
+		if runeWidth == 0 {
+			continue
+		}
+		if width+runeWidth > maxW {
+			break
+		}
+		width += runeWidth
+	}
+	if width == visualWidth(s) {
 		return s
 	}
 	if maxW <= 3 {
-		return string(runes[:maxW])
+		return clipToWidth(s, maxW)
 	}
-	return string(runes[:maxW-3]) + "..."
+	return clipToWidth(s, maxW-3) + "..."
+}
+
+func visualWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		width += cell.RuneWidth(r)
+	}
+	return width
+}
+
+func clipToWidth(s string, maxW int) string {
+	if maxW <= 0 {
+		return ""
+	}
+	width := 0
+	end := 0
+	for _, r := range s {
+		runeWidth := cell.RuneWidth(r)
+		if runeWidth == 0 {
+			continue
+		}
+		if width+runeWidth > maxW {
+			break
+		}
+		width += runeWidth
+		end += len(string(r))
+	}
+	return s[:end]
 }
 
 // Runes count in string helper
@@ -531,20 +593,50 @@ func strLen(s string) int {
 
 // getIntersectionChar, etrafındaki etkin çizgilerin durumuna göre doğru ızgara kavşak karakterini seçer.
 func getIntersectionChar(up, down, left, right bool) rune {
-	if up && down && left && right { return '┼' }
-	if !up && down && left && right { return '┬' }
-	if up && !down && left && right { return '┴' }
-	if up && down && !left && right { return '├' }
-	if up && down && left && !right { return '┤' }
-	if up && down { return '│' }
-	if left && right { return '─' }
-	if !up && down && !left && right { return '┌' }
-	if !up && down && left && !right { return '┐' }
-	if up && !down && !left && right { return '└' }
-	if up && !down && left && !right { return '┘' }
-	if left { return '─' }
-	if right { return '─' }
-	if up { return '│' }
-	if down { return '│' }
+	if up && down && left && right {
+		return '┼'
+	}
+	if !up && down && left && right {
+		return '┬'
+	}
+	if up && !down && left && right {
+		return '┴'
+	}
+	if up && down && !left && right {
+		return '├'
+	}
+	if up && down && left && !right {
+		return '┤'
+	}
+	if up && down {
+		return '│'
+	}
+	if left && right {
+		return '─'
+	}
+	if !up && down && !left && right {
+		return '┌'
+	}
+	if !up && down && left && !right {
+		return '┐'
+	}
+	if up && !down && !left && right {
+		return '└'
+	}
+	if up && !down && left && !right {
+		return '┘'
+	}
+	if left {
+		return '─'
+	}
+	if right {
+		return '─'
+	}
+	if up {
+		return '│'
+	}
+	if down {
+		return '│'
+	}
 	return ' '
 }

@@ -245,8 +245,12 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 		return true
 	}
 
-	// Tıklama alanları sadece buton basışlarında tetiklenir (hover/hareket yani MouseNone olaylarında değil)
-	if ev.Button == backend.MouseNone {
+	// MouseRelease capture tarafından yukarıda tüketilir. Normal click bölgeleri
+	// yalnızca sol tuş basışını, mouse bölgeleri ise hover (MouseNone) olaylarını alır.
+	if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone {
+		return false
+	}
+	if ev.Button == backend.MouseLeft && ev.Drag {
 		return false
 	}
 
@@ -261,7 +265,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 				// Tıklama en üst katmanın içinde: Sadece o katmanın bölgelerini kontrol et
 				for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 					reg := t.frame.ClickRegions[i]
-					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) {
+					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) && (ev.Button == backend.MouseNone && reg.MouseOnly || ev.Button == backend.MouseLeft) {
 						reg.Handler(ev)
 						if t.frame.mouseCaptureRequest != nil {
 							t.mouseCaptureHandler = t.frame.mouseCaptureRequest
@@ -294,7 +298,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 			// Modal içinde: LayerID'si boş olan (kök) veya modal ile aynı ID olan bölgeleri ara
 			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 				reg := t.frame.ClickRegions[i]
-				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) {
+				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) && (ev.Button == backend.MouseNone && reg.MouseOnly || ev.Button == backend.MouseLeft) {
 					reg.Handler(ev)
 					if t.frame.mouseCaptureRequest != nil {
 						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
@@ -316,7 +320,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 	// 3. Normal (katmansız) tıklama yönlendirme döngüsü
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		reg := t.frame.ClickRegions[i]
-		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) {
+		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (ev.Button == backend.MouseNone && reg.MouseOnly || ev.Button == backend.MouseLeft) {
 			reg.Handler(ev)
 			if t.frame.mouseCaptureRequest != nil {
 				t.mouseCaptureHandler = t.frame.mouseCaptureRequest

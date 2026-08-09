@@ -3,6 +3,7 @@ package widgets
 import (
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -260,9 +261,9 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if !p.Items[i].Disabled {
 			itemArea := cell.NewRect(menuX, menuY+uint16(i)+1, menuW, 1)
 			hoverIdx := i
-			if ctx.RegisterClick != nil {
-				ctx.RegisterClick(itemArea, func() {
-					if p.State != nil {
+			if ctx.RegisterMouse != nil {
+				ctx.RegisterMouse(itemArea, func(ev backend.MouseEvent) {
+					if ev.Button == backend.MouseNone && p.State != nil {
 						p.State.Selected = hoverIdx
 					}
 				})

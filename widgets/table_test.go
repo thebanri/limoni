@@ -63,6 +63,22 @@ func TestTableStateNavigation(t *testing.T) {
 	}
 }
 
+func TestTableStateResizeColumn(t *testing.T) {
+	state := &TableState{ColumnWidths: []uint16{10, 10, 10}}
+	if !state.ResizeColumn(0, 5) {
+		t.Fatal("column resize should report a change")
+	}
+	if got := state.ColumnWidths; got[0] != 15 || got[1] != 10 || got[2] != 5 {
+		t.Fatalf("after growing column: got %v, want [15 10 5]", got)
+	}
+	if !state.ResizeColumn(0, -7) {
+		t.Fatal("column shrink should report a change")
+	}
+	if got := state.ColumnWidths; got[0] != 8 || got[1] != 10 || got[2] != 12 {
+		t.Fatalf("after shrinking column: got %v, want [8 10 12]", got)
+	}
+}
+
 func TestTableTextClipping(t *testing.T) {
 	s1 := clipString("Hello World", 5)
 	if s1 != "He..." {
@@ -77,6 +93,11 @@ func TestTableTextClipping(t *testing.T) {
 	s3 := clipString("Hello", 2)
 	if s3 != "He" {
 		t.Errorf("clipString = %q; 'He' bekleniyordu", s3)
+	}
+
+	wide := clipString("🔍abc", 3)
+	if wide != "🔍a" {
+		t.Errorf("wide clipString = %q; '🔍a' bekleniyordu", wide)
 	}
 }
 
@@ -157,10 +178,10 @@ func TestTableInteractiveResizing(t *testing.T) {
 
 	area := cell.NewRect(0, 0, 21, 5)
 	buf := buffer.NewBuffer(area)
-	
+
 	var registeredMouse bool
 	var capturedMouse func(ev backend.MouseEvent)
-	
+
 	ctx := cell.NewContext(area, cell.Style{})
 	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev backend.MouseEvent)) {
 		registeredMouse = true
@@ -204,9 +225,9 @@ func TestTableInteractiveResizingCascading(t *testing.T) {
 
 	area := cell.NewRect(0, 0, 32, 5)
 	buf := buffer.NewBuffer(area)
-	
+
 	var capturedMouse func(ev backend.MouseEvent)
-	
+
 	ctx := cell.NewContext(area, cell.Style{})
 	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev backend.MouseEvent)) {
 		if regArea.X == 10 { // boundary between col 0 and 1
