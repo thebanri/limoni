@@ -947,6 +947,16 @@ func themeForSelection(selection string) widgets.Theme {
 	return theme
 }
 
+func registerTargetClick(f *terminal.Frame, area cell.Rect, handler func(backend.MouseEvent)) {
+	f.RegisterEventHandler(area, terminal.TargetPhase, func(event *backend.EventContext) {
+		if event.Mouse.Button != backend.MouseLeft || event.Mouse.Drag {
+			return
+		}
+		event.PreventDefault()
+		handler(event.Mouse)
+	})
+}
+
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
 func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
 	t.SetDebugMode(state.DebugMode)
@@ -1060,7 +1070,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(btn, area)
 
 			// Fare tıklamasını bu bölgeye kaydet (RegisterClickHandler)
-			f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
+			registerTargetClick(f, area, func(ev backend.MouseEvent) {
 				if tabName == "Çıkış" {
 					state.ShowExitDialog = true
 					state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
@@ -1137,7 +1147,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					c.Style = demoTheme.Focus
 				}
 				resizeArea := cell.NewRect(cornerX, cornerY, 1, 1)
-				f.RegisterClickHandler(resizeArea, func(ev backend.MouseEvent) {
+				registerTargetClick(f, resizeArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
 						return
 					}
@@ -1540,7 +1550,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			if virtualW > 2 && virtualH > 2 {
 				// 3D rotasyon sürüklemesi için tıklama alanını kaydet
-				f.RegisterClickHandler(grafikChunks[0], func(ev backend.MouseEvent) {
+				registerTargetClick(f, grafikChunks[0], func(ev backend.MouseEvent) {
 					state.IsDragging3D = true
 					state.Drag3DLastX = int(ev.X)
 					state.Drag3DLastY = int(ev.Y)
@@ -1893,11 +1903,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			// Tıklama alanları (Fare ile yön değiştirme)
 			horizClickArea := cell.NewRect(ctrlRows[2].X+1, ctrlRows[2].Y, 9, 1)
-			f.RegisterClickHandler(horizClickArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, horizClickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundDir = layout.Horizontal
 			})
 			vertClickArea := cell.NewRect(ctrlRows[2].X+12, ctrlRows[2].Y, 9, 1)
-			f.RegisterClickHandler(vertClickArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, vertClickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundDir = layout.Vertical
 			})
 
@@ -1922,7 +1932,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(label{text: barStr, style: cell.Style{Fg: accentColor}}, ctrlRows[4])
 
 			// Tıklamayla oran değiştirme
-			f.RegisterClickHandler(ctrlRows[4], func(ev backend.MouseEvent) {
+			registerTargetClick(f, ctrlRows[4], func(ev backend.MouseEvent) {
 				clickX := int(ev.X) - int(ctrlRows[4].X) - 1
 				if clickX >= 0 && clickX < barWidth {
 					ratio := int(float64(clickX) / float64(barWidth) * 100.0)
@@ -1949,15 +1959,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			// Tıklama alanları (Kenarlık değiştirme)
 			ovalArea := cell.NewRect(ctrlRows[6].X+1, ctrlRows[6].Y, 7, 1)
-			f.RegisterClickHandler(ovalArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, ovalArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Rounded"
 			})
 			doubleArea := cell.NewRect(ctrlRows[6].X+10, ctrlRows[6].Y, 7, 1)
-			f.RegisterClickHandler(doubleArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, doubleArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Double"
 			})
 			thickArea := cell.NewRect(ctrlRows[6].X+19, ctrlRows[6].Y, 8, 1)
-			f.RegisterClickHandler(thickArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, thickArea, func(ev backend.MouseEvent) {
 				state.PlaygroundBorder = "Thick"
 			})
 
@@ -1974,15 +1984,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			// Tıklama alanları (Mod değiştirme)
 			circleModeArea := cell.NewRect(ctrlRows[8].X+1, ctrlRows[8].Y, 9, 1)
-			f.RegisterClickHandler(circleModeArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, circleModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Vector"
 			})
 			matrixModeArea := cell.NewRect(ctrlRows[8].X+12, ctrlRows[8].Y, 9, 1)
-			f.RegisterClickHandler(matrixModeArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, matrixModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Matrix"
 			})
 			chartModeArea := cell.NewRect(ctrlRows[8].X+23, ctrlRows[8].Y, 9, 1)
-			f.RegisterClickHandler(chartModeArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, chartModeArea, func(ev backend.MouseEvent) {
 				state.PlaygroundMode = "Chart"
 			})
 
@@ -2178,7 +2188,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				}
 				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
-				f.RegisterClickHandler(titleBarArea, func(ev backend.MouseEvent) {
+				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
 						return
 					}
@@ -2262,7 +2272,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
-				f.RegisterClickHandler(titleBarArea, func(ev backend.MouseEvent) {
+				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
 						return
 					}
@@ -2306,7 +2316,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 				// Sağ alt köşe yeniden boyutlandırma tıklama alanını tanımla
 				resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
-				f.RegisterClickHandler(resizeHandleArea, func(ev backend.MouseEvent) {
+				registerTargetClick(f, resizeHandleArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
 						return
 					}

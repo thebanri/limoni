@@ -44,6 +44,7 @@ type Frame struct {
 
 	// ClickRegions, bu karede widget'lar tarafından kaydedilen tıklanabilir bölgeler listesidir.
 	ClickRegions []ClickRegion
+	EventRegions []eventRegion
 
 	// ImageRegions, bu karede widget'lar tarafından kaydedilen resim çizim alanları listesidir.
 	ImageRegions []ImageRegion
@@ -82,6 +83,7 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 	return &Frame{
 		Buffer:       buf,
 		ClickRegions: make([]ClickRegion, 0, 32),
+		EventRegions: make([]eventRegion, 0, 16),
 		ImageRegions: make([]ImageRegion, 0, 8),
 		FocusManager: focusMgr,
 		ActiveModal:  nil,
@@ -118,6 +120,7 @@ func (f *Frame) SetTheme(theme widgets.Theme) {
 
 func (f *Frame) Reset() {
 	f.ClickRegions = f.ClickRegions[:0]
+	f.EventRegions = f.EventRegions[:0]
 	f.ImageRegions = f.ImageRegions[:0]
 	f.ActiveModal = nil
 	f.Layers = f.Layers[:0]
@@ -256,6 +259,13 @@ func (f *Frame) registerMouseHandler(area cell.Rect, handler func(ev backend.Mou
 	})
 }
 
+// RegisterEventHandler registers an opt-in capture/target/bubble handler.
+func (f *Frame) RegisterEventHandler(area cell.Rect, phase EventPhase, handler func(*EventContext)) {
+	if handler != nil {
+		f.EventRegions = append(f.EventRegions, eventRegion{Area: area, Phase: phase, Handler: handler})
+	}
+}
+
 // CaptureMouse, aktif farenin sürükleme boyunca kayıtlı handler'a yönlendirilmesini sağlar.
 // Handler, MouseRelease olayını aldıktan sonra yakalama otomatik olarak bırakılır.
 func (f *Frame) CaptureMouse(handler func(ev backend.MouseEvent)) {
@@ -373,6 +383,12 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 			return
 		}
 		f.registerMouseHandler(mouseArea, handler, layerID)
+	}
+	ctx.RegisterEvent = func(eventArea cell.Rect, phase backend.EventPhase, handler func(*backend.EventContext)) {
+		if isOutsideModal {
+			return
+		}
+		f.RegisterEventHandler(eventArea, phase, handler)
 	}
 
 	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {

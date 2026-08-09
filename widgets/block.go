@@ -292,6 +292,7 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			childCtx := cell.NewContext(childArea, blockStyle)
 			childCtx.RegisterClick = ctx.RegisterClick
 			childCtx.RegisterMouse = ctx.RegisterMouse
+			childCtx.RegisterEvent = ctx.RegisterEvent
 			childCtx.CaptureMouse = ctx.CaptureMouse
 			childCtx.RegisterImage = ctx.RegisterImage
 			childCtx.RegisterFocus = ctx.RegisterFocus

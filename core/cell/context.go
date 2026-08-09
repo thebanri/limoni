@@ -24,6 +24,9 @@ type Context struct {
 	// RegisterMouse, widget'ların sürükleme ve diğer gelişmiş fare olaylarını yakalamasını sağlar.
 	RegisterMouse func(area Rect, handler func(ev backend.MouseEvent))
 
+	// RegisterEvent registers a capture/target/bubble propagation handler.
+	RegisterEvent func(area Rect, phase backend.EventPhase, handler func(*backend.EventContext))
+
 	// CaptureMouse, widget'ların fareyi geçici olarak kendi üzerlerine yakalamasını sağlar (drag işlemleri için).
 	CaptureMouse func(handler func(ev backend.MouseEvent))
 

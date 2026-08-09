@@ -245,6 +245,49 @@ type Table struct {
 	StickyColumns int                                               // Soldan sabit kalacak sütun sayısı.
 }
 
+func (t Table) columnX(area cell.Rect, widths []uint16, column int) uint16 {
+	sticky := t.StickyColumns
+	if sticky < 0 {
+		sticky = 0
+	}
+	if sticky > len(widths) {
+		sticky = len(widths)
+	}
+	stickyWidth := uint16(0)
+	for i := 0; i < sticky; i++ {
+		stickyWidth += widths[i]
+		if t.DrawGrid && i < len(widths)-1 {
+			stickyWidth++
+		}
+	}
+	if column < sticky {
+		x := area.X
+		for i := 0; i < column; i++ {
+			x += widths[i]
+			if t.DrawGrid {
+				x++
+			}
+		}
+		return x
+	}
+	x := area.X + stickyWidth
+	for i := sticky; i < column; i++ {
+		x += widths[i]
+		if t.DrawGrid {
+			x++
+		}
+	}
+	offset := uint16(0)
+	if t.State != nil && t.State.HorizontalOffset > 0 {
+		offset = uint16(t.State.HorizontalOffset)
+	}
+	available := x - area.X - stickyWidth
+	if offset > available {
+		offset = available
+	}
+	return x - offset
+}
+
 // SolveWidths, toplam kullanılabilir tablo genişliğini sütun kurallarına göre çözerek genişlikleri belirler.
 func SolveWidths(totalWidth uint16, constraints []TableConstraint) []uint16 {
 	widths := make([]uint16, len(constraints))
@@ -497,8 +540,8 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Başlığa tıklama ile sütun sıralama kaydı.
 	if t.SortEnabled && t.Header != nil && ctx.RegisterClick != nil {
-		currX := ctx.Area.X
 		for colIdx, width := range widths {
+			currX := t.columnX(ctx.Area, widths, colIdx)
 			clickWidth := width
 			if t.DrawGrid && colIdx < colsCount-1 && clickWidth > 0 {
 				clickWidth--
@@ -518,10 +561,6 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					sortTableRows(t.Rows, column, t.State.SortDescending)
 				})
 			}
-			currX += width
-			if t.DrawGrid && colIdx < colsCount-1 {
-				currX++
-			}
 		}
 	}
 
@@ -540,16 +579,15 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				targetBodyRow = t.State.Offset
 			}
 
-			currX := ctx.Area.X
 			for i, w := range widths {
 				// Yatay çizginin birleştirilmiş hücre tarafından örtülüp örtülmediğini denetle
 				sepCovered := getOwner(-1, i) == getOwner(targetBodyRow, i)
-
+				startX := t.columnX(ctx.Area, widths, i)
 				for col := uint16(0); col < w; col++ {
-					if !sepCovered {
-						buf.SetCell(currX, currY, cell.Cell{Content: '─', Style: gridStyle})
+					x := startX + col
+					if !sepCovered && x >= ctx.Area.X && x < ctx.Area.X+ctx.Area.Width {
+						buf.SetCell(x, currY, cell.Cell{Content: '─', Style: gridStyle})
 					}
-					currX++
 				}
 
 				if t.DrawGrid && i < colsCount-1 {
@@ -560,10 +598,10 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					right := getOwner(-1, i+1) != getOwner(targetBodyRow, i+1)
 
 					ch := getIntersectionChar(up, down, left, right)
-					if ch != ' ' {
-						buf.SetCell(currX, currY, cell.Cell{Content: ch, Style: gridStyle})
+					separatorX := t.columnX(ctx.Area, widths, i+1) - 1
+					if ch != ' ' && separatorX >= ctx.Area.X && separatorX < ctx.Area.X+ctx.Area.Width {
+						buf.SetCell(separatorX, currY, cell.Cell{Content: ch, Style: gridStyle})
 					}
-					currX++
 				}
 			}
 			currY++
@@ -648,48 +686,7 @@ func (t Table) drawSpanRow(
 ) {
 	rowStyle := ctx.Style.Merge(baseRowStyle)
 	colsCount := len(widths)
-	stickyCount := t.StickyColumns
-	if stickyCount < 0 {
-		stickyCount = 0
-	}
-	if stickyCount > colsCount {
-		stickyCount = colsCount
-	}
-	stickyWidth := uint16(0)
-	for i := 0; i < stickyCount; i++ {
-		stickyWidth += widths[i]
-		if t.DrawGrid && i < colsCount-1 {
-			stickyWidth++
-		}
-	}
-	columnX := func(column int) uint16 {
-		x := ctx.Area.X
-		if column >= stickyCount {
-			x += stickyWidth
-			for i := stickyCount; i < column; i++ {
-				x += widths[i]
-				if t.DrawGrid {
-					x++
-				}
-			}
-			offset := uint16(0)
-			if t.State != nil && t.State.HorizontalOffset > 0 {
-				offset = uint16(t.State.HorizontalOffset)
-			}
-			if offset > x-ctx.Area.X-stickyWidth {
-				offset = x - ctx.Area.X - stickyWidth
-			}
-			x -= offset
-		} else {
-			for i := 0; i < column; i++ {
-				x += widths[i]
-				if t.DrawGrid {
-					x++
-				}
-			}
-		}
-		return x
-	}
+	columnX := func(column int) uint16 { return t.columnX(ctx.Area, widths, column) }
 	currX := ctx.Area.X
 	if isSelected {
 		rowStyle = rowStyle.Merge(t.SelectedStyle)

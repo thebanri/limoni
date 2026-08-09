@@ -236,7 +236,8 @@ func (t *Terminal) IsTransitionActive() bool {
 // Katmanlı render sistemi: En üstteki katmandaki bölgeler önceliklidir.
 // Olay bir bölgeyle eşleşip tetiklendiyse `true`, eşleşmediyse `false` döner.
 func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
-	// 0. Fare yakalama (mouse capture) kontrolü
+	// 0. Fare yakalama (mouse capture) kontrolü önce çalışır; drag/release
+	// olayları propagation bölgelerinden bağımsız olarak capture handler'a gider.
 	if t.mouseCaptureHandler != nil {
 		t.mouseCaptureHandler(ev)
 		if ev.Button == backend.MouseRelease {
@@ -256,6 +257,14 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 
 	// Normal yönlendirme öncesi frame capture isteklerini sıfırla
 	t.frame.mouseCaptureRequest = nil
+	propagationHandled := t.dispatchEventRegions(ev)
+	if t.frame.mouseCaptureRequest != nil {
+		t.mouseCaptureHandler = t.frame.mouseCaptureRequest
+		t.frame.mouseCaptureRequest = nil
+	}
+	if propagationHandled {
+		return true
+	}
 
 	// 1. Katman sistemi: En üstteki katmandan başlayarak aşağı doğru ara
 	if len(t.frame.Layers) > 0 {
@@ -330,6 +339,38 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 		}
 	}
 	return false
+}
+
+func (t *Terminal) dispatchEventRegions(ev backend.MouseEvent) bool {
+	if len(t.frame.EventRegions) == 0 {
+		return false
+	}
+	ctx := &EventContext{Mouse: ev}
+	for _, phase := range []EventPhase{CapturePhase, TargetPhase, BubblePhase} {
+		if phase == TargetPhase {
+			for i := len(t.frame.EventRegions) - 1; i >= 0; i-- {
+				region := t.frame.EventRegions[i]
+				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					region.Handler(ctx)
+					break
+				}
+			}
+		} else {
+			for i := 0; i < len(t.frame.EventRegions); i++ {
+				region := t.frame.EventRegions[i]
+				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					region.Handler(ctx)
+					if ctx.IsPropagationStopped() {
+						return true
+					}
+				}
+			}
+		}
+		if ctx.IsPropagationStopped() {
+			return true
+		}
+	}
+	return ctx.IsDefaultPrevented()
 }
 
 // FocusManager, terminalin odak yöneticisini döndürür.
