@@ -224,7 +224,8 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
   - OBJ `mtllib`, `usemtl`, `.mtl` ve `Kd` diffuse renk desteği eklendi; demo dolu renkli modda materyal renklerini kullanıyor.
   - OBJ `vt` ve face UV index desteği eklendi; dokulu demo render'ı model UV koordinatlarını kullanıyor.
   - ASCII ve binary STL loader eklendi; demo `LIMONI_MODEL` uzantısına göre OBJ/STL seçiyor.
-  - Faz kapsamı tamamlandı; ileride PLY/glTF/GLB loader, gelişmiş texture/material özellikleri ve büyük model optimizasyonları eklenebilir.
+  - ASCII PLY loader da eklendi; `LIMONI_MODEL=/path/model.ply` ile demo'ya yüklenebilir.
+  - İleride glTF/GLB loader, gelişmiş texture/material özellikleri ve büyük model optimizasyonları eklenebilir.
 
 - **Faz 26: Dashboard Table [TAMAMLANDI]**
   - Sütun sıralama ve `▲/▼` header göstergesi; numeric ve metin sıralama.
@@ -252,6 +253,7 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
    - Focus scope/group API’si (`BeginFocusScope`, `EndFocusScope`, scoped Tab/Shift+Tab) eklendi.
    - Yardım ve çıkış modalları focus scope ile arka plan widget’larından izole edildi.
    - Capture/target/bubble event propagation API’si (`RegisterEventHandler`, `EventContext`, `StopPropagation`, `PreventDefault`) ve testleri tamamlandı.
+   - `Buffer.Snapshot` deterministic text snapshot API’si ve table visible-row benchmark’ı eklendi.
    - Sıradaki hedef: yatay grid/header kesişimlerinin iyileştirilmesi, overflow ve responsive box model.
 3. **Faz 29: Terminal Capability ve Developer Tooling**
    - TrueColor/256 color/mouse/paste/graphics capability profili.
@@ -294,6 +296,8 @@ limoni/
 │   ├── radio.go          # Tekli seçim aracı ( )/(*)
 │   ├── popup.go          # Açılır menü (dropdown) widget'ı ve hover highlight
 │   ├── select.go         # Klavye/mouse/hover destekli Select dropdown
+│   ├── textarea.go       # Multiline TextArea ve cursor düzenleme
+│   ├── validation.go     # Form Validator ve field error API
 │   ├── slider.go         # Klavye/mouse/drag destekli Slider
 │   ├── progress.go       # Yüzde ve stil destekli ProgressBar
 │   ├── richtext.go       # Span/Line/Text rich text renderer
@@ -314,7 +318,8 @@ limoni/
 │   ├── vector3d.go        # 3D vertex, rotation ve perspective projection
 │   ├── obj.go            # Wavefront OBJ parser, material library ve Model3D normalization
 │   ├── mtl.go            # Wavefront MTL diffuse material parser
-│   └── stl.go            # ASCII/binary STL loader
+│   ├── stl.go            # ASCII/binary STL loader
+│   └── ply.go            # ASCII PLY loader
 └── examples/
     ├── demo/main.go      # Tam interaktif demo; tablo, form, 3D ve OBJ import
     ├── demo/cube.obj     # OBJ import örneği
