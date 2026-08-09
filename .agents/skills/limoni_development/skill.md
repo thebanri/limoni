@@ -222,24 +222,27 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
   - Örnek modeller: `examples/demo/cube.obj` ve 8 parçalı `examples/demo/deniz_topu.obj`.
   - Sonraki işler: MTL/material, texture UV mapping, STL/PLY/glTF/GLB loader ve depth buffer.
 
+- **Faz 26: Dashboard Table [TAMAMLANDI]**
+  - Sütun sıralama ve `▲/▼` header göstergesi; numeric ve metin sıralama.
+  - Generic `FuzzyFilterBy`, `FuzzyFilterByFields` ve sıralamayı koruyan `FuzzyFilterByStable`.
+  - `Table.FilterQuery` ile fuzzy filtreleme ve demo arama alanı.
+  - Multi-select (`ToggleRow`, `IsRowSelected`, `ClearSelectedRows`) ve `Space` ile seçim.
+  - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları.
+  - Görünür dikey satırların çizimi ve sabit header tamamlandı; sticky column yatay navigasyon fazına bırakıldı.
+
 ## 5. Gelecek Yol Haritası
 
-1. **Faz 25: 3D Dosya Importunu tamamla**
+1. **Faz 25: Gelişmiş 3D Dosya Importu [DEVAM EDİYOR]
    - MTL materyal ve OBJ texture koordinatlarını gerçek texture mapping'e bağlamak.
    - STL ve PLY loader eklemek.
    - Büyük model dosyalarında vertex/face limitleri ve güvenli bellek kullanımı.
-2. **Faz 26: Dashboard Table [DEVAM EDİYOR]**
-   - Sütun sıralama ve `▲/▼` header göstergesi tamamlandı.
-   - Generic `FuzzyFilterBy` / `FuzzyFilterByFields` altyapısı ve `TableRow.SearchText` eklendi.
-   - `Table.FilterQuery` ile fuzzy tablo filtreleme tamamlandı; `examples/demo` içine arama alanı bağlandı.
-   - Çoklu satır seçimi (`ToggleRow`, `IsRowSelected`, `ClearSelectedRows`) ve demo'da `Space` ile seçim tamamlandı.
-   - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları tamamlandı.
-   - Sonraki işler: virtual scrolling ve sticky header/sütunlar.
-3. **Faz 27: Rich Text ve Theme Sistemi**
-   - `Span`/`Line`/`Text` yapıları, merkezi tema token'ları, contrast/high-contrast tema.
-4. **Faz 28: Gelişmiş Event ve Layout Platformu**
-   - Capture/target/bubble event propagation, focus scope/group, flex alignment, overflow ve responsive box model.
-5. **Faz 29: Terminal Capability ve Developer Tooling**
+2. **Faz 27: Rich Text ve Merkezi Theme Sistemi**
+   - `Span` / `Line` / `Text` yapıları ve merkezi tema token'ları.
+   - Light/dark/high-contrast tema ve kontrast doğrulaması.
+3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout**
+   - Horizontal scroll, sticky columns ve provider tabanlı virtual rows.
+   - Capture/target/bubble event propagation, focus scope/group, overflow ve responsive box model.
+4. **Faz 29: Terminal Capability ve Developer Tooling**
    - TrueColor/256 color/mouse/paste/graphics capability profili.
    - Frame profiler, widget render süreleri, allocation benchmark ve widget showcase.
 
