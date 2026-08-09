@@ -237,7 +237,7 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 
 ## 5. Gelecek Yol Haritası
 
-1. **Faz 27: Rich Text ve Merkezi Theme Sistemi [DEVAM EDİYOR]**
+1. **Faz 27: Rich Text ve Merkezi Theme Sistemi [TAMAMLANDI / GENİŞLETİLEBİLİR]**
    - `Span` / `Line` / `Text` rich text widget'ı eklendi.
    - `Theme`, `ThemeColors`, `DarkTheme` ve `LightTheme` semantic token altyapısı eklendi.
    - `Frame.SetTheme` / `Context.ThemeStyle` ile tema frame ve nested child widget'lara miras aktarılıyor.
@@ -245,13 +245,13 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
    - `HighContrastTheme`, `ContrastRatio` ve `Theme.ValidateContrast` ile erişilebilirlik doğrulaması eklendi.
    - Rich Text için hücre genişliğine duyarlı wrapping ve sol/orta/sağ alignment eklendi.
    - Span semantic `Role` ve `OnClick` callback desteği eklendi.
-   - Sonraki işler: link/selection için daha zengin text interaction ve tüm widget’ların semantic role token’larını daha kapsamlı kullanması.
-3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout [DEVAM EDİYOR]**
+   - Faz kapsamı tamamlandı; ileride text selection, hyperlink semantics ve daha fazla widget semantic role entegrasyonu eklenebilir.
+2. **Faz 28: Event Propagation, Focus Scope ve Yatay Layout [AKTİF]**
    - `TableDataSource` / `RowCount` / `RowAt` ile provider tabanlı virtual rows eklendi.
    - Mouse wheel dikey scroll, `Shift+wheel` yatay offset ve `StickyColumns` çizim desteği eklendi.
-   - Kalan işler: yatay grid/header kesişimlerinTin iyileştirilmesi ve capture/target/bubble event propagation.
-   - Capture/target/bubble event propagation, focus scope/group, overflow ve responsive box model.
-4. **Faz 29: Terminal Capability ve Developer Tooling**
+   - İlk hedef: capture/target/bubble event propagation ve focus scope/group API’si.
+   - Sonraki hedef: yatay grid/header kesişimlerinin iyileştirilmesi, overflow ve responsive box model.
+3. **Faz 29: Terminal Capability ve Developer Tooling**
    - TrueColor/256 color/mouse/paste/graphics capability profili.
    - Frame profiler, widget render süreleri, allocation benchmark ve widget showcase.
 
