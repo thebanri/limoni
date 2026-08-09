@@ -81,6 +81,24 @@ func TestFuzzyFilter_FiltersCorrectly(t *testing.T) {
 	}
 }
 
+func TestFuzzyFilterByStablePreservesOrder(t *testing.T) {
+	items := []string{"105.4 MB go", "256.1 MB go", "75.4 MB go"}
+	result := FuzzyFilterByStable("go", items, func(item string) string { return item })
+	for i := range items {
+		if result[i] != items[i] {
+			t.Fatalf("stable result[%d] = %q; want %q", i, result[i], items[i])
+		}
+	}
+}
+
+func TestFuzzyFilterByTableRows(t *testing.T) {
+	rows := []TableRow{NewRow("limoni_demo", "Running"), NewRow("vscode", "Idle")}
+	result := FuzzyFilterBy("vsc", rows, func(row TableRow) string { return row.SearchText() })
+	if len(result) != 1 || result[0].Cells[0].Text != "vscode" {
+		t.Fatalf("filtered rows = %+v; want vscode row", result)
+	}
+}
+
 func TestFuzzyFilter_NoResults(t *testing.T) {
 	items := []CommandItem{
 		{Label: "Grafik", Category: "A"},

@@ -219,7 +219,7 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
   - Bağımlılıksız Wavefront OBJ parser eklendi: vertex, polygon face, texture/normal index formatları ve negatif index desteği.
   - `Model3D.Normalize` ile dosya modelleri mevcut perspektif renderer'a uygun ölçekleniyor.
   - `LIMONI_OBJ=/path/model.obj go run ./examples/demo` ile demo'ya OBJ yüklenebiliyor.
-  - Örnek model: `examples/demo/cube.obj`.
+  - Örnek modeller: `examples/demo/cube.obj` ve 8 parçalı `examples/demo/deniz_topu.obj`.
   - Sonraki işler: MTL/material, texture UV mapping, STL/PLY/glTF/GLB loader ve depth buffer.
 
 ## 5. Gelecek Yol Haritası
@@ -228,9 +228,11 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
    - MTL materyal ve OBJ texture koordinatlarını gerçek texture mapping'e bağlamak.
    - STL ve PLY loader eklemek.
    - Büyük model dosyalarında vertex/face limitleri ve güvenli bellek kullanımı.
-2. **Faz 26: Dashboard Table**
-   - Sütun sıralama, filtreleme, fuzzy search, virtual scrolling.
-   - Sticky header/sütunlar, çoklu seçim ve hücre bazlı style callback.
+2. **Faz 26: Dashboard Table [DEVAM EDİYOR]**
+   - Sütun sıralama ve `▲/▼` header göstergesi tamamlandı.
+   - Generic `FuzzyFilterBy` / `FuzzyFilterByFields` altyapısı ve `TableRow.SearchText` eklendi.
+   - `Table.FilterQuery` ile fuzzy tablo filtreleme tamamlandı; `examples/demo` içine arama alanı bağlandı.
+   - Sonraki işler: virtual scrolling, sticky header/sütunlar, çoklu seçim ve hücre bazlı style callback.
 3. **Faz 27: Rich Text ve Theme Sistemi**
    - `Span`/`Line`/`Text` yapıları, merkezi tema token'ları, contrast/high-contrast tema.
 4. **Faz 28: Gelişmiş Event ve Layout Platformu**
@@ -295,6 +297,7 @@ limoni/
 └── examples/
     ├── demo/main.go      # Tam interaktif demo; tablo, form, 3D ve OBJ import
     ├── demo/cube.obj     # OBJ import örneği
+    ├── demo/deniz_topu.obj # 8 sektöre bölünmüş deniz topu OBJ örneği
     ├── animation/main.go # Animasyon gösterisi
     ├── forms/main.go     # Select, Slider, ProgressBar ve box-model örneği
     └── layer_demo/main.go # Faz 10: Katmanlı render, modal, popup demo

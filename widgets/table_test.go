@@ -63,6 +63,65 @@ func TestTableStateNavigation(t *testing.T) {
 	}
 }
 
+func TestTableEmptyFilterDoesNotUnderflowOffset(t *testing.T) {
+	state := NewTableState()
+	state.Selected = 0
+	table := Table{
+		Rows:        []TableRow{NewRow("visible")},
+		FilterQuery: "missing",
+		Constraints: []TableConstraint{{Type: ConstraintFixed, Value: 10}},
+		State:       state,
+	}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 10, 3))
+	table.Draw(cell.NewContext(buf.Area, cell.Style{}), buf)
+	if state.Selected != -1 || state.Offset != 0 {
+		t.Fatalf("empty filter state = selected:%d offset:%d; want -1, 0", state.Selected, state.Offset)
+	}
+}
+
+func TestTableSorting(t *testing.T) {
+	rows := []TableRow{NewRow("b", "Beta"), NewRow("a", "Alpha"), NewRow("c", "Gamma")}
+	sortTableRows(rows, 0, false)
+	if rows[0].Cells[0].Text != "a" || rows[2].Cells[0].Text != "c" {
+		t.Fatalf("ascending rows = %q, %q; want a, c", rows[0].Cells[0].Text, rows[2].Cells[0].Text)
+	}
+	sortTableRows(rows, 1, true)
+	if rows[0].Cells[1].Text != "Gamma" || rows[2].Cells[1].Text != "Alpha" {
+		t.Fatalf("descending rows = %q, %q; want Gamma, Alpha", rows[0].Cells[1].Text, rows[2].Cells[1].Text)
+	}
+}
+
+func TestTableNumericSorting(t *testing.T) {
+	rows := []TableRow{NewRow("75.4 MB"), NewRow("105.4 MB"), NewRow("256.1 MB"), NewRow("14.2 MB")}
+	sortTableRows(rows, 0, true)
+	want := []string{"256.1 MB", "105.4 MB", "75.4 MB", "14.2 MB"}
+	for i, row := range rows {
+		if row.Cells[0].Text != want[i] {
+			t.Fatalf("descending row %d = %q; want %q", i, row.Cells[0].Text, want[i])
+		}
+	}
+}
+
+func TestTableStateMoveSortColumn(t *testing.T) {
+	state := NewTableState()
+	state.MoveSortColumn(1, 5)
+	if state.SortColumn != 0 {
+		t.Fatalf("initial sort column = %d; want 0", state.SortColumn)
+	}
+	state.MoveSortColumn(1, 5)
+	if state.SortColumn != 1 {
+		t.Fatalf("next sort column = %d; want 1", state.SortColumn)
+	}
+	state.MoveSortColumn(-1, 5)
+	if state.SortColumn != 0 {
+		t.Fatalf("previous sort column = %d; want 0", state.SortColumn)
+	}
+	state.MoveSortColumn(-1, 5)
+	if state.SortColumn != 4 {
+		t.Fatalf("wrapped sort column = %d; want 4", state.SortColumn)
+	}
+}
+
 func TestTableStateResizeColumn(t *testing.T) {
 	state := &TableState{ColumnWidths: []uint16{10, 10, 10}}
 	if !state.ResizeColumn(0, 5) {

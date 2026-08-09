@@ -100,9 +100,10 @@ type AppState struct {
 	ExitDialogAnim     *animation.Float
 
 	// Giriş sekmesindeki interaktif tablo durumu
-	TableState   *widgets.TableState
-	Processes    []ProcessInfo
-	FormProgress *animation.Float
+	TableState       *widgets.TableState
+	TableFilterState *widgets.TextInputState
+	Processes        []ProcessInfo
+	FormProgress     *animation.Float
 
 	// Açılır menü durumu
 	NotificationMode string
@@ -339,6 +340,7 @@ func main() {
 		HelpDialogH:        16,
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
+		TableFilterState:   widgets.NewTextInputState(),
 		Processes: []ProcessInfo{
 			{PID: "1284", Name: "limoni_demo", CPU: "1.2%", Memory: "14.2 MB", Status: "Çalışıyor"},
 			{PID: "942", Name: "alacritty", CPU: "0.8%", Memory: "48.1 MB", Status: "Çalışıyor"},
@@ -660,6 +662,34 @@ func main() {
 						// TextInput durumu güncellendi
 					}
 					// ESC tuşu basıldığında metin kutusu odağından çık
+					if ev.Key.Type == backend.KeyEsc {
+						t.FocusManager().SetFocused("")
+					}
+				} else if focused == "table_filter" {
+					switch ev.Key.Type {
+					case backend.KeyArrowLeft:
+						if ev.Key.Ctrl {
+							state.TableFilterState.HandleKey(ev.Key)
+							break
+						}
+						state.TableState.MoveSortColumn(-1, 5)
+						state.LastKey = "Sıralama sütunu önceki"
+					case backend.KeyArrowRight:
+						if ev.Key.Ctrl {
+							state.TableFilterState.HandleKey(ev.Key)
+							break
+						}
+						state.TableState.MoveSortColumn(1, 5)
+						state.LastKey = "Sıralama sütunu sonraki"
+					case backend.KeyArrowUp, backend.KeyArrowDown:
+						if state.TableState.SortColumn < 0 {
+							state.TableState.SortColumn = 2
+						} // Varsayılan: CPU
+						state.TableState.SortDescending = ev.Key.Type == backend.KeyArrowDown
+						state.LastKey = "Tablo sıralama yönü değişti"
+					default:
+						state.TableFilterState.HandleKey(ev.Key)
+					}
 					if ev.Key.Type == backend.KeyEsc {
 						t.FocusManager().SetFocused("")
 					}
@@ -988,7 +1018,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			gisLay := layout.NewFlexLayout(
 				layout.Vertical,
 				1,
-				layout.Fixed(4), // Açıklama bloğu
+				layout.Fixed(6), // Açıklama + fuzzy filtre + progress
 				layout.Fill(),   // Süreç Tablosu
 			)
 			gisChunks := gisLay.Split(bodyChunks[1])
@@ -1016,6 +1046,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				cpuValue = state.FormProgress.Value()
 			}
 			if gisChunks[0].Height > 3 && gisChunks[0].Width > 6 {
+
 				progressArea := cell.NewRect(gisChunks[0].X+2, gisChunks[0].Y+gisChunks[0].Height-2, gisChunks[0].Width-4, 1)
 				f.RenderWidget(widgets.ProgressBar{
 					Value: cpuValue, Min: 0, Max: 100, ShowPercent: true,
@@ -1098,7 +1129,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					Bg:       accentColor,
 					Modifier: cell.ModifierBold,
 				},
-				DrawGrid: true,
+				DrawGrid:    true,
+				SortEnabled: true,
+				FilterQuery: state.TableFilterState.Value(),
 			}
 
 			tableBlock := widgets.Block{
@@ -1109,10 +1142,32 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				BorderStyle:    cell.Style{Fg: tableBorderCol},
 				Child:          sysTable,
 			}
-			f.RenderWidget(tableBlock, gisChunks[1])
+			tableLay := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(3), layout.Fill())
+			tableChunks := tableLay.Split(gisChunks[1])
+			filterBorderCol := cell.NewColorRGB(100, 100, 100)
+			if t.FocusManager().Focused() == "table_filter" {
+				filterBorderCol = accentColor
+			}
+			sortLabel := "Başlığa tıkla"
+			if state.TableState.SortColumn >= 0 && state.TableState.SortColumn < 5 {
+				columns := []string{"PID", "SÜREÇ", "CPU", "BELLEK", "DURUM"}
+				direction := "▲ artan"
+				if state.TableState.SortDescending {
+					direction = "▼ azalan"
+				}
+				sortLabel = fmt.Sprintf("%s %s", columns[state.TableState.SortColumn], direction)
+			}
+			filterBlock := widgets.Block{
+				Title: fmt.Sprintf(" TABLO ARA | Sıralama: %s | ←/→ sütun ↑/↓ yön ", sortLabel), TitleAlignment: widgets.AlignLeft,
+				Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
+				BorderStyle: cell.Style{Fg: filterBorderCol}, PaddingLeft: 1, PaddingRight: 1,
+				Child: widgets.TextInput{ID: "table_filter", State: state.TableFilterState, Placeholder: "Fuzzy ara: process, cpu, status...", Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(35, 35, 45)}, FocusedStyle: cell.Style{Fg: accentColor}},
+			}
+			f.RenderWidget(filterBlock, tableChunks[0])
+			f.RenderWidget(tableBlock, tableChunks[1])
 
 			if t.FocusManager().Focused() == "process_table" {
-				widgets.DrawFocusRing(f.Buffer, gisChunks[1], cell.Style{Fg: accentColor})
+				widgets.DrawFocusRing(f.Buffer, tableChunks[1], cell.Style{Fg: accentColor})
 			}
 
 		case "Ayarlar":

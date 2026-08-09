@@ -68,6 +68,97 @@ func FuzzyMatch(query, target string) (score int, matched bool) {
 	return totalScore, true
 }
 
+// FuzzyFilterBy filters arbitrary values using their searchable text.
+// It is shared by command palettes, tables and other data widgets.
+func FuzzyFilterBy[T any](query string, items []T, text func(T) string) []T {
+	if query == "" {
+		result := make([]T, len(items))
+		copy(result, items)
+		return result
+	}
+	results := make([]struct {
+		item  T
+		score int
+		index int
+	}, 0, len(items))
+	for index, item := range items {
+		score, matched := FuzzyMatch(query, text(item))
+		if matched {
+			results = append(results, struct {
+				item  T
+				score int
+				index int
+			}{item: item, score: score, index: index})
+		}
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].score == results[j].score {
+			return results[i].index < results[j].index
+		}
+		return results[i].score > results[j].score
+	})
+	filtered := make([]T, len(results))
+	for i, result := range results {
+		filtered[i] = result.item
+	}
+	return filtered
+}
+
+// FuzzyFilterByFields filters arbitrary values against multiple searchable fields,
+// keeping the best field score for each item.
+func FuzzyFilterByFields[T any](query string, items []T, fields func(T) []string) []T {
+	results := make([]struct {
+		item  T
+		score int
+		index int
+	}, 0, len(items))
+	for index, item := range items {
+		bestScore := 0
+		matched := false
+		for _, field := range fields(item) {
+			score, ok := FuzzyMatch(query, field)
+			if ok && score > bestScore {
+				bestScore, matched = score, true
+			}
+		}
+		if matched {
+			results = append(results, struct {
+				item  T
+				score int
+				index int
+			}{item: item, score: bestScore, index: index})
+		}
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].score == results[j].score {
+			return results[i].index < results[j].index
+		}
+		return results[i].score > results[j].score
+	})
+	filtered := make([]T, len(results))
+	for i, result := range results {
+		filtered[i] = result.item
+	}
+	return filtered
+}
+
+// FuzzyFilterByStable filters arbitrary values without changing their input order.
+// This is useful when another ordering, such as table sorting, already exists.
+func FuzzyFilterByStable[T any](query string, items []T, text func(T) string) []T {
+	if query == "" {
+		result := make([]T, len(items))
+		copy(result, items)
+		return result
+	}
+	filtered := make([]T, 0, len(items))
+	for _, item := range items {
+		if _, matched := FuzzyMatch(query, text(item)); matched {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
 // FuzzyResult, bulanık arama sonucunu temsil eder.
 type FuzzyResult struct {
 	Item  CommandItem
@@ -89,44 +180,7 @@ func FuzzyFilter(query string, items []CommandItem) []CommandItem {
 		return result
 	}
 
-	var results []FuzzyResult
-
-	for _, item := range items {
-		// Hem Label hem de Category üzerinde arama yap
-		labelScore, labelMatch := FuzzyMatch(query, item.Label)
-		catScore, catMatch := FuzzyMatch(query, item.Category)
-		detailScore, detailMatch := FuzzyMatch(query, item.Detail)
-
-		bestScore := 0
-		anyMatch := false
-
-		if labelMatch && labelScore > bestScore {
-			bestScore = labelScore
-			anyMatch = true
-		}
-		if catMatch && catScore > bestScore {
-			bestScore = catScore
-			anyMatch = true
-		}
-		if detailMatch && detailScore > bestScore {
-			bestScore = detailScore
-			anyMatch = true
-		}
-
-		if anyMatch {
-			results = append(results, FuzzyResult{Item: item, Score: bestScore})
-		}
-	}
-
-	// Skora göre azalan sırada sırala
-	sort.SliceStable(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
+	return FuzzyFilterByFields(query, items, func(item CommandItem) []string {
+		return []string{item.Label, item.Category, item.Detail}
 	})
-
-	filtered := make([]CommandItem, len(results))
-	for i, r := range results {
-		filtered[i] = r.Item
-	}
-
-	return filtered
 }
