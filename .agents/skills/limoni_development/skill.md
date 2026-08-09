@@ -242,7 +242,10 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
    - `Theme`, `ThemeColors`, `DarkTheme` ve `LightTheme` semantic token altyapısı eklendi.
    - `Frame.SetTheme` / `Context.ThemeStyle` ile tema frame ve nested child widget'lara miras aktarılıyor.
    - `Block`, özel style verilmediğinde `surface` ve `border` token'larını otomatik kullanıyor; demo ana renkleri semantic token'lara taşındı.
-   - Sonraki işler: high-contrast tema, contrast validation ve rich text wrapping/alignment.
+   - `HighContrastTheme`, `ContrastRatio` ve `Theme.ValidateContrast` ile erişilebilirlik doğrulaması eklendi.
+   - Rich Text için hücre genişliğine duyarlı wrapping ve sol/orta/sağ alignment eklendi.
+   - Span semantic `Role` ve `OnClick` callback desteği eklendi.
+   - Sonraki işler: link/selection için daha zengin text interaction ve tüm widget’ların semantic role token’larını daha kapsamlı kullanması.
 3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout [DEVAM EDİYOR]**
    - `TableDataSource` / `RowCount` / `RowAt` ile provider tabanlı virtual rows eklendi.
    - Mouse wheel dikey scroll, `Shift+wheel` yatay offset ve `StickyColumns` çizim desteği eklendi.
