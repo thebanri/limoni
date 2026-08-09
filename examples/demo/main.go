@@ -663,11 +663,23 @@ func main() {
 				// Tab ve Shift+Tab tuşlarıyla form elemanları arası odak geçişi
 				if ev.Key.Type == backend.KeyTab {
 					if ev.Key.Shift {
-						t.FocusManager().Prev()
+						navigateDemoTab(state, t.FocusManager(), -1)
+						state.LastKey = "Shift+Tab (Sekme Önceki)"
 					} else {
-						t.FocusManager().Next()
+						t.FocusManager().NextExcluding("tab_")
+						state.LastKey = "Tab (Aktif Widget)"
 					}
-					state.LastKey = "Tab (Odak Değişimi)"
+					break
+				}
+
+				// Sekme menüsü focus'taysa Enter/Space ile sekmeyi aç.
+				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace) {
+					tabName := strings.TrimPrefix(focused, "tab_")
+					if tabName != "Çıkış" {
+						state.ActiveTab = tabName
+						state.IsTransitioning = false
+						t.SetTransitionActive(false)
+					}
 					break
 				}
 
@@ -902,6 +914,21 @@ func main() {
 	}
 }
 
+func navigateDemoTab(state *AppState, focus *terminal.FocusManager, delta int) {
+	tabs := []string{"Giriş", "Ayarlar", "Grafik", "Playground"}
+	current := 0
+	for i, tab := range tabs {
+		if tab == state.ActiveTab {
+			current = i
+			break
+		}
+	}
+	current = (current + delta + len(tabs)) % len(tabs)
+	state.ActiveTab = tabs[current]
+	state.IsTransitioning = false
+	focus.SetFocused("tab_" + state.ActiveTab)
+}
+
 func themeForSelection(selection string) widgets.Theme {
 	theme := widgets.DarkTheme()
 	switch selection {
@@ -1007,9 +1034,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		)
 		menuChunks := menuLay.Split(bodyChunks[0])
 
-		// drawButton, sol menüdeki tıklanabilir buton kutularını ve event callback'lerini çizer
+		// drawButton, sol menüdeki tıklanabilir butonları ve focus callback'lerini çizer
 		drawButton := func(area cell.Rect, title string, tabName string) {
+			focusID := "tab_" + tabName
+			t.FocusManager().Register(focusID)
 			borderCol := state.TabColors[tabName].Value()
+			if t.FocusManager().IsFocused(focusID) {
+				borderCol = demoTheme.Colors.Primary
+			}
 			titleStyle := cell.Style{Fg: borderCol}
 
 			// Eğer buton aktif sekmeye aitse kalın yazı yap
@@ -1035,9 +1067,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					t.FocusManager().SetFocused("exit_dialog_btn_1")
 					t.ForceFullRedraw()
 				} else {
+					t.FocusManager().SetFocused(focusID)
 					if state.ActiveTab != tabName {
 						state.ActiveTab = tabName
-						t.FocusManager().SetFocused("") // Sekme değiştirince önceki odağı sıfırla
 						// Sekme geçişinde eski frame'i hücre hücre harmanlamak,
 						// özellikle metin ve canvas alanlarında eski panel parçaları
 						// bırakabiliyor. Yeni sekmeyi temiz frame olarak çiz.
@@ -2202,6 +2234,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					},
 				}
 
+				f.BeginFocusScope("exit_dialog")
 				f.RenderWidget(exitDialog, animatedArea)
 			} // else
 		} // if state.ShowExitDialog
@@ -2260,6 +2293,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					BorderStyle:    cell.Style{Fg: accentColor},
 					Style:          cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
 				}
+				f.BeginFocusScope("help_dialog")
 				f.RenderWidget(helpBlock, animatedHelpArea)
 
 				// Sağ alt köşe yeniden boyutlandırma tutamacı çizimi

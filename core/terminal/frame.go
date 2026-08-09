@@ -92,6 +92,19 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 
 // Reset, çizim karesinin durumunu (kaydedilmiş tıklama, resim alanları, modal ve katmanları) sıfırlar.
 // Bellek Optimizasyonu: Slice kapasitesini koruyarak sıfır tahsisatla listeyi temizler (slice[:0]).
+// BeginFocusScope restricts keyboard navigation to widgets rendered in the scope.
+func (f *Frame) BeginFocusScope(id string) {
+	if f.FocusManager != nil {
+		f.FocusManager.BeginScope(id)
+	}
+}
+
+func (f *Frame) EndFocusScope() {
+	if f.FocusManager != nil {
+		f.FocusManager.EndScope()
+	}
+}
+
 // IsFocused reports whether a widget owns focus in this frame.
 func (f *Frame) IsFocused(id string) bool {
 	return f.FocusManager != nil && f.FocusManager.IsFocused(id)

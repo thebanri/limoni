@@ -249,7 +249,9 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 2. **Faz 28: Event Propagation, Focus Scope ve Yatay Layout [AKTİF]**
    - `TableDataSource` / `RowCount` / `RowAt` ile provider tabanlı virtual rows eklendi.
    - Mouse wheel dikey scroll, `Shift+wheel` yatay offset ve `StickyColumns` çizim desteği eklendi.
-   - İlk hedef: capture/target/bubble event propagation ve focus scope/group API’si.
+   - Focus scope/group API’si (`BeginFocusScope`, `EndFocusScope`, scoped Tab/Shift+Tab) eklendi.
+   - Yardım ve çıkış modalları focus scope ile arka plan widget’larından izole edildi.
+   - Sıradaki hedef: capture/target/bubble event propagation.
    - Sonraki hedef: yatay grid/header kesişimlerinin iyileştirilmesi, overflow ve responsive box model.
 3. **Faz 29: Terminal Capability ve Developer Tooling**
    - TrueColor/256 color/mouse/paste/graphics capability profili.

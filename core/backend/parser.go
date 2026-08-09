@@ -151,6 +151,8 @@ func parseCSI(buf []byte) (Event, int) {
 		return makeKeyEvent(KeyArrowRight, params), consumed
 	case 'D': // Sol Ok
 		return makeKeyEvent(KeyArrowLeft, params), consumed
+	case 'Z': // Shift+Tab (backtab)
+		return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: true}}, consumed
 	case 'H': // Home
 		return makeKeyEvent(KeyHome, params), consumed
 	case 'F': // End
