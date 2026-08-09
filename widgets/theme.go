@@ -1,6 +1,10 @@
 package widgets
 
-import "github.com/thebanri/limoni/core/cell"
+import (
+	"math"
+
+	"github.com/thebanri/limoni/core/cell"
+)
 
 // ThemeColors contains semantic colors shared by widgets.
 type ThemeColors struct {
@@ -68,6 +72,67 @@ func (t Theme) RoleStyle(role string) cell.Style {
 	default:
 		return t.Base
 	}
+}
+
+// HighContrastTheme returns a black/white accessibility-focused theme.
+func HighContrastTheme() Theme {
+	theme := DarkTheme()
+	theme.Colors.Background = cell.NewColorRGB(0, 0, 0)
+	theme.Colors.Surface = cell.NewColorRGB(0, 0, 0)
+	theme.Colors.Text = cell.NewColorRGB(255, 255, 255)
+	theme.Colors.Muted = cell.NewColorRGB(220, 220, 220)
+	theme.Colors.Border = cell.NewColorRGB(255, 255, 255)
+	theme.Colors.Primary = cell.NewColorRGB(255, 255, 0)
+	theme.Colors.Success = cell.NewColorRGB(0, 255, 0)
+	theme.Colors.Warning = cell.NewColorRGB(255, 255, 0)
+	theme.Colors.Error = cell.NewColorRGB(255, 80, 80)
+	theme.Base = cell.Style{Fg: theme.Colors.Text, Bg: theme.Colors.Background}
+	theme.Border = cell.Style{Fg: theme.Colors.Border}
+	theme.Focus = cell.Style{Fg: theme.Colors.Primary, Modifier: cell.ModifierBold}
+	return theme
+}
+
+// ContrastRatio returns the WCAG-style contrast ratio of two terminal colors.
+func ContrastRatio(foreground, background cell.Color) float64 {
+	fr, fg, fb := foreground.RGB()
+	br, bg, bb := background.RGB()
+	luminance := func(r, g, b uint8) float64 {
+		linear := func(value uint8) float64 {
+			v := float64(value) / 255
+			if v <= 0.03928 {
+				return v / 12.92
+			}
+			return math.Pow((v+0.055)/1.055, 2.4)
+		}
+		return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+	}
+	l1, l2 := luminance(fr, fg, fb), luminance(br, bg, bb)
+	if l2 > l1 {
+		l1, l2 = l2, l1
+	}
+	return (l1 + 0.05) / (l2 + 0.05)
+}
+
+// ValidateContrast returns semantic color pairs below the requested ratio.
+func (t Theme) ValidateContrast(minimum float64) []string {
+	pairs := []struct {
+		name   string
+		fg, bg cell.Color
+	}{
+		{"text/background", t.Colors.Text, t.Colors.Background},
+		{"muted/background", t.Colors.Muted, t.Colors.Background},
+		{"primary/surface", t.Colors.Primary, t.Colors.Surface},
+		{"success/surface", t.Colors.Success, t.Colors.Surface},
+		{"warning/surface", t.Colors.Warning, t.Colors.Surface},
+		{"error/surface", t.Colors.Error, t.Colors.Surface},
+	}
+	var failures []string
+	for _, pair := range pairs {
+		if ContrastRatio(pair.fg, pair.bg) < minimum {
+			failures = append(failures, pair.name)
+		}
+	}
+	return failures
 }
 
 // LightTheme returns a readable light terminal theme.
