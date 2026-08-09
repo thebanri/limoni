@@ -231,16 +231,22 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
   - Generic `FuzzyFilterBy`, `FuzzyFilterByFields` ve sıralamayı koruyan `FuzzyFilterByStable`.
   - `Table.FilterQuery` ile fuzzy filtreleme ve demo arama alanı.
   - Multi-select (`ToggleRow`, `IsRowSelected`, `ClearSelectedRows`) ve `Space` ile seçim.
-  - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları.
+  - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları tamamlandı.
+  - Demo süreç tablosu Linux `/proc` üzerinden gerçek PID, isim, CPU delta, RSS bellek ve durum verilerini yaklaşık 500 ms aralıkla yeniliyor.
   - Görünür dikey satırların çizimi ve sabit header tamamlandı; sticky column yatay navigasyon fazına bırakıldı.
 
 ## 5. Gelecek Yol Haritası
 
-1. **Faz 27: Rich Text ve Merkezi Theme Sistemi**
-   - `Span` / `Line` / `Text` yapıları ve merkezi tema token'ları.
-   - Light/dark/high-contrast tema ve kontrast doğrulaması.
-3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout**
-   - Horizontal scroll, sticky columns ve provider tabanlı virtual rows.
+1. **Faz 27: Rich Text ve Merkezi Theme Sistemi [DEVAM EDİYOR]**
+   - `Span` / `Line` / `Text` rich text widget'ı eklendi.
+   - `Theme`, `ThemeColors`, `DarkTheme` ve `LightTheme` semantic token altyapısı eklendi.
+   - `Frame.SetTheme` / `Context.ThemeStyle` ile tema frame ve nested child widget'lara miras aktarılıyor.
+   - `Block`, özel style verilmediğinde `surface` ve `border` token'larını otomatik kullanıyor; demo ana renkleri semantic token'lara taşındı.
+   - Sonraki işler: high-contrast tema, contrast validation ve rich text wrapping/alignment.
+3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout [DEVAM EDİYOR]**
+   - `TableDataSource` / `RowCount` / `RowAt` ile provider tabanlı virtual rows eklendi.
+   - Mouse wheel dikey scroll, `Shift+wheel` yatay offset ve `StickyColumns` çizim desteği eklendi.
+   - Kalan işler: yatay grid/header kesişimlerinTin iyileştirilmesi ve capture/target/bubble event propagation.
    - Capture/target/bubble event propagation, focus scope/group, overflow ve responsive box model.
 4. **Faz 29: Terminal Capability ve Developer Tooling**
    - TrueColor/256 color/mouse/paste/graphics capability profili.
@@ -285,6 +291,8 @@ limoni/
 │   ├── select.go         # Klavye/mouse/hover destekli Select dropdown
 │   ├── slider.go         # Klavye/mouse/drag destekli Slider
 │   ├── progress.go       # Yüzde ve stil destekli ProgressBar
+│   ├── richtext.go       # Span/Line/Text rich text renderer
+│   └── theme.go          # Semantic Theme ve dark/light preset'leri
 │   ├── canvas.go         # Braille 2x4 alt piksel çözünürlüklü çizim alanı
 │   ├── vector.go         # Bresenham çizgi, daire, dikdörtgen, bezier eğri çizimi
 │   ├── vector_depth.go   # Z-buffer destekli dolu üçgen rasterizer

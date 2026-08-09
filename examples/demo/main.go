@@ -105,6 +105,8 @@ type AppState struct {
 	TableState       *widgets.TableState
 	TableFilterState *widgets.TextInputState
 	Processes        []ProcessInfo
+	ProcessSamples   map[string]processSample
+	LastProcessRead  time.Time
 	FormProgress     *animation.Float
 
 	// Açılır menü durumu
@@ -343,21 +345,10 @@ func main() {
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
 		TableFilterState:   widgets.NewTextInputState(),
-		Processes: []ProcessInfo{
-			{PID: "1284", Name: "limoni_demo", CPU: "1.2%", Memory: "14.2 MB", Status: "Çalışıyor"},
-			{PID: "942", Name: "alacritty", CPU: "0.8%", Memory: "48.1 MB", Status: "Çalışıyor"},
-			{PID: "1104", Name: "go_compiler", CPU: "0.0%", Memory: "105.4 MB", Status: "Beklemede"},
-			{PID: "3201", Name: "chrome", CPU: "5.4%", Memory: "512.0 MB", Status: "Çalışıyor"},
-			{PID: "4509", Name: "docker_daemon", CPU: "0.2%", Memory: "84.5 MB", Status: "Çalışıyor"},
-			{PID: "8712", Name: "gnome_shell", CPU: "2.1%", Memory: "256.1 MB", Status: "Çalışıyor"},
-			{PID: "6321", Name: "vscode", CPU: "0.5%", Memory: "340.2 MB", Status: "Çalışıyor"},
-			{PID: "2204", Name: "spotify", CPU: "1.0%", Memory: "120.5 MB", Status: "Beklemede"},
-			{PID: "5011", Name: "discord", CPU: "0.4%", Memory: "98.2 MB", Status: "Çalışıyor"},
-			{PID: "7701", Name: "golangci_lint", CPU: "0.0%", Memory: "75.4 MB", Status: "Beklemede"},
-			{PID: "1409", Name: "git_kraken", CPU: "0.3%", Memory: "150.1 MB", Status: "Çalışıyor"},
-		},
+		ProcessSamples:     make(map[string]processSample),
 	}
 	state.UsernameInputState.SetValue("LimoniGelistirici")
+	state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, time.Now())
 	state.TableState.Select(0) // Tabloda ilk satırı seçili başlat
 
 	// 1. Resmi oluştur (Merkez kırmızı, dışı mavi daire)
@@ -850,6 +841,10 @@ func main() {
 			// Animasyonları güncelle
 			now := time.Now()
 			state.UpdateAnimations(now)
+			if state.LastProcessRead.IsZero() || now.Sub(state.LastProcessRead) >= 500*time.Millisecond {
+				state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, now)
+				state.LastProcessRead = now
+			}
 
 			// Dither geçiş ilerlemesini güncelle
 			if state.IsTransitioning {
@@ -879,6 +874,22 @@ func main() {
 	}
 }
 
+func themeForSelection(selection string) widgets.Theme {
+	theme := widgets.DarkTheme()
+	switch selection {
+	case "Açık":
+		theme = widgets.LightTheme()
+	case "Renkli":
+		theme.Colors.Primary = cell.NewColorRGB(255, 165, 0)
+		theme.Colors.Secondary = cell.NewColorRGB(255, 0, 255)
+		theme.Colors.Success = cell.NewColorRGB(255, 0, 255)
+		theme.Colors.Surface = cell.NewColorRGB(35, 25, 45)
+		theme.Base = cell.Style{Fg: theme.Colors.Text, Bg: theme.Colors.Background}
+		theme.Focus = cell.Style{Fg: theme.Colors.Secondary, Modifier: cell.ModifierBold}
+	}
+	return theme
+}
+
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
 func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
 	t.SetDebugMode(state.DebugMode)
@@ -889,19 +900,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		t.SetTransitionActive(false)
 	}
 	t.Draw(func(f *terminal.Frame) {
-		// Dinamik renk teması seçimi
-		var mainColor, accentColor cell.Color
-		switch state.ThemeSelected {
-		case "Koyu":
-			mainColor = cell.NewColorRGB(0, 255, 255) // Cyan
-			accentColor = cell.NewColorRGB(0, 255, 0) // Yeşil
-		case "Açık":
-			mainColor = cell.NewColorRGB(0, 100, 255)     // Mavi
-			accentColor = cell.NewColorRGB(200, 200, 200) // Açık Gri
-		case "Renkli":
-			mainColor = cell.NewColorRGB(255, 165, 0)   // Turuncu
-			accentColor = cell.NewColorRGB(255, 0, 255) // Magenta / Mor
-		}
+		demoTheme := themeForSelection(state.ThemeSelected)
+		f.SetTheme(demoTheme)
+		// Tüm ana UI renkleri semantic theme token'larından gelir.
+		mainColor := demoTheme.Colors.Primary
+		accentColor := demoTheme.Colors.Success
 
 		// Eğer çıkış veya yardım diyalogu açık olacaksa, en baştan modalı kaydet ki çizilen arka plan widget'ları olay alamasın!
 		if state.ShowExitDialog {
@@ -1067,7 +1070,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				f.RenderWidget(widgets.ProgressBar{
 					Value: cpuValue, Min: 0, Max: 100, ShowPercent: true,
 					FilledStyle: cell.Style{Fg: accentColor},
-					EmptyStyle:  cell.Style{Fg: cell.NewColorRGB(70, 70, 85)},
+					EmptyStyle:  cell.Style{Fg: demoTheme.Colors.Border},
 				}, progressArea)
 			}
 
@@ -1080,7 +1083,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						{Text: p.Name},
 						{Text: p.CPU},
 						{Text: p.Memory},
-						{Text: p.Status, Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
+						{Text: p.Status, Style: cell.Style{Fg: demoTheme.Colors.Success}},
 					},
 				}
 				// Zebra desen (alternating background colors)
@@ -1145,10 +1148,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					Bg:       accentColor,
 					Modifier: cell.ModifierBold,
 				},
-				DrawGrid:    true,
-				SortEnabled: true,
-				MultiSelect: true,
-				FilterQuery: state.TableFilterState.Value(),
+				DrawGrid:      true,
+				SortEnabled:   true,
+				MultiSelect:   true,
+				StickyColumns: 1,
+				FilterQuery:   state.TableFilterState.Value(),
 				CellStyle: func(row, column int, value widgets.TableCell) cell.Style {
 					if row < 0 {
 						return cell.Style{}

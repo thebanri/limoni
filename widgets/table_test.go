@@ -120,6 +120,23 @@ func TestTableCellStyleCallback(t *testing.T) {
 	}
 }
 
+func TestTableScrollDoesNotFollowSelection(t *testing.T) {
+	state := NewTableState()
+	state.Select(0)
+	rows := make([]TableRow, 10)
+	for i := range rows {
+		rows[i] = NewRow(itoa(i))
+	}
+	table := Table{Rows: rows, Constraints: []TableConstraint{{Type: ConstraintFixed, Value: 8}}, State: state}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 8, 2))
+	table.Draw(cell.NewContext(buf.Area, cell.Style{}), buf)
+	state.Scroll(5, len(rows), 2)
+	table.Draw(cell.NewContext(buf.Area, cell.Style{}), buf)
+	if state.Offset != 5 {
+		t.Fatalf("offset = %d; want 5 after scrolling away from selected row", state.Offset)
+	}
+}
+
 func TestTableStateMultiSelection(t *testing.T) {
 	state := NewTableState()
 	state.ToggleRow(2)

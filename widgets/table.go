@@ -60,12 +60,14 @@ func NewRow(cells ...string) TableRow {
 
 // TableState, tablodaki satır seçimini, dikey kaydırma (scrolling) ve sütun genişliklerini yönetir.
 type TableState struct {
-	Selected       int      // Seçili satır indeksi (-1 ise seçim yok)
-	Offset         int      // Dikey kaydırma (scroll offset) miktarı
-	ColumnWidths   []uint16 // Sürüklenerek yeniden boyutlandırılan veya otomatik çözülen sütun genişlikleri
-	SortColumn     int      // Sıralanan sütun; -1 ise sıralama kapalı
-	SortDescending bool
-	SelectedRows   map[int]struct{} // Çoklu satır seçimi
+	Selected         int      // Seçili satır indeksi (-1 ise seçim yok)
+	Offset           int      // Dikey kaydırma (scroll offset)
+	HorizontalOffset int      // Yatay kaydırma için hazırlanan sütun hücre offset'i miktarı
+	ColumnWidths     []uint16 // Sürüklenerek yeniden boyutlandırılan veya otomatik çözülen sütun genişlikleri
+	SortColumn       int      // Sıralanan sütun; -1 ise sıralama kapalı
+	SortDescending   bool
+	SelectedRows     map[int]struct{} // Çoklu satır seçimi
+	selectionDirty   bool             // Seçim değiştiğinde görünürlük ayarı gerektiğini belirtir.
 }
 
 // NewTableState, yeni bir TableState nesnesi oluşturur.
@@ -83,6 +85,7 @@ func NewTableState() *TableState {
 // Select, belirli bir satırı seçer.
 func (ts *TableState) Select(index int) {
 	ts.Selected = index
+	ts.selectionDirty = true
 }
 
 // Next, seçimi bir sonraki satıra taşır.
@@ -95,12 +98,42 @@ func (ts *TableState) Next(totalRows int) {
 	} else if ts.Selected < totalRows-1 {
 		ts.Selected++
 	}
+	ts.selectionDirty = true
 }
 
 // Prev, seçimi bir önceki satıra taşır.
 func (ts *TableState) Prev() {
 	if ts.Selected > 0 {
 		ts.Selected--
+		ts.selectionDirty = true
+	}
+}
+
+// Scroll moves the vertical viewport while clamping it to the row count.
+func (ts *TableState) Scroll(delta, totalRows, visibleRows int) {
+	if ts == nil || visibleRows <= 0 {
+		return
+	}
+	maxOffset := totalRows - visibleRows
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	ts.Offset += delta
+	if ts.Offset < 0 {
+		ts.Offset = 0
+	}
+	if ts.Offset > maxOffset {
+		ts.Offset = maxOffset
+	}
+}
+
+func (ts *TableState) ScrollHorizontal(delta int) {
+	if ts == nil {
+		return
+	}
+	ts.HorizontalOffset += delta
+	if ts.HorizontalOffset < 0 {
+		ts.HorizontalOffset = 0
 	}
 }
 
@@ -188,11 +221,18 @@ func (ts *TableState) ResizeColumn(index, delta int) bool {
 	return true
 }
 
+// TableDataSource provides rows lazily for large tables.
+type TableDataSource interface {
+	RowCount() int
+	RowAt(index int) TableRow
+}
+
 // Table, interaktif, esnek sütunlu, dikey kaydırılabilir ve hücre birleştirme destekli tablo bileşenidir.
 type Table struct {
 	ID            string
 	Header        *TableRow
 	Rows          []TableRow
+	DataSource    TableDataSource
 	Constraints   []TableConstraint
 	State         *TableState
 	GridStyle     cell.Style
@@ -202,6 +242,7 @@ type Table struct {
 	MultiSelect   bool                                              // Space ile birden fazla satırın seçilmesini etkinleştirir.
 	FilterQuery   string                                            // Fuzzy filtre sorgusu; boşsa tüm satırlar çizilir.
 	CellStyle     func(row, column int, value TableCell) cell.Style // Hücre bazlı stil kuralı.
+	StickyColumns int                                               // Soldan sabit kalacak sütun sayısı.
 }
 
 // SolveWidths, toplam kullanılabilir tablo genişliğini sütun kurallarına göre çözerek genişlikleri belirler.
@@ -250,7 +291,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if len(t.Constraints) == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
 	}
-	if t.State != nil && t.SortEnabled && t.State.SortColumn >= 0 {
+	if t.State != nil && t.SortEnabled && t.State.SortColumn >= 0 && t.DataSource == nil {
 		sortTableRows(t.Rows, t.State.SortColumn, t.State.SortDescending)
 	}
 
@@ -284,6 +325,46 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		widths = t.State.ColumnWidths
 	} else {
 		widths = SolveWidths(netWidth, t.Constraints)
+	}
+
+	rows := t.Rows
+	rowCount := len(rows)
+	rowAt := func(index int) TableRow { return rows[index] }
+	if t.DataSource != nil {
+		rowCount = t.DataSource.RowCount()
+		rowAt = t.DataSource.RowAt
+	}
+	if t.FilterQuery != "" {
+		filtered := make([]TableRow, 0, rowCount)
+		for i := 0; i < rowCount; i++ {
+			row := rowAt(i)
+			if _, matched := FuzzyMatch(t.FilterQuery, row.SearchText()); matched {
+				filtered = append(filtered, row)
+			}
+		}
+		rows = filtered
+		rowCount = len(rows)
+		rowAt = func(index int) TableRow { return rows[index] }
+	}
+
+	// Scroll olayları tabloya yönlendirilir; click/resize bölgeleri aşağıda daha önceliklidir.
+	if t.State != nil && ctx.RegisterMouse != nil {
+		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			if ev.Button == backend.MouseScrollUp {
+				if ev.Shift {
+					t.State.ScrollHorizontal(-2)
+				} else {
+					t.State.Scroll(-3, rowCount, int(ctx.Area.Height))
+				}
+			}
+			if ev.Button == backend.MouseScrollDown {
+				if ev.Shift {
+					t.State.ScrollHorizontal(2)
+				} else {
+					t.State.Scroll(3, rowCount, int(ctx.Area.Height))
+				}
+			}
+		})
 	}
 
 	// 2. İNTERAKTİF SÜTUN BOYUTLANDIRICI SÜRÜKLEME ALANLARI
@@ -325,11 +406,6 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				sepX++
 			}
 		}
-	}
-
-	rows := t.Rows
-	if t.FilterQuery != "" {
-		rows = FuzzyFilterByStable(t.FilterQuery, rows, func(row TableRow) string { return row.SearchText() })
 	}
 
 	// 3. SAHİPLİK MATRİSİNİN (COLSPAN / ROWSPAN) HESAPLANMASI
@@ -503,7 +579,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
-	totalRows := len(rows)
+	totalRows := rowCount
 	if t.State != nil {
 		if totalRows == 0 {
 			t.State.Selected = -1
@@ -516,12 +592,13 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if t.State.Selected >= totalRows {
 			t.State.Selected = totalRows - 1
 		}
-		if t.State.Selected != -1 && t.State.Selected < t.State.Offset {
+		if t.State.selectionDirty && t.State.Selected != -1 && t.State.Selected < t.State.Offset {
 			t.State.Offset = t.State.Selected
 		}
-		if t.State.Selected != -1 && t.State.Selected >= t.State.Offset+visibleRows {
+		if t.State.selectionDirty && t.State.Selected != -1 && t.State.Selected >= t.State.Offset+visibleRows {
 			t.State.Offset = t.State.Selected - visibleRows + 1
 		}
+		t.State.selectionDirty = false
 	}
 
 	// 6. SATIRLARIN ÇİZİLMESİ
@@ -535,7 +612,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			break
 		}
 
-		row := rows[actualRowIdx]
+		row := rowAt(actualRowIdx)
 		isSelected := t.State != nil && (t.State.Selected == actualRowIdx || (t.MultiSelect && t.State.IsRowSelected(actualRowIdx)))
 
 		if ctx.RegisterClick != nil {
@@ -569,26 +646,67 @@ func (t Table) drawSpanRow(
 	gridStyle cell.Style,
 	baseRowStyle cell.Style,
 ) {
-	currX := ctx.Area.X
 	rowStyle := ctx.Style.Merge(baseRowStyle)
+	colsCount := len(widths)
+	stickyCount := t.StickyColumns
+	if stickyCount < 0 {
+		stickyCount = 0
+	}
+	if stickyCount > colsCount {
+		stickyCount = colsCount
+	}
+	stickyWidth := uint16(0)
+	for i := 0; i < stickyCount; i++ {
+		stickyWidth += widths[i]
+		if t.DrawGrid && i < colsCount-1 {
+			stickyWidth++
+		}
+	}
+	columnX := func(column int) uint16 {
+		x := ctx.Area.X
+		if column >= stickyCount {
+			x += stickyWidth
+			for i := stickyCount; i < column; i++ {
+				x += widths[i]
+				if t.DrawGrid {
+					x++
+				}
+			}
+			offset := uint16(0)
+			if t.State != nil && t.State.HorizontalOffset > 0 {
+				offset = uint16(t.State.HorizontalOffset)
+			}
+			if offset > x-ctx.Area.X-stickyWidth {
+				offset = x - ctx.Area.X - stickyWidth
+			}
+			x -= offset
+		} else {
+			for i := 0; i < column; i++ {
+				x += widths[i]
+				if t.DrawGrid {
+					x++
+				}
+			}
+		}
+		return x
+	}
+	currX := ctx.Area.X
 	if isSelected {
 		rowStyle = rowStyle.Merge(t.SelectedStyle)
 	}
 
-	colsCount := len(widths)
-
 	for colIdx := 0; colIdx < colsCount; colIdx++ {
+		currX = columnX(colIdx)
 		ownerCoords := getOwner(r, colIdx)
 
 		// Eğer bu hücre üstteki veya soldaki birleştirilmiş bir hücrenin alt parçasıysa çizimi atla
 		if ownerCoords != [2]int{r, colIdx} {
-			currX += widths[colIdx]
 			if t.DrawGrid && colIdx < colsCount-1 {
+				currX = columnX(colIdx + 1)
 				// Sınır çizgisi hücre birleştirme alanı içinde kalmıyorsa çiz
 				if getOwner(r, colIdx) != getOwner(r, colIdx+1) {
 					buf.SetCell(currX, y, cell.Cell{Content: '│', Style: gridStyle})
 				}
-				currX++
 			}
 			continue
 		}
@@ -625,7 +743,7 @@ func (t Table) drawSpanRow(
 				break
 			}
 			for dx := uint16(0); dx < cellW; dx++ {
-				if currX+dx < ctx.Area.X+ctx.Area.Width {
+				if currX+dx >= ctx.Area.X && currX+dx < ctx.Area.X+ctx.Area.Width {
 					buf.SetCell(currX+dx, drawY, cell.Cell{Content: ' ', Style: cellStyle})
 				}
 			}
@@ -633,16 +751,16 @@ func (t Table) drawSpanRow(
 
 		// Metni keserek sadece ilk satıra yazdır (top-left)
 		clipped := clipString(cellVal.Text, int(cellW))
-		buf.SetString(currX, y, clipped, cellStyle)
-
-		currX += widths[colIdx]
+		if currX >= ctx.Area.X && currX < ctx.Area.X+ctx.Area.Width {
+			buf.SetString(currX, y, clipped, cellStyle)
+		}
 
 		// Sütunlar arası dikey ızgara çizgisini çiz (birleştirilmiş alanın dışındaysa)
 		if t.DrawGrid && colIdx < colsCount-1 {
-			if getOwner(r, colIdx) != getOwner(r, colIdx+1) {
-				buf.SetCell(currX, y, cell.Cell{Content: '│', Style: gridStyle})
+			separatorX := columnX(colIdx+1) - 1
+			if getOwner(r, colIdx) != getOwner(r, colIdx+1) && separatorX >= ctx.Area.X && separatorX < ctx.Area.X+ctx.Area.Width {
+				buf.SetCell(separatorX, y, cell.Cell{Content: '│', Style: gridStyle})
 			}
-			currX++
 		}
 	}
 }

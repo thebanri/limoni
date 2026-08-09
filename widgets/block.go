@@ -141,7 +141,13 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Bloğun nihai stilini belirle (Miras kalan stil ile bu bloğun stilini birleştir)
 	blockStyle := ctx.Style.Merge(b.Style)
+	if b.Style == (cell.Style{}) && ctx.ThemeStyle != nil {
+		blockStyle = blockStyle.Merge(ctx.ThemeStyle("surface"))
+	}
 	borderStyle := blockStyle.Merge(b.BorderStyle)
+	if b.BorderStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+		borderStyle = blockStyle.Merge(ctx.ThemeStyle("border"))
+	}
 
 	// 1. Aşama: Bloğun arka planını doldur
 	for y := area.Y; y < area.Y+area.Height; y++ {
@@ -291,6 +297,7 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			childCtx.RegisterFocus = ctx.RegisterFocus
 			childCtx.SetFocus = ctx.SetFocus
 			childCtx.FocusedID = ctx.FocusedID
+			childCtx.ThemeStyle = ctx.ThemeStyle
 			b.Child.Draw(childCtx, buf)
 		}
 	}

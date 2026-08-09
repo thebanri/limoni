@@ -39,8 +39,11 @@ type Context struct {
 	// almalarını sağlayan, odak yöneticisi tarafından doldurulan callback köprüsüdür.
 	SetFocus func(id string)
 
-	// FocusedID, aktif olarak odaklanmış olan bileşenin ID'sini taşır.
+	// FocusedID, aktif olarak odaklanmış olan widget'ın ID'sini taşır.
 	FocusedID string
+
+	// ThemeStyle resolves a semantic theme role into a style inherited from the frame.
+	ThemeStyle func(role string) Style
 }
 
 // NewContext yeni bir Context örneği oluşturup döndürür.

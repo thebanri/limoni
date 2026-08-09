@@ -64,8 +64,11 @@ type Frame struct {
 	// DebugRegions, bu çizim karesinde çizilen widget'ların yerleşim alanlarını saklar.
 	DebugRegions []DebugRegion
 
-	// mouseCaptureRequest, çizim sırasında bir widget tarafından talep edilen fare yakalama (capture) callback'idir.
+	// mouseCaptureRequest, çizim sırasında bir widget tarafından talep edilen fare yakalama callback'idir.
 	mouseCaptureRequest func(ev backend.MouseEvent)
+
+	Theme    widgets.Theme
+	ThemeSet bool
 }
 
 type DebugRegion struct {
@@ -89,6 +92,12 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 
 // Reset, çizim karesinin durumunu (kaydedilmiş tıklama, resim alanları, modal ve katmanları) sıfırlar.
 // Bellek Optimizasyonu: Slice kapasitesini koruyarak sıfır tahsisatla listeyi temizler (slice[:0]).
+// SetTheme sets the semantic theme inherited by widgets rendered in this frame.
+func (f *Frame) SetTheme(theme widgets.Theme) {
+	f.Theme = theme
+	f.ThemeSet = true
+}
+
 func (f *Frame) Reset() {
 	f.ClickRegions = f.ClickRegions[:0]
 	f.ImageRegions = f.ImageRegions[:0]
@@ -293,6 +302,9 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 
 	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
 	ctx := cell.NewContext(area, defStyle)
+	if f.ThemeSet {
+		ctx.ThemeStyle = func(role string) cell.Style { return f.Theme.RoleStyle(role) }
+	}
 
 	// Katman durumunu belirle: Widget, herhangi bir katmanın içinde mi?
 	isInsideLayer := f.activeLayerID != ""
