@@ -21,6 +21,16 @@ f 1/1/1 2/2/1 3/3/1 4/4/1
 	}
 }
 
+func TestParseOBJTextureCoordinates(t *testing.T) {
+	model, err := ParseOBJ(strings.NewReader("vt 0 0\nvt 1 0\nvt 0 1\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1/1 2/2 3/3\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(model.UVs) != 3 || len(model.FaceUVs) != 1 || model.FaceUVs[0][2] != 2 {
+		t.Fatalf("UV data = %+v / %+v", model.UVs, model.FaceUVs)
+	}
+}
+
 func TestParseOBJNegativeIndices(t *testing.T) {
 	model, err := ParseOBJ(strings.NewReader("v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n"))
 	if err != nil {

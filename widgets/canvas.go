@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"math"
+
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -21,6 +23,7 @@ type Canvas struct {
 	height uint16
 	grid   []byte
 	styles []cell.Style
+	depth  []float64
 }
 
 // NewCanvas, belirtilen hücre genişlik ve yüksekliğinde yeni bir Canvas oluşturur.
@@ -31,6 +34,7 @@ func NewCanvas(width, height uint16) *Canvas {
 		height: height,
 		grid:   make([]byte, int(width)*int(height)),
 		styles: make([]cell.Style, int(width)*int(height)),
+		depth:  makeDepthBuffer(int(width) * int(height)),
 	}
 }
 
@@ -57,8 +61,23 @@ func (c *Canvas) Reset(width, height uint16) {
 	} else {
 		c.styles = make([]cell.Style, needed)
 	}
+	if cap(c.depth) >= needed {
+		c.depth = c.depth[:needed]
+	} else {
+		c.depth = makeDepthBuffer(needed)
+	}
+	for i := range c.depth {
+		c.depth[i] = math.Inf(1)
+	}
 }
 
+func makeDepthBuffer(size int) []float64 {
+	depth := make([]float64, size)
+	for i := range depth {
+		depth[i] = math.Inf(1)
+	}
+	return depth
+}
 
 // Set, canvas üzerindeki sanal (px, py) pikselini aktif hale getirir ve rengini/stilini günceller.
 // Koordinatlar sınır dışındaysa işlem yok sayılır (clipping).
@@ -93,6 +112,28 @@ func (c *Canvas) Set(px, py int, style cell.Style) {
 		}
 	} else {
 		c.styles[idx] = c.styles[idx].Merge(style)
+	}
+}
+
+// SetDepth writes a pixel only when it is closer than the current depth.
+func (c *Canvas) SetDepth(px, py int, depth float64, style cell.Style) bool {
+	if px < 0 || py < 0 || px >= int(c.width)*2 || py >= int(c.height)*4 {
+		return false
+	}
+	cx, cy := px/2, py/4
+	idx := cy*int(c.width) + cx
+	if depth >= c.depth[idx] {
+		return false
+	}
+	c.depth[idx] = depth
+	c.Set(px, py, style)
+	return true
+}
+
+// ClearDepth resets the z-buffer without changing the visible canvas content.
+func (c *Canvas) ClearDepth() {
+	for i := range c.depth {
+		c.depth[i] = math.Inf(1)
 	}
 }
 

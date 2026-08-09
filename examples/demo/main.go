@@ -413,14 +413,25 @@ func main() {
 	state.ThreeDModel = "Küp"
 	state.ThreeDStyle = "Dokulu"
 
-	// İsteğe bağlı Wavefront OBJ modeli: LIMONI_OBJ=/path/model.obj go run ./examples/demo
-	if objPath := os.Getenv("LIMONI_OBJ"); objPath != "" {
-		if model, objErr := graphics.LoadOBJ(objPath); objErr != nil {
-			fmt.Fprintf(os.Stderr, "OBJ modeli yüklenemedi: %v\n", objErr)
+	// İsteğe bağlı 3D modeli: LIMONI_MODEL=/path/model.stl go run ./examples/demo
+	modelPath := os.Getenv("LIMONI_MODEL")
+	if modelPath == "" {
+		modelPath = os.Getenv("LIMONI_OBJ")
+	} // geriye dönük uyumluluk
+	if modelPath != "" {
+		var model graphics.Model3D
+		var modelErr error
+		if strings.HasSuffix(strings.ToLower(modelPath), ".stl") {
+			model, modelErr = graphics.LoadSTL(modelPath)
+		} else {
+			model, modelErr = graphics.LoadOBJ(modelPath)
+		}
+		if modelErr != nil {
+			fmt.Fprintf(os.Stderr, "3D modeli yüklenemedi: %v\n", modelErr)
 		} else {
 			model.Normalize(2.4)
 			state.OBJModel = &model
-			state.OBJPath = objPath
+			state.OBJPath = modelPath
 			state.ThreeDModel = "OBJ"
 		}
 	}
@@ -1479,6 +1490,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 				projected := make([]struct {
 					x, y    int
+					z       float64
 					visible bool
 				}, len(vertices))
 
@@ -1496,8 +1508,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					px, py, visible := graphics.Project(v, canvasW, canvasH, 3.5, scale)
 					projected[i] = struct {
 						x, y    int
+						z       float64
 						visible bool
-					}{x: int(px), y: int(py), visible: visible}
+					}{x: int(px), y: int(py), z: v.Z, visible: visible}
 				}
 
 				// Yüzey renkleri (Dolu Renkli mod için prizmatik renk geçişleri)
@@ -1517,6 +1530,17 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				if state.ThreeDStyle == "Dokulu" {
 					wireStyle = cell.Style{Fg: cell.NewColorRGB(70, 75, 80)} // İnce ve parlamayan koyu gri kenar stili
 				}
+				getFaceUV := func(faceIndex, corner int, fallback graphics.UV) graphics.UV {
+					if state.OBJModel == nil || faceIndex >= len(state.OBJModel.FaceUVs) || corner >= len(state.OBJModel.FaceUVs[faceIndex]) {
+						return fallback
+					}
+					uvIndex := state.OBJModel.FaceUVs[faceIndex][corner]
+					if uvIndex < 0 || uvIndex >= len(state.OBJModel.UVs) {
+						return fallback
+					}
+					uv := state.OBJModel.UVs[uvIndex]
+					return graphics.UV{U: uv.U, V: 1 - uv.V}
+				}
 				for faceIdx, face := range faces {
 					if len(face) < 3 {
 						continue
@@ -1532,6 +1556,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 					var p3 struct {
 						x, y    int
+						z       float64
 						visible bool
 					}
 					isQuad := len(face) == 4
@@ -1550,10 +1575,10 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 								// Default UV coordinates (Full image mapping)
 								uMin, uMax, vMin, vMax := 0.0, 1.0, 0.0, 1.0
 
-								uv0 := graphics.UV{U: uMin, V: vMax}
-								uv1 := graphics.UV{U: uMax, V: vMax}
-								uv2 := graphics.UV{U: uMax, V: vMin}
-								uv3 := graphics.UV{U: uMin, V: vMin}
+								uv0 := getFaceUV(faceIdx, 0, graphics.UV{U: uMin, V: vMax})
+								uv1 := getFaceUV(faceIdx, 1, graphics.UV{U: uMax, V: vMax})
+								uv2 := getFaceUV(faceIdx, 2, graphics.UV{U: uMax, V: vMin})
+								uv3 := getFaceUV(faceIdx, 3, graphics.UV{U: uMin, V: vMin})
 
 								canvas.DrawTexturedTriangle(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
@@ -1568,9 +1593,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 									uv0, uv2, uv3, textureImg,
 								)
 							} else {
-								uv0 := graphics.UV{U: 0.0, V: 1.0}
-								uv1 := graphics.UV{U: 1.0, V: 1.0}
-								uv2 := graphics.UV{U: 0.5, V: 0.0}
+								uv0 := getFaceUV(faceIdx, 0, graphics.UV{U: 0.0, V: 1.0})
+								uv1 := getFaceUV(faceIdx, 1, graphics.UV{U: 1.0, V: 1.0})
+								uv2 := getFaceUV(faceIdx, 2, graphics.UV{U: 0.5, V: 0.0})
 
 								canvas.DrawTexturedTriangle(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
@@ -1581,26 +1606,31 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 							}
 						} else if state.ThreeDStyle == "Dolu Renkli" {
 							col := faceColors[faceIdx%len(faceColors)]
+							if state.OBJModel != nil && faceIdx < len(state.OBJModel.FaceMaterials) {
+								if material, ok := state.OBJModel.Materials[state.OBJModel.FaceMaterials[faceIdx]]; ok {
+									col = cell.NewColorRGB(material.R, material.G, material.B)
+								}
+							}
 							faceStyle := cell.Style{Fg: col}
 							if isQuad {
-								canvas.DrawFilledTriangle(
+								canvas.DrawFilledTriangleDepth(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-									faceStyle,
+									p0.z, p1.z, p2.z, faceStyle,
 								)
-								canvas.DrawFilledTriangle(
+								canvas.DrawFilledTriangleDepth(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
 									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
-									faceStyle,
+									p0.z, p2.z, p3.z, faceStyle,
 								)
 							} else {
-								canvas.DrawFilledTriangle(
+								canvas.DrawFilledTriangleDepth(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
-									faceStyle,
+									p0.z, p1.z, p2.z, faceStyle,
 								)
 							}
 						}

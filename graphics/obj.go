@@ -5,15 +5,20 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 // Model3D is the geometry consumed by the wireframe/solid renderer.
 type Model3D struct {
-	Name     string
-	Vertices []Vertex3D
-	Faces    [][]int
+	Name          string
+	Vertices      []Vertex3D
+	Faces         [][]int
+	FaceUVs       [][]int
+	UVs           []UV
+	FaceMaterials []string
+	Materials     map[string]Material3D
 }
 
 // LoadOBJ loads a Wavefront OBJ file without external dependencies.
@@ -29,6 +34,10 @@ func LoadOBJ(path string) (Model3D, error) {
 		return Model3D{}, fmt.Errorf("parse OBJ %q: %w", path, err)
 	}
 	model.Name = path
+	model.Materials = make(map[string]Material3D)
+	if err := loadOBJMaterialLibraries(path, &model); err != nil {
+		return Model3D{}, err
+	}
 	return model, nil
 }
 
@@ -38,6 +47,7 @@ func ParseOBJ(r io.Reader) (Model3D, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	lineNo := 0
+	currentMaterial := ""
 	for scanner.Scan() {
 		lineNo++
 		line := strings.TrimSpace(scanner.Text())
@@ -49,6 +59,26 @@ func ParseOBJ(r io.Reader) (Model3D, error) {
 			continue
 		}
 		switch fields[0] {
+		case "usemtl":
+			if len(fields) >= 2 {
+				currentMaterial = fields[1]
+			}
+		case "vt":
+			if len(fields) < 2 {
+				return Model3D{}, fmt.Errorf("line %d: texture coordinate requires u", lineNo)
+			}
+			u, err := strconv.ParseFloat(fields[1], 64)
+			if err != nil {
+				return Model3D{}, fmt.Errorf("line %d: invalid texture u: %w", lineNo, err)
+			}
+			v := 0.0
+			if len(fields) >= 3 {
+				v, err = strconv.ParseFloat(fields[2], 64)
+				if err != nil {
+					return Model3D{}, fmt.Errorf("line %d: invalid texture v: %w", lineNo, err)
+				}
+			}
+			model.UVs = append(model.UVs, UV{U: u, V: v})
 		case "v":
 			if len(fields) < 4 {
 				return Model3D{}, fmt.Errorf("line %d: vertex requires x y z", lineNo)
@@ -71,15 +101,19 @@ func ParseOBJ(r io.Reader) (Model3D, error) {
 				return Model3D{}, fmt.Errorf("line %d: face requires at least three vertices", lineNo)
 			}
 			face := make([]int, 0, len(fields)-1)
+			faceUVs := make([]int, 0, len(fields)-1)
 			for _, token := range fields[1:] {
-				index, err := parseOBJVertexIndex(token, len(model.Vertices))
+				vertexIndex, uvIndex, err := parseOBJIndices(token, len(model.Vertices), len(model.UVs))
 				if err != nil {
 					return Model3D{}, fmt.Errorf("line %d: %w", lineNo, err)
 				}
-				face = append(face, index)
+				face = append(face, vertexIndex)
+				faceUVs = append(faceUVs, uvIndex)
 			}
 			// Keep polygons; the renderer can draw their edges and fill them.
 			model.Faces = append(model.Faces, face)
+			model.FaceUVs = append(model.FaceUVs, faceUVs)
+			model.FaceMaterials = append(model.FaceMaterials, currentMaterial)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -91,21 +125,59 @@ func ParseOBJ(r io.Reader) (Model3D, error) {
 	return model, nil
 }
 
-func parseOBJVertexIndex(token string, vertexCount int) (int, error) {
-	parts := strings.SplitN(token, "/", 2)
-	index, err := strconv.Atoi(parts[0])
-	if err != nil || index == 0 {
-		return 0, fmt.Errorf("invalid face vertex %q", token)
+func loadOBJMaterialLibraries(objPath string, model *Model3D) error {
+	file, err := os.Open(objPath)
+	if err != nil {
+		return err
 	}
-	if index < 0 {
-		index = vertexCount + index
+	defer file.Close()
+	baseDir := filepath.Dir(objPath)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		fields := strings.Fields(strings.TrimSpace(scanner.Text()))
+		if len(fields) >= 2 && fields[0] == "mtllib" {
+			materials, loadErr := LoadMTL(filepath.Join(baseDir, fields[1]))
+			if loadErr != nil {
+				return fmt.Errorf("load MTL %q: %w", fields[1], loadErr)
+			}
+			for name, material := range materials {
+				model.Materials[name] = material
+			}
+		}
+	}
+	return scanner.Err()
+}
+
+func parseOBJIndices(token string, vertexCount, uvCount int) (int, int, error) {
+	parts := strings.Split(token, "/")
+	vertexIndex, err := strconv.Atoi(parts[0])
+	if err != nil || vertexIndex == 0 {
+		return 0, -1, fmt.Errorf("invalid face vertex %q", token)
+	}
+	if vertexIndex < 0 {
+		vertexIndex = vertexCount + vertexIndex
 	} else {
-		index--
+		vertexIndex--
 	}
-	if index < 0 || index >= vertexCount {
-		return 0, fmt.Errorf("face vertex %q is out of range", token)
+	if vertexIndex < 0 || vertexIndex >= vertexCount {
+		return 0, -1, fmt.Errorf("face vertex %q is out of range", token)
 	}
-	return index, nil
+	uvIndex := -1
+	if len(parts) >= 2 && parts[1] != "" && uvCount > 0 {
+		uvIndex, err = strconv.Atoi(parts[1])
+		if err != nil || uvIndex == 0 {
+			return 0, -1, fmt.Errorf("invalid face UV %q", token)
+		}
+		if uvIndex < 0 {
+			uvIndex = uvCount + uvIndex
+		} else {
+			uvIndex--
+		}
+		if uvIndex < 0 || uvIndex >= uvCount {
+			return 0, -1, fmt.Errorf("face UV %q is out of range", token)
+		}
+	}
+	return vertexIndex, uvIndex, nil
 }
 
 // Normalize centers the model at the origin and scales its largest dimension

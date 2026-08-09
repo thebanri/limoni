@@ -215,12 +215,16 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
   - `examples/forms` bağımsız örneği oluşturuldu.
   - Click ve hover olayları ayrıştırıldı; `MouseRelease` toggle olaylarını tekrar çalıştırmıyor.
 
-- **Faz 25: Gelişmiş 3D Dosya Importu [DEVAM EDİYOR]**
+- **Faz 25: Gelişmiş 3D Dosya Importu [TAMAMLANDI / GENİŞLETİLEBİLİR]**
   - Bağımlılıksız Wavefront OBJ parser eklendi: vertex, polygon face, texture/normal index formatları ve negatif index desteği.
   - `Model3D.Normalize` ile dosya modelleri mevcut perspektif renderer'a uygun ölçekleniyor.
   - `LIMONI_OBJ=/path/model.obj go run ./examples/demo` ile demo'ya OBJ yüklenebiliyor.
   - Örnek modeller: `examples/demo/cube.obj` ve 8 parçalı `examples/demo/deniz_topu.obj`.
-  - Sonraki işler: MTL/material, texture UV mapping, STL/PLY/glTF/GLB loader ve depth buffer.
+  - Canvas depth buffer ve z-interpolasyonlu dolu üçgen çizimi eklendi; OBJ yüzleri çizim sırasından bağımsız derinlik testi kullanabiliyor.
+  - OBJ `mtllib`, `usemtl`, `.mtl` ve `Kd` diffuse renk desteği eklendi; demo dolu renkli modda materyal renklerini kullanıyor.
+  - OBJ `vt` ve face UV index desteği eklendi; dokulu demo render'ı model UV koordinatlarını kullanıyor.
+  - ASCII ve binary STL loader eklendi; demo `LIMONI_MODEL` uzantısına göre OBJ/STL seçiyor.
+  - Faz kapsamı tamamlandı; ileride PLY/glTF/GLB loader, gelişmiş texture/material özellikleri ve büyük model optimizasyonları eklenebilir.
 
 - **Faz 26: Dashboard Table [TAMAMLANDI]**
   - Sütun sıralama ve `▲/▼` header göstergesi; numeric ve metin sıralama.
@@ -232,11 +236,7 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
 
 ## 5. Gelecek Yol Haritası
 
-1. **Faz 25: Gelişmiş 3D Dosya Importu [DEVAM EDİYOR]
-   - MTL materyal ve OBJ texture koordinatlarını gerçek texture mapping'e bağlamak.
-   - STL ve PLY loader eklemek.
-   - Büyük model dosyalarında vertex/face limitleri ve güvenli bellek kullanımı.
-2. **Faz 27: Rich Text ve Merkezi Theme Sistemi**
+1. **Faz 27: Rich Text ve Merkezi Theme Sistemi**
    - `Span` / `Line` / `Text` yapıları ve merkezi tema token'ları.
    - Light/dark/high-contrast tema ve kontrast doğrulaması.
 3. **Faz 28: Yatay Tablo Navigasyonu ve İleri Layout**
@@ -287,6 +287,7 @@ limoni/
 │   ├── progress.go       # Yüzde ve stil destekli ProgressBar
 │   ├── canvas.go         # Braille 2x4 alt piksel çözünürlüklü çizim alanı
 │   ├── vector.go         # Bresenham çizgi, daire, dikdörtgen, bezier eğri çizimi
+│   ├── vector_depth.go   # Z-buffer destekli dolu üçgen rasterizer
 │   ├── image.go          # Kitty/Sixel/iTerm2/HalfBlock resim gösterimi
 │   ├── command_palette.go # Faz 22: Komut Paleti (Ctrl+P, fuzzy arama, CommandItem)
 │   ├── keybinding.go     # Faz 22: Declarative klavye kısayol yöneticisi (KeybindingManager)
@@ -298,7 +299,9 @@ limoni/
 ├── graphics/
 │   ├── graphics.go       # Protokol algılama, Kitty/Sixel/iTerm2 kodlayıcıları
 │   ├── vector3d.go        # 3D vertex, rotation ve perspective projection
-│   └── obj.go            # Wavefront OBJ parser ve Model3D normalization
+│   ├── obj.go            # Wavefront OBJ parser, material library ve Model3D normalization
+│   ├── mtl.go            # Wavefront MTL diffuse material parser
+│   └── stl.go            # ASCII/binary STL loader
 └── examples/
     ├── demo/main.go      # Tam interaktif demo; tablo, form, 3D ve OBJ import
     ├── demo/cube.obj     # OBJ import örneği
