@@ -1,11 +1,31 @@
 package main
 
 import (
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
+
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
+
+func loadProfileImage() image.Image {
+	for _, path := range []string{"examples/demo/profile.png", "examples/demo/profile.jpg", "profile.png", "profile.jpg"} {
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		img, _, decodeErr := image.Decode(file)
+		file.Close()
+		if decodeErr == nil {
+			return img
+		}
+	}
+	return nil
+}
 
 func navigateDemoTab(state *AppState, focus *terminal.FocusManager, delta int) {
 	tabs := []string{"Giriş", "Ayarlar", "Grafik", "Playground"}

@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"os"
 )
@@ -29,6 +30,16 @@ var transferredKittyImages = make(map[uint32]bool)
 
 // DetectProtocol, terminal ortam değişkenlerini inceleyerek en uygun resim protokolünü otomatik seçer.
 func DetectProtocol() Protocol {
+	switch os.Getenv("LIMONI_GRAPHICS") {
+	case "kitty":
+		return ProtocolKitty
+	case "sixel":
+		return ProtocolSixel
+	case "iterm2":
+		return ProtocolIterm2
+	case "halfblock":
+		return ProtocolHalfBlock
+	}
 	termProg := os.Getenv("TERM_PROGRAM")
 	switch termProg {
 	case "Ghostty", "kitty", "WezTerm":
@@ -52,8 +63,10 @@ func DetectProtocol() Protocol {
 		return ProtocolKitty
 	}
 
-	// Sixel modern Linux terminallerinde (foot, alacritty vb.) yaygın bir standarttır.
-	return ProtocolSixel
+	// Bilinmeyen terminallerde escape sequence basıp ekranı bozmak yerine
+	// güvenli hücre tabanlı fallback kullanılır. Native protocol açıkça
+	// LIMONI_GRAPHICS veya bilinen terminal env ile seçilebilir.
+	return ProtocolHalfBlock
 }
 
 // GetImageID, resim piksellerinden FNV-1a hash algoritmasıyla 32-bit benzersiz bir ID üretir.
@@ -97,6 +110,41 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 			dst.Set(x, y, img.At(srcBounds.Min.X+srcX, srcBounds.Min.Y+srcY))
 		}
 	}
+	return dst
+}
+
+// ResizeImageContain resmi aspect ratio'sunu koruyarak hedef alana sığdırır.
+// Hedef canvas tam boyuttadır; kullanılmayan alan kaynak görselin sol üst
+// pikseliyle doldurulur. Böylece native protokoller görseli esnetmez.
+func ResizeImageContain(img image.Image, w, h int) image.Image {
+	if img == nil || w <= 0 || h <= 0 {
+		return img
+	}
+	bounds := img.Bounds()
+	srcW, srcH := bounds.Dx(), bounds.Dy()
+	if srcW <= 0 || srcH <= 0 {
+		return img
+	}
+
+	fitW, fitH := w, h
+	if int64(srcW)*int64(h) > int64(srcH)*int64(w) {
+		fitH = int(float64(w) * float64(srcH) / float64(srcW))
+	} else {
+		fitW = int(float64(h) * float64(srcW) / float64(srcH))
+	}
+	if fitW < 1 {
+		fitW = 1
+	}
+	if fitH < 1 {
+		fitH = 1
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	background := img.At(bounds.Min.X, bounds.Min.Y)
+	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: background}, image.Point{}, draw.Src)
+	resized := ResizeImage(img, fitW, fitH)
+	offset := image.Pt((w-fitW)/2, (h-fitH)/2)
+	draw.Draw(dst, image.Rectangle{Min: offset, Max: offset.Add(image.Pt(fitW, fitH))}, resized, image.Point{}, draw.Src)
 	return dst
 }
 
@@ -155,7 +203,7 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImage(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH)
 	var pngBuf bytes.Buffer
 	if err := png.Encode(&pngBuf, resized); err != nil {
 		return ""
@@ -163,7 +211,7 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 	pngBytes := pngBuf.Bytes()
 	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
-	controlKeys := fmt.Sprintf("f=100,a=T,t=d,s=%d,v=%d,c=%d,r=%d,z=%d", targetW, targetH, cols, rows, zIndex)
+	controlKeys := fmt.Sprintf("f=100,a=T,t=d,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
 	return chunkKittyPayload(controlKeys, b64Data)
 }
 
@@ -175,7 +223,7 @@ func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16) strin
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImage(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH)
 	var pngBuf bytes.Buffer
 	if err := png.Encode(&pngBuf, resized); err != nil {
 		return ""
@@ -194,7 +242,7 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16) string
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImage(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH)
 	pal := buildPalette(resized, 256)
 
 	var buf bytes.Buffer

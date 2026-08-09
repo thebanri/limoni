@@ -128,6 +128,7 @@ type AppState struct {
 	PlaygroundRatio  int
 	PlaygroundBorder string
 	PlayShowGrid     bool
+	ProfileFrame     string
 
 	// Dither geçiş durumları
 	IsTransitioning     bool
@@ -160,6 +161,7 @@ type AppState struct {
 	Drag3DLastX  int
 	Drag3DLastY  int
 	AppleImg     image.Image
+	ProfileImg   image.Image
 	OBJModel     *graphics.Model3D
 	OBJPath      string
 	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü", "OBJ"
@@ -348,6 +350,7 @@ func main() {
 		PlaygroundMode:     "Vector",
 		MouseModeChecked:   true,
 		ThemeSelected:      "Koyu",
+		ProfileFrame:       "Rounded",
 		DebugMode:          false,
 		RotX:               30.0,
 		RotY:               45.0,
@@ -421,6 +424,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Limoni Doku Dosyasi Acilamadi (Cift Yol Denendi): %v\n", err)
 	}
 
+	state.ProfileImg = loadProfileImage()
 	state.ThreeDModel = "Küp"
 	state.ThreeDStyle = "Dokulu"
 

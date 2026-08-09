@@ -122,17 +122,31 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		t.drawDebugOverlay()
 	}
 
-	// Katman veya modal yapısının değiştiğini tespit et
+	// Katman veya modal yapısının değiştiğini tespit et. Modal açılıp
+	// kapandığında native resimlerin yeniden konumlandırılması gerekir.
 	currentLayersHash := t.layersHash()
-	layersChanged := (currentLayersHash != t.lastLayersHash)
+	layersChanged := currentLayersHash != t.lastLayersHash
 	t.lastLayersHash = currentLayersHash
+
+	// Resim ve metin çıktısını aynı senkron güncelleme içinde üret. Böylece
+	// tam ekran temizleme ile native resim arasında görünür bir ara kare oluşmaz.
+	t.backend.StartSyncUpdate()
+
+	// Tam yeniden çizimde buffer.Diff'in sonradan göndereceği ESC[2J,
+	// daha önce gönderilmiş native resimleri silmemelidir. Boyutları burada
+	// eşitleyip temizleme sırasını image pass'inden önceye alıyoruz.
+	needsFullClear := t.front.Area.Width != t.back.Area.Width || t.front.Area.Height != t.back.Area.Height
+	if needsFullClear {
+		t.back.Resize(t.front.Area)
+		t.backend.Write([]byte("\x1b[2J"))
+	}
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
 	proto := graphics.DetectProtocol()
 	if len(t.frame.ImageRegions) > 0 {
 		cellW, cellH, _ := t.backend.CellPixelSize()
 
-		imagesChanged := layersChanged
+		imagesChanged := needsFullClear || layersChanged
 		if !imagesChanged {
 			if len(t.frame.ImageRegions) != len(t.lastDrawnImages) {
 				imagesChanged = true
@@ -148,8 +162,19 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		}
 
 		if imagesChanged {
+			// Kitty placement'ları hücre tamponundan bağımsız yaşar. Eski
+			// sekmenin resmi yeni sekmede daha küçük/başka konumluysa, yalnızca
+			// yeni resmi çizmek eski placement'ın kenarlarını bırakabilir.
+			// Ekranı ESC[2J ile temizlemiyoruz; bu, back tamponu ile birlikte
+			// boş hücrelerin yeniden çizilmemesine ve siyah ekrana yol açar.
+			// Bunun yerine back'i sentinel image hücreleriyle geçersizleştirerek
+			// aktif sekmenin tüm metin/border hücrelerini Diff'e sokuyoruz.
 			if proto == graphics.ProtocolKitty {
 				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+				for i := range t.back.Content {
+					t.back.Content[i].Content = cell.RuneImage
+					t.back.Content[i].Style.Reset()
+				}
 			}
 
 			for _, reg := range t.frame.ImageRegions {
@@ -168,15 +193,18 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		if t.lastImageCount > 0 {
 			if proto == graphics.ProtocolKitty {
 				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+				for i := range t.back.Content {
+					t.back.Content[i].Content = cell.RuneImage
+					t.back.Content[i].Style.Reset()
+				}
 			}
 			t.lastImageCount = 0
 			t.lastDrawnImages = nil
 		}
 	}
 
-	// ── 2. ADIM: ASCII buffer'ı SYNC ile çiz (piksel katmanının ÜZERİNE) ──
+	// ── 2. ADIM: ASCII buffer'ı çiz (piksel katmanının ÜZERİNE) ──
 	// Bu, dialog/modal gibi ASCII widget'ların resmin önünde görünmesini sağlar.
-	t.backend.StartSyncUpdate()
 	t.writeBuf = t.writeBuf[:0]
 	var diffErr error
 	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf)

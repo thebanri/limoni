@@ -21,6 +21,9 @@ type Image struct {
 	ForceHalfBlock bool
 	// CircleMask, resmi daire şeklinde kırpar (avatar).
 	CircleMask bool
+	// OpaqueBackground composites transparency over Background before native rendering.
+	OpaqueBackground bool
+	Background       cell.Color
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
@@ -36,8 +39,19 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if im.CircleMask {
 		img = graphics.ApplyCircleMask(img)
 	}
+	if im.OpaqueBackground {
+		r, g, b := im.Background.RGB()
+		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
+	}
 
 	proto := graphics.DetectProtocol()
+	if !im.ForceHalfBlock && !im.OpaqueBackground && proto != graphics.ProtocolHalfBlock {
+		// Native image protocols transparan pikselleri terminalin varsayılan
+		// arka planına bırakır. Bu renk çoğu terminalde siyahtır ve widget'ın
+		// arka planından farklı bir dikdörtgen/şerit oluşturur.
+		r, g, b := ctx.Style.Bg.RGB()
+		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
+	}
 	if im.ForceHalfBlock || proto == graphics.ProtocolHalfBlock {
 		// Half-Block modu: Resmi doğrudan buffer.Buffer hücrelerine karakterler halinde çiz.
 		// Genişlik = Hücre Genişliği, Yükseklik = Hücre Yüksekliği * 2 (Her hücre dikeyde 2 piksel barındırır).

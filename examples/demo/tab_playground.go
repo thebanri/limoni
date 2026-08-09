@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"image/color"
 
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
@@ -322,19 +324,30 @@ func drawPlaygroundStatusBar(f *terminal.Frame, state *AppState, accentColor cel
 }
 
 func drawPlaygroundVertical(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
+	profileImg := state.ProfileImg
+	if profileImg == nil {
+		profileImg = state.ActiveImg
+	}
 	parts := layout.NewFlexLayout(layout.Vertical, 1, layout.Percentage(28), layout.Percentage(28), layout.Fill()).Split(area)
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
 		borders = widgets.BorderNone
 	}
 	sym := widgets.SymbolsRounded
+	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
-	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Child: widgets.Image{Img: state.ActiveImg, CircleMask: true, ForceHalfBlock: true}}, parts[1])
+	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}, Child: widgets.Image{Img: profileImg, CircleMask: true, ForceHalfBlock: false, OpaqueBackground: true, Background: cell.NewColorRGB(25, 28, 36)}}, parts[1])
 	drawPlaygroundCanvas(f, state, accentColor, sym, parts[2])
 }
 
 // ── CSS Grid önizleme alanı ─────────────────────────────────────────────────
+var playgroundSurfaceImage = image.NewUniform(color.RGBA{R: 25, G: 28, B: 36, A: 255})
+
 func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
+	profileImg := state.ProfileImg
+	if profileImg == nil {
+		profileImg = state.ActiveImg
+	}
 	if area.Width < 6 || area.Height < 4 {
 		return
 	}
@@ -356,6 +369,10 @@ func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Col
 	}
 	gridLayout := layout.NewGridLayout(columns, rows, 1)
 	gridAreas := gridLayout.Split(area)
+
+	// Önce tüm preview alanını sabit opak surface ile kapat; native image
+	// protocol'ünün önceki geniş placement'larından kalan kenarlar görünmesin.
+	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 
 	// Izgara checkbox kapalıysa hücre iç border'larını kaldır.
 	borders := widgets.BorderAll
@@ -393,15 +410,34 @@ func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Col
 	f.RenderWidget(mdBlock, gridAreas.Cell(0, 0).Area)
 
 	// ── Hücre (0,1): Profil Resmi ──
+	profileSymbols := widgets.SymbolsRounded
+	if state.ProfileFrame == "Full" {
+		profileSymbols = widgets.SymbolsSingle
+	}
+	if state.ProfileFrame == "Stretched" {
+		profileSymbols = widgets.SymbolsDouble
+	}
 	imgBlock := widgets.Block{
-		Title:          " PROFİL ",
+		Title:          fmt.Sprintf(" PROFİL · %s ", state.ProfileFrame),
 		TitleAlignment: widgets.AlignCenter,
 		Borders:        borders,
-		BorderSymbols:  sym,
+		BorderSymbols:  profileSymbols,
 		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 165, 0)},
-		Child:          widgets.Image{Img: state.ActiveImg, CircleMask: true, ForceHalfBlock: true},
+		Style:          cell.Style{Bg: cell.NewColorRGB(25, 28, 36)},
+		Child:          widgets.Image{Img: profileImg, CircleMask: state.ProfileFrame == "Rounded", ForceHalfBlock: false, OpaqueBackground: true, Background: cell.NewColorRGB(25, 28, 36)},
 	}
-	f.RenderWidget(imgBlock, gridAreas.Cell(0, 1).Area)
+	profileArea := gridAreas.Cell(0, 1).Area
+	f.RenderWidget(imgBlock, profileArea)
+	registerTargetClick(f, profileArea, func(backend.MouseEvent) {
+		switch state.ProfileFrame {
+		case "Rounded":
+			state.ProfileFrame = "Full"
+		case "Full":
+			state.ProfileFrame = "Stretched"
+		default:
+			state.ProfileFrame = "Rounded"
+		}
+	})
 
 	// ── Hücre (1,0) span 1 row, 2 cols: Canvas / Sparkline ──
 	canvasArea := gridAreas.Cell(1, 0).Span(1, 2)

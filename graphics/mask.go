@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"reflect"
+	"sync"
 )
 
 // circleMask, dairesel maskeyi temsil eden özel bir image.Image yapısıdır.
@@ -37,6 +39,13 @@ func (c *circleMask) At(x, y int) color.Color {
 	return color.Alpha{A: 0}
 }
 
+var circleMaskCache sync.Map
+
+type circleMaskCacheKey struct {
+	pointer       uintptr
+	width, height int
+}
+
 // ApplyCircleMask, verilen resmi daire şeklinde kırparak (avatar formatında) transparan bir RGBA resim döndürür.
 func ApplyCircleMask(src image.Image) image.Image {
 	if src == nil {
@@ -54,6 +63,14 @@ func ApplyCircleMask(src image.Image) image.Image {
 	}
 	if size <= 0 {
 		return src
+	}
+	value := reflect.ValueOf(src)
+	if value.Kind() == reflect.Pointer {
+		key := circleMaskCacheKey{pointer: value.Pointer(), width: w, height: h}
+		if cached, ok := circleMaskCache.Load(key); ok {
+			return cached.(image.Image)
+		}
+
 	}
 
 	// Yeni boş bir RGBA resmi oluştur
@@ -78,5 +95,8 @@ func ApplyCircleMask(src image.Image) image.Image {
 		draw.Over,
 	)
 
+	if value := reflect.ValueOf(src); value.Kind() == reflect.Pointer {
+		circleMaskCache.Store(circleMaskCacheKey{pointer: value.Pointer(), width: w, height: h}, dst)
+	}
 	return dst
 }
