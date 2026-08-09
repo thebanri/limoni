@@ -232,7 +232,9 @@ Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerin
    - Sütun sıralama ve `▲/▼` header göstergesi tamamlandı.
    - Generic `FuzzyFilterBy` / `FuzzyFilterByFields` altyapısı ve `TableRow.SearchText` eklendi.
    - `Table.FilterQuery` ile fuzzy tablo filtreleme tamamlandı; `examples/demo` içine arama alanı bağlandı.
-   - Sonraki işler: virtual scrolling, sticky header/sütunlar, çoklu seçim ve hücre bazlı style callback.
+   - Çoklu satır seçimi (`ToggleRow`, `IsRowSelected`, `ClearSelectedRows`) ve demo'da `Space` ile seçim tamamlandı.
+   - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları tamamlandı.
+   - Sonraki işler: virtual scrolling ve sticky header/sütunlar.
 3. **Faz 27: Rich Text ve Theme Sistemi**
    - `Span`/`Line`/`Text` yapıları, merkezi tema token'ları, contrast/high-contrast tema.
 4. **Faz 28: Gelişmiş Event ve Layout Platformu**

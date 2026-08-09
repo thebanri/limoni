@@ -65,6 +65,7 @@ type TableState struct {
 	ColumnWidths   []uint16 // Sürüklenerek yeniden boyutlandırılan veya otomatik çözülen sütun genişlikleri
 	SortColumn     int      // Sıralanan sütun; -1 ise sıralama kapalı
 	SortDescending bool
+	SelectedRows   map[int]struct{} // Çoklu satır seçimi
 }
 
 // NewTableState, yeni bir TableState nesnesi oluşturur.
@@ -75,6 +76,7 @@ func NewTableState() *TableState {
 		ColumnWidths:   nil,
 		SortColumn:     -1,
 		SortDescending: false,
+		SelectedRows:   make(map[int]struct{}),
 	}
 }
 
@@ -99,6 +101,35 @@ func (ts *TableState) Next(totalRows int) {
 func (ts *TableState) Prev() {
 	if ts.Selected > 0 {
 		ts.Selected--
+	}
+}
+
+// ToggleRow toggles a row in the multi-selection set.
+func (ts *TableState) ToggleRow(index int) {
+	if ts == nil || index < 0 {
+		return
+	}
+	if ts.SelectedRows == nil {
+		ts.SelectedRows = make(map[int]struct{})
+	}
+	if _, exists := ts.SelectedRows[index]; exists {
+		delete(ts.SelectedRows, index)
+	} else {
+		ts.SelectedRows[index] = struct{}{}
+	}
+}
+
+func (ts *TableState) IsRowSelected(index int) bool {
+	if ts == nil {
+		return false
+	}
+	_, selected := ts.SelectedRows[index]
+	return selected
+}
+
+func (ts *TableState) ClearSelectedRows() {
+	if ts != nil {
+		ts.SelectedRows = make(map[int]struct{})
 	}
 }
 
@@ -167,8 +198,10 @@ type Table struct {
 	GridStyle     cell.Style
 	SelectedStyle cell.Style
 	DrawGrid      bool
-	SortEnabled   bool   // Başlık hücrelerine tıklayarak satır sıralamayı etkinleştirir.
-	FilterQuery   string // Fuzzy filtre sorgusu; boşsa tüm satırlar çizilir.
+	SortEnabled   bool                                              // Başlık hücrelerine tıklayarak satır sıralamayı etkinleştirir.
+	MultiSelect   bool                                              // Space ile birden fazla satırın seçilmesini etkinleştirir.
+	FilterQuery   string                                            // Fuzzy filtre sorgusu; boşsa tüm satırlar çizilir.
+	CellStyle     func(row, column int, value TableCell) cell.Style // Hücre bazlı stil kuralı.
 }
 
 // SolveWidths, toplam kullanılabilir tablo genişliğini sütun kurallarına göre çözerek genişlikleri belirler.
@@ -503,7 +536,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		row := rows[actualRowIdx]
-		isSelected := (t.State != nil && t.State.Selected == actualRowIdx)
+		isSelected := t.State != nil && (t.State.Selected == actualRowIdx || (t.MultiSelect && t.State.IsRowSelected(actualRowIdx)))
 
 		if ctx.RegisterClick != nil {
 			rowArea := cell.NewRect(ctx.Area.X, currY, ctx.Area.Width, 1)
@@ -563,6 +596,9 @@ func (t Table) drawSpanRow(
 		// Bu hücre birleştirilmiş alanın başlangıç (ana) hücresidir
 		cellVal := cellsMap[[2]int{r, colIdx}]
 		cellStyle := rowStyle.Merge(cellVal.Style)
+		if t.CellStyle != nil {
+			cellStyle = cellStyle.Merge(t.CellStyle(r, colIdx, cellVal))
+		}
 
 		colSpan := cellVal.ColSpan
 		if colSpan < 1 {

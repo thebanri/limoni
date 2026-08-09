@@ -9,6 +9,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/thebanri/limoni/animation"
@@ -700,6 +702,9 @@ func main() {
 					} else if ev.Key.Type == backend.KeyArrowUp {
 						state.TableState.Prev()
 						state.LastKey = "Tablo Yukarı (Ok Tuşu)"
+					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
+						state.TableState.ToggleRow(state.TableState.Selected)
+						state.LastKey = "Tablo satır seçimi değişti"
 					} else if ev.Key.Type == backend.KeyEsc {
 						t.FocusManager().SetFocused("")
 					}
@@ -1131,7 +1136,27 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				},
 				DrawGrid:    true,
 				SortEnabled: true,
+				MultiSelect: true,
 				FilterQuery: state.TableFilterState.Value(),
+				CellStyle: func(row, column int, value widgets.TableCell) cell.Style {
+					if row < 0 {
+						return cell.Style{}
+					}
+					if column == 2 {
+						if cpu, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(value.Text), "%"), 64); err == nil {
+							if cpu >= 5 {
+								return cell.Style{Fg: cell.NewColorRGB(255, 90, 90), Modifier: cell.ModifierBold}
+							}
+							if cpu >= 2 {
+								return cell.Style{Fg: cell.NewColorRGB(255, 210, 80)}
+							}
+						}
+					}
+					if column == 4 && value.Text == "Beklemede" {
+						return cell.Style{Fg: cell.NewColorRGB(255, 210, 80)}
+					}
+					return cell.Style{}
+				},
 			}
 
 			tableBlock := widgets.Block{

@@ -102,6 +102,41 @@ func TestTableNumericSorting(t *testing.T) {
 	}
 }
 
+func TestTableCellStyleCallback(t *testing.T) {
+	table := Table{
+		Rows:        []TableRow{NewRow("warning")},
+		Constraints: []TableConstraint{{Type: ConstraintFixed, Value: 10}},
+		CellStyle: func(row, column int, value TableCell) cell.Style {
+			if row == 0 && column == 0 && value.Text == "warning" {
+				return cell.Style{Fg: cell.NewColorRGB(255, 0, 0)}
+			}
+			return cell.Style{}
+		},
+	}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 10, 1))
+	table.Draw(cell.NewContext(buf.Area, cell.Style{}), buf)
+	if buf.Get(0, 0).Style.Fg != cell.NewColorRGB(255, 0, 0) {
+		t.Fatal("cell style callback was not applied")
+	}
+}
+
+func TestTableStateMultiSelection(t *testing.T) {
+	state := NewTableState()
+	state.ToggleRow(2)
+	state.ToggleRow(4)
+	if !state.IsRowSelected(2) || !state.IsRowSelected(4) {
+		t.Fatal("rows 2 and 4 should be selected")
+	}
+	state.ToggleRow(2)
+	if state.IsRowSelected(2) || !state.IsRowSelected(4) {
+		t.Fatal("row 2 should be deselected while row 4 remains")
+	}
+	state.ClearSelectedRows()
+	if state.IsRowSelected(4) {
+		t.Fatal("clear should remove all selected rows")
+	}
+}
+
 func TestTableStateMoveSortColumn(t *testing.T) {
 	state := NewTableState()
 	state.MoveSortColumn(1, 5)
