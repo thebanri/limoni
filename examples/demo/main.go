@@ -9,6 +9,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -104,6 +106,7 @@ type AppState struct {
 	// Giriş sekmesindeki interaktif tablo durumu
 	TableState       *widgets.TableState
 	TableFilterState *widgets.TextInputState
+	DemoSliderState  *widgets.SliderState
 	Processes        []ProcessInfo
 	ProcessSamples   map[string]processSample
 	LastProcessRead  time.Time
@@ -345,6 +348,7 @@ func main() {
 		LastImageToggle:    time.Now(),
 		TableState:         widgets.NewTableState(),
 		TableFilterState:   widgets.NewTextInputState(),
+		DemoSliderState:    widgets.NewSliderState(50),
 		ProcessSamples:     make(map[string]processSample),
 	}
 	state.UsernameInputState.SetValue("LimoniGelistirici")
@@ -669,6 +673,8 @@ func main() {
 					if ev.Key.Type == backend.KeyEsc {
 						t.FocusManager().SetFocused("")
 					}
+				} else if focused == "demo_slider" {
+					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
 				} else if focused == "table_filter" {
 					switch ev.Key.Type {
 					case backend.KeyArrowLeft:
@@ -1037,7 +1043,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			gisLay := layout.NewFlexLayout(
 				layout.Vertical,
 				1,
-				layout.Fixed(6), // Açıklama + fuzzy filtre + progress
+				layout.Fixed(3), // Açıklama
+				layout.Fixed(5), // Slider kontrol barı
+				layout.Fixed(1), // Progress bar
 				layout.Fill(),   // Süreç Tablosu
 			)
 			gisChunks := gisLay.Split(bodyChunks[1])
@@ -1064,15 +1072,20 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			if state.FormProgress != nil {
 				cpuValue = state.FormProgress.Value()
 			}
-			if gisChunks[0].Height > 3 && gisChunks[0].Width > 6 {
-
-				progressArea := cell.NewRect(gisChunks[0].X+2, gisChunks[0].Y+gisChunks[0].Height-2, gisChunks[0].Width-4, 1)
+			if gisChunks[2].Height > 0 && gisChunks[2].Width > 6 {
+				progressArea := cell.NewRect(gisChunks[2].X+2, gisChunks[2].Y, gisChunks[2].Width-4, 1)
 				f.RenderWidget(widgets.ProgressBar{
 					Value: cpuValue, Min: 0, Max: 100, ShowPercent: true,
 					FilledStyle: cell.Style{Fg: accentColor},
 					EmptyStyle:  cell.Style{Fg: demoTheme.Colors.Border},
 				}, progressArea)
 			}
+
+			f.RenderWidget(widgets.Block{
+				Title: " LOAD SLIDER (↑/↓) ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
+				BorderStyle: cell.Style{Fg: accentColor}, PaddingLeft: 1, PaddingRight: 1,
+				Child: widgets.Slider{ID: "demo_slider", State: state.DemoSliderState, Min: 0, Max: 100, TrackStyle: cell.Style{Fg: demoTheme.Colors.Border}, FilledStyle: cell.Style{Fg: demoTheme.Colors.Success}, ThumbStyle: demoTheme.Focus},
+			}, gisChunks[1])
 
 			// 2. ALT TARAF: Sistem süreç tablosu
 			tableRows := make([]widgets.TableRow, len(state.Processes)+2)
@@ -1183,7 +1196,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Child:          sysTable,
 			}
 			tableLay := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(3), layout.Fill())
-			tableChunks := tableLay.Split(gisChunks[1])
+			tableChunks := tableLay.Split(gisChunks[3])
 			filterBorderCol := cell.NewColorRGB(100, 100, 100)
 			if t.FocusManager().Focused() == "table_filter" {
 				filterBorderCol = accentColor
@@ -2320,4 +2333,93 @@ func (l label) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		maxW = currW
 	}
 	return uint16(maxW), uint16(lines)
+}
+
+type processSample struct {
+	ticks uint64
+	at    time.Time
+}
+
+func readLiveProcesses(previous map[string]processSample, now time.Time) ([]ProcessInfo, map[string]processSample) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, previous
+	}
+	if previous == nil {
+		previous = make(map[string]processSample)
+	}
+	current := make(map[string]processSample, len(entries))
+	processes := make([]ProcessInfo, 0, len(entries))
+	for _, entry := range entries {
+		pid := entry.Name()
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := strconv.Atoi(pid); err != nil {
+			continue
+		}
+		statData, err := os.ReadFile(filepath.Join("/proc", pid, "stat"))
+		if err != nil {
+			continue
+		}
+		statText := string(statData)
+		closeParen := strings.LastIndexByte(statText, ')')
+		if closeParen < 0 {
+			continue
+		}
+		name := strings.Trim(statText[strings.Index(statText, " ")+1:closeParen], "()")
+		fields := strings.Fields(statText[closeParen+2:])
+		if len(fields) <= 19 {
+			continue
+		}
+		utime, err1 := strconv.ParseUint(fields[11], 10, 64)
+		stime, err2 := strconv.ParseUint(fields[12], 10, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		ticks := utime + stime
+		current[pid] = processSample{ticks: ticks, at: now}
+		cpu := 0.0
+		if old, ok := previous[pid]; ok && now.After(old.at) && ticks >= old.ticks {
+			cpu = float64(ticks-old.ticks) / now.Sub(old.at).Seconds()
+		}
+		processes = append(processes, ProcessInfo{PID: pid, Name: name, CPU: fmt.Sprintf("%.1f%%", cpu), Memory: fmt.Sprintf("%.1f MB", readProcessMemoryMB(pid)), Status: processState(fields[0])})
+	}
+	sort.Slice(processes, func(i, j int) bool {
+		a, _ := strconv.Atoi(processes[i].PID)
+		b, _ := strconv.Atoi(processes[j].PID)
+		return a < b
+	})
+	return processes, current
+}
+
+func readProcessMemoryMB(pid string) float64 {
+	data, err := os.ReadFile(filepath.Join("/proc", pid, "statm"))
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 2 {
+		return 0
+	}
+	rss, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return float64(rss*uint64(os.Getpagesize())) / (1024 * 1024)
+}
+
+func processState(state string) string {
+	switch state {
+	case "R":
+		return "Çalışıyor"
+	case "S", "D", "I":
+		return "Beklemede"
+	case "Z":
+		return "Zombi"
+	case "T", "t":
+		return "Durduruldu"
+	default:
+		return state
+	}
 }
