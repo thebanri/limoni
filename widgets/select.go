@@ -54,6 +54,7 @@ type Select struct {
 	SelectedStyle cell.Style
 	HoverStyle    cell.Style
 	BorderStyle   cell.Style
+	OnChange      func(index int, option string)
 }
 
 func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -122,6 +123,9 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					s.State.Selected = index
 					s.State.Hovered = -1
 					s.State.Open = false
+					if s.OnChange != nil {
+						s.OnChange(index, s.Options[index])
+					}
 					if ctx.SetFocus != nil {
 						ctx.SetFocus(s.ID)
 					}

@@ -104,16 +104,20 @@ type AppState struct {
 	ExitDialogAnim     *animation.Float
 
 	// Giriş sekmesindeki interaktif tablo durumu
-	TableState       *widgets.TableState
-	TableFilterState *widgets.TextInputState
-	DemoSliderState  *widgets.SliderState
-	DemoMarkdown     string
-	MarkdownOffset   int
-	MarkdownHeight   int
-	Processes        []ProcessInfo
-	ProcessSamples   map[string]processSample
-	LastProcessRead  time.Time
-	FormProgress     *animation.Float
+	TableState         *widgets.TableState
+	TableFilterState   *widgets.TextInputState
+	DemoSliderState    *widgets.SliderState
+	PlayDirectionState *widgets.SelectState
+	PlayModeState      *widgets.SelectState
+	PlayBorderState    *widgets.SelectState
+	PlayRatioState     *widgets.SliderState
+	DemoMarkdown       string
+	MarkdownOffset     int
+	MarkdownHeight     int
+	Processes          []ProcessInfo
+	ProcessSamples     map[string]processSample
+	LastProcessRead    time.Time
+	FormProgress       *animation.Float
 
 	// Açılır menü durumu
 	NotificationMode string
@@ -123,6 +127,7 @@ type AppState struct {
 	PlaygroundDir    layout.Direction
 	PlaygroundRatio  int
 	PlaygroundBorder string
+	PlayShowGrid     bool
 
 	// Dither geçiş durumları
 	IsTransitioning     bool
@@ -354,6 +359,10 @@ func main() {
 		TableState:         widgets.NewTableState(),
 		TableFilterState:   widgets.NewTextInputState(),
 		DemoSliderState:    widgets.NewSliderState(50),
+		PlayDirectionState: widgets.NewSelectState(),
+		PlayModeState:      widgets.NewSelectState(),
+		PlayBorderState:    widgets.NewSelectState(),
+		PlayRatioState:     widgets.NewSliderState(50),
 		MarkdownHeight:     6,
 		ProcessSamples:     make(map[string]processSample),
 	}
@@ -635,8 +644,9 @@ func main() {
 					break
 				}
 
-				// Eğer Oyun Alanı (Playground) sekmesi aktifse, klavye girdilerini ona göre işle
-				if state.ActiveTab == "Playground" {
+				// Playground'ın global kısayolları yalnızca bir kontrol widget'ı focus'ta değilken çalışır.
+				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb"
+				if state.ActiveTab == "Playground" && !playgroundControlFocused {
 					if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' {
 						state.PlaygroundRatio += 5
 						if state.PlaygroundRatio > 90 {
@@ -696,6 +706,51 @@ func main() {
 					}
 				} else if focused == "demo_slider" {
 					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
+				} else if focused == "play_direction" {
+					state.PlayDirectionState.Open = true
+					state.PlayDirectionState.HandleKey(ev.Key, 2)
+					if state.PlayDirectionState.Selected == 0 {
+						state.PlaygroundDir = layout.Horizontal
+					} else {
+						state.PlaygroundDir = layout.Vertical
+					}
+				} else if focused == "border_rounded" || focused == "border_double" || focused == "border_thick" {
+					borderIDs := []string{"border_rounded", "border_double", "border_thick"}
+					borderValues := []string{"Rounded", "Double", "Thick"}
+					index := 0
+					for i, id := range borderIDs {
+						if id == focused {
+							index = i
+							break
+						}
+					}
+					if ev.Key.Type == backend.KeyArrowUp {
+						index = (index + 2) % 3
+					}
+					if ev.Key.Type == backend.KeyArrowDown {
+						index = (index + 1) % 3
+					}
+					state.PlaygroundBorder = borderValues[index]
+					t.FocusManager().SetFocused(borderIDs[index])
+				} else if focused == "play_grid_cb" {
+					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+						state.PlayShowGrid = !state.PlayShowGrid
+					}
+				} else if focused == "play_mode" {
+					state.PlayModeState.Open = true
+					state.PlayModeState.HandleKey(ev.Key, 3)
+					switch state.PlayModeState.Selected {
+					case 0:
+						state.PlaygroundMode = "Vector"
+					case 1:
+						state.PlaygroundMode = "Matrix"
+					case 2:
+						state.PlaygroundMode = "Chart"
+					}
+
+				} else if focused == "play_ratio" {
+					state.PlayRatioState.HandleKey(ev.Key, 10, 90)
+					state.PlaygroundRatio = state.PlayRatioState.Value
 				} else if focused == "demo_markdown" {
 					switch {
 					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
