@@ -92,6 +92,11 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 
 // Reset, çizim karesinin durumunu (kaydedilmiş tıklama, resim alanları, modal ve katmanları) sıfırlar.
 // Bellek Optimizasyonu: Slice kapasitesini koruyarak sıfır tahsisatla listeyi temizler (slice[:0]).
+// IsFocused reports whether a widget owns focus in this frame.
+func (f *Frame) IsFocused(id string) bool {
+	return f.FocusManager != nil && f.FocusManager.IsFocused(id)
+}
+
 // SetTheme sets the semantic theme inherited by widgets rendered in this frame.
 func (f *Frame) SetTheme(theme widgets.Theme) {
 	f.Theme = theme

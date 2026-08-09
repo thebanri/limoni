@@ -96,7 +96,7 @@ type AppState struct {
 	// Ayarlar sekmesindeki interaktif form durumları
 	UsernameInputState *widgets.TextInputState
 	MouseModeChecked   bool
-	ThemeSelected      string // "Koyu", "Açık", "Renkli"
+	ThemeSelected      string // "Koyu", "Açık", "Renkli", "Yüksek Kontrast"
 
 	// Çıkış onay diyalog durumu
 	ShowExitDialog     bool
@@ -107,6 +107,9 @@ type AppState struct {
 	TableState       *widgets.TableState
 	TableFilterState *widgets.TextInputState
 	DemoSliderState  *widgets.SliderState
+	DemoMarkdown     string
+	MarkdownOffset   int
+	MarkdownHeight   int
 	Processes        []ProcessInfo
 	ProcessSamples   map[string]processSample
 	LastProcessRead  time.Time
@@ -244,6 +247,8 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 		accentColor = cell.NewColorRGB(0, 100, 255) // Mavi
 	case "Renkli":
 		accentColor = cell.NewColorRGB(255, 165, 0) // Turuncu
+	case "Yüksek Kontrast":
+		accentColor = cell.NewColorRGB(255, 255, 0)
 	}
 
 	// Menü sekme butonları renk geçişleri
@@ -349,9 +354,11 @@ func main() {
 		TableState:         widgets.NewTableState(),
 		TableFilterState:   widgets.NewTextInputState(),
 		DemoSliderState:    widgets.NewSliderState(50),
+		MarkdownHeight:     6,
 		ProcessSamples:     make(map[string]processSample),
 	}
 	state.UsernameInputState.SetValue("LimoniGelistirici")
+	state.DemoMarkdown = loadDemoMarkdown()
 	state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, time.Now())
 	state.TableState.Select(0) // Tabloda ilk satırı seçili başlat
 
@@ -675,6 +682,19 @@ func main() {
 					}
 				} else if focused == "demo_slider" {
 					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
+				} else if focused == "demo_markdown" {
+					switch {
+					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
+						state.MarkdownOffset--
+					case ev.Key.Type == backend.KeyArrowDown:
+						state.MarkdownOffset++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
+						state.MarkdownHeight++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
+						state.MarkdownHeight--
+					case ev.Key.Type == backend.KeyEsc:
+						t.FocusManager().SetFocused("")
+					}
 				} else if focused == "table_filter" {
 					switch ev.Key.Type {
 					case backend.KeyArrowLeft:
@@ -782,6 +802,8 @@ func main() {
 						state.ThemeSelected = "Açık"
 					case "theme_colored_rb":
 						state.ThemeSelected = "Renkli"
+					case "theme_contrast_rb":
+						state.ThemeSelected = "Yüksek Kontrast"
 					case "notif_popup":
 						state.NotifPopupState.Toggle()
 					}
@@ -892,6 +914,8 @@ func themeForSelection(selection string) widgets.Theme {
 		theme.Colors.Surface = cell.NewColorRGB(35, 25, 45)
 		theme.Base = cell.Style{Fg: theme.Colors.Text, Bg: theme.Colors.Background}
 		theme.Focus = cell.Style{Fg: theme.Colors.Secondary, Modifier: cell.ModifierBold}
+	case "Yüksek Kontrast":
+		theme = widgets.HighContrastTheme()
 	}
 	return theme
 }
@@ -1043,7 +1067,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			gisLay := layout.NewFlexLayout(
 				layout.Vertical,
 				1,
-				layout.Fixed(3), // Açıklama
+				layout.Fixed(uint16(state.MarkdownHeight)), // Markdown dosya görüntüleme alanı
 				layout.Fixed(5), // Slider kontrol barı
 				layout.Fixed(1), // Progress bar
 				layout.Fill(),   // Süreç Tablosu
@@ -1051,21 +1075,58 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			gisChunks := gisLay.Split(bodyChunks[1])
 
 			// 1. ÜST TARAF: Açıklama paragrafı
-			descBlock := widgets.Block{
-				Title:          " BİLGİLENDİRME ",
+			mdBorderColor := accentColor
+			if t.FocusManager().Focused() == "demo_markdown" {
+				mdBorderColor = demoTheme.Colors.Primary
+			}
+			mdBlock := widgets.Block{
+				Title:          " BİLGİLENDİRME (↑/↓ kaydır, +/- yükseklik) ",
 				TitleAlignment: widgets.AlignLeft,
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
-				BorderStyle:    cell.Style{Fg: accentColor},
+				BorderStyle:    cell.Style{Fg: mdBorderColor},
 				PaddingLeft:    2,
 				PaddingRight:   2,
-				Child: widgets.Paragraph{
-					Text:  fmt.Sprintf("Fare ile sekmelere tıklayabilir veya klavyeden 'Tab' tuşuyla odak değiştirebilirsiniz. Tablo odaklandığında Ok Tuşları dikeyde gezinmenizi sağlar.\nSeçili Satır: %d | Son Basılan Tuş: %s", state.TableState.Selected+1, state.LastKey),
-					Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
-					Wrap:  true,
+				Child: &widgets.Markdown{
+					ID:           "demo_markdown",
+					Content:      state.DemoMarkdown,
+					Style:        cell.Style{Fg: demoTheme.Colors.Text},
+					FocusedStyle: demoTheme.Focus,
+					ScrollOffset: &state.MarkdownOffset,
 				},
 			}
-			f.RenderWidget(descBlock, gisChunks[0])
+			f.RenderWidget(mdBlock, gisChunks[0])
+			// Markdown alanının sağ-alt köşesinden yüksekliği sürükleyerek değiştir.
+			if gisChunks[0].Width > 2 && gisChunks[0].Height > 2 {
+				cornerX := gisChunks[0].X + gisChunks[0].Width - 1
+				cornerY := gisChunks[0].Y + gisChunks[0].Height - 1
+				if c := f.Buffer.Get(cornerX, cornerY); c != nil {
+					c.Content = '◢'
+					c.Style = demoTheme.Focus
+				}
+				resizeArea := cell.NewRect(cornerX, cornerY, 1, 1)
+				f.RegisterClickHandler(resizeArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
+					startY, baseHeight := int(ev.Y), state.MarkdownHeight
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							return
+						}
+						if dragEv.Drag {
+							next := baseHeight + int(dragEv.Y) - startY
+							if next < 4 {
+								next = 4
+							}
+							if next > 12 {
+								next = 12
+							}
+							state.MarkdownHeight = next
+						}
+					})
+				})
+			}
 
 			// Form/uygulama bileşenleri demonstrasyonu: canlı CPU ilerleme çubuğu.
 			cpuValue := 0.0
@@ -1081,9 +1142,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				}, progressArea)
 			}
 
+			sliderBorder := accentColor
+			if t.FocusManager().Focused() == "demo_slider" {
+				sliderBorder = demoTheme.Colors.Primary
+			}
 			f.RenderWidget(widgets.Block{
 				Title: " LOAD SLIDER (↑/↓) ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
-				BorderStyle: cell.Style{Fg: accentColor}, PaddingLeft: 1, PaddingRight: 1,
+				BorderStyle: cell.Style{Fg: sliderBorder}, PaddingLeft: 1, PaddingRight: 1,
 				Child: widgets.Slider{ID: "demo_slider", State: state.DemoSliderState, Min: 0, Max: 100, TrackStyle: cell.Style{Fg: demoTheme.Colors.Border}, FilledStyle: cell.Style{Fg: demoTheme.Colors.Success}, ThumbStyle: demoTheme.Focus},
 			}, gisChunks[1])
 
@@ -1236,7 +1301,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				layout.Fixed(1), // Kılavuz / Açıklama satırı
 				layout.Fixed(3), // Kullanıcı adı kutusu (Bordered Block height 3)
 				layout.Fixed(1), // Checkbox (Mouse modu)
-				layout.Fixed(5), // Tema grubu kutusu (Bordered Block height 5)
+				layout.Fixed(6), // Tema grubu kutusu (Bordered Block height 6)
 				layout.Fixed(3), // Bildirim modu açılır kutusu (Bordered Block height 3)
 			)
 			formChunks := formLay.Split(innerArea)
@@ -1293,7 +1358,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			// Tema Seçim Paneli (Bordered Block + Radio buttons)
 			themeBorderCol := cell.NewColorRGB(100, 100, 100)
 			focused := t.FocusManager().Focused()
-			if focused == "theme_dark_rb" || focused == "theme_light_rb" || focused == "theme_colored_rb" {
+			if focused == "theme_dark_rb" || focused == "theme_light_rb" || focused == "theme_colored_rb" || focused == "theme_contrast_rb" {
 				themeBorderCol = accentColor
 			}
 
@@ -1306,6 +1371,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			themeLay := layout.NewFlexLayout(
 				layout.Vertical,
 				0,
+				layout.Fixed(1),
 				layout.Fixed(1),
 				layout.Fixed(1),
 				layout.Fixed(1),
@@ -1333,6 +1399,10 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Label:        "Renkli Tema (Turuncu/Mor)",
 				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 			}
+			contrastRb := widgets.RadioButton{
+				ID: "theme_contrast_rb", Selected: &state.ThemeSelected, Value: "Yüksek Kontrast",
+				Label: "Yüksek Kontrast Tema", FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
+			}
 
 			themeBlock := widgets.Block{
 				Title:          " ARAYÜZ RENK TEMASI ",
@@ -1343,13 +1413,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(themeBlock, formChunks[3])
 
-			if t.FocusManager().Focused() == "theme_dark_rb" || t.FocusManager().Focused() == "theme_light_rb" || t.FocusManager().Focused() == "theme_colored_rb" {
+			if t.FocusManager().Focused() == "theme_dark_rb" || t.FocusManager().Focused() == "theme_light_rb" || t.FocusManager().Focused() == "theme_colored_rb" || t.FocusManager().Focused() == "theme_contrast_rb" {
 				widgets.DrawFocusRing(f.Buffer, formChunks[3], cell.Style{Fg: accentColor})
 			}
 
 			f.RenderWidget(darkRb, themeChunks[0])
 			f.RenderWidget(lightRb, themeChunks[1])
 			f.RenderWidget(coloredRb, themeChunks[2])
+			f.RenderWidget(contrastRb, themeChunks[3])
 
 			// 3. Bildirim Modu Açılır Menü (Popup) Çizimi
 			notifBorderCol := cell.NewColorRGB(100, 100, 100)
@@ -2422,4 +2493,14 @@ func processState(state string) string {
 	default:
 		return state
 	}
+}
+
+func loadDemoMarkdown() string {
+	paths := []string{".agents/skills/limoni_development/skill.md", "../../.agents/skills/limoni_development/skill.md"}
+	for _, path := range paths {
+		if data, err := os.ReadFile(path); err == nil {
+			return string(data)
+		}
+	}
+	return "# Limoni Demo\nMarkdown dosyası okunamadı.\n\n- `skill.md` bulunamadı.\n- Demo fallback içeriği gösteriliyor."
 }

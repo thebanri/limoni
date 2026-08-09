@@ -39,7 +39,10 @@ func (fm *FocusManager) Focused() string {
 	return fm.focusedID
 }
 
-// SetFocused, aktif odaklanan bileşen ID'sini manuel olarak ayarlar.
+// IsFocused reports whether id currently owns the focus.
+func (fm *FocusManager) IsFocused(id string) bool { return id != "" && fm.focusedID == id }
+
+// SetFocused, aktif odaklanan widget ID'sini manuel olarak ayarlar.
 func (fm *FocusManager) SetFocused(id string) {
 	fm.focusedID = id
 }

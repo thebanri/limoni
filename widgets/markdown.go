@@ -3,15 +3,20 @@ package widgets
 import (
 	"strings"
 
+	"github.com/thebanri/limoni/core/backend"
+
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
 
 type Markdown struct {
+	ID string
 	// Content, parse edilip çizilecek olan ham markdown metnidir.
 	Content string
 	// Style, varsayılan metin stilini tanımlar.
-	Style cell.Style
+	Style        cell.Style
+	FocusedStyle cell.Style
+	ScrollOffset *int
 
 	// Caching fields to avoid heap allocation on draw loops
 	lastContent string
@@ -113,13 +118,53 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
+	if m.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(m.ID)
+	}
+	if m.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(m.ID)
+			}
+		})
+	}
 	baseStyle := ctx.Style.Merge(m.Style)
+	if m.ID != "" && ctx.FocusedID == m.ID {
+		baseStyle = baseStyle.Merge(m.FocusedStyle)
+	}
 	m.parse(baseStyle)
 
 	y := ctx.Area.Y
 	maxY := ctx.Area.Y + ctx.Area.Height
+	offset := 0
+	if m.ScrollOffset != nil {
+		offset = *m.ScrollOffset
+		if offset < 0 {
+			offset = 0
+		}
+		if offset >= len(m.cachedLines) {
+			offset = len(m.cachedLines) - 1
+			if offset < 0 {
+				offset = 0
+			}
+			*m.ScrollOffset = offset
+		}
+	}
+	if ctx.RegisterMouse != nil && m.ScrollOffset != nil {
+		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			if ev.Button == backend.MouseScrollUp && *m.ScrollOffset > 0 {
+				(*m.ScrollOffset)--
+			}
+			if ev.Button == backend.MouseScrollDown && *m.ScrollOffset < len(m.cachedLines)-1 {
+				(*m.ScrollOffset)++
+			}
+		})
+	}
 
-	for _, line := range m.cachedLines {
+	for lineIndex, line := range m.cachedLines {
+		if lineIndex < offset {
+			continue
+		}
 		if y >= maxY {
 			break
 		}

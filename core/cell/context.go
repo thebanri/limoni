@@ -46,6 +46,9 @@ type Context struct {
 	ThemeStyle func(role string) Style
 }
 
+// IsFocused reports whether the requested widget ID owns the current focus.
+func (c Context) IsFocused(id string) bool { return id != "" && c.FocusedID == id }
+
 // NewContext yeni bir Context örneği oluşturup döndürür.
 func NewContext(area Rect, style Style) Context {
 	return Context{
