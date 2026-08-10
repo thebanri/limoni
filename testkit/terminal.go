@@ -3,6 +3,8 @@
 package testkit
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -114,6 +116,35 @@ func (t *Terminal) Snapshot() string {
 		return ""
 	}
 	return t.buffer.Snapshot()
+}
+
+// StyleSnapshot returns a deterministic style representation for every cell.
+func (t *Terminal) StyleSnapshot() string {
+	if t == nil || t.buffer == nil {
+		return ""
+	}
+	var b strings.Builder
+	for y := uint16(0); y < t.buffer.Area.Height; y++ {
+		if y > 0 {
+			b.WriteByte('\n')
+		}
+		for x := uint16(0); x < t.buffer.Area.Width; x++ {
+			c := t.buffer.Get(x, y)
+			fmt.Fprintf(&b, "%08x/%08x/%04x", uint32(c.Style.Fg), uint32(c.Style.Bg), uint16(c.Style.Modifier))
+			if x+1 < t.buffer.Area.Width {
+				b.WriteByte(' ')
+			}
+		}
+	}
+	return b.String()
+}
+
+// AssertSnapshot returns a descriptive error when the text snapshot differs.
+func (t *Terminal) AssertSnapshot(expected string) error {
+	if got := t.Snapshot(); got != expected {
+		return fmt.Errorf("snapshot mismatch: got %q want %q", got, expected)
+	}
+	return nil
 }
 
 // Resize changes the fixed test surface. The next Draw uses the new size.

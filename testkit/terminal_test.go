@@ -27,6 +27,19 @@ func TestTerminalDrawAndSnapshot(t *testing.T) {
 	}
 }
 
+func TestTerminalStyleSnapshot(t *testing.T) {
+	testTerm := NewTerminal(1, 1)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.Buffer.SetCell(0, 0, cell.Cell{Content: 'x', Style: cell.Style{Fg: cell.NewColorANSI(2), Modifier: cell.ModifierBold}})
+	})
+	if got := testTerm.StyleSnapshot(); got != "01000002/00000000/0001" {
+		t.Fatalf("style snapshot = %q", got)
+	}
+	if err := testTerm.AssertSnapshot("x"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTerminalMouseClickAndCapture(t *testing.T) {
 	testTerm := NewTerminal(10, 2)
 	clicked := false

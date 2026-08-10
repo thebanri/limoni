@@ -1,5 +1,27 @@
 # Limoni — Ratatui ve Bubble Tea Üstü Geliştirme Planı
 
+## Uygulama durumu — 2026-08-11
+
+Bu roadmap'in çekirdek mühendislik maddeleri aşağıdaki paketlerde uygulanmıştır:
+
+- **TestKit:** `testkit` sabit boyutlu terminal, text/style snapshot, golden dosya,
+  resize, mouse click/drag, focus, propagation, hover ve accessibility tree testlerini sağlar.
+- **Runtime:** `core/runtime` `Msg`, `Cmd`, `Model`, cancellation, deterministic command
+  ordering, panic recovery, redraw coalescing ve graceful shutdown sağlar.
+- **Typed input:** `core/runtime/input.go` backend event'lerini typed mesajlara dönüştürür.
+- **Interaction:** `core/terminal` metadata'lı event region, disabled region,
+  capture/target/bubble, hover enter/leave ve deterministic double-click desteği sağlar.
+- **Layout:** `layout/measure.go` min/ideal/max ölçü, overflow policy ve measure/arrange çözümlemesi sağlar.
+- **Virtual data:** `widgets/virtual_data.go` stable row ID, async provider sözleşmesi,
+  viewport prefetch, loading/error/empty state ve cancellation sağlar.
+- **Accessibility:** `core/accessibility` semantic tree, role/state ve high-contrast,
+  no-color, ASCII, reduced-motion, screen-reader/no-mouse modlarını sağlar.
+- **Backend/benchmark:** injectable `TerminalIO`, non-Linux portable backend sınırı ve
+  `benchmarks` workload paketi eklendi.
+
+Demo uygulamasındaki mevcut widget showcase korunmuştur; yeni runtime, accessibility,
+layout ve benchmark API'leri package/test seviyesinde kullanılabilir durumdadır.
+
 > Bu belge Limoni'nin gelecekteki geliştirmelerinde ana referans olarak kullanılmalıdır.
 > Amaç Ratatui veya Bubble Tea'yi kopyalamak değil; onların güçlü fikirlerini alıp Limoni'nin
 > renderer, interaction, layout, graphics ve Go concurrency avantajlarını tek bir framework'te

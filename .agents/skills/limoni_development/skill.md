@@ -5,6 +5,33 @@ description: Guidelines and principles for developing the Limoni TUI library in 
 
 # Limoni TUI Development, Architecture, and Handover Guide
 
+## Current implementation checkpoint
+
+The current codebase includes the roadmap foundation through the runtime, typed input,
+interaction, layout negotiation, virtual data, accessibility, TestKit, injectable IO,
+and benchmark packages. Before adding a new feature, run:
+
+```bash
+go test ./...
+go vet ./...
+go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility
+```
+
+Useful deterministic APIs include:
+
+- `testkit.NewTerminal(width, height)` for snapshots and input simulation
+- `runtime.New(runtime.WithModel(model))` for optional `Init/Update/View` programs
+- `layout.MeasureWidget` and `layout.Arrange` for measure/arrange negotiation
+- `widgets.NewVirtualDataState` for cancellable viewport loading and prefetch
+- `terminal.Frame.RegisterAccessibility` for semantic nodes
+- `backend.MemoryTerminalIO` for injectable terminal IO tests
+
+Benchmark workloads live under `benchmarks` and can be run with:
+
+```bash
+go test ./benchmarks -run '^$' -bench .
+```
+
 This skill file defines the vision, architectural principles, current development status, solved TUI limitations, and future roadmap of the **Limoni** project. It is intended to serve as a complete system handbook for AI agents taking over the project after a break or in a new chat session.
 
 ---
