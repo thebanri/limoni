@@ -19,7 +19,7 @@ import (
 // foundations. It intentionally uses the public runtime/TestKit/layout/data
 // APIs instead of duplicating their internals.
 func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, theme widgets.Theme, mainColor, accentColor cell.Color, area cell.Rect) {
-	rows := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(5), layout.Fixed(5), layout.Fixed(5), layout.Fill()).Split(area)
+	rows := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(6), layout.Fixed(6), layout.Fixed(6), layout.Fill()).Split(area)
 	drawReferenceRuntime(f, theme, rows[0])
 	drawReferenceInteraction(t, f, theme, rows[1])
 	drawReferenceLayout(f, theme, rows[2])
@@ -35,19 +35,19 @@ func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, the
 }
 
 func drawReferenceRuntime(f *terminal.Frame, theme widgets.Theme, area cell.Rect) {
-	message := "Msg queue: ready\nCmd scheduler: active\nCancellation: context.Context\nRedraw: coalesced"
+	message := "Bu panel uygulama runtime durumunu gösterir.\nMsg queue: ready\nCmd scheduler: active\nCancellation: context.Context\nRedraw: coalesced"
 	f.RenderWidget(widgets.Block{Title: " RUNTIME / CMD-MSG ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: theme.Border, PaddingLeft: 1, Child: referenceLabel{text: message, style: theme.RoleStyle("text")}}, area)
 }
 
 func drawReferenceInteraction(t *terminal.Terminal, f *terminal.Frame, theme widgets.Theme, area cell.Rect) {
 	f.RegisterEventRegion(terminal.EventRegion{Area: area, ID: "reference-interaction", Phase: terminal.TargetPhase, Handler: func(ctx *terminal.EventContext) { _ = ctx }})
-	text := fmt.Sprintf("Focused: %s\nHovered region: %s\nMouse capture: supported\nPropagation: capture → target → bubble", t.FocusManager().Focused(), f.HoveredRegionID())
+	text := fmt.Sprintf("Bu panel fare/odak olaylarını gösterir.\nFocused: %s\nHovered region: %s\nMouse capture: supported\nPropagation: capture → target → bubble", t.FocusManager().Focused(), f.HoveredRegionID())
 	f.RenderWidget(widgets.Block{Title: " INTERACTION INSPECTOR ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: theme.Border, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
 }
 
 func drawReferenceLayout(f *terminal.Frame, theme widgets.Theme, area cell.Rect) {
 	measure := layout.Measure{MinWidth: 10, IdealWidth: area.Width, IdealHeight: area.Height, MaxWidth: area.Width, MaxHeight: area.Height, GrowPriority: 1, Overflow: layout.OverflowClip}.Normalize(area)
-	text := fmt.Sprintf("Measured: %dx%d\nAllocated: X=%d Y=%d W=%d H=%d\nOverflow: clip\nGrow priority: %d", measure.IdealWidth, measure.IdealHeight, area.X, area.Y, area.Width, area.Height, measure.GrowPriority)
+	text := fmt.Sprintf("Bu panel measure/arrange sonucunu gösterir.\nMeasured: %dx%d\nAllocated: X=%d Y=%d W=%d H=%d\nOverflow: clip\nGrow priority: %d", measure.IdealWidth, measure.IdealHeight, area.X, area.Y, area.Width, area.Height, measure.GrowPriority)
 	f.RenderWidget(widgets.Block{Title: " LAYOUT INSPECTOR ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: theme.Border, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
 }
 
@@ -60,7 +60,8 @@ func drawReferenceData(f *terminal.Frame, theme widgets.Theme, accent cell.Color
 	mode := accessibility.Mode{HighContrast: theme.Colors.Primary == cell.NewColorRGB(255, 255, 0), ReducedMotion: false}
 	testTerm := testkit.NewTerminal(20, 2)
 	testTerm.Draw(func(frame *terminal.Frame) { frame.Buffer.SetString(0, 0, "benchmark-ready", cell.Style{Fg: accent}) })
-	text := fmt.Sprintf("Virtual rows: %d (%v)\nStable ID: %s\nAccessibility: high-contrast=%t\nSnapshot: %q\nUpdated: %s", data.Count(), status, data.Selected(), mode.HighContrast, testTerm.Snapshot(), time.Now().Format("15:04:05"))
+	snapshot := strings.ReplaceAll(testTerm.Snapshot(), "\n", " / ")
+	text := fmt.Sprintf("Bu panel virtual data, accessibility ve TestKit örneğidir.\nVirtual rows: %d (%v)\nStable ID: %s\nAccessibility: high-contrast=%t\nTestKit snapshot: %s\nBenchmark durumu: hazır\nUpdated: %s", data.Count(), status, data.Selected(), mode.HighContrast, snapshot, time.Now().Format("15:04:05"))
 	f.RenderWidget(widgets.Block{Title: " VIRTUAL DATA / ACCESSIBILITY / BENCHMARK ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: accent}, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
 }
 
