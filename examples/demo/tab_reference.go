@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -54,6 +55,7 @@ func drawReferenceData(f *terminal.Frame, theme widgets.Theme, accent cell.Color
 	provider := referenceProvider{}
 	data := widgets.NewVirtualDataState()
 	_ = data.Refresh(nil, provider, 0, int(area.Height)-2, 2)
+	data.Select(provider.RowID(42))
 	status, _ := data.Status()
 	mode := accessibility.Mode{HighContrast: theme.Colors.Primary == cell.NewColorRGB(255, 255, 0), ReducedMotion: false}
 	testTerm := testkit.NewTerminal(20, 2)
@@ -68,7 +70,13 @@ type referenceLabel struct {
 }
 
 func (l referenceLabel) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	buf.SetString(ctx.Area.X, ctx.Area.Y, l.text, ctx.Style.Merge(l.style))
+	style := ctx.Style.Merge(l.style)
+	for row, line := range strings.Split(l.text, "\n") {
+		if row >= int(ctx.Area.Height) {
+			break
+		}
+		buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(row), line, style)
+	}
 }
 func (l referenceLabel) SizeHint(max cell.Rect) (uint16, uint16) { return max.Width, max.Height }
 
