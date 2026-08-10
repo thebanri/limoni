@@ -136,7 +136,8 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	y := ctx.Area.Y
 	maxY := ctx.Area.Y + ctx.Area.Height
-	maxOffset := maxMarkdownOffset(len(m.cachedLines), int(ctx.Area.Height))
+	visualLines := m.visualLineCount(ctx.Area.Width)
+	maxOffset := maxMarkdownOffset(visualLines, int(ctx.Area.Height))
 	offset := 0
 	if m.ScrollOffset != nil {
 		offset = *m.ScrollOffset
@@ -161,6 +162,9 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				startOffset := *m.ScrollOffset
 				if ctx.CaptureMouse != nil {
 					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							return
+						}
 						if dragEv.Drag {
 							deltaY := int(dragEv.Y) - startY
 							*m.ScrollOffset = clampMarkdownOffset(startOffset-deltaY, maxOffset)
@@ -231,6 +235,48 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			y++
 		}
 	}
+}
+
+// visualLineCount mirrors the renderer's one-cell-per-row layout, including
+// wrapped words and the two blank rows reserved after headers.
+func (m *Markdown) visualLineCount(width uint16) int {
+	if width == 0 {
+		return 0
+	}
+	count := 0
+	for _, line := range m.cachedLines {
+		if line.isDivider {
+			count++
+			continue
+		}
+		lineWidth := 0
+		indent := 0
+		if line.prefix != "" {
+			lineWidth = len([]rune(line.prefix))
+			indent = lineWidth
+		}
+		rows := 1
+		for _, segment := range line.segments {
+			for index, word := range segment.WordRunes {
+				wordWidth := len(word)
+				space := 0
+				if index > 0 {
+					space = 1
+				}
+				if lineWidth+space+wordWidth >= int(width) {
+					rows++
+					lineWidth = indent + wordWidth
+				} else {
+					lineWidth += space + wordWidth
+				}
+			}
+		}
+		if line.isHeader {
+			rows += 2
+		}
+		count += rows
+	}
+	return count
 }
 
 func maxMarkdownOffset(lineCount, visibleHeight int) int {

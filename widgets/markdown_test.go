@@ -83,6 +83,42 @@ func TestMarkdownScrollOffsetClamping(t *testing.T) {
 	}
 }
 
+func TestMarkdownVisualLineCountIncludesWrapping(t *testing.T) {
+	md := &Markdown{Content: "This is a deliberately long line that must wrap across multiple rows."}
+	md.parse(cell.Style{})
+	if got := md.visualLineCount(10); got <= 1 {
+		t.Fatalf("visual line count = %d, want wrapped content to occupy multiple rows", got)
+	}
+}
+
+func TestMarkdownWheelScrolling(t *testing.T) {
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 20, 3))
+	offset := 0
+	md := &Markdown{
+		Content:      "one\ntwo\nthree\nfour\nfive",
+		ScrollOffset: &offset,
+	}
+	var mouseHandler func(backend.MouseEvent)
+	ctx := cell.NewContext(cell.NewRect(0, 0, 20, 3), cell.Style{})
+	ctx.RegisterMouse = func(_ cell.Rect, handler func(backend.MouseEvent)) {
+		mouseHandler = handler
+	}
+	md.Draw(ctx, buf)
+	if mouseHandler == nil {
+		t.Fatal("expected markdown mouse handler to be registered")
+	}
+	mouseHandler(backend.MouseEvent{Button: backend.MouseScrollDown})
+	if offset != 1 {
+		t.Fatalf("wheel down offset = %d, want 1", offset)
+	}
+	for i := 0; i < 20; i++ {
+		mouseHandler(backend.MouseEvent{Button: backend.MouseScrollDown})
+	}
+	if offset != 2 {
+		t.Fatalf("wheel offset = %d, want maximum 2", offset)
+	}
+}
+
 func TestMarkdownDragScrolling(t *testing.T) {
 	buf := buffer.NewBuffer(cell.NewRect(0, 0, 40, 4))
 	md := &Markdown{
