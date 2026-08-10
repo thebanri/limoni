@@ -341,6 +341,7 @@ func main() {
 			"Ayarlar":    animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 			"Grafik":     animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 			"Playground": animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Referans":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 			"Çıkış":      animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 		},
 		UsernameInputState:  widgets.NewTextInputState(),
@@ -1202,7 +1203,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		)
 		bodyChunks := bodyLay.Split(chunks[1])
 
-		// Sol Panel (Menü Bölmesi) - Dikeyde 5 adet buton ve esnek boşluk içerir
+		// Sol Panel (Menü Bölmesi) - Dikeyde 6 adet buton ve esnek boşluk içerir
 		menuLay := layout.NewFlexLayout(
 			layout.Vertical,
 			1,               // Butonlar arasında 1 satır boşluk
@@ -1210,6 +1211,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			layout.Fixed(3), // Ayarlar Butonu
 			layout.Fixed(3), // Grafik Butonu
 			layout.Fixed(3), // Playground Butonu
+			layout.Fixed(3), // Referans Butonu
 			layout.Fixed(3), // Çıkış Butonu
 			layout.Fill(),
 		)
@@ -1265,13 +1267,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		drawButton(menuChunks[1], "2. Ayarlar", "Ayarlar")
 		drawButton(menuChunks[2], "3. Grafik", "Grafik")
 		drawButton(menuChunks[3], "4. OyunAlani", "Playground")
-		drawButton(menuChunks[4], "5. Cikis", "Çıkış")
+		drawButton(menuChunks[4], "5. Referans", "Referans")
+		drawButton(menuChunks[5], "6. Cikis", "Çıkış")
 
 		// Çıkış buton alanı koordinatını kaydet
-		state.ExitButtonArea = menuChunks[4]
+		state.ExitButtonArea = menuChunks[5]
 
 		// Profiler & Capabilities HUD (Çizim if Height >= 6)
-		if menuChunks[5].Height >= 6 {
+		if menuChunks[6].Height >= 6 {
 			caps := terminal.DetectCapabilities()
 			lastFrameTime := t.LastFrameDuration()
 
@@ -1297,7 +1300,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			lines = append(lines, "Grafik: "+protoName)
 
-			if menuChunks[5].Height >= 8 && len(t.LastWidgetStats()) > 0 {
+			if menuChunks[6].Height >= 8 && len(t.LastWidgetStats()) > 0 {
 				var slowestType string
 				var slowestDur time.Duration
 				for _, stat := range t.LastWidgetStats() {
@@ -1319,7 +1322,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				PaddingLeft:   1,
 				PaddingRight:  1,
 				Child:         label{text: linesText, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}},
-			}, menuChunks[5])
+			}, menuChunks[6])
 		}
 
 		// Sekme geçişi Terminal seviyesindeki dither motoru tarafından uygulanır.
@@ -1332,6 +1335,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			drawHome(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
 		case "Ayarlar":
 			drawSettings(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
+		case "Referans":
+			drawReference(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
 
 		case "Grafik":
 			// Grafik sekmesini yatayda iki eşit bölüme ayır: Sol tarafta Canvas, Sağ tarafta Resim ve Kontroller

@@ -28,7 +28,7 @@ func loadProfileImage() image.Image {
 }
 
 func navigateDemoTab(state *AppState, focus *terminal.FocusManager, delta int) {
-	tabs := []string{"Giriş", "Ayarlar", "Grafik", "Playground"}
+	tabs := []string{"Giriş", "Ayarlar", "Grafik", "Playground", "Referans"}
 	current := 0
 	for i, tab := range tabs {
 		if tab == state.ActiveTab {
