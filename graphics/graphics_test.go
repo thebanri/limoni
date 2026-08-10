@@ -91,3 +91,28 @@ func TestDetectProtocol(t *testing.T) {
 	}
 }
 
+func TestApplyOpacity(t *testing.T) {
+	img := createTestImage() // 2x2 image, (0,0) is Red (255,0,0,255)
+	
+	// Apply 50% opacity
+	opaqueImg := ApplyOpacity(img, 0.5)
+	
+	r, g, b, a := opaqueImg.At(0, 0).RGBA()
+	
+	// Since RGBA returns 0-65535, 50% of 65535 is around 32767.
+	// 32767 >> 8 is 127.
+	valA := uint8(a >> 8)
+	valR := uint8(r >> 8)
+	
+	if valA < 120 || valA > 135 {
+		t.Errorf("Expected alpha around 127, got %d", valA)
+	}
+	if valR < 120 || valR > 135 {
+		t.Errorf("Expected red channel around 127, got %d", valR)
+	}
+	if g != 0 || b != 0 {
+		t.Errorf("Expected green/blue to remain 0, got %d, %d", g, b)
+	}
+}
+
+

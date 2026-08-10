@@ -48,3 +48,32 @@ func FlattenImage(src image.Image, background color.Color) image.Image {
 	}
 	return dst
 }
+
+// ApplyOpacity multiplies the image's alpha channel by the given opacity factor (0.0 to 1.0).
+func ApplyOpacity(src image.Image, opacity float64) image.Image {
+	if src == nil || opacity >= 1.0 {
+		return src
+	}
+	bounds := src.Bounds()
+	if opacity <= 0.0 {
+		return image.NewRGBA(bounds)
+	}
+
+	dst := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, a := src.At(x, y).RGBA()
+			if a == 0 {
+				continue
+			}
+			newA := uint16(float64(a) * opacity)
+			factor := float64(newA) / float64(a)
+			nr := uint8((float64(r) * factor) / 257.0)
+			ng := uint8((float64(g) * factor) / 257.0)
+			nb := uint8((float64(b) * factor) / 257.0)
+			dst.Set(x, y, color.RGBA{R: nr, G: ng, B: nb, A: uint8(newA / 257)})
+		}
+	}
+	return dst
+}
+

@@ -111,6 +111,7 @@ type AppState struct {
 	PlayModeState       *widgets.SelectState
 	PlayBorderState     *widgets.SelectState
 	PlayRatioState      *widgets.SliderState
+	AvatarOpacityState  *widgets.SliderState
 	ShowcaseSelected    string
 	ShowcaseSelectState *widgets.SelectState
 	DemoMarkdown       string
@@ -368,6 +369,7 @@ func main() {
 		PlayModeState:       widgets.NewSelectState(),
 		PlayBorderState:     widgets.NewSelectState(),
 		PlayRatioState:      widgets.NewSliderState(50),
+		AvatarOpacityState: widgets.NewSliderState(100),
 		ShowcaseSelected:    "Paragraph",
 		ShowcaseSelectState: widgets.NewSelectState(),
 		MarkdownHeight:      6,
@@ -695,7 +697,7 @@ func main() {
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
 						consumesArrow = true
 					}
-				case "demo_slider", "showcase_slider":
+				case "demo_slider", "showcase_slider", "avatar_opacity":
 					// Slider tüm yön tuşlarını yutar
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
 						consumesArrow = true
@@ -788,6 +790,8 @@ func main() {
 					}
 				} else if focused == "demo_slider" {
 					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
+				} else if focused == "avatar_opacity" {
+					state.AvatarOpacityState.HandleKey(ev.Key, 0, 100)
 				} else if focused == "play_direction" {
 					state.PlayDirectionState.Open = true
 					state.PlayDirectionState.HandleKey(ev.Key, 2)

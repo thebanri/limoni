@@ -26,6 +26,8 @@ type Image struct {
 	Background       cell.Color
 	// Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir.
 	Transparent bool
+	// Opacity, resmin opaklık değeridir (0.0 ile 1.0 arasında). Belirtilmezse varsayılan 1.0 (opak) kabul edilir.
+	Opacity float64
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
@@ -40,6 +42,9 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	img := im.Img
 	if im.CircleMask {
 		img = graphics.ApplyCircleMask(img)
+	}
+	if im.Opacity > 0.0 && im.Opacity < 1.0 {
+		img = graphics.ApplyOpacity(img, im.Opacity)
 	}
 	if im.OpaqueBackground {
 		r, g, b := im.Background.RGB()
