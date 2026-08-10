@@ -70,12 +70,48 @@ type Frame struct {
 
 	// mouseCaptureRequest, çizim sırasında bir widget tarafından talep edilen fare yakalama callback'idir.
 	mouseCaptureRequest func(ev backend.MouseEvent)
+	hoveredRegionID     string
+	lastClickID         string
+	lastClickAt         time.Time
 
 	Theme    widgets.Theme
 	ThemeSet bool
 
 	// WidgetStats, bu çizim karesinde çizilen widget'ların render sürelerini saklar.
 	WidgetStats []WidgetStat
+}
+
+// DispatchClick dispatches a click to the topmost enabled target region and
+// reports ClickCount 2 when the same region is clicked twice within 500ms.
+// The timestamp is supplied by the caller to keep tests deterministic.
+func (f *Frame) DispatchClick(ev backend.MouseEvent, at time.Time) bool {
+	if f == nil {
+		return false
+	}
+	var target *eventRegion
+	for i := len(f.EventRegions) - 1; i >= 0; i-- {
+		region := &f.EventRegions[i]
+		if region.Phase == TargetPhase && !region.Disabled && region.Area.Contains(ev.X, ev.Y) {
+			target = region
+			break
+		}
+	}
+	if target == nil {
+		return false
+	}
+	clickCount := 1
+	if f.lastClickID == target.ID && !f.lastClickAt.IsZero() && at.Sub(f.lastClickAt) >= 0 && at.Sub(f.lastClickAt) <= 500*time.Millisecond {
+		clickCount = 2
+	}
+	f.lastClickID = target.ID
+	f.lastClickAt = at
+	ctx := &backend.EventContext{
+		Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
+		LayerID: target.LayerID, ZIndex: target.ZIndex,
+		ClickCount: clickCount, EventTime: at,
+	}
+	target.Handler(ctx)
+	return true
 }
 
 type WidgetStat struct {
@@ -138,6 +174,9 @@ func (f *Frame) Reset() {
 	f.activeLayerID = ""
 	f.DebugRegions = f.DebugRegions[:0]
 	f.mouseCaptureRequest = nil
+	f.hoveredRegionID = ""
+	f.lastClickID = ""
+	f.lastClickAt = time.Time{}
 	f.WidgetStats = f.WidgetStats[:0]
 }
 
@@ -273,9 +312,74 @@ func (f *Frame) registerMouseHandler(area cell.Rect, handler func(ev backend.Mou
 
 // RegisterEventHandler registers an opt-in capture/target/bubble handler.
 func (f *Frame) RegisterEventHandler(area cell.Rect, phase EventPhase, handler func(*EventContext)) {
-	if handler != nil {
-		f.EventRegions = append(f.EventRegions, eventRegion{Area: area, Phase: phase, Handler: handler})
+	f.RegisterEventRegion(EventRegion{Area: area, Phase: phase, Handler: handler})
+}
+
+// RegisterEventRegion registers a metadata-rich event region.
+func (f *Frame) RegisterEventRegion(region EventRegion) {
+	if f == nil || region.Handler == nil {
+		return
 	}
+	f.EventRegions = append(f.EventRegions, eventRegion{
+		Area: region.Area, ID: region.ID, LayerID: region.LayerID,
+		ZIndex: region.ZIndex, Disabled: region.Disabled,
+		Phase: region.Phase, Handler: region.Handler,
+		OnEnter: region.OnEnter, OnLeave: region.OnLeave,
+	})
+}
+
+// HoveredRegionID returns the ID of the target region currently under the
+// pointer. It is empty when no registered target region is hovered.
+func (f *Frame) HoveredRegionID() string {
+	if f == nil {
+		return ""
+	}
+	return f.hoveredRegionID
+}
+
+// DispatchPointerMove updates hover state and invokes enter/leave callbacks.
+func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
+	if f == nil {
+		return false
+	}
+	var target *eventRegion
+	for i := len(f.EventRegions) - 1; i >= 0; i-- {
+		region := &f.EventRegions[i]
+		if region.Phase == TargetPhase && !region.Disabled && region.Area.Contains(ev.X, ev.Y) {
+			target = region
+			break
+		}
+	}
+	newID := ""
+	if target != nil {
+		newID = target.ID
+	}
+	if newID == f.hoveredRegionID {
+		return target != nil
+	}
+	if f.hoveredRegionID != "" {
+		for i := range f.EventRegions {
+			region := &f.EventRegions[i]
+			if region.ID == f.hoveredRegionID && region.OnLeave != nil {
+				ctx := &backend.EventContext{
+					Mouse: ev, Phase: TargetPhase, RegionID: region.ID,
+					LayerID: region.LayerID, ZIndex: region.ZIndex,
+					PointerKind: backend.PointerLeave,
+				}
+				region.OnLeave(ctx)
+			}
+		}
+	}
+	if target != nil && target.OnEnter != nil {
+		ctx := &backend.EventContext{
+			Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
+			LayerID: target.LayerID, ZIndex: target.ZIndex,
+			PointerKind: backend.PointerEnter,
+		}
+		target.OnEnter(ctx)
+	}
+	f.hoveredRegionID = newID
+	return target != nil
 }
 
 // DispatchEventRegions dispatches a mouse event through registered capture,
@@ -292,8 +396,12 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 		if phase == backend.TargetPhase {
 			for i := len(f.EventRegions) - 1; i >= 0; i-- {
 				region := f.EventRegions[i]
+				if region.Disabled {
+					continue
+				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
 					handled = true
+					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
 					break
 				}
@@ -301,8 +409,12 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 		} else {
 			for i := 0; i < len(f.EventRegions); i++ {
 				region := f.EventRegions[i]
+				if region.Disabled {
+					continue
+				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
 					handled = true
+					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
 					if ctx.IsPropagationStopped() {
 						return true

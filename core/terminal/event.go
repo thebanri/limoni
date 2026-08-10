@@ -16,7 +16,26 @@ const (
 )
 
 type eventRegion struct {
-	Area    cell.Rect
-	Phase   backend.EventPhase
-	Handler func(*backend.EventContext)
+	Area     cell.Rect
+	ID       string
+	LayerID  string
+	ZIndex   int
+	Disabled bool
+	Phase    backend.EventPhase
+	Handler  func(*backend.EventContext)
+	OnEnter  func(*backend.EventContext)
+	OnLeave  func(*backend.EventContext)
+}
+
+// EventRegion describes an event target independent of its visual widget.
+type EventRegion struct {
+	Area     cell.Rect
+	ID       string
+	LayerID  string
+	ZIndex   int
+	Disabled bool
+	Phase    EventPhase
+	Handler  func(*EventContext)
+	OnEnter  func(*EventContext)
+	OnLeave  func(*EventContext)
 }

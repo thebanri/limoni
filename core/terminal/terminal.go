@@ -325,6 +325,9 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 	if ev.Button == backend.MouseLeft && ev.Drag {
 		return false
 	}
+	if ev.Button == backend.MouseNone {
+		t.frame.DispatchPointerMove(ev)
+	}
 
 	// Normal yönlendirme öncesi frame capture isteklerini sıfırla
 	t.frame.mouseCaptureRequest = nil
@@ -413,35 +416,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 }
 
 func (t *Terminal) dispatchEventRegions(ev backend.MouseEvent) bool {
-	if len(t.frame.EventRegions) == 0 {
-		return false
-	}
-	ctx := &EventContext{Mouse: ev}
-	for _, phase := range []EventPhase{CapturePhase, TargetPhase, BubblePhase} {
-		if phase == TargetPhase {
-			for i := len(t.frame.EventRegions) - 1; i >= 0; i-- {
-				region := t.frame.EventRegions[i]
-				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
-					region.Handler(ctx)
-					break
-				}
-			}
-		} else {
-			for i := 0; i < len(t.frame.EventRegions); i++ {
-				region := t.frame.EventRegions[i]
-				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
-					region.Handler(ctx)
-					if ctx.IsPropagationStopped() {
-						return true
-					}
-				}
-			}
-		}
-		if ctx.IsPropagationStopped() {
-			return true
-		}
-	}
-	return ctx.IsDefaultPrevented()
+	return t.frame.DispatchEventRegions(ev)
 }
 
 // FocusManager, terminalin odak yöneticisini döndürür.

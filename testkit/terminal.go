@@ -3,6 +3,8 @@
 package testkit
 
 import (
+	"time"
+
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -161,4 +163,28 @@ func (t *Terminal) PropagateMouse(ev backend.MouseEvent) bool {
 		return false
 	}
 	return t.frame.DispatchEventRegions(ev)
+}
+
+// MovePointer updates hover state for the current frame.
+func (t *Terminal) MovePointer(x, y uint16) bool {
+	if t == nil || t.frame == nil {
+		return false
+	}
+	return t.frame.DispatchPointerMove(backend.MouseEvent{X: x, Y: y, Button: backend.MouseNone})
+}
+
+// HoveredRegionID returns the currently hovered event region ID.
+func (t *Terminal) HoveredRegionID() string {
+	if t == nil || t.frame == nil {
+		return ""
+	}
+	return t.frame.HoveredRegionID()
+}
+
+// ClickAt dispatches a deterministic click using the supplied timestamp.
+func (t *Terminal) ClickAt(x, y uint16, at time.Time) bool {
+	if t == nil || t.frame == nil {
+		return false
+	}
+	return t.frame.DispatchClick(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft}, at)
 }
