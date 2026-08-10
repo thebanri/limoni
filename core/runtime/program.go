@@ -70,6 +70,18 @@ type Program struct {
 	stop     chan struct{}
 }
 
+// Draw renders the current model view through an existing Limoni terminal.
+// The runtime remains optional: callers still own terminal setup and lifecycle.
+func (p *Program) Draw(term *terminal.Terminal) error {
+	if p == nil || p.model == nil {
+		return fmt.Errorf("runtime: model is required")
+	}
+	if term == nil {
+		return fmt.Errorf("runtime: terminal is required")
+	}
+	return term.Draw(p.View)
+}
+
 // New creates an application program.
 func New(options ...Option) *Program {
 	opts := programOptions{messageQueue: 64, commandQueue: 64}
