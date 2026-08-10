@@ -1,5 +1,18 @@
 package terminal
 
+import (
+	"github.com/thebanri/limoni/core/cell"
+)
+
+type FocusDirection int
+
+const (
+	DirUp FocusDirection = iota
+	DirDown
+	DirLeft
+	DirRight
+)
+
 // FocusManager, TUI ekranında çizilen interaktif bileşenlerin odak (focus) durumlarını
 // ve Tab / Shift+Tab navigasyon sırasını yönetir.
 type FocusManager struct {
@@ -7,6 +20,7 @@ type FocusManager struct {
 	focusable  []string
 	scopes     map[string][]string
 	scopeStack []string
+	bounds     map[string]cell.Rect
 }
 
 // NewFocusManager, yeni bir FocusManager örneği oluşturur.
@@ -14,6 +28,7 @@ func NewFocusManager() *FocusManager {
 	return &FocusManager{
 		focusable: make([]string, 0, 16),
 		scopes:    make(map[string][]string),
+		bounds:    make(map[string]cell.Rect),
 	}
 }
 
@@ -96,6 +111,7 @@ func (fm *FocusManager) Clear() {
 		fm.scopes[id] = fm.scopes[id][:0]
 	}
 	fm.scopeStack = fm.scopeStack[:0]
+	clear(fm.bounds)
 }
 
 // Next, odağı listedeki bir sonraki elemana geçirir.
@@ -160,4 +176,100 @@ func indexOfFocus(items []string, id string) int {
 		}
 	}
 	return -1
+}
+
+// RegisterBounds registers the screen area bounds of a focusable widget.
+func (fm *FocusManager) RegisterBounds(id string, bounds cell.Rect) {
+	if id == "" {
+		return
+	}
+	fm.bounds[id] = bounds
+}
+
+// MoveFocus2D shifts focus to the spatially closest widget in the given direction.
+func (fm *FocusManager) MoveFocus2D(dir FocusDirection) bool {
+	if fm.focusedID == "" {
+		items := fm.navigationItems()
+		if len(items) > 0 {
+			fm.focusedID = items[0]
+			return true
+		}
+		return false
+	}
+
+	currentRect, ok := fm.bounds[fm.focusedID]
+	if !ok {
+		return false
+	}
+
+	c1x := float64(currentRect.X) + float64(currentRect.Width)/2
+	c1y := float64(currentRect.Y) + float64(currentRect.Height)/2
+
+	var bestID string
+	minScore := -1.0
+
+	items := fm.navigationItems()
+	for _, id := range items {
+		if id == fm.focusedID {
+			continue
+		}
+		r, ok := fm.bounds[id]
+		if !ok {
+			continue
+		}
+
+		c2x := float64(r.X) + float64(r.Width)/2
+		c2y := float64(r.Y) + float64(r.Height)/2
+
+		var primaryDist, orthogonalDist float64
+		inDirection := false
+
+		switch dir {
+		case DirUp:
+			primaryDist = c1y - c2y
+			orthogonalDist = c1x - c2x
+			if primaryDist > 0 {
+				inDirection = true
+			}
+		case DirDown:
+			primaryDist = c2y - c1y
+			orthogonalDist = c1x - c2x
+			if primaryDist > 0 {
+				inDirection = true
+			}
+		case DirLeft:
+			primaryDist = c1x - c2x
+			orthogonalDist = c1y - c2y
+			if primaryDist > 0 {
+				inDirection = true
+			}
+		case DirRight:
+			primaryDist = c2x - c1x
+			orthogonalDist = c1y - c2y
+			if primaryDist > 0 {
+				inDirection = true
+			}
+		}
+
+		if !inDirection {
+			continue
+		}
+
+		if orthogonalDist < 0 {
+			orthogonalDist = -orthogonalDist
+		}
+
+		// Spatial scoring formula: S = primary + 2 * orthogonal
+		score := primaryDist + 2.0*orthogonalDist
+		if minScore < 0 || score < minScore {
+			minScore = score
+			bestID = id
+		}
+	}
+
+	if bestID != "" {
+		fm.focusedID = bestID
+		return true
+	}
+	return false
 }

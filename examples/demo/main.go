@@ -680,6 +680,80 @@ func main() {
 					}
 				}
 
+				// Yön tuşları veya Vim tuşları (h/j/k/l) ile 2B spatial odak navigasyonu
+				var spatialDir terminal.FocusDirection
+				isSpatialKey := false
+
+				// Hangi widget'ların yön tuşlarını yutacağını kontrol et
+				consumesArrow := false
+				consumesVim := false
+
+				switch focused {
+				case "username_input", "showcase_input":
+					// Text inputlar sol/sağ yön tuşlarını ve tüm karakter tuşlarını (Vim harfleri) yutar
+					consumesVim = true
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
+						consumesArrow = true
+					}
+				case "demo_slider", "showcase_slider":
+					// Slider tüm yön tuşlarını yutar
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						consumesArrow = true
+					}
+				case "play_direction", "play_mode", "play_border", "play_showcase_select":
+					// Select bileşeni yukarı/aşağı yön tuşlarını yutar
+					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						consumesArrow = true
+					}
+				}
+
+				switch ev.Key.Type {
+				case backend.KeyArrowUp:
+					if !consumesArrow {
+						spatialDir = terminal.DirUp
+						isSpatialKey = true
+					}
+				case backend.KeyArrowDown:
+					if !consumesArrow {
+						spatialDir = terminal.DirDown
+						isSpatialKey = true
+					}
+				case backend.KeyArrowLeft:
+					if !consumesArrow {
+						spatialDir = terminal.DirLeft
+						isSpatialKey = true
+					}
+				case backend.KeyArrowRight:
+					if !consumesArrow {
+						spatialDir = terminal.DirRight
+						isSpatialKey = true
+					}
+				case backend.KeyRune:
+					if !consumesVim {
+						switch ev.Key.Ch {
+						case 'k':
+							spatialDir = terminal.DirUp
+							isSpatialKey = true
+						case 'j':
+							spatialDir = terminal.DirDown
+							isSpatialKey = true
+						case 'h':
+							spatialDir = terminal.DirLeft
+							isSpatialKey = true
+						case 'l':
+							spatialDir = terminal.DirRight
+							isSpatialKey = true
+						}
+					}
+				}
+
+				if isSpatialKey {
+					if t.FocusManager().MoveFocus2D(spatialDir) {
+						state.LastKey = fmt.Sprintf("Yön Odaklanma (%v)", ev.Key.Type)
+						break
+					}
+				}
+
 				// Tab ve Shift+Tab tuşlarıyla form elemanları arası odak geçişi
 				if ev.Key.Type == backend.KeyTab {
 					if ev.Key.Shift {

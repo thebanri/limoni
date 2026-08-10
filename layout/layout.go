@@ -30,6 +30,8 @@ const (
 	ConstraintMax
 	// ConstraintFill, geriye kalan tüm boşluğu kaplayan kısıtlama.
 	ConstraintFill
+	// ConstraintFit, içerik boyutuna göre alan ayırır.
+	ConstraintFit
 )
 
 // Constraint, tek bir esnek yerleşim kısıtlaması hücresidir.
@@ -78,6 +80,11 @@ func Fill() Constraint {
 	return Constraint{Type: ConstraintFill}
 }
 
+// FitContent, içerik boyutuna (SizeHint) göre kısıtlama oluşturur.
+func FitContent() Constraint {
+	return Constraint{Type: ConstraintFit}
+}
+
 // FlexLayout, belirtilen kısıtlamalar ve yön doğrultusunda terminal alanını bölen esnek kutu yapısıdır.
 type FlexLayout struct {
 	// Direction, elemanların yatay mı dikey mi dizileceğini belirtir.
@@ -99,7 +106,7 @@ func NewFlexLayout(dir Direction, gap uint16, constraints ...Constraint) FlexLay
 
 // Split, parametre olarak verilen ana Rect alanını, kısıtlamalara göre alt alanlara böler.
 // Yuvarlama hatalarını ve boşluk (gap) hesaplarını sıfır heap tahsisatı ile yönetir.
-func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
+func (fl FlexLayout) Split(area cell.Rect, fitSizes ...uint16) []cell.Rect {
 	if len(fl.Constraints) == 0 {
 		return nil
 	}
@@ -134,6 +141,7 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 
 	// 1. Aşama: Sabit ve yüzdesel oranlı (flexible olmayan) kısıtlamaları hesapla
 	var fixedTotal uint16
+	fitIdx := 0
 
 	for i, c := range fl.Constraints {
 		switch c.Type {
@@ -147,6 +155,14 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 		case ConstraintMin:
 			sizes[i] = c.Value
 			fixedTotal += c.Value
+		case ConstraintFit:
+			sz := uint16(0)
+			if fitIdx < len(fitSizes) {
+				sz = fitSizes[fitIdx]
+				fitIdx++
+			}
+			sizes[i] = sz
+			fixedTotal += sz
 		}
 	}
 

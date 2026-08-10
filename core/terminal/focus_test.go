@@ -1,6 +1,10 @@
 package terminal
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/thebanri/limoni/core/cell"
+)
 
 func TestFocusManagerScopeNavigation(t *testing.T) {
 	manager := NewFocusManager()
@@ -52,3 +56,89 @@ func TestFocusManagerIsFocused(t *testing.T) {
 		t.Fatal("focus state did not update")
 	}
 }
+
+func TestFocusManagerSpatialNavigation(t *testing.T) {
+	manager := NewFocusManager()
+	
+	// Create a 2D layout:
+	// A [0,0,10,3]    B [15,0,10,3]
+	// C [0,5,10,3]    D [15,5,10,3]
+	
+	rectA := cell.NewRect(0, 0, 10, 3)
+	rectB := cell.NewRect(15, 0, 10, 3)
+	rectC := cell.NewRect(0, 5, 10, 3)
+	rectD := cell.NewRect(15, 5, 10, 3)
+	
+	manager.Register("A")
+	manager.RegisterBounds("A", rectA)
+	
+	manager.Register("B")
+	manager.RegisterBounds("B", rectB)
+	
+	manager.Register("C")
+	manager.RegisterBounds("C", rectC)
+	
+	manager.Register("D")
+	manager.RegisterBounds("D", rectD)
+	
+	manager.SetFocused("A")
+	
+	// Move Right: A -> B
+	if !manager.MoveFocus2D(DirRight) || manager.Focused() != "B" {
+		t.Fatalf("MoveRight from A: got %q, want B", manager.Focused())
+	}
+	
+	// Move Down: B -> D
+	if !manager.MoveFocus2D(DirDown) || manager.Focused() != "D" {
+		t.Fatalf("MoveDown from B: got %q, want D", manager.Focused())
+	}
+	
+	// Move Left: D -> C
+	if !manager.MoveFocus2D(DirLeft) || manager.Focused() != "C" {
+		t.Fatalf("MoveLeft from D: got %q, want C", manager.Focused())
+	}
+	
+	// Move Up: C -> A
+	if !manager.MoveFocus2D(DirUp) || manager.Focused() != "A" {
+		t.Fatalf("MoveUp from C: got %q, want A", manager.Focused())
+	}
+	
+	// Try invalid direction: A has nothing directly left
+	original := manager.Focused()
+	if manager.MoveFocus2D(DirLeft) && manager.Focused() != original {
+		t.Fatalf("MoveLeft from A should not have changed focus, got %q", manager.Focused())
+	}
+}
+
+func TestFocusManagerSpatialScopeTrapping(t *testing.T) {
+	manager := NewFocusManager()
+	
+	// Create two scopes:
+	// Global: A [0,0,10,3]
+	// Scope "sub": B [15,0,10,3], C [30,0,10,3]
+	rectA := cell.NewRect(0, 0, 10, 3)
+	rectB := cell.NewRect(15, 0, 10, 3)
+	rectC := cell.NewRect(30, 0, 10, 3)
+	
+	manager.Register("A")
+	manager.RegisterBounds("A", rectA)
+	
+	manager.BeginScope("sub")
+	manager.Register("B")
+	manager.RegisterBounds("B", rectB)
+	manager.Register("C")
+	manager.RegisterBounds("C", rectC)
+	
+	manager.SetFocused("B")
+	
+	// Move Left from B: should NOT jump to A because it's outside active scope
+	if manager.MoveFocus2D(DirLeft) && manager.Focused() == "A" {
+		t.Fatalf("Directional focus escaped scope: got %q, want B", manager.Focused())
+	}
+	
+	// Move Right from B: should jump to C
+	if !manager.MoveFocus2D(DirRight) || manager.Focused() != "C" {
+		t.Fatalf("MoveRight from B inside scope: got %q, want C", manager.Focused())
+	}
+}
+

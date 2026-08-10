@@ -462,6 +462,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 				return // Dışarıdaki odaklanma isteklerini engelle!
 			}
 			f.FocusManager.Register(id)
+			f.FocusManager.RegisterBounds(id, area)
 		}
 		ctx.SetFocus = func(id string) {
 			if isOutsideModal {

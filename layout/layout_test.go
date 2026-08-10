@@ -131,3 +131,45 @@ func TestFlexLayoutMinMaxConstraints(t *testing.T) {
 		t.Errorf("Fill() genişliği hatalı. Beklenen: 12, Alınan: %d", rects[2].Width)
 	}
 }
+
+func TestFlexLayoutFitContent(t *testing.T) {
+	area := cell.NewRect(0, 0, 100, 10)
+	lay := NewFlexLayout(Horizontal, 0, FitContent(), FitContent())
+
+	rects := lay.Split(area, 25, 45)
+	if len(rects) != 2 {
+		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 2, Alınan: %d", len(rects))
+	}
+
+	if rects[0].Width != 25 {
+		t.Errorf("FitContent 1 genişliği hatalı. Beklenen: 25, Alınan: %d", rects[0].Width)
+	}
+	if rects[1].Width != 45 {
+		t.Errorf("FitContent 2 genişliği hatalı. Beklenen: 45, Alınan: %d", rects[1].Width)
+	}
+}
+
+func TestFlexLayoutFitContentMixed(t *testing.T) {
+	// 100 genişlikli alan
+	// FitContent() (size = 15)
+	// Fixed(20)
+	// Fill() (geriye kalan: 100 - 15 - 20 = 65)
+	area := cell.NewRect(0, 0, 100, 10)
+	lay := NewFlexLayout(Horizontal, 0, FitContent(), Fixed(20), Fill())
+
+	rects := lay.Split(area, 15)
+	if len(rects) != 3 {
+		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 3, Alınan: %d", len(rects))
+	}
+
+	if rects[0].Width != 15 {
+		t.Errorf("FitContent genişliği hatalı. Beklenen: 15, Alınan: %d", rects[0].Width)
+	}
+	if rects[1].Width != 20 {
+		t.Errorf("Fixed genişliği hatalı. Beklenen: 20, Alınan: %d", rects[1].Width)
+	}
+	if rects[2].Width != 65 {
+		t.Errorf("Fill genişliği hatalı. Beklenen: 65, Alınan: %d", rects[2].Width)
+	}
+}
+
