@@ -101,10 +101,19 @@ func (fm *FocusManager) ActiveScopes() []string {
 	return res
 }
 
-
 // Focused, aktif olarak odaklanmış olan widget'ın ID'sini döndürür.
 func (fm *FocusManager) Focused() string {
 	return fm.focusedID
+}
+
+// FocusableIDs returns a copy of the widgets registered for focus navigation.
+func (fm *FocusManager) FocusableIDs() []string {
+	if fm == nil || len(fm.focusable) == 0 {
+		return nil
+	}
+	ids := make([]string, len(fm.focusable))
+	copy(ids, fm.focusable)
+	return ids
 }
 
 // IsFocused reports whether id currently owns the focus.

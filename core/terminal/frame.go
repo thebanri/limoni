@@ -278,6 +278,45 @@ func (f *Frame) RegisterEventHandler(area cell.Rect, phase EventPhase, handler f
 	}
 }
 
+// DispatchEventRegions dispatches a mouse event through registered capture,
+// target, and bubble handlers. It is useful for deterministic event tests and
+// custom event loops that do not use Terminal.RouteMouseEvent.
+func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
+	if f == nil {
+		return false
+	}
+	ctx := &backend.EventContext{Mouse: ev}
+	handled := false
+	for _, phase := range []backend.EventPhase{backend.CapturePhase, backend.TargetPhase, backend.BubblePhase} {
+		ctx.Phase = phase
+		if phase == backend.TargetPhase {
+			for i := len(f.EventRegions) - 1; i >= 0; i-- {
+				region := f.EventRegions[i]
+				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					handled = true
+					region.Handler(ctx)
+					break
+				}
+			}
+		} else {
+			for i := 0; i < len(f.EventRegions); i++ {
+				region := f.EventRegions[i]
+				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					handled = true
+					region.Handler(ctx)
+					if ctx.IsPropagationStopped() {
+						return true
+					}
+				}
+			}
+		}
+		if ctx.IsPropagationStopped() {
+			return true
+		}
+	}
+	return handled || ctx.IsDefaultPrevented()
+}
+
 // CaptureMouse, aktif farenin sürükleme boyunca kayıtlı handler'a yönlendirilmesini sağlar.
 // Handler, MouseRelease olayını aldıktan sonra yakalama otomatik olarak bırakılır.
 func (f *Frame) CaptureMouse(handler func(ev backend.MouseEvent)) {

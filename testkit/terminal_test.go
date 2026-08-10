@@ -66,3 +66,31 @@ func TestTerminalRenderAndClickWidget(t *testing.T) {
 		t.Fatalf("slider value = %d, want 100", state.Value)
 	}
 }
+
+func TestTerminalFocusAndPropagationSnapshot(t *testing.T) {
+	testTerm := NewTerminal(20, 4)
+	order := make([]terminal.EventPhase, 0, 3)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterEventHandler(cell.NewRect(0, 0, 20, 4), terminal.CapturePhase, func(*terminal.EventContext) {
+			order = append(order, terminal.CapturePhase)
+		})
+		frame.RegisterEventHandler(cell.NewRect(2, 1, 4, 1), terminal.TargetPhase, func(*terminal.EventContext) {
+			order = append(order, terminal.TargetPhase)
+		})
+		frame.RegisterEventHandler(cell.NewRect(0, 0, 20, 4), terminal.BubblePhase, func(*terminal.EventContext) {
+			order = append(order, terminal.BubblePhase)
+		})
+		frame.FocusManager.Register("first")
+		frame.FocusManager.Register("second")
+	})
+
+	if got := testTerm.FocusableIDs(); len(got) != 2 || got[0] != "first" || got[1] != "second" {
+		t.Fatalf("focusable IDs = %v, want [first second]", got)
+	}
+	if !testTerm.PropagateMouse(backend.MouseEvent{X: 3, Y: 1, Button: backend.MouseLeft}) {
+		t.Fatal("expected propagation to be handled")
+	}
+	if len(order) != 3 || order[0] != terminal.CapturePhase || order[1] != terminal.TargetPhase || order[2] != terminal.BubblePhase {
+		t.Fatalf("propagation order = %v, want capture/target/bubble", order)
+	}
+}

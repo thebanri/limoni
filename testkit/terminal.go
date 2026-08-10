@@ -145,3 +145,20 @@ func (t *Terminal) Focused() string {
 	}
 	return t.frame.FocusManager.Focused()
 }
+
+// FocusableIDs returns the focusable widget IDs registered by the last frame.
+func (t *Terminal) FocusableIDs() []string {
+	if t == nil || t.frame == nil || t.frame.FocusManager == nil {
+		return nil
+	}
+	return t.frame.FocusManager.FocusableIDs()
+}
+
+// PropagateMouse dispatches a mouse event through the frame's capture,
+// target, and bubble event handlers.
+func (t *Terminal) PropagateMouse(ev backend.MouseEvent) bool {
+	if t == nil || t.frame == nil {
+		return false
+	}
+	return t.frame.DispatchEventRegions(ev)
+}
