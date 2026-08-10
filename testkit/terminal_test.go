@@ -6,6 +6,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/widgets"
 )
 
 func TestTerminalDrawAndSnapshot(t *testing.T) {
@@ -49,5 +50,19 @@ func TestTerminalMouseClickAndCapture(t *testing.T) {
 	}
 	if testTerm.Mouse(backend.MouseEvent{X: 0, Y: 0, Button: backend.MouseLeft}) {
 		t.Fatal("expected a new click outside the registered area to be ignored")
+	}
+}
+
+func TestTerminalRenderAndClickWidget(t *testing.T) {
+	state := widgets.NewSliderState(0)
+	slider := widgets.Slider{ID: "volume", State: state, Min: 0, Max: 100}
+	testTerm := NewTerminal(12, 1)
+	testTerm.Render(slider, cell.NewRect(0, 0, 11, 1))
+
+	if !testTerm.Click(10, 0) {
+		t.Fatal("expected slider click to be routed")
+	}
+	if state.Value != 100 {
+		t.Fatalf("slider value = %d, want 100", state.Value)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/widgets"
 )
 
 // Terminal is a fixed-size in-memory terminal used by deterministic tests.
@@ -45,6 +46,13 @@ func (t *Terminal) Draw(fn func(frame *terminal.Frame)) {
 	}
 }
 
+// Render draws a widget into area using the deterministic test frame.
+func (t *Terminal) Render(widget widgets.Widget, area cell.Rect) {
+	t.Draw(func(frame *terminal.Frame) {
+		frame.RenderWidget(widget, area)
+	})
+}
+
 // Mouse dispatches a mouse event through the regions registered by the last
 // Draw call. It returns true when a region or a mouse capture handled it.
 func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
@@ -71,10 +79,7 @@ func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
 		if !region.Area.Contains(ev.X, ev.Y) {
 			continue
 		}
-		if region.MouseOnly && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
-			continue
-		}
-		if !region.MouseOnly && ev.Button != backend.MouseLeft {
+		if ev.Button != backend.MouseLeft && (!region.MouseOnly || (ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown)) {
 			continue
 		}
 		region.Handler(ev)
