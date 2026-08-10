@@ -181,6 +181,13 @@ type AppState struct {
 	// Komut Paleti ve Kısayol Yöneticisi
 	CmdPalette *widgets.CommandPaletteState
 	KeyManager *widgets.KeybindingManager
+
+	// Referans sekmesi etkileşim sayaçları
+	ReferenceRuntimeMessages int
+	ReferenceInteractionLast string
+	ReferenceLayoutPass      int
+	ReferenceSelectedRow     int
+	ReferenceBenchmarkRuns   int
 }
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
