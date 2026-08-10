@@ -32,7 +32,7 @@ type Context struct {
 
 	// RegisterImage, widget'ların çizim sırasında resim çizdirme taleplerini
 	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
-	RegisterImage func(area Rect, img image.Image, zIndex int)
+	RegisterImage func(area Rect, img image.Image, zIndex int) bool
 
 	// RegisterFocus, widget'ların çizim sırasında odaklanabilir (focusable) olduklarını
 	// bildirmesini sağlayan, terminal odak yöneticisi tarafından doldurulan callback köprüsüdür.

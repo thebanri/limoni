@@ -4,6 +4,7 @@ package terminal
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/thebanri/limoni/animation"
 	"github.com/thebanri/limoni/core/backend"
@@ -51,6 +52,10 @@ type Terminal struct {
 
 	// lastLayersHash, bir önceki karedeki katmanların (modal/layers) durum özetidir.
 	lastLayersHash string
+
+	// Profiling metrics
+	lastFrameDuration time.Duration
+	lastWidgetStats   []WidgetStat
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -76,12 +81,23 @@ func New(b *backend.Backend) (*Terminal, error) {
 	}, nil
 }
 
+// LastFrameDuration returns the rendering and draw duration of the last frame.
+func (t *Terminal) LastFrameDuration() time.Duration {
+	return t.lastFrameDuration
+}
+
+// LastWidgetStats returns the individual render durations of all widgets rendered in the last frame.
+func (t *Terminal) LastWidgetStats() []WidgetStat {
+	return t.lastWidgetStats
+}
+
 // Draw, çizim döngüsünü başlatır. Boyut değişimlerini algılar, güncel tamponu temizler,
 // çizim callback fonksiyonunu (fn) çalıştırır, diff hesaplamasını yapar ve tek bir senkron I/O çağrısıyla
 // değişen kısımları terminale yazar.
 //
 // Performans: Sıfır-Tahsisat (Zero-Allocation) tasarımı sayesinde bu fonksiyon düzenli çalışmada heap bellek harcamaz.
 func (t *Terminal) Draw(fn func(f *Frame)) error {
+	t0 := time.Now()
 	// Güncel ekran boyutunu sorgula
 	w, h, err := t.backend.Size()
 	if err != nil {
@@ -162,6 +178,11 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		}
 
 		if imagesChanged {
+			if !needsFullClear {
+				t.back.Clear()
+				t.backend.Write([]byte("\x1b[2J"))
+				needsFullClear = true
+			}
 			// Kitty placement'ları hücre tamponundan bağımsız yaşar. Eski
 			// sekmenin resmi yeni sekmede daha küçük/başka konumluysa, yalnızca
 			// yeni resmi çizmek eski placement'ın kenarlarını bırakabilir.
@@ -221,6 +242,18 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 	t.backend.EndSyncUpdate()
 
+	dur := time.Since(t0)
+	t.lastFrameDuration = dur
+
+	// Copy widget stats
+	if cap(t.lastWidgetStats) >= len(t.frame.WidgetStats) {
+		t.lastWidgetStats = t.lastWidgetStats[:len(t.frame.WidgetStats)]
+		copy(t.lastWidgetStats, t.frame.WidgetStats)
+	} else {
+		t.lastWidgetStats = make([]WidgetStat, len(t.frame.WidgetStats))
+		copy(t.lastWidgetStats, t.frame.WidgetStats)
+	}
+
 	return nil
 }
 
@@ -232,11 +265,12 @@ func (t *Terminal) SetTransitionProgress(p float64) {
 // SetTransitionActive, dither-fade geçiş durumunu açar veya kapatır.
 func (t *Terminal) SetTransitionActive(active bool) {
 	if !active {
-		// Geçişi yalnızca pasifleştirme; eski frame'i de bırak.
-		// Aksi halde modal veya sonraki frame eski görüntüyü yeniden kullanabilir.
-		t.transitionActive = false
-		t.transitionProgress = 1.0
-		t.transitionOldBuf = nil
+		if t.transitionActive {
+			t.transitionActive = false
+			t.transitionProgress = 1.0
+			t.transitionOldBuf = nil
+			t.ForceFullRedraw()
+		}
 		return
 	}
 	if t.transitionActive {

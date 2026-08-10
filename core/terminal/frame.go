@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"time"
 
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
@@ -70,6 +71,14 @@ type Frame struct {
 
 	Theme    widgets.Theme
 	ThemeSet bool
+
+	// WidgetStats, bu çizim karesinde çizilen widget'ların render sürelerini saklar.
+	WidgetStats []WidgetStat
+}
+
+type WidgetStat struct {
+	Type     string
+	Duration time.Duration
 }
 
 type DebugRegion struct {
@@ -127,6 +136,7 @@ func (f *Frame) Reset() {
 	f.activeLayerID = ""
 	f.DebugRegions = f.DebugRegions[:0]
 	f.mouseCaptureRequest = nil
+	f.WidgetStats = f.WidgetStats[:0]
 }
 
 // RegisterModal, bu karede çizilen aktif bir modal katmanı kaydeder.
@@ -402,12 +412,43 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Not: Resimler pasif çizim elemanlarıdır, olay almazlar.
 	// Bu yüzden modal/popup dışında olsalar bile kaydedilmelidirler;
 	// aksi halde arka plandaki resimler modal açıldığında kaybolur.
-	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int) {
+	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int) bool {
+		// Z-Index otomatik eşleme mantığı (WezTerm/Ghostty vb. katman çakışmalarını önlemek için):
+		// - ZIndex = -99 ise: Block arka plan resmi. Modal/katman için -2, kök için -4 olur.
+		// - ZIndex <= 0 ise: Normal görsel. Modal/katman içindeyse -1, arka plandaysa -3 olur.
+		topModal := f.TopmostModal()
+		if zIndex == -99 {
+			if topModal != nil || len(f.Layers) > 0 {
+				zIndex = -2
+			} else {
+				zIndex = -4
+			}
+		} else if zIndex <= 0 {
+			isForeground := false
+			if topModal != nil && ContainsRect(topModal.Area, imageArea) {
+				isForeground = true
+			} else {
+				for _, layer := range f.Layers {
+					if ContainsRect(layer.Area, imageArea) {
+						isForeground = true
+						break
+					}
+				}
+			}
+
+			if isForeground {
+				zIndex = -1
+			} else {
+				zIndex = -3
+			}
+		}
+
 		f.ImageRegions = append(f.ImageRegions, ImageRegion{
 			Area:   imageArea,
 			Img:    img,
 			ZIndex: zIndex,
 		})
+		return true
 	}
 
 	// Odaklanma kaydını FocusManager'a köprüle
@@ -427,7 +468,14 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		}
 	}
 
+	t0 := time.Now()
 	w.Draw(ctx, f.Buffer)
+	dur := time.Since(t0)
+
+	f.WidgetStats = append(f.WidgetStats, WidgetStat{
+		Type:     wType,
+		Duration: dur,
+	})
 }
 
 // BeginLayer, bir sonraki çizilecek widget'ların belirli bir katmana ait olduğunu bildirir.

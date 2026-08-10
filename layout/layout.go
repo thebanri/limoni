@@ -27,6 +27,8 @@ const (
 	// ConstraintMin, en az belirtilen boyutta alan atar.
 	ConstraintMin
 	// ConstraintMax, en fazla belirtilen boyutta alan atar.
+	ConstraintMax
+	// ConstraintFill, geriye kalan tüm boşluğu kaplayan kısıtlama.
 	ConstraintFill
 )
 
@@ -68,7 +70,7 @@ func Min(val uint16) Constraint {
 
 // Max, en fazla belirtilen boyutta alan tahsis edilmesini sınırlar.
 func Max(val uint16) Constraint {
-	return Constraint{Type: ConstraintMin, Value: val} // Max mantığı için Min'e benzer sınır
+	return Constraint{Type: ConstraintMax, Value: val}
 }
 
 // Fill, geriye kalan tüm boşluğu kaplayan bir kısıtlama oluşturur. (Ratio(1) ile eşdeğerdir).
@@ -132,7 +134,6 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 
 	// 1. Aşama: Sabit ve yüzdesel oranlı (flexible olmayan) kısıtlamaları hesapla
 	var fixedTotal uint16
-	var ratioTotalWeight uint32
 
 	for i, c := range fl.Constraints {
 		switch c.Type {
@@ -146,10 +147,6 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 		case ConstraintMin:
 			sizes[i] = c.Value
 			fixedTotal += c.Value
-		case ConstraintRatio:
-			ratioTotalWeight += uint32(c.Value)
-		case ConstraintFill:
-			ratioTotalWeight += 1 // Fill, ağırlığı 1 olan bir orandır
 		}
 	}
 
@@ -157,7 +154,12 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 	if fixedTotal > usableSize && fixedTotal > 0 {
 		var scaledTotal uint16
 		for i, c := range fl.Constraints {
-			if c.Type != ConstraintRatio && c.Type != ConstraintFill {
+			if c.Type != ConstraintRatio && c.Type != ConstraintFill && c.Type != ConstraintMin && c.Type != ConstraintMax {
+				sz := (uint32(sizes[i]) * uint32(usableSize)) / uint32(fixedTotal)
+				sizes[i] = uint16(sz)
+				scaledTotal += uint16(sz)
+			} else if c.Type == ConstraintMin {
+				// Min kısıtlamaları da sabit boyutlu gibi küçülür
 				sz := (uint32(sizes[i]) * uint32(usableSize)) / uint32(fixedTotal)
 				sizes[i] = uint16(sz)
 				scaledTotal += uint16(sz)
@@ -167,7 +169,7 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 		diff := usableSize - scaledTotal
 		for i := 0; i < len(sizes) && diff > 0; i++ {
 			c := fl.Constraints[i]
-			if c.Type != ConstraintRatio && c.Type != ConstraintFill {
+			if c.Type != ConstraintRatio && c.Type != ConstraintFill && c.Type != ConstraintMax {
 				sizes[i]++
 				diff--
 			}
@@ -178,27 +180,84 @@ func (fl FlexLayout) Split(area cell.Rect) []cell.Rect {
 	// Geriye kalan boş alan
 	remaining := usableSize - fixedTotal
 
-	// 2. Aşama: Geriye kalan alanı oransal (Ratio ve Fill) kısıtlamalara dağıt
-	if ratioTotalWeight > 0 && remaining > 0 {
-		var distributedTotal uint16
-		for i, c := range fl.Constraints {
-			if c.Type == ConstraintRatio || c.Type == ConstraintFill {
-				weight := uint32(1)
-				if c.Type == ConstraintRatio {
-					weight = uint32(c.Value)
-				}
-				sz := (uint32(remaining) * weight) / ratioTotalWeight
-				sizes[i] = uint16(sz)
-				distributedTotal += uint16(sz)
+	// 2. Aşama: Geriye kalan alanı oransal (Ratio, Fill, Min ve Max) kısıtlamalara dağıt
+	if remaining > 0 {
+		// Ağırlıklı büyüme yapacak elemanları belirle
+		var activeMask uint32
+		for i := 0; i < len(fl.Constraints) && i < 32; i++ {
+			c := fl.Constraints[i]
+			if c.Type == ConstraintRatio || c.Type == ConstraintFill || c.Type == ConstraintMin || c.Type == ConstraintMax {
+				activeMask |= (1 << i)
 			}
 		}
-		// Oransal yuvarlama artığı farklarını dağıt
-		diff := remaining - distributedTotal
-		for i := 0; i < len(sizes) && diff > 0; i++ {
-			c := fl.Constraints[i]
-			if c.Type == ConstraintRatio || c.Type == ConstraintFill {
-				sizes[i]++
-				diff--
+
+		for activeMask > 0 && remaining > 0 {
+			var totalWeight uint32
+			for i := 0; i < len(fl.Constraints) && i < 32; i++ {
+				if (activeMask & (1 << i)) != 0 {
+					c := fl.Constraints[i]
+					switch c.Type {
+					case ConstraintRatio:
+						totalWeight += uint32(c.Value)
+					case ConstraintFill, ConstraintMin, ConstraintMax:
+						totalWeight += 1
+					}
+				}
+			}
+
+			if totalWeight == 0 {
+				break
+			}
+
+			var added [32]uint16
+			var distributed uint16
+			var cappedThisIteration bool
+
+			for i := 0; i < len(fl.Constraints) && i < 32; i++ {
+				if (activeMask & (1 << i)) != 0 {
+					c := fl.Constraints[i]
+					weight := uint32(1)
+					if c.Type == ConstraintRatio {
+						weight = uint32(c.Value)
+					}
+					sz := uint16((uint32(remaining) * weight) / totalWeight)
+
+					// Max kısıtlaması aşım kontrolü
+					if c.Type == ConstraintMax {
+						currentTotal := sizes[i] + sz
+						if currentTotal > c.Value {
+							sz = c.Value - sizes[i] // Sadece limite kadar büyüt
+							activeMask &^= (1 << i) // Artık bu eleman daha fazla büyüyemez
+							cappedThisIteration = true
+						}
+					}
+
+					added[i] = sz
+					distributed += sz
+				}
+			}
+
+			// Kalan yuvarlama farkını en son aktif elemana ekle (eğer bu iterasyonda hiç capped eleman yoksa)
+			if !cappedThisIteration && remaining > distributed {
+				diff := remaining - distributed
+				for i := 0; i < len(fl.Constraints) && i < 32 && diff > 0; i++ {
+					if (activeMask & (1 << i)) != 0 {
+						added[i]++
+						distributed++
+						diff--
+					}
+				}
+			}
+
+			// Boyutları güncelle
+			for i := 0; i < len(fl.Constraints) && i < 32; i++ {
+				sizes[i] += added[i]
+			}
+			remaining -= distributed
+
+			// Eğer bu iterasyonda hiçbir eleman limite takılmadıysa, tüm kalan alan dağıtılmıştır
+			if !cappedThisIteration {
+				break
 			}
 		}
 	}

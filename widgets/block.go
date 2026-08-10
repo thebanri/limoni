@@ -1,6 +1,9 @@
 package widgets
 
 import (
+	"image"
+	"image/color"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -130,6 +133,8 @@ type Block struct {
 
 	// Child, bloğun içerisine çizilecek olan alt görsel bileşendir.
 	Child Widget
+	// Opaque, true ise bloğun arkasına yerel resimlerin sızmasını engellemek için solid renkli resim katmanı ekler.
+	Opaque bool
 }
 
 // Draw, bloğu ve kenarlıklarını çizer, arka planını doldurur ve alt bileşenin (Child) çizimini tetikler.
@@ -153,10 +158,21 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	for y := area.Y; y < area.Y+area.Height; y++ {
 		for x := area.X; x < area.X+area.Width; x++ {
 			if c := buf.Get(x, y); c != nil {
-				c.Content = ' '
-				c.Style = blockStyle
+				if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault {
+					c.Content = '█'
+					c.Style = blockStyle
+					c.Style.Fg = blockStyle.Bg
+				} else {
+					c.Content = ' '
+					c.Style = blockStyle
+				}
 			}
 		}
+	}
+
+	if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault && ctx.RegisterImage != nil {
+		solidImg := getSolidImage(blockStyle.Bg)
+		ctx.RegisterImage(area, solidImg, -99) // Marker for frame.go to map ZIndex
 	}
 
 	// 2. Aşama: Kenarlıkları çiz
@@ -373,4 +389,24 @@ func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	}
 
 	return width, height
+}
+
+var (
+	solidImageCache   = make(map[cell.Color]image.Image)
+	solidImageCacheMu sync.Mutex
+)
+
+func getSolidImage(c cell.Color) image.Image {
+	solidImageCacheMu.Lock()
+	defer solidImageCacheMu.Unlock()
+
+	if img, ok := solidImageCache[c]; ok {
+		return img
+	}
+
+	r, g, b := c.RGB()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: r, G: g, B: b, A: 255})
+	solidImageCache[c] = img
+	return img
 }

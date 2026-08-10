@@ -93,11 +93,31 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	optionStyle := ctx.Style.Merge(s.OptionStyle)
 	selectedStyle := ctx.Style.Merge(s.SelectedStyle)
-	for i, option := range s.Options {
-		y := ctx.Area.Y + 1 + uint16(i)
-		if y >= ctx.Area.Y+ctx.Area.Height {
-			break
-		}
+
+	maxVisible := int(ctx.Area.Height) - 1
+	if maxVisible <= 0 {
+		return
+	}
+
+	startIdx := 0
+	if s.State.Selected >= maxVisible {
+		startIdx = s.State.Selected - maxVisible + 1
+	}
+	if startIdx+maxVisible > len(s.Options) {
+		startIdx = len(s.Options) - maxVisible
+	}
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	endIdx := startIdx + maxVisible
+	if endIdx > len(s.Options) {
+		endIdx = len(s.Options)
+	}
+
+	for i := startIdx; i < endIdx; i++ {
+		option := s.Options[i]
+		y := ctx.Area.Y + 1 + uint16(i-startIdx)
 		style := optionStyle
 		if i == s.State.Selected {
 			style = selectedStyle
@@ -108,10 +128,19 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				style = selectedStyle
 			}
 		}
+
 		for x := uint16(0); x < ctx.Area.Width; x++ {
 			buf.SetCell(ctx.Area.X+x, y, cell.Cell{Content: ' ', Style: style})
 		}
 		buf.SetString(ctx.Area.X+1, y, clipString(option, int(ctx.Area.Width)-2), style)
+
+		// Draw scroll indicators on the right edge if there is overflow
+		if i == startIdx && startIdx > 0 && ctx.Area.Width > 2 {
+			buf.SetCell(ctx.Area.X+ctx.Area.Width-2, y, cell.Cell{Content: '▲', Style: style})
+		} else if i == endIdx-1 && endIdx < len(s.Options) && ctx.Area.Width > 2 {
+			buf.SetCell(ctx.Area.X+ctx.Area.Width-2, y, cell.Cell{Content: '▼', Style: style})
+		}
+
 		if ctx.RegisterMouse != nil {
 			index := i
 			ctx.RegisterMouse(cell.NewRect(ctx.Area.X, y, ctx.Area.Width, 1), func(ev backend.MouseEvent) {

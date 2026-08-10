@@ -53,65 +53,72 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
 	}
 	if im.ForceHalfBlock || proto == graphics.ProtocolHalfBlock {
-		// Half-Block modu: Resmi doğrudan buffer.Buffer hücrelerine karakterler halinde çiz.
-		// Genişlik = Hücre Genişliği, Yükseklik = Hücre Yüksekliği * 2 (Her hücre dikeyde 2 piksel barındırır).
-		targetW := int(ctx.Area.Width)
-		targetH := int(ctx.Area.Height) * 2
-
-		resized := graphics.ResizeImage(img, targetW, targetH)
-
-		for cy := uint16(0); cy < ctx.Area.Height; cy++ {
-			for cx := uint16(0); cx < ctx.Area.Width; cx++ {
-				// Üst piksel (Background rengi olacak)
-				topCol := resized.At(int(cx), int(2*cy))
-				_, _, _, ta := topCol.RGBA()
-				bgColor := blendColor(topCol, ctx.Style.Bg)
-
-				// Alt piksel (Foreground rengi olacak)
-				botCol := resized.At(int(cx), int(2*cy+1))
-				_, _, _, ba := botCol.RGBA()
-				fgColor := blendColor(botCol, ctx.Style.Bg)
-
-				// Hücreyi güncelle
-				cellX := ctx.Area.X + cx
-				cellY := ctx.Area.Y + cy
-				if c := buf.Get(cellX, cellY); c != nil {
-					c.Style.Modifier = cell.ModifierReset
-
-					if ta == 0 && ba == 0 {
-						// Her iki piksel de şeffaf -> Boşluk karakteri çizerek terminal varsayılan Fg'sinin çizilmesini engelle
-						c.Content = ' '
-						c.Style.Bg = ctx.Style.Bg
-					} else if ta > 0 && ba == 0 {
-						// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
-						c.Content = '▀'
-						c.Style.Fg = bgColor
-						c.Style.Bg = ctx.Style.Bg
-					} else {
-						// İkisi de dolu veya alt dolu -> Alt yarım blok (▄)
-						c.Content = '▄'
-						c.Style.Fg = fgColor
-						c.Style.Bg = bgColor
-					}
-				}
-			}
-		}
+		im.drawHalfBlock(ctx, buf, img)
 		return
 	}
 
-	// Yerel grafik protokol modları: Metinlerin resmin arkasından taşmasını önlemek için alanı resim işaretiyle doldur
-	for y := ctx.Area.Y; y < ctx.Area.Y+ctx.Area.Height; y++ {
-		for x := ctx.Area.X; x < ctx.Area.X+ctx.Area.Width; x++ {
-			if c := buf.Get(x, y); c != nil {
-				c.Content = cell.RuneImage
-				c.Style.Reset()
-			}
-		}
+	registered := false
+	if ctx.RegisterImage != nil {
+		registered = ctx.RegisterImage(ctx.Area, img, im.ZIndex)
 	}
 
-	// Çizim bağlamında tanımlıysa resmi yerel protokole kaydet
-	if ctx.RegisterImage != nil {
-		ctx.RegisterImage(ctx.Area, img, im.ZIndex)
+	if registered {
+		// Yerel grafik protokol modları: Metinlerin resmin arkasından taşmasını önlemek için alanı resim işaretiyle doldur
+		for y := ctx.Area.Y; y < ctx.Area.Y+ctx.Area.Height; y++ {
+			for x := ctx.Area.X; x < ctx.Area.X+ctx.Area.Width; x++ {
+				if c := buf.Get(x, y); c != nil {
+					c.Content = cell.RuneImage
+					c.Style.Reset()
+				}
+			}
+		}
+	} else {
+		// Grafik protokolü yoksa half-block moduna düş
+		im.drawHalfBlock(ctx, buf, img)
+	}
+}
+
+func (im Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.Image) {
+	targetW := int(ctx.Area.Width)
+	targetH := int(ctx.Area.Height) * 2
+
+	resized := graphics.ResizeImage(img, targetW, targetH)
+
+	for cy := uint16(0); cy < ctx.Area.Height; cy++ {
+		for cx := uint16(0); cx < ctx.Area.Width; cx++ {
+			// Üst piksel (Background rengi olacak)
+			topCol := resized.At(int(cx), int(2*cy))
+			_, _, _, ta := topCol.RGBA()
+			bgColor := blendColor(topCol, ctx.Style.Bg)
+
+			// Alt piksel (Foreground rengi olacak)
+			botCol := resized.At(int(cx), int(2*cy+1))
+			_, _, _, ba := botCol.RGBA()
+			fgColor := blendColor(botCol, ctx.Style.Bg)
+
+			// Hücreyi güncelle
+			cellX := ctx.Area.X + cx
+			cellY := ctx.Area.Y + cy
+			if c := buf.Get(cellX, cellY); c != nil {
+				c.Style.Modifier = cell.ModifierReset
+
+				if ta == 0 && ba == 0 {
+					// Her iki piksel de şeffaf -> Boşluk karakteri çizerek terminal varsayılan Fg'sinin çizilmesini engelle
+					c.Content = ' '
+					c.Style.Bg = ctx.Style.Bg
+				} else if ta > 0 && ba == 0 {
+					// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
+					c.Content = '▀'
+					c.Style.Fg = bgColor
+					c.Style.Bg = ctx.Style.Bg
+				} else {
+					// İkisi de dolu veya alt dolu -> Alt yarım blok (▄)
+					c.Content = '▄'
+					c.Style.Fg = fgColor
+					c.Style.Bg = bgColor
+				}
+			}
+		}
 	}
 }
 

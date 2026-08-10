@@ -45,7 +45,7 @@ func TestBlockBordersAndBackground(t *testing.T) {
 	}
 
 	inner := buf.Get(2, 2)
-	if inner.Content != ' ' || inner.Style.Bg.ANSI() != 1 {
+	if (inner.Content != ' ' && inner.Content != '█') || inner.Style.Bg.ANSI() != 1 {
 		t.Errorf("Inner block area should be filled with red background")
 	}
 }

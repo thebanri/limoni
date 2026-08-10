@@ -370,6 +370,21 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		widths = SolveWidths(netWidth, t.Constraints)
 	}
 
+	sticky := t.StickyColumns
+	if sticky < 0 {
+		sticky = 0
+	}
+	if sticky > colsCount {
+		sticky = colsCount
+	}
+	stickyWidth := uint16(0)
+	for i := 0; i < sticky; i++ {
+		stickyWidth += widths[i]
+		if t.DrawGrid && i < colsCount-1 {
+			stickyWidth++
+		}
+	}
+
 	rows := t.Rows
 	rowCount := len(rows)
 	rowAt := func(index int) TableRow { return rows[index] }
@@ -412,41 +427,51 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// 2. İNTERAKTİF SÜTUN BOYUTLANDIRICI SÜRÜKLEME ALANLARI
 	if t.State != nil && ctx.RegisterMouse != nil {
-		sepX := ctx.Area.X
 		for i := 0; i < colsCount-1; i++ {
-			sepX += widths[i]
-
-			// Her sütun sınırı için 1 genişliğinde dikey bir sürükleme tetikleyici alan tanımla
-			handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
-			colIdx := i
-
-			ctx.RegisterMouse(handleArea, func(ev backend.MouseEvent) {
-				if ev.Button == backend.MouseLeft && !ev.Drag {
-					// Sürükleme başlangıcı: Mevcut X koordinatı ve tüm sütun genişliklerini yakala
-					startMouseX := int(ev.X)
-					startColW := int(t.State.ColumnWidths[colIdx])
-
-					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
-							return
-						}
-						// Fare hareketi farkına göre yeni genişliği hesapla
-						dx := int(dragEv.X) - startMouseX
-						requestedNewW := startColW + dx
-						if requestedNewW < 2 {
-							requestedNewW = 2
-						}
-
-						// ResizeColumn toplam genişliği koruyarak sağdaki sütunları
-						// gerektiğinde daraltır; drag döngüsünde tahsisat yapmaz.
-						delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
-						t.State.ResizeColumn(colIdx, delta)
-					})
-				}
-			})
-
+			sepX := t.columnX(ctx.Area, widths, i+1)
 			if t.DrawGrid {
-				sepX++
+				sepX--
+			}
+
+			// Clip boundaries for separator drag area
+			clipLeftSep := ctx.Area.X
+			clipRightSep := ctx.Area.X + ctx.Area.Width
+			if sticky > 0 {
+				if i+1 < sticky {
+					clipRightSep = ctx.Area.X + stickyWidth
+				} else {
+					clipLeftSep = ctx.Area.X + stickyWidth
+				}
+			}
+
+			if sepX >= clipLeftSep && sepX < clipRightSep {
+				handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
+				colIdx := i
+
+				ctx.RegisterMouse(handleArea, func(ev backend.MouseEvent) {
+					if ev.Button == backend.MouseLeft && !ev.Drag {
+						// Sürükleme başlangıcı: Mevcut X koordinatı ve tüm sütun genişliklerini yakala
+						startMouseX := int(ev.X)
+						startColW := int(t.State.ColumnWidths[colIdx])
+
+						ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
+							if dragEv.Button == backend.MouseRelease {
+								return
+							}
+							// Fare hareketi farkına göre yeni genişliği hesapla
+							dx := int(dragEv.X) - startMouseX
+							requestedNewW := startColW + dx
+							if requestedNewW < 2 {
+								requestedNewW = 2
+							}
+
+							// ResizeColumn toplam genişliği koruyarak sağdaki sütunları
+							// gerektiğinde daraltır; drag döngüsünde tahsisat yapmaz.
+							delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
+							t.State.ResizeColumn(colIdx, delta)
+						})
+					}
+				})
 			}
 		}
 	}
@@ -583,9 +608,21 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				// Yatay çizginin birleştirilmiş hücre tarafından örtülüp örtülmediğini denetle
 				sepCovered := getOwner(-1, i) == getOwner(targetBodyRow, i)
 				startX := t.columnX(ctx.Area, widths, i)
+
+				// Clip boundaries for this column
+				clipLeft := ctx.Area.X
+				clipRight := ctx.Area.X + ctx.Area.Width
+				if sticky > 0 {
+					if i < sticky {
+						clipRight = ctx.Area.X + stickyWidth
+					} else {
+						clipLeft = ctx.Area.X + stickyWidth
+					}
+				}
+
 				for col := uint16(0); col < w; col++ {
 					x := startX + col
-					if !sepCovered && x >= ctx.Area.X && x < ctx.Area.X+ctx.Area.Width {
+					if !sepCovered && x >= clipLeft && x < clipRight {
 						buf.SetCell(x, currY, cell.Cell{Content: '─', Style: gridStyle})
 					}
 				}
@@ -599,7 +636,19 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 					ch := getIntersectionChar(up, down, left, right)
 					separatorX := t.columnX(ctx.Area, widths, i+1) - 1
-					if ch != ' ' && separatorX >= ctx.Area.X && separatorX < ctx.Area.X+ctx.Area.Width {
+
+					// Clip boundaries for intersection separator
+					clipLeftSep := ctx.Area.X
+					clipRightSep := ctx.Area.X + ctx.Area.Width
+					if sticky > 0 {
+						if i+1 < sticky {
+							clipRightSep = ctx.Area.X + stickyWidth
+						} else {
+							clipLeftSep = ctx.Area.X + stickyWidth
+						}
+					}
+
+					if ch != ' ' && separatorX >= clipLeftSep && separatorX < clipRightSep {
 						buf.SetCell(separatorX, currY, cell.Cell{Content: ch, Style: gridStyle})
 					}
 				}
@@ -692,9 +741,35 @@ func (t Table) drawSpanRow(
 		rowStyle = rowStyle.Merge(t.SelectedStyle)
 	}
 
+	sticky := t.StickyColumns
+	if sticky < 0 {
+		sticky = 0
+	}
+	if sticky > colsCount {
+		sticky = colsCount
+	}
+	stickyWidth := uint16(0)
+	for i := 0; i < sticky; i++ {
+		stickyWidth += widths[i]
+		if t.DrawGrid && i < colsCount-1 {
+			stickyWidth++
+		}
+	}
+
 	for colIdx := 0; colIdx < colsCount; colIdx++ {
 		currX = columnX(colIdx)
 		ownerCoords := getOwner(r, colIdx)
+
+		// Determine horizontal clipping boundaries for this column
+		clipLeft := ctx.Area.X
+		clipRight := ctx.Area.X + ctx.Area.Width
+		if sticky > 0 {
+			if colIdx < sticky {
+				clipRight = ctx.Area.X + stickyWidth
+			} else {
+				clipLeft = ctx.Area.X + stickyWidth
+			}
+		}
 
 		// Eğer bu hücre üstteki veya soldaki birleştirilmiş bir hücrenin alt parçasıysa çizimi atla
 		if ownerCoords != [2]int{r, colIdx} {
@@ -702,7 +777,20 @@ func (t Table) drawSpanRow(
 				currX = columnX(colIdx + 1)
 				// Sınır çizgisi hücre birleştirme alanı içinde kalmıyorsa çiz
 				if getOwner(r, colIdx) != getOwner(r, colIdx+1) {
-					buf.SetCell(currX, y, cell.Cell{Content: '│', Style: gridStyle})
+					separatorX := currX - 1
+					// Clip the vertical grid line separator
+					clipLeftSep := ctx.Area.X
+					clipRightSep := ctx.Area.X + ctx.Area.Width
+					if sticky > 0 {
+						if colIdx+1 < sticky {
+							clipRightSep = ctx.Area.X + stickyWidth
+						} else {
+							clipLeftSep = ctx.Area.X + stickyWidth
+						}
+					}
+					if separatorX >= clipLeftSep && separatorX < clipRightSep {
+						buf.SetCell(separatorX, y, cell.Cell{Content: '│', Style: gridStyle})
+					}
 				}
 			}
 			continue
@@ -740,25 +828,76 @@ func (t Table) drawSpanRow(
 				break
 			}
 			for dx := uint16(0); dx < cellW; dx++ {
-				if currX+dx >= ctx.Area.X && currX+dx < ctx.Area.X+ctx.Area.Width {
-					buf.SetCell(currX+dx, drawY, cell.Cell{Content: ' ', Style: cellStyle})
+				xPixel := currX + dx
+				if xPixel >= clipLeft && xPixel < clipRight {
+					buf.SetCell(xPixel, drawY, cell.Cell{Content: ' ', Style: cellStyle})
 				}
 			}
 		}
 
-		// Metni keserek sadece ilk satıra yazdır (top-left)
+		// Metni keserek sadece ilk satıra yazdır (top-left) - clipping-aware
 		clipped := clipString(cellVal.Text, int(cellW))
-		if currX >= ctx.Area.X && currX < ctx.Area.X+ctx.Area.Width {
-			buf.SetString(currX, y, clipped, cellStyle)
-		}
+		drawTextClipped(buf, currX, y, clipped, cellStyle, clipLeft, clipRight)
 
 		// Sütunlar arası dikey ızgara çizgisini çiz (birleştirilmiş alanın dışındaysa)
 		if t.DrawGrid && colIdx < colsCount-1 {
 			separatorX := columnX(colIdx+1) - 1
-			if getOwner(r, colIdx) != getOwner(r, colIdx+1) && separatorX >= ctx.Area.X && separatorX < ctx.Area.X+ctx.Area.Width {
+			// Clip the separator
+			clipLeftSep := ctx.Area.X
+			clipRightSep := ctx.Area.X + ctx.Area.Width
+			if sticky > 0 {
+				if colIdx+1 < sticky {
+					clipRightSep = ctx.Area.X + stickyWidth
+				} else {
+					clipLeftSep = ctx.Area.X + stickyWidth
+				}
+			}
+			if getOwner(r, colIdx) != getOwner(r, colIdx+1) && separatorX >= clipLeftSep && separatorX < clipRightSep {
 				buf.SetCell(separatorX, y, cell.Cell{Content: '│', Style: gridStyle})
 			}
 		}
+	}
+}
+
+// drawTextClipped draws text on a buffer with precise left and right pixel clipping boundaries.
+func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.Style, clipLeft, clipRight uint16) {
+	if y >= buf.Area.Height || startX >= clipRight {
+		return
+	}
+
+	currX := startX
+	input := s
+	for len(input) > 0 {
+		r, size := utf8.DecodeRuneInString(input)
+		if r == utf8.RuneError {
+			break
+		}
+
+		w := cell.RuneWidth(r)
+		if w == 0 {
+			input = input[size:]
+			continue
+		}
+		if currX+uint16(w) > clipRight {
+			break // Exceeds right boundary
+		}
+
+		// Only write to buffer if it is within the horizontal clipping range
+		if currX >= clipLeft {
+			idx := y*buf.Area.Width + currX
+			buf.Content[idx].Content = r
+			buf.Content[idx].Style = style
+
+			if w == 2 {
+				if currX+1 < clipRight {
+					buf.Content[idx+1].Content = cell.RuneContinuation
+					buf.Content[idx+1].Style = style
+				}
+			}
+		}
+
+		currX += uint16(w)
+		input = input[size:]
 	}
 }
 

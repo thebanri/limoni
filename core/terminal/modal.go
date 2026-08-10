@@ -43,6 +43,14 @@ func ContainsRect(parent, child cell.Rect) bool {
 		int(child.Y)+int(child.Height) <= int(parent.Y)+int(parent.Height)
 }
 
+// Intersects, iki dikdörtgenin kesişip kesişmediğini denetler.
+func Intersects(r1, r2 cell.Rect) bool {
+	return r1.X < r2.X+r2.Width &&
+		r2.X < r1.X+r1.Width &&
+		r1.Y < r2.Y+r2.Height &&
+		r2.Y < r1.Y+r1.Height
+}
+
 // CenterRect, belirtilen genişlik ve yükseklikte, parent alanının tam ortasında konumlanmış bir dikdörtgen hesaplar.
 func CenterRect(parent cell.Rect, w, h uint16) cell.Rect {
 	if w > parent.Width {
