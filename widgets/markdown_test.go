@@ -3,6 +3,7 @@ package widgets
 import (
 	"testing"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -64,6 +65,59 @@ func TestMarkdownRendering(t *testing.T) {
 	}
 	if !bulletFound {
 		t.Errorf("Bullet item marker '•' not found in buffer output")
+	}
+}
+
+func TestMarkdownScrollOffsetClamping(t *testing.T) {
+	if got := maxMarkdownOffset(10, 4); got != 6 {
+		t.Fatalf("expected maximum offset 6, got %d", got)
+	}
+	if got := clampMarkdownOffset(-1, 6); got != 0 {
+		t.Fatalf("expected negative offset to clamp to 0, got %d", got)
+	}
+	if got := clampMarkdownOffset(99, 6); got != 6 {
+		t.Fatalf("expected offset to clamp to 6, got %d", got)
+	}
+	if got := maxMarkdownOffset(3, 4); got != 0 {
+		t.Fatalf("expected content shorter than viewport to have offset 0, got %d", got)
+	}
+}
+
+func TestMarkdownDragScrolling(t *testing.T) {
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 40, 4))
+	md := &Markdown{
+		Content:      "one\ntwo\nthree\nfour\nfive\nsix",
+		ScrollOffset: new(int),
+	}
+
+	var mouseHandler func(backend.MouseEvent)
+	var captureHandler func(backend.MouseEvent)
+	ctx := cell.NewContext(cell.NewRect(0, 0, 40, 4), cell.Style{})
+	ctx.RegisterMouse = func(_ cell.Rect, handler func(backend.MouseEvent)) {
+		mouseHandler = handler
+	}
+	ctx.CaptureMouse = func(handler func(backend.MouseEvent)) {
+		captureHandler = handler
+	}
+
+	md.Draw(ctx, buf)
+	if mouseHandler == nil {
+		t.Fatal("expected markdown mouse handler to be registered")
+	}
+
+	mouseHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 2})
+	if captureHandler == nil {
+		t.Fatal("expected markdown to capture the mouse after a left click")
+	}
+
+	captureHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 0, Drag: true})
+	if *md.ScrollOffset != 2 {
+		t.Fatalf("expected dragging up by two rows to set offset 2, got %d", *md.ScrollOffset)
+	}
+
+	captureHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 10, Drag: true})
+	if *md.ScrollOffset != 0 {
+		t.Fatalf("expected dragging down from the original position to reset offset to 0, got %d", *md.ScrollOffset)
 	}
 }
 

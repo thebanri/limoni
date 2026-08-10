@@ -692,6 +692,21 @@ func main() {
 				if state.CmdPalette.HandleKey(ev.Key) {
 					break
 				}
+				// Markdown alanı odaktayken ok tuşları global focus kısayollarına
+				// gitmemeli; doğrudan içeriği kaydırmalıdır.
+				if focused == "demo_markdown" && (ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))) {
+					switch {
+					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
+						state.MarkdownOffset--
+					case ev.Key.Type == backend.KeyArrowDown:
+						state.MarkdownOffset++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
+						state.MarkdownHeight++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
+						state.MarkdownHeight--
+					}
+					break
+				}
 				// Declarative kısayolların merkezi yönlendiricisi.
 				if state.KeyManager.Handle(ev.Key, t.FocusManager().ActiveScopes()...) {
 					break
@@ -957,18 +972,6 @@ func main() {
 				} else if focused == "play_ratio" {
 					state.PlayRatioState.HandleKey(ev.Key, 10, 90)
 					state.PlaygroundRatio = state.PlayRatioState.Value
-				} else if focused == "demo_markdown" {
-					switch {
-					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
-						state.MarkdownOffset--
-					case ev.Key.Type == backend.KeyArrowDown:
-						state.MarkdownOffset++
-					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
-						state.MarkdownHeight++
-					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
-						state.MarkdownHeight--
-
-					}
 				} else if focused == "table_filter" {
 					switch ev.Key.Type {
 					case backend.KeyArrowLeft:

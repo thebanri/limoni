@@ -136,27 +136,37 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	y := ctx.Area.Y
 	maxY := ctx.Area.Y + ctx.Area.Height
+	maxOffset := maxMarkdownOffset(len(m.cachedLines), int(ctx.Area.Height))
 	offset := 0
 	if m.ScrollOffset != nil {
 		offset = *m.ScrollOffset
-		if offset < 0 {
-			offset = 0
-		}
-		if offset >= len(m.cachedLines) {
-			offset = len(m.cachedLines) - 1
-			if offset < 0 {
-				offset = 0
-			}
-			*m.ScrollOffset = offset
-		}
+		offset = clampMarkdownOffset(offset, maxOffset)
+		*m.ScrollOffset = offset
 	}
 	if ctx.RegisterMouse != nil && m.ScrollOffset != nil {
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp && *m.ScrollOffset > 0 {
-				(*m.ScrollOffset)--
-			}
-			if ev.Button == backend.MouseScrollDown && *m.ScrollOffset < len(m.cachedLines)-1 {
-				(*m.ScrollOffset)++
+			switch ev.Button {
+			case backend.MouseScrollUp:
+				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset-1, maxOffset)
+			case backend.MouseScrollDown:
+				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset+1, maxOffset)
+			case backend.MouseLeft:
+				// Tıklanan alan içinde dikey sürükleme ile metni kaydır.
+				// Resize tutamacı child area'nın dışında olduğu için bu handler
+				// yükseklik değiştirme sürüklemesiyle çakışmaz.
+				if ctx.SetFocus != nil {
+					ctx.SetFocus(m.ID)
+				}
+				startY := int(ev.Y)
+				startOffset := *m.ScrollOffset
+				if ctx.CaptureMouse != nil {
+					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Drag {
+							deltaY := int(dragEv.Y) - startY
+							*m.ScrollOffset = clampMarkdownOffset(startOffset-deltaY, maxOffset)
+						}
+					})
+				}
 			}
 		})
 	}
@@ -221,6 +231,23 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			y++
 		}
 	}
+}
+
+func maxMarkdownOffset(lineCount, visibleHeight int) int {
+	if lineCount <= 0 || visibleHeight <= 0 || lineCount <= visibleHeight {
+		return 0
+	}
+	return lineCount - visibleHeight
+}
+
+func clampMarkdownOffset(offset, maxOffset int) int {
+	if offset < 0 {
+		return 0
+	}
+	if offset > maxOffset {
+		return maxOffset
+	}
+	return offset
 }
 
 func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
