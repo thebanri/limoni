@@ -3,330 +3,326 @@ name: limoni_development
 description: Guidelines and principles for developing the Limoni TUI library in Go and teaching Go to the user.
 ---
 
-# Limoni TUI Geliştirme, Mimari ve Handover Kılavuzu
+# Limoni TUI Development, Architecture, and Handover Guide
 
-Bu uzmanlık dosyası, **Limoni** projesinin vizyonunu, mimari prensiplerini, mevcut gelişim durumunu, çözdüğü TUI kısıtlamalarını ve gelecek yol haritasını tanımlar. Seyahat sonrası veya yeni bir chat oturumunda projeyi devralacak yapay zekalar (AI Agents) için eksiksiz bir sistem el kitabı niteliğindedir.
-
----
-
-## 1. Proje Vizyonu ve Çıkış Noktası
-
-Limoni; Rust ekosistemindeki **Ratatui** kütüphanesinin çizim hızı ve anlık render (Immediate Mode) yeteneklerini, Go (Golang) dilinin yerel eşzamanlılık (Goroutine, Channel) gücüyle birleştiren yeni nesil bir **TUI (Terminal User Interface) Motorudur**.
-
-### Rakip Kütüphanelerin Aşılması Hedeflenen Eksiklikleri ve Çözümlerimiz:
-1. **Otomatik Fare Tıklaması Yönlendirme (Mouse Event Hit-Testing)**:
-   - *Sorun*: Ratatui ve Bubble Tea'de fare tıklamalarının hangi widget'a isabet ettiğini geliştirici elle koordinat hesaplayarak bulur.
-   - *Çözüm*: Limoni'de `Frame.RegisterClickHandler(area, callback)` API'si ile çizim anında interaktif bölgeler kaydedilir. `Terminal.RouteMouseEvent(ev)` mekanizması tıklamaları otomatik doğru callback'e yönlendirir.
-2. **Paket Döngüsel Bağımlılığı Olmadan İnteraktiflik Köprüsü**:
-   - *Sorun*: Alt seviye `cell` paketinin üst seviye `terminal` veya `backend` olaylarına bağımlı olması döngüsel paket bağımlılığı (circular dependency) yaratır.
-   - *Çözüm*: `cell.Context` yapısına `RegisterClick func(area Rect, handler func())` fonksiyon imza alanı eklenmiştir. `Frame.RenderWidget` çizimi başlatırken bu köprüyü kendi yönlendiricisine bağlar. Böylece `widgets` paketi bağımsız kalır.
-3. **Düzen Pazarlığı (Layout Negotiation)**:
-   - *Sorun*: Ratatui'de bir widget kendi boyut ihtiyacını layout'a bildiremez.
-   - *Çözüm*: `Widget` interface'ine `SizeHint` API'si eklenmiştir. Bileşenler (örn. `Block`, `Paragraph`, `List`) kendi kenarlık, başlık ve içeriklerine göre esnek yerleşim motoruyla (`layout`) pazarlık yapabilir.
-4. **Stil Mirası (Cascading Styles)**:
-   - *Sorun*: Ratatui'de her alt bileşene elle stil geçilmesi gerekir.
-   - *Çözüm*: `cell.Context` üzerinden üst bileşenin stili otomatik olarak miras kalır. `Style.Merge(other)` ile alt bileşen sadece kendi değiştirmek istediği özellikleri ezer.
+This skill file defines the vision, architectural principles, current development status, solved TUI limitations, and future roadmap of the **Limoni** project. It is intended to serve as a complete system handbook for AI agents taking over the project after a break or in a new chat session.
 
 ---
 
-## 2. Mevcut Mimari Yapı ve Paket Dağılımı
+## 1. Project Vision and Motivation
 
-Proje, tek bir Go modülü (`github.com/thebanri/limoni`) içinde modüler paketler halinde tasarlanmıştır:
+Limoni is a next-generation **TUI (Terminal User Interface) engine** that combines the rendering speed and immediate-mode rendering capabilities of Rust's **Ratatui** ecosystem with Go's native concurrency primitives (**goroutines and channels**).
+
+### Limitations We Aim to Overcome in Competing Libraries
+
+1. **Automatic Mouse Click Routing (Mouse Event Hit-Testing)**:
+   - *Problem*: In Ratatui and Bubble Tea, developers must manually calculate coordinates to determine which widget received a mouse click.
+   - *Solution*: Limoni registers interactive regions during rendering through `Frame.RegisterClickHandler(area, callback)`. `Terminal.RouteMouseEvent(ev)` automatically routes clicks to the correct callback.
+2. **An Interactivity Bridge Without Circular Package Dependencies**:
+   - *Problem*: If the low-level `cell` package depends on higher-level `terminal` or `backend` event types, circular package dependencies are created.
+   - *Solution*: `cell.Context` contains a `RegisterClick func(area Rect, handler func())` function field. `Frame.RenderWidget` connects this bridge to its own router when rendering begins. This keeps the `widgets` package independent.
+3. **Layout Negotiation**:
+   - *Problem*: In Ratatui, a widget cannot communicate its size requirements to the layout system.
+   - *Solution*: The `Widget` interface includes a `SizeHint` API. Components such as `Block`, `Paragraph`, and `List` can negotiate their border, title, and content requirements with the flexible `layout` engine.
+4. **Cascading Styles**:
+   - *Problem*: In Ratatui, styles must be passed manually to every child component.
+   - *Solution*: Parent styles are automatically inherited through `cell.Context`. With `Style.Merge(other)`, a child component overrides only the properties it needs to change.
+
+---
+
+## 2. Current Architecture and Package Organization
+
+The project is organized as modular packages within a single Go module (`github.com/thebanri/limoni`):
 
 ```
 limoni/
 ├── go.mod
-├── .agents/skills/limoni_development/SKILL.md  # Bu el kitabı
+├── .agents/skills/limoni_development/skill.md  # This handbook
 ├── core/
 │   ├── cell/
-│   │   ├── cell.go       # Cell (16 byte), Style (12 byte), Color (uint32)
-│   │   ├── rect.go       # Ekran alanı geometrisi (Rect)
-│   │   └── context.go    # Stack-allocated cascading Context & Merge
+│   │   ├── cell.go       # Cell (16 bytes), Style (12 bytes), Color (uint32)
+│   │   ├── rect.go       # Screen-area geometry (Rect)
+│   │   └── context.go    # Stack-allocated cascading Context and Merge
 │   ├── buffer/
-│   │   ├── buffer.go     # Flat 1D slice hücre matrisi (Buffer), Resize
-│   │   └── diff.go       # Sıfır tahsisatlı double-buffered diff algoritması
+│   │   ├── buffer.go     # Flat 1D cell matrix (Buffer), Resize
+│   │   └── diff.go       # Zero-allocation double-buffered diff algorithm
 │   ├── backend/
-│   │   ├── types.go      # Düz (flat) tipli olay yapıları (Event, KeyEvent vb.)
-│   │   ├── termios_linux # Unix ioctl çağrıları ile Pure Go Raw Mode kontrolü
-│   │   ├── parser.go     # Klavye/mouse/focus/hover ANSI dizi çözümleyicisi
-│   │   └── backend.go    # SIGWINCH ve 25ms ESC timeout asenkron Event Loop
+│   │   ├── types.go      # Flat event types (Event, KeyEvent, etc.)
+│   │   ├── termios_linux # Pure Go raw-mode control through Unix ioctl calls
+│   │   ├── parser.go     # Keyboard/mouse/focus/hover ANSI sequence parser
+│   │   └── backend.go    # Asynchronous event loop with SIGWINCH and 25 ms ESC timeout
 │   └── terminal/
-│       ├── frame.go      # Kare çizim bağlamı, Click handler kaydı
-│       └── terminal.go   # Terminal yöneticisi, Draw döngüsü, Mouse Router
+│       ├── frame.go      # Frame drawing context and click-handler registration
+│       └── terminal.go   # Terminal manager, draw loop, and mouse router
 ├── layout/
-│   └── layout.go         # Flexbox yerleşim motoru (Fixed, Percentage, Ratio, Min, Max, Fill)
+│   └── layout.go         # Flexbox layout engine (Fixed, Percentage, Ratio, Min, Max, Fill)
 ├── widgets/
-│   ├── widget.go         # Core Widget arayüzü (Draw ve SizeHint)
-│   ├── block.go          # Kenarlıklı, başlıklı, Padding'li Blok kapsayıcısı
-│   ├── paragraph.go      # Kelime kaydırmalı (Word wrap) çok satırlı metin widget'ı
-│   └── list.go           # Seçilebilir, otomatik kaydırılabilir (scrolling) interaktif liste
+│   ├── widget.go         # Core Widget interface (Draw and SizeHint)
+│   ├── block.go          # Bordered, titled, padded Block container
+│   ├── paragraph.go      # Multiline word-wrapping text widget
+│   └── list.go           # Selectable, automatically scrolling interactive list
 └── examples/
-    └── demo/main.go      # Fare tıklamasıyla liste seçimi ve hover ile çıkış destekleyen demo
+    └── demo/main.go      # Demo with mouse-click list selection and hover-to-exit support
 ```
 
 ---
 
-## 3. Elde Edilen Performans ve Standartlar
+## 3. Performance Guarantees and Standards
 
-Yeni geliştirilecek modüllerde bu teknik kararların ve performans kriterlerinin korunması **ZORUNLUDUR**:
+The following technical decisions and performance requirements **MUST** be preserved in all newly developed modules:
 
-- **Bellek Hizalaması (Memory Alignment)**:
-  - `Style` boyutu **12 byte** (Fg: 4, Bg: 4, Modifier: 2 + 2 byte padding) olarak sabitlenmiştir.
-  - `Cell` boyutu **16 byte** (Content: 4 + Style: 12) olarak sabitlenmiştir. L2 Cache dostu hizalama korunmalıdır.
-- **Sıfır Heap Tahsisatı (Zero-Allocation on Draw)**:
-  - Çizim ve diff döngüsünde dinamik bellek ayrımı yapılmaz.
-  - `Terminal` içindeki `writeBuf` byte dilimi tekrar kullanılır. ANSI dönüşümlerinde `strconv.AppendInt` kullanılır.
-  - 120x40 ekran (4800 hücre) güncelleme süresi **18.3 μs**'dir (Tek çekirdekte **54.000+ FPS**).
+- **Memory Alignment**:
+  - `Style` is fixed at **12 bytes** (`Fg`: 4, `Bg`: 4, `Modifier`: 2 + 2 bytes of padding).
+  - `Cell` is fixed at **16 bytes** (`Content`: 4 + `Style`: 12). Cache-friendly alignment must be preserved.
+- **Zero Heap Allocations During Drawing**:
+  - The draw and diff loops must not perform dynamic memory allocations.
+  - The `writeBuf` byte slice inside `Terminal` is reused. Use `strconv.AppendInt` for ANSI encoding.
+  - Updating a 120x40 screen (4,800 cells) takes **18.3 μs** (**54,000+ FPS** on a single core).
 - **Stack-Allocated Context**:
-  - `cell.Context` yapısı çizim sırasında alt widget'lara değer kopyalaması (by-copy) ile aktarılır. Bu, heap escape'i engeller.
+  - During drawing, `cell.Context` is passed to child widgets by value. This prevents heap escape.
 
 ---
 
-## 4. Tamamlanan Aşamalar (Faz 1 - Faz 7)
+## 4. Completed Phases (Phases 1–27)
 
-- **Faz 1: Çekirdek Tampon ve Diff Motoru [TAMAMLANDI]**
-  - Matris hizalaması, double-buffer diff ve sıfır tahsisatlı ANSI kodlayıcı tamamlandı.
-- **Faz 2: Backend ve OS Terminal Kontrolü [TAMAMLANDI]**
-  - CGO olmadan Linux ioctl termios kontrolü ve 25ms ESC süzgeçli Event Loop yazıldı.
-- **Faz 3: Esnek Layout Motoru [TAMAMLANDI]**
-  - Flexbox yerleşim motoru, oran, yüzde ve sabit bölünme matematiklerine göre yazıldı.
-- **Faz 4: Terminal, Frame ve Block Widget'ı [TAMAMLANDI]**
-  - Çizim Frame'i, Block kenarlık (rounded, single vb.) çizimleri ve fare tıklama yönlendirmesi kuruldu.
-- **Faz 5: Zengin Widget Seti (Paragraph & List) [TAMAMLANDI]**
-  - `Paragraph` (otomatik word-wrap) ve `List` (seçim durumu ve auto-viewport scroll) widget'ları interaktif tıklama özellikleri ile tamamlandı.
-- **Faz 6: Braille Canvas ve Vektör Çizim (High-Resolution Graphics) [TAMAMLANDI]**
-  - Hücre başına 2x4 piksel çözünürlük sunan Braille Canvas widget'ı ve vektörel çizim fonksiyonları (Çizgi, daire, dikdörtgen, bezier eğrileri çizme) tamamlandı.
-- **Faz 7: Medya ve Görüntü Gösterim Katmanı (graphics) [TAMAMLANDI]**
-  - Kitty Graphics Protocol, Sixel, iTerm2 ve Ghostty yerel resim kodlayıcıları (terminalde gerçek PNG/JPG çizimi) tamamlandı. Kitty protokolündeki 4096 byte tekil veri paketi sınırı için base64 chunking desteği eklendi.
-  - Alacritty gibi yerel protokol desteği bulunmayan terminaller için evrensel **Half-Block (`▄` U+2584)** 1x2 çözünürlüklü hücre-tamponu üstüne çizim desteği ve `Image` widget'ı tamamlandı.
-  - `Block` gibi konteyner widget'ların alt bileşenlerine `RegisterClick` ve `RegisterImage` olay köprülerini (callback) doğru şekilde aktaramaması hatası düzeltilerek konteyner içi resim çizdirme ve tıklama desteği kararlı hale getirildi.
+- **Phase 1: Core Buffer and Diff Engine [COMPLETED]**
+  - Matrix alignment, double-buffer diffing, and a zero-allocation ANSI encoder were completed.
+- **Phase 2: Backend and OS Terminal Control [COMPLETED]**
+  - Linux ioctl termios control without CGO and an event loop with a 25 ms ESC filter were implemented.
+- **Phase 3: Flexible Layout Engine [COMPLETED]**
+  - A Flexbox layout engine based on ratio, percentage, and fixed-split calculations was implemented.
+- **Phase 4: Terminal, Frame, and Block Widget [COMPLETED]**
+  - The drawing Frame, Block border styles (rounded, single, etc.), and mouse-click routing were implemented.
+- **Phase 5: Rich Widget Set (Paragraph and List) [COMPLETED]**
+  - Interactive `Paragraph` (automatic word wrapping) and `List` (selection state and automatic viewport scrolling) widgets were completed.
+- **Phase 6: Braille Canvas and Vector Drawing (High-Resolution Graphics) [COMPLETED]**
+  - A Braille Canvas widget providing 2x4-pixel resolution per cell and vector drawing functions (lines, circles, rectangles, and Bézier curves) were completed.
+- **Phase 7: Media and Image Display Layer (`graphics`) [COMPLETED]**
+  - Native image encoders for the Kitty Graphics Protocol, Sixel, iTerm2, and Ghostty were completed for rendering real PNG/JPG images in the terminal. Base64 chunking was added for Kitty's 4,096-byte individual data-packet limit.
+  - Universal **Half-Block (`▄`, U+2584)** 1x2-resolution cell-buffer rendering was added for terminals without native protocol support, such as Alacritty. The `Image` widget was completed.
+  - A bug that prevented container widgets such as `Block` from forwarding `RegisterClick` and `RegisterImage` callback bridges to child widgets was fixed, stabilizing image rendering and click support inside containers.
 
-- **Faz 8: Animasyon Motoru [TAMAMLANDI]**
-  - Zaman tabanlı interpolasyon, yumuşak geçiş efektleri (transitions) ve 16 adet standart ivmelenme (easing - Linear, Quad, Cubic, Sine, Expo, Bounce) fonksiyonu içeren `animation` paketi geliştirildi.
-  - Sayısal değerler için `Float` ve 24-bit TrueColor RGB renk geçişleri için `Color` animasyon yapıları oluşturuldu.
-  - FPS izleme ve time.Ticker ile event loop'u tıkamadan 30 FPS çizim yeteneğini gösteren animasyonlu bir demo uygulaması (`examples/animation`) eklendi.
+- **Phase 8: Animation Engine [COMPLETED]**
+  - The `animation` package was implemented with time-based interpolation, smooth transitions, and 16 standard easing functions (Linear, Quad, Cubic, Sine, Expo, Bounce).
+  - `Float` animation structures for numeric values and `Color` animation structures for 24-bit TrueColor RGB transitions were added.
+  - An animated demo application (`examples/animation`) was added to demonstrate FPS monitoring and 30 FPS drawing with `time.Ticker` without blocking the event loop.
 
-- **Faz 9 (Zengin Form ve Girdi Kontrolleri):**
-  - Çizim sırasına göre dinamik sekmeli odak geçişini yöneten `FocusManager` yapısı geliştirildi.
-  - Tek satırlı interaktif `TextInput` (durum ve imleç yönetimiyle), boolean onay kutusu `Checkbox` ve tekli seçim aracı `RadioButton` bileşenleri kütüphaneye kazandırıldı.
-  - Birim testleri (`widgets/form_test.go`) ve ana demoda dinamik renk teması geçişiyle entegre form gösterimi yapıldı.
+- **Phase 9: Rich Forms and Input Controls [COMPLETED]**
+  - The `FocusManager`, which manages dynamic tab-based focus traversal according to draw order, was implemented.
+  - Single-line interactive `TextInput` (with state and cursor management), boolean `Checkbox`, and single-selection `RadioButton` components were added.
+  - Unit tests (`widgets/form_test.go`) and an integrated form demonstration with dynamic color-theme switching were added to the main demo.
 
-- **Faz 10: Katmanlı Render, Modal Pencere ve Açılır Menü (Popup) [TAMAMLANDI]**
-  - `Layer` yapısı (ID, Type, Area, ZIndex, ClickOutside) ile birden fazla üst üste binen katman desteği eklendi.
-  - `Frame.BeginLayer(id)` / `Frame.EndLayer()` API'si ile widget'ların hangi katmana ait olduğunu çizim anında bildirmesi sağlandı.
-  - `Frame.RegisterLayer()` ve `Frame.RemoveLayer()` ile dinamik katman ekleme/kaldırma desteği.
-  - `RouteMouseEvent()` çoklu katman için z-index bazlı olay yönlendirmesi: En üstteki katman önce yakalar, click-outside tetikler.
-  - `Popup` widget'ı: Başlangıç butonu + açılır liste, hover seçimi, disabled öğe desteği, border çizimi.
-  - `FocusManager` ile modal içinde odak kilitlenmesi (focus trapping): Modal dışındaki widget'ların odak/tıklama kayıtları otomatik olarak bloke edilir.
-  - `ClickRegion` yapısına `LayerID` alanı eklenerek tıklama bölgelerinin hangi katmana ait olduğu takip edilir.
-  - Geriye dönük uyumluluk: Eski `RegisterModal()` API'si korundu; hem `ActiveModal` hem `Layers` listesini günceller.
-  - Mevcut `RegisterImage` callback imzası hatası (2 parametre → 3 parametre) düzeltildi.
-  - `layer_demo` örnek uygulaması ile multi-layer, popup menüler ve modal etkileşimi gösterildi.
-  - 8 adet yeni birim testi eklendi: `TestLayerSystemBasic`, `TestMultiLayerZOrdering`, `TestRemoveLayer`, `TestTopLayer`, `TestResetClearsLayers` vb.
+- **Phase 10: Layered Rendering, Modal Windows, and Popups [COMPLETED]**
+  - Support for multiple overlapping layers was added through the `Layer` structure (`ID`, `Type`, `Area`, `ZIndex`, `ClickOutside`).
+  - `Frame.BeginLayer(id)` / `Frame.EndLayer()` lets widgets identify their layer during drawing.
+  - Dynamic layer creation and removal are supported through `Frame.RegisterLayer()` and `Frame.RemoveLayer()`.
+  - `RouteMouseEvent()` routes events by z-index: the topmost layer receives the event first, and click-outside handlers are triggered when appropriate.
+  - The `Popup` widget supports an opening button, dropdown list, hover selection, disabled items, and border rendering.
+  - `FocusManager` provides modal focus trapping: focus and click registrations outside the modal are automatically blocked.
+  - `ClickRegion` now contains a `LayerID` field to track the layer associated with each click region.
+  - Backward compatibility is preserved: the existing `RegisterModal()` API remains available and updates both `ActiveModal` and the `Layers` list.
+  - The incorrect `RegisterImage` callback signature (two parameters instead of three) was fixed.
+  - The `layer_demo` example demonstrates multi-layer rendering, popup menus, and modal interaction.
+  - Eight unit tests were added, including `TestLayerSystemBasic`, `TestMultiLayerZOrdering`, `TestRemoveLayer`, `TestTopLayer`, and `TestResetClearsLayers`.
 
-- **Faz 11: İnteraktif ve Esnek Hücreli Tablo (Table) Bileşeni [TAMAMLANDI]**
-  - `widgets/table.go` tablo durum yönetimi, kısıtlama çözücüsü (`SolveWidths`) ve `Table` widget'ı kodlandı.
-  - Hücre bazlı kırpma (clipping), ızgara çizgileri, zebra deseni ve dinamik sütun yerleşimi desteği sağlandı.
-  - Birim testleri (`widgets/table_test.go`) ve ana demoda interaktif süreç tablosu gösterimi başarıyla yapıldı.
-  - Kitty Grafik Protokolü için donanımsal z-index desteği ve hücresel Half-Block (`ForceHalfBlock`) katmanlama özelliği eklendi.
+- **Phase 11: Interactive and Flexible-Cell Table Component [COMPLETED]**
+  - `widgets/table.go`, table state management, the constraint solver (`SolveWidths`), and the `Table` widget were implemented.
+  - Cell-level clipping, grid lines, zebra striping, and dynamic column layout were added.
+  - Unit tests (`widgets/table_test.go`) and an interactive process-table view in the main demo were completed successfully.
+  - Hardware z-index support for the Kitty Graphics Protocol and cell-based Half-Block layering through `ForceHalfBlock` were added.
 
-- **Faz 12: Gelişmiş Katmanlı Render ve Animasyonlu Geçişler [TAMAMLANDI]**
-  - `ScaleRect` ve `SlideUpRect` yardımcı matris formülleri ile diyalog ve modal açılış/kapanış animasyonları kodlandı.
-  - Z-Index öncelikli modal yığını (`TopmostModal` ve sandboxing) mekanizması `frame.go` içerisine entegre edildi.
-  - Odaklanan widget'ların etrafında parlayan kalın ve kesikli odak kenarlıkları (`DrawFocusRing`) geliştirildi.
-  - `modal_transition_test.go` birim testleri ve ana demoda animasyonlu geçişler/odak halkaları entegre edildi.
+- **Phase 12: Advanced Layered Rendering and Animated Transitions [COMPLETED]**
+  - Dialog and modal opening/closing animations were implemented using the `ScaleRect` and `SlideUpRect` helper matrix formulas.
+  - A z-index-prioritized modal stack (`TopmostModal` and sandboxing) was integrated into `frame.go`.
+  - Glowing, thick, dashed focus rings (`DrawFocusRing`) were added around focused widgets.
+  - Unit tests in `modal_transition_test.go` and animated transitions/focus rings in the main demo were added.
 
-- **Faz 13: İnteraktif TUI Oyun Alanı (Playground) ve Dinamik Düzen Kontrolü [TAMAMLANDI]**
-  - Ana demoya sol menü üzerinden geçilebilen interaktif bir Oyun Alanı (Playground) sekmesi eklendi.
-  - Klavye yön tuşları, `+`/`-` oran değiştiricileri ve fare tıklama olaylarını işleyen canlı kontrol paneli oluşturuldu.
+- **Phase 13: Interactive TUI Playground and Dynamic Layout Controls [COMPLETED]**
+  - An interactive Playground tab accessible from the left menu was added to the main demo.
+  - A live control panel was created to handle keyboard arrow keys, `+`/`-` ratio adjustments, and mouse-click events.
 
-- **Faz 14: CSS Grid Yerleşimi, Markdown Çizici, Retro Dither Geçişleri ve Vektör Renk Karışımı [TAMAMLANDI]**
-  - Columns/Rows/Gap parametreleriyle 2D ızgara bölen ve `.Span(rowSpan, colSpan)` birleştirmesini destekleyen `layout/grid.go` CSS Grid motoru kodlandı.
-  - `#` başlıklar, `**kalın**`, `*italik*`, `- liste` ve inline kod bloklarını parse eden, UTF-8 rune duyarlı word-wrap özellikli `widgets/markdown.go` bileşeni geliştirildi.
-  - Bayer 4x4 matrisi ile ekran sekmeleri arasında pürüzsüz retro karıncalanma (dither-fade) geçişi sağlandı.
-  - Donanımsal resim çizimlerinde anti-aliased dairesel kırpma (circle mask) uygulayan avatar filtresi eklendi.
-  - Braille Vektör Canvas'ta üst üste gelen çizgiler/grafikler için sub-pixel düzeyinde RGB renk harmanlama (color blending) motoru Set metoduna entegre edildi.
+- **Phase 14: CSS Grid Layout, Markdown Renderer, Retro Dither Transitions, and Vector Color Blending [COMPLETED]**
+  - The 2D CSS Grid engine in `layout/grid.go` supports `Columns`, `Rows`, `Gap`, and cell merging through `.Span(rowSpan, colSpan)`.
+  - The `widgets/markdown.go` component parses `#` headings, `**bold**`, `*italic*`, `- list`, and inline code blocks, with UTF-8-rune-aware word wrapping.
+  - Smooth retro dither-fade transitions between screen tabs were implemented with a Bayer 4x4 matrix.
+  - An avatar filter applying an anti-aliased circular mask to hardware-rendered images was added.
+  - Sub-pixel RGB color blending for overlapping lines and graphics was integrated into the Braille Vector Canvas `Set` method.
 
-- **Faz 15: Terminal Parçacık Yağmuru (Matrix Rain) ve Yüksek Çözünürlüklü Grafik Çizici (Sparkline) [TAMAMLANDI]**
-  - 8 farklı dikey blok karakteriyle dikey sığdırma ve normalize hesabı yapıp çok satırlı alan grafikleri çizen `widgets/sparkline.go` geliştirildi.
-  - Dikey akan matris parçacıklarını animasyon döngüsünde yürüten Matrix Rain Canvas simülasyonu kodlandı.
-  - Ekran boyutu değiştiğinde oluşan karakter kalıntılarını engelleyen "Resize Ghosting Fix" tampon sıfırlayıcı motoru entegre edildi.
+- **Phase 15: Terminal Particle Rain (Matrix Rain) and High-Resolution Sparkline Renderer [COMPLETED]**
+  - `widgets/sparkline.go` renders multiline area charts using eight vertical block characters with vertical fitting and normalization.
+  - A Matrix Rain Canvas simulation was implemented to animate vertically falling particles.
+  - A "Resize Ghosting Fix" buffer-reset engine was integrated to prevent character remnants after terminal resizing.
 
-- **Faz 16: İnteraktif Fare Sürüklemeli Diyalog ve Kısayol Yardım Paneli [TAMAMLANDI]**
-  - `RegisterClickHandler` ve `MouseEvent.Drag` olayları takip edilerek diyalogların başlık çubuklarından (Title bar) sol tıkla basılı tutulup ekranda serbestçe sürüklenebilmesi (TUI Window Dragging) sağlandı.
-  - `?` tuşuna basıldığında açılan, CSS Grid ve Markdown yardımı ile dairesel profil avatarını içeren Kısayol Yardım Paneli modalı başarıyla eklendi.
+- **Phase 16: Interactive Mouse-Dragged Dialogs and Shortcut Help Panel [COMPLETED]**
+  - TUI window dragging was implemented by tracking `RegisterClickHandler` and `MouseEvent.Drag` events, allowing dialogs to be freely dragged by holding the left mouse button on their title bars.
+  - A Shortcut Help Panel modal opens when `?` is pressed and includes CSS Grid, Markdown help content, and a circular profile avatar.
 
-- **Faz 17: Gelişmiş Performans Profili ve Sıfır-Tahsisat (Zero-Allocation) Optimizasyonları [TAMAMLANDI]**
-  - `widgets/markdown.go` bileşeni işaretçi alıcılı yapılarak ön bellekleme (AST/Layout caching) mekanizması entegre edildi.
-  - Markdown çizim performansı **11.3 kat** arttırıldı ve draw loop sırasında gerçekleşen heap bellek tahsisatı **sıfıra (0 B/op, 0 allocs/op)** düşürüldü.
+- **Phase 17: Advanced Performance Profiling and Zero-Allocation Optimizations [COMPLETED]**
+  - `widgets/markdown.go` was converted to use pointer receivers and AST/layout caching was integrated.
+  - Markdown rendering performance improved by **11.3x**, and heap allocations during the draw loop were reduced to **zero (0 B/op, 0 allocs/op)**.
+
+- **Phase 18: TUI Layout Inspector and Debugging Layer (Layout Inspector / Debug HUD) [COMPLETED]**
+  - The `DebugRegions` structure automatically records the type, dimensions, and z-index of every drawn widget.
+  - A Debug HUD layer triggered by `Ctrl+D` was integrated with pixel-perfect **z-order clipping**, allowing upper layers to obscure the outlines of lower layers.
+  - A globally prioritized keyboard-routing system (Keyboard Focus Fix) was implemented to prevent keys from being swallowed in focused tables and buttons.
+
+- **Phase 19: Interactive Mouse-Based Window Resizing [COMPLETED]**
+  - A purple `◢` resize handle was drawn in the lower-right corner of the Shortcut Help window, with click/drag tracking.
+  - The window dynamically resizes while being dragged (minimum: 40x10, maximum: 100x30). Internal Flex layout areas resize the Markdown content and profile avatar proportionally to the window size.
+
+- **Phase 20: Widgets with Animated Transition Effects (Animated Widget Transducers) [COMPLETED]**
+  - `widgets.Transducer` and dither-based modal/widget transitions were completed.
+  - Tab transitions render directly from a clean frame to prevent the previous frame's text/canvas from being carried over piece by piece; modal and widget animations continue independently.
+  - In addition to disabling the transition flag, `SetTransitionActive(false)` clears the transition progress and `transitionOldBuf`, preventing a closed transition from carrying an old image into the next modal/frame.
+  - The Debug HUD is rendered after the dither transition so that debug boundaries and labels are not faded by the transition effect.
+  - Full-frame transitions are used instead of a temporary body buffer, preventing widget text from mixing with stale cells and avoiding coordinate shifts.
+  - Rows containing text or borders can be changed atomically by the terminal dither engine, preventing characters from being split between the old and new frames.
+  - Opening a modal cancels any active terminal frame transition, preventing `transitionOldBuf` from being rendered as a second panel over the dialog. The modal runs its own scale animation independently.
+  - Background widgets blocked by the modal sandbox are not added to `DebugRegions`; the Debug HUD therefore does not redraw invisible panels over the modal.
+
+- **Phase 21: 3D Vector Graphics Engine [COMPLETED]**
+  - Perspective projection (`Project`) and axis-rotation (`RotateX`/`RotateY`/`RotateZ`) functions were added.
+  - An automatically rotating 3D cube controlled by left-mouse dragging was integrated on the Braille Canvas.
+
+- **Phase 22: Command Palette and Keybindings [COMPLETED]**
+  - The `CommandPalette` widget (`widgets/command_palette.go`) was implemented. It opens with `Ctrl+P`, performs fuzzy searches across tabs and actions, and executes the selected command.
+  - `CommandItem` (`Label`, `Detail`, `Category`, `Handler`) and `CommandPaletteState` (`IsOpen`, `Query`, `Selected`, `ScrollOffset`, `MaxVisible`) were implemented.
+  - The fuzzy search engine (`widgets/fuzzy.go`) includes VS Code-style scoring with consecutive-match, word-start, and CamelCase bonuses.
+  - The declarative `KeybindingManager` (`widgets/keybinding.go`) was implemented with `Register`, `Handle`, and `ToCommandItems` APIs for event-loop integration.
+  - `formatKeybinding` converts shortcuts into readable text such as `Ctrl+P`, `Shift+Tab`, and `↑`.
+  - The feature was integrated into `examples/demo/main.go`: `Ctrl+P` toggles the palette, all keys are routed to the palette while it is open, and `Enter` executes the selected command.
+  - Selecting a 3D model or rendering style from the command palette automatically switches to the `Graphics` tab so the change is immediately visible.
+  - The `CommandPalette.DebugArea()` and `Frame.RenderWidget` debug-area-provider bridge reports the actual centered panel bounds instead of incorrectly reporting the full terminal area.
+  - Unit tests were added: `widgets/command_palette_test.go`, `widgets/keybinding_test.go`, and `widgets/fuzzy_test.go`.
+
+- **Phase 23: Advanced Table Cell Spanning and Column Resizing [COMPLETED]**
+  - Column dragging through `TableState.ResizeColumn` preserves the total table width.
+  - Temporary slice allocation during column resizing was removed; the minimum column width remains two cells.
+  - `ColSpan` and `RowSpan` cells are rendered using a cell-ownership matrix.
+  - Clipping for wide characters and emojis is based on terminal-cell width.
+  - Tests for spanning, resizing, and wide characters were added to `widgets/table_test.go`.
+
+- **Phase 24: Form Components and UI Box Model [COMPLETED]**
+  - `Select` / dropdown support with keyboard navigation, mouse selection, and hover state was added.
+  - The `Slider` component was completed with keyboard, mouse, drag, and capture support.
+  - The `ProgressBar` component was added; the demo uses a 0→100→0 easing animation.
+  - CSS-like `Margin`, `Padding`, and `Insets` APIs were added to the `Block` widget.
+  - A standalone `examples/forms` example was created.
+  - Click and hover events were separated; `MouseRelease` no longer triggers toggle events a second time.
+
+- **Phase 25: Advanced 3D File Import [COMPLETED / EXTENSIBLE]**
+  - A dependency-free Wavefront OBJ parser was added with support for vertices, polygon faces, texture/normal indices, and negative indices.
+  - `Model3D.Normalize` scales file-based models for the existing perspective renderer.
+  - OBJ files can be loaded into the demo with `LIMONI_OBJ=/path/model.obj go run ./examples/demo`.
+  - Example models include `examples/demo/cube.obj` and the eight-part `examples/demo/deniz_topu.obj`.
+  - A Canvas depth buffer and z-interpolated filled-triangle rasterizer were added, allowing OBJ faces to use depth testing independent of draw order.
+  - OBJ `mtllib`, `usemtl`, `.mtl`, and `Kd` diffuse-color support was added; the demo uses material colors in filled-color mode.
+  - OBJ `vt` and face UV-index support was added; textured demo rendering uses model UV coordinates.
+  - An ASCII and binary STL loader was added; the demo selects OBJ or STL based on the `LIMONI_MODEL` extension.
+  - An ASCII PLY loader was also added; it can be loaded with `LIMONI_MODEL=/path/model.ply`.
+  - Future extensions may include a glTF/GLB loader, advanced texture/material features, and large-model optimizations.
+
+- **Phase 26: Dashboard Table [COMPLETED]**
+  - Column sorting with `▲/▼` header indicators, including numeric and text sorting.
+  - Generic `FuzzyFilterBy`, `FuzzyFilterByFields`, and order-preserving `FuzzyFilterByStable`.
+  - Fuzzy filtering through `Table.FilterQuery` and a demo search field.
+  - Multi-select with `ToggleRow`, `IsRowSelected`, `ClearSelectedRows`, and `Space`-based selection.
+  - The `Table.CellStyle(row, column, value)` callback and demo CPU/status color rules were completed.
+  - The demo process table refreshes real PID, name, CPU delta, RSS memory, and status data from Linux `/proc` approximately every 500 ms.
+  - Visible vertical-row rendering and a fixed header were completed; sticky-column horizontal navigation remains for a later phase.
 
 ---
 
-- **Faz 18: TUI Yerleşim Müfettişi ve Hata Ayıklama Katmanı (Layout Inspector / Debug HUD) [TAMAMLANDI]**
-  - Çizilen tüm widget'ların türlerini, boyutlarını ve z-index değerlerini otomatik kaydeden `DebugRegions` yapısı kodlandı.
-  - `Ctrl+D` kısayoluyla tetiklenen, üst katmanların alt katmanların çizgilerini örtmesini sağlayan pixel-perfect **Z-Order Kırpma (Layout Clipping)** özellikli Debug HUD katmanı entegre edildi.
-  - Odaklanmış tablolarda ve butonlarda tuşların yutulmasını önleyen global öncelikli klavye yönlendirme sistemi (Keyboard Focus Fix) uygulandı.
+## 5. Future Roadmap
 
-- **Faz 19: İnteraktif Fare ile Pencere Yeniden Boyutlandırma (Resizable Window Modals) [TAMAMLANDI]**
-  - Kısayol Yardım penceresinin sağ alt köşesine mor renkli `◢` yeniden boyutlandırma tutamacı çizildi ve click/drag takibi entegre edildi.
-  - Kullanıcı fareyle sürükledikçe pencere boyutunun dinamik güncellenmesi sağlandı (min: 40x10, maks: 100x30). İçerideki Flex layout bölmeleri pencere boyutuna göre Markdown ve profil avatarını dinamik/oransal olarak yeniden boyutlandırır.
+1. **Phase 27: Rich Text and Centralized Theme System [COMPLETED / EXTENSIBLE]**
+   - A `Span` / `Line` / `Text` rich-text widget was added.
+   - Semantic token infrastructure with `Theme`, `ThemeColors`, `DarkTheme`, and `LightTheme` was added.
+   - `Frame.SetTheme` / `Context.ThemeStyle` propagates the theme from the Frame to nested child widgets.
+   - `Block` automatically uses the `surface` and `border` tokens when no custom style is provided; the main demo was migrated to semantic color tokens.
+   - Accessibility validation was added through `HighContrastTheme`, `ContrastRatio`, and `Theme.ValidateContrast`.
+   - Rich text supports cell-width-aware wrapping and left/center/right alignment.
+   - Span semantic `Role` and `OnClick` callback support were added.
+   - The phase is complete; possible future extensions include text selection, hyperlink semantics, and semantic-role integration for more widgets.
+2. **Phase 28: Event Propagation, Focus Scope, and Horizontal Layout [COMPLETED]**
+   - Provider-based virtual rows were added through `TableDataSource` / `RowCount` / `RowAt`.
+   - Mouse-wheel vertical scrolling, `Shift+wheel` horizontal offset, and `StickyColumns` rendering were added.
+   - Focus scope/group APIs (`BeginFocusScope`, `EndFocusScope`, and scoped Tab/Shift+Tab) were added.
+   - Help and exit modals are isolated from background widgets through focus scopes.
+   - Capture/target/bubble event propagation APIs (`RegisterEventHandler`, `EventContext`, `StopPropagation`, `PreventDefault`) and their tests were completed.
+   - A deterministic text snapshot API (`Buffer.Snapshot`) and a visible-row table benchmark were added.
+   - Horizontal grid/header intersections clipping, horizontal scroll offset column resize drag handle coordinates, and a zero-allocation responsive box model solver supporting `ConstraintMin` and `ConstraintMax` were completed.
+3. **Phase 29: Terminal Capabilities and Developer Tooling [ACTIVE]**
+   - Capability profiles for TrueColor, 256 colors, mouse, paste, and graphics.
+   - A frame profiler, widget render-time measurements, allocation benchmarks, and a widget showcase.
 
----
-
-- **Faz 20: Animasyonlu Geçiş Efektli Widget'lar (Animated Widget Transducers) [TAMAMLANDI]**
-  - `widgets.Transducer` ve dither tabanlı modal/widget geçişleri tamamlandı.
-  - Sekme geçişlerinde eski frame'in metin/canvas üzerine parça parça taşınmasını önlemek için doğrudan temiz frame render'ı kullanılır; modal ve widget animasyonları bağımsız devam eder.
-  - `SetTransitionActive(false)` geçiş bayrağının yanında `transitionOldBuf` ve progress değerini de temizler; kapatılmış bir geçişin eski görüntüyü sonraki modal/frame üzerine taşıması engellenir.
-  - Debug HUD, dither geçişinden sonra çizilecek şekilde sıralandı; böylece debug sınırları ve etiketleri geçiş efekti tarafından soluklaştırılmaz.
-  - Geçiş sırasında geçici gövde buffer'ı yerine tam frame geçişi kullanıldığı için widget metinleri temiz hücrelerle karışmaz ve koordinat kayması oluşmaz.
-  - Terminal dither motorunda metin veya border içeren satırlar atomik olarak değiştirilebilir; karakterlerin eski/yeni frame arasında parçalanması engellenir.
-  - Modal açılışı, devam eden terminal frame geçişi iptal edilir; böylece `transitionOldBuf` içeriğinin dialog üzerine ikinci bir panel olarak basılması engellenir. Modal kendi ölçekleme animasyonunu bağımsız yürütür.
-  - Modal sandbox'ı tarafından çizimi engellenen arka plan widget'ları `DebugRegions` listesine kaydedilmez; Debug HUD görünmeyen panelleri modalın üzerinde yeniden çizmez.
-
-- **Faz 21: 3 Boyutlu Vektör Grafik Motoru (3D Wireframe Graphics Engine) [TAMAMLANDI]**
-  - Perspektif projeksiyon (`Project`) ve eksen rotasyon (`RotateX`/`RotateY`/`RotateZ`) fonksiyonları eklendi.
-  - Braille Canvas üzerinde otomatik dönen ve sol tık sürüklemeyle yönlendirilebilen 3D Küp entegrasyonu tamamlandı.
-
-- **Faz 22: Komut Paleti ve Kısayol Yönlendirici (Command Palette & Keybindings) [TAMAMLANDI]**
-  - `Ctrl+P` ile açılan, tüm sekmeler ve eylemler arasında bulanık arama (fuzzy search) yapıp tetikleyen `CommandPalette` widget'ı (`widgets/command_palette.go`) geliştirildi.
-  - `CommandItem` (Label, Detail, Category, Handler) yapısı ve `CommandPaletteState` (IsOpen, Query, Selected, ScrollOffset, MaxVisible) durum yönetimi kodlandı.
-  - VS Code tarzı puanlama (ardışık eşleşme, kelime başı, CamelCase bonusları) içeren `FuzzyMatch` ve `FuzzyFilter` bulanık arama motoru (`widgets/fuzzy.go`) tamamlandı.
-  - Declarative klavye kısayol yöneticisi `KeybindingManager` (`widgets/keybinding.go`) geliştirildi; `Register`/`Handle`/`ToCommandItems` API'leri ile event loop'a bağlandı.
-  - `formatKeybinding` kısayolları okunabilir metne (örn. `Ctrl+P`, `Shift+Tab`, `↑`) dönüştürür.
-  - Demo'ya (`examples/demo/main.go`) entegre edildi: `Ctrl+P` ile aç/kapa, palet açıkken tüm tuşlar palete yönlendirilir, `Enter` seçili komutu çalıştırır.
-  - Komut paletinden 3D model veya render stili seçildiğinde otomatik olarak `Grafik` sekmesine geçilir; seçilen değişiklik doğrudan görünür.
-  - `CommandPalette.DebugArea()` ve `Frame.RenderWidget` debug-area provider köprüsü ile panelin debug sınırı gerçek ortalanmış panel alanında gösterilir; tam terminal alanı yanlışlıkla panel sınırı olarak raporlanmaz.
-  - Birim testleri eklendi: `widgets/command_palette_test.go`, `widgets/keybinding_test.go`, `widgets/fuzzy_test.go`.
-
----
-
-- **Faz 23: Gelişmiş Tablo Hücre Birleştirme ve Sütun Boyutlandırma [TAMAMLANDI]**
-  - `TableState.ResizeColumn` ile toplam tablo genişliğini koruyan sütun sürükleme sistemi eklendi.
-  - Sütun resize sırasında geçici slice tahsisi kaldırıldı; minimum sütun genişliği 2 hücre olarak korunuyor.
-  - `ColSpan` ve `RowSpan` hücre sahiplik matrisiyle çiziliyor.
-  - Geniş karakter/emoji clipping işlemi terminal hücre genişliğine göre çalışıyor.
-  - `widgets/table_test.go` içine spanning, resize ve geniş karakter testleri eklendi.
-
-- **Faz 24: Form Bileşenleri ve UI Box Model [TAMAMLANDI]**
-  - `Select` / dropdown, klavye navigasyonu, mouse seçimi ve hover state desteği eklendi.
-  - `Slider` bileşeni; klavye, mouse ve drag/capture desteğiyle tamamlandı.
-  - `ProgressBar` bileşeni eklendi; demo içinde 0→100→0 easing animasyonu kullanılıyor.
-  - `Block` widget'ına CSS benzeri `Margin`, `Padding` ve `Insets` API'si eklendi.
-  - `examples/forms` bağımsız örneği oluşturuldu.
-  - Click ve hover olayları ayrıştırıldı; `MouseRelease` toggle olaylarını tekrar çalıştırmıyor.
-
-- **Faz 25: Gelişmiş 3D Dosya Importu [TAMAMLANDI / GENİŞLETİLEBİLİR]**
-  - Bağımlılıksız Wavefront OBJ parser eklendi: vertex, polygon face, texture/normal index formatları ve negatif index desteği.
-  - `Model3D.Normalize` ile dosya modelleri mevcut perspektif renderer'a uygun ölçekleniyor.
-  - `LIMONI_OBJ=/path/model.obj go run ./examples/demo` ile demo'ya OBJ yüklenebiliyor.
-  - Örnek modeller: `examples/demo/cube.obj` ve 8 parçalı `examples/demo/deniz_topu.obj`.
-  - Canvas depth buffer ve z-interpolasyonlu dolu üçgen çizimi eklendi; OBJ yüzleri çizim sırasından bağımsız derinlik testi kullanabiliyor.
-  - OBJ `mtllib`, `usemtl`, `.mtl` ve `Kd` diffuse renk desteği eklendi; demo dolu renkli modda materyal renklerini kullanıyor.
-  - OBJ `vt` ve face UV index desteği eklendi; dokulu demo render'ı model UV koordinatlarını kullanıyor.
-  - ASCII ve binary STL loader eklendi; demo `LIMONI_MODEL` uzantısına göre OBJ/STL seçiyor.
-  - ASCII PLY loader da eklendi; `LIMONI_MODEL=/path/model.ply` ile demo'ya yüklenebilir.
-  - İleride glTF/GLB loader, gelişmiş texture/material özellikleri ve büyük model optimizasyonları eklenebilir.
-
-- **Faz 26: Dashboard Table [TAMAMLANDI]**
-  - Sütun sıralama ve `▲/▼` header göstergesi; numeric ve metin sıralama.
-  - Generic `FuzzyFilterBy`, `FuzzyFilterByFields` ve sıralamayı koruyan `FuzzyFilterByStable`.
-  - `Table.FilterQuery` ile fuzzy filtreleme ve demo arama alanı.
-  - Multi-select (`ToggleRow`, `IsRowSelected`, `ClearSelectedRows`) ve `Space` ile seçim.
-  - `Table.CellStyle(row, column, value)` callback'i ve demo CPU/status renk kuralları tamamlandı.
-  - Demo süreç tablosu Linux `/proc` üzerinden gerçek PID, isim, CPU delta, RSS bellek ve durum verilerini yaklaşık 500 ms aralıkla yeniliyor.
-  - Görünür dikey satırların çizimi ve sabit header tamamlandı; sticky column yatay navigasyon fazına bırakıldı.
-
-## 5. Gelecek Yol Haritası
-
-1. **Faz 27: Rich Text ve Merkezi Theme Sistemi [TAMAMLANDI / GENİŞLETİLEBİLİR]**
-   - `Span` / `Line` / `Text` rich text widget'ı eklendi.
-   - `Theme`, `ThemeColors`, `DarkTheme` ve `LightTheme` semantic token altyapısı eklendi.
-   - `Frame.SetTheme` / `Context.ThemeStyle` ile tema frame ve nested child widget'lara miras aktarılıyor.
-   - `Block`, özel style verilmediğinde `surface` ve `border` token'larını otomatik kullanıyor; demo ana renkleri semantic token'lara taşındı.
-   - `HighContrastTheme`, `ContrastRatio` ve `Theme.ValidateContrast` ile erişilebilirlik doğrulaması eklendi.
-   - Rich Text için hücre genişliğine duyarlı wrapping ve sol/orta/sağ alignment eklendi.
-   - Span semantic `Role` ve `OnClick` callback desteği eklendi.
-   - Faz kapsamı tamamlandı; ileride text selection, hyperlink semantics ve daha fazla widget semantic role entegrasyonu eklenebilir.
-2. **Faz 28: Event Propagation, Focus Scope ve Yatay Layout [AKTİF]**
-   - `TableDataSource` / `RowCount` / `RowAt` ile provider tabanlı virtual rows eklendi.
-   - Mouse wheel dikey scroll, `Shift+wheel` yatay offset ve `StickyColumns` çizim desteği eklendi.
-   - Focus scope/group API’si (`BeginFocusScope`, `EndFocusScope`, scoped Tab/Shift+Tab) eklendi.
-   - Yardım ve çıkış modalları focus scope ile arka plan widget’larından izole edildi.
-   - Capture/target/bubble event propagation API’si (`RegisterEventHandler`, `EventContext`, `StopPropagation`, `PreventDefault`) ve testleri tamamlandı.
-   - `Buffer.Snapshot` deterministic text snapshot API’si ve table visible-row benchmark’ı eklendi.
-   - Sıradaki hedef: yatay grid/header kesişimlerinin iyileştirilmesi, overflow ve responsive box model.
-3. **Faz 29: Terminal Capability ve Developer Tooling**
-   - TrueColor/256 color/mouse/paste/graphics capability profili.
-   - Frame profiler, widget render süreleri, allocation benchmark ve widget showcase.
-
-## 6. Dosya Yapısı (Güncel)
+## 6. Current File Structure
 
 ```
 limoni/
 ├── go.mod
-├── .agents/skills/limoni_development/skill.md  # Bu el kitabı
+├── .agents/skills/limoni_development/skill.md  # This handbook
 ├── core/
 │   ├── cell/
-│   │   ├── cell.go       # Cell (16 byte), Style (12 byte), Color (uint32)
-│   │   ├── rect.go       # Ekran alanı geometrisi (Rect)
-│   │   └── context.go    # Stack-allocated cascading Context & Merge
+│   │   ├── cell.go       # Cell (16 bytes), Style (12 bytes), Color (uint32)
+│   │   ├── rect.go       # Screen-area geometry (Rect)
+│   │   └── context.go    # Stack-allocated cascading Context and Merge
 │   ├── buffer/
-│   │   ├── buffer.go     # Flat 1D slice hücre matrisi (Buffer), Resize
-│   │   └── diff.go       # Sıfır tahsisatlı double-buffered diff algoritması
+│   │   ├── buffer.go     # Flat 1D cell matrix (Buffer), Resize
+│   │   └── diff.go       # Zero-allocation double-buffered diff algorithm
 │   ├── backend/
-│   │   ├── types.go      # Düz (flat) tipli olay yapıları (Event, KeyEvent vb.)
-│   │   ├── termios_linux # Unix ioctl çağrıları ile Pure Go Raw Mode kontrolü\ n│   │   ├── parser.go     # Klavye/mouse/focus/hover ANSI dizi çözümleyicisi
-│   │   └── backend.go    # SIGWINCH ve 25ms ESC timeout asenkron Event Loop
+│   │   ├── types.go      # Flat event types (Event, KeyEvent, etc.)
+│   │   ├── termios_linux # Pure Go raw-mode control through Unix ioctl calls
+│   │   ├── parser.go     # Keyboard/mouse/focus/hover ANSI sequence parser
+│   │   └── backend.go    # Asynchronous event loop with SIGWINCH and 25 ms ESC timeout
 │   └── terminal/
-│       ├── frame.go      # Kare çizim bağlamı, Click handler kaydı, Layer API, DebugArea provider
-│       ├── terminal.go   # Terminal yöneticisi, Draw döngüsü, Multi-layer Mouse Router, Debug HUD
-│       ├── focus.go      # FocusManager: Tab/Shift-Tab navigasyonu
-│       └── modal.go      # Modal, Layer, LayerType yapıları, CenterRect, ContainsRect
+│       ├── frame.go      # Frame context, click-handler registration, Layer API, DebugArea provider
+│       ├── terminal.go   # Terminal manager, draw loop, multi-layer mouse router, Debug HUD
+│       ├── focus.go      # FocusManager: Tab/Shift+Tab navigation
+│       └── modal.go      # Modal, Layer, and LayerType structures; CenterRect and ContainsRect
 ├── layout/
-│   └── layout.go         # Flexbox yerleşim motoru (Fixed, Percentage, Ratio, Min, Max, Fill)
+│   └── layout.go         # Flexbox layout engine (Fixed, Percentage, Ratio, Min, Max, Fill)
 ├── widgets/
-│   ├── widget.go         # Core Widget arayüzü (Draw ve SizeHint)
-│   ├── block.go          # Kenarlıklı, başlıklı, Margin/Padding'li CSS box-model kapsayıcısı
-│   ├── paragraph.go      # Kelime kaydırmalı (Word wrap) çok satırlı metin widget'ı
-│   ├── list.go           # Seçilebilir, otomatik kaydırılabilir (scrolling) interaktif liste
-│   ├── table.go          # Faz 23: Span, rowSpan, column resize ve wide-cell clipping
-│   ├── dialog.go         # 3D gölgeli modal diyalog penceresi
-│   ├── textinput.go      # Tek satırlı interaktif metin girdisi
-│   ├── checkbox.go       # Onay kutusu [ ]/[x]
-│   ├── radio.go          # Tekli seçim aracı ( )/(*)
-│   ├── popup.go          # Açılır menü (dropdown) widget'ı ve hover highlight
-│   ├── select.go         # Klavye/mouse/hover destekli Select dropdown
-│   ├── textarea.go       # Multiline TextArea ve cursor düzenleme
-│   ├── validation.go     # Form Validator ve field error API
-│   ├── slider.go         # Klavye/mouse/drag destekli Slider
-│   ├── progress.go       # Yüzde ve stil destekli ProgressBar
-│   ├── richtext.go       # Span/Line/Text rich text renderer
-│   └── theme.go          # Semantic Theme ve dark/light preset'leri
-│   ├── canvas.go         # Braille 2x4 alt piksel çözünürlüklü çizim alanı
-│   ├── vector.go         # Bresenham çizgi, daire, dikdörtgen, bezier eğri çizimi
-│   ├── vector_depth.go   # Z-buffer destekli dolu üçgen rasterizer
-│   ├── image.go          # Kitty/Sixel/iTerm2/HalfBlock resim gösterimi
-│   ├── command_palette.go # Faz 22: Komut Paleti (Ctrl+P, fuzzy arama, CommandItem)
-│   ├── keybinding.go     # Faz 22: Declarative klavye kısayol yöneticisi (KeybindingManager)
-│   └── fuzzy.go          # Faz 22: VS Code tarzı bulanık arama motoru (FuzzyMatch/FuzzyFilter)
+│   ├── widget.go         # Core Widget interface (Draw and SizeHint)
+│   ├── block.go          # Bordered, titled CSS box-model container with Margin/Padding
+│   ├── paragraph.go      # Multiline word-wrapping text widget
+│   ├── list.go           # Selectable, automatically scrolling interactive list
+│   ├── table.go          # Phase 23: Span, RowSpan, column resizing, and wide-cell clipping
+│   ├── dialog.go         # 3D-shadowed modal dialog window
+│   ├── textinput.go      # Single-line interactive text input
+│   ├── checkbox.go       # Checkbox [ ]/[x]
+│   ├── radio.go          # Single-selection control ( )/(*)
+│   ├── popup.go          # Dropdown widget with hover highlighting
+│   ├── select.go         # Select dropdown with keyboard/mouse/hover support
+│   ├── textarea.go       # Multiline TextArea and cursor editing
+│   ├── validation.go     # Form validator and field-error API
+│   ├── slider.go         # Slider with keyboard/mouse/drag support
+│   ├── progress.go       # Percentage- and style-aware ProgressBar
+│   ├── richtext.go       # Span/Line/Text rich-text renderer
+│   └── theme.go          # Semantic Theme and dark/light presets
+│   ├── canvas.go         # Braille 2x4 sub-pixel-resolution drawing area
+│   ├── vector.go         # Bresenham line, circle, rectangle, and Bézier drawing
+│   ├── vector_depth.go   # Z-buffer-enabled filled-triangle rasterizer
+│   ├── image.go          # Kitty/Sixel/iTerm2/HalfBlock image rendering
+│   ├── command_palette.go # Phase 22: Command Palette (Ctrl+P, fuzzy search, CommandItem)
+│   ├── keybinding.go     # Phase 22: Declarative keybinding manager (KeybindingManager)
+│   └── fuzzy.go          # Phase 22: VS Code-style fuzzy search engine (FuzzyMatch/FuzzyFilter)
 ├── animation/
-│   ├── float.go          # Zaman tabanlı float interpolasyonu
-│   ├── color.go          # RGB renk geçiş animasyonu
-│   └── easing.go         # 15+ ivmelenme (easing) fonksiyonu
+│   ├── float.go          # Time-based float interpolation
+│   ├── color.go          # RGB color transition animation
+│   └── easing.go         # 15+ easing functions
 ├── graphics/
-│   ├── graphics.go       # Protokol algılama, Kitty/Sixel/iTerm2 kodlayıcıları
-│   ├── vector3d.go        # 3D vertex, rotation ve perspective projection
-│   ├── obj.go            # Wavefront OBJ parser, material library ve Model3D normalization
-│   ├── mtl.go            # Wavefront MTL diffuse material parser
+│   ├── graphics.go       # Protocol detection and Kitty/Sixel/iTerm2 encoders
+│   ├── vector3d.go       # 3D vertices, rotation, and perspective projection
+│   ├── obj.go            # Wavefront OBJ parser, material library, and Model3D normalization
+│   ├── mtl.go            # Wavefront MTL diffuse-material parser
 │   ├── stl.go            # ASCII/binary STL loader
 │   └── ply.go            # ASCII PLY loader
 └── examples/
-    ├── demo/main.go      # Tam interaktif demo; tablo, form, 3D ve OBJ import
-    ├── demo/cube.obj     # OBJ import örneği
-    ├── demo/deniz_topu.obj # 8 sektöre bölünmüş deniz topu OBJ örneği
-    ├── animation/main.go # Animasyon gösterisi
-    ├── forms/main.go     # Select, Slider, ProgressBar ve box-model örneği
-    └── layer_demo/main.go # Faz 10: Katmanlı render, modal, popup demo
+    ├── demo/main.go      # Fully interactive demo; table, forms, 3D, and OBJ import
+    ├── demo/cube.obj     # OBJ import example
+    ├── demo/deniz_topu.obj # Eight-sector beach-ball OBJ example
+    ├── animation/main.go # Animation showcase
+    ├── forms/main.go     # Select, Slider, ProgressBar, and box-model example
+    └── layer_demo/main.go # Phase 10: Layered rendering, modal, and popup demo
 ```
-
-
