@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"strconv"
 
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -30,7 +32,7 @@ func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame,
 	// ═══════════════════════════════════════════════
 	//  SAĞ PANEL: CANLI ÖNİZLEME
 	// ═══════════════════════════════════════════════
-	drawPlaygroundPreview(f, state, mainColor, accentColor, mainChunks[1])
+	drawPlaygroundPreview(t, f, state, mainColor, accentColor, mainChunks[1])
 }
 
 // ── Sol Panel: Gruplandırılmış Kontroller ──────────────────────────────────
@@ -201,6 +203,14 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		modeIndex = 1
 	case "Chart":
 		modeIndex = 2
+	case "ChartTable":
+		modeIndex = 3
+	case "Particle":
+		modeIndex = 4
+	case "Dither":
+		modeIndex = 5
+	case "Profiler":
+		modeIndex = 6
 	}
 	state.PlayModeState.Selected = modeIndex
 	f.RenderWidget(widgets.Block{
@@ -209,7 +219,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		BorderStyle: cell.Style{Fg: modeBorderCol},
 		Child: widgets.Select{
 			ID:      "play_mode",
-			Options: []string{"Vector Canvas", "Matrix Rain", "Sparkline"},
+			Options: []string{"Vector Canvas", "Matrix Rain", "Sparkline", "Table", "Particle Rain", "Dither Effect", "Profiler & Showcase"},
 			State:   state.PlayModeState,
 			OnChange: func(index int, _ string) {
 				switch index {
@@ -219,6 +229,14 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 					state.PlaygroundMode = "Matrix"
 				case 2:
 					state.PlaygroundMode = "Chart"
+				case 3:
+					state.PlaygroundMode = "ChartTable"
+				case 4:
+					state.PlaygroundMode = "Particle"
+				case 5:
+					state.PlaygroundMode = "Dither"
+				case 6:
+					state.PlaygroundMode = "Profiler"
 				}
 			},
 			Style:         cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
@@ -256,7 +274,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 }
 
 // ── Sağ Panel: Canlı Önizleme ──────────────────────────────────────────────
-func drawPlaygroundPreview(f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, area cell.Rect) {
+func drawPlaygroundPreview(t *terminal.Terminal, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, area cell.Rect) {
 	// Dış çerçeve
 	directionLabel := "HORIZONTAL"
 	if state.PlaygroundDir == layout.Vertical {
@@ -295,9 +313,9 @@ func drawPlaygroundPreview(f *terminal.Frame, state *AppState, mainColor, accent
 
 	// ─── ALT: Direction-aware preview ───
 	if state.PlaygroundDir == layout.Vertical {
-		drawPlaygroundVertical(f, state, accentColor, prevChunks[1])
+		drawPlaygroundVertical(t, f, state, accentColor, prevChunks[1])
 	} else {
-		drawPlaygroundGrid(f, state, accentColor, prevChunks[1])
+		drawPlaygroundGrid(t, f, state, accentColor, prevChunks[1])
 	}
 }
 
@@ -323,7 +341,7 @@ func drawPlaygroundStatusBar(f *terminal.Frame, state *AppState, accentColor cel
 	}
 }
 
-func drawPlaygroundVertical(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
+func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
 	profileImg := state.ProfileImg
 	if profileImg == nil {
 		profileImg = state.ActiveImg
@@ -337,13 +355,13 @@ func drawPlaygroundVertical(f *terminal.Frame, state *AppState, accentColor cell
 	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
 	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}, Child: widgets.Image{Img: profileImg, CircleMask: true, ForceHalfBlock: false, OpaqueBackground: true, Background: cell.NewColorRGB(25, 28, 36)}}, parts[1])
-	drawPlaygroundCanvas(f, state, accentColor, sym, parts[2])
+	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
 }
 
 // ── CSS Grid önizleme alanı ─────────────────────────────────────────────────
 var playgroundSurfaceImage = image.NewUniform(color.RGBA{R: 25, G: 28, B: 36, A: 255})
 
-func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
+func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
 	profileImg := state.ProfileImg
 	if profileImg == nil {
 		profileImg = state.ActiveImg
@@ -370,7 +388,7 @@ func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Col
 	gridLayout := layout.NewGridLayout(columns, rows, 1)
 	gridAreas := gridLayout.Split(area)
 
-	// Önce tüm preview alanını sabit opak surface ile kapat; native image
+	// Önce tüm preview alanını sabit opak surface ile kapat; native iRender Modumage
 	// protocol'ünün önceki geniş placement'larından kalan kenarlar görünmesin.
 	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 
@@ -441,11 +459,11 @@ func drawPlaygroundGrid(f *terminal.Frame, state *AppState, accentColor cell.Col
 
 	// ── Hücre (1,0) span 1 row, 2 cols: Canvas / Sparkline ──
 	canvasArea := gridAreas.Cell(1, 0).Span(1, 2)
-	drawPlaygroundCanvas(f, state, accentColor, sym, canvasArea)
+	drawPlaygroundCanvas(t, f, state, accentColor, sym, canvasArea)
 }
 
 // ── Canvas / Sparkline render alanı ─────────────────────────────────────────
-func drawPlaygroundCanvas(f *terminal.Frame, state *AppState, accentColor cell.Color, sym widgets.BorderSymbols, canvasArea cell.Rect) {
+func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, sym widgets.BorderSymbols, canvasArea cell.Rect) {
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
 		borders = widgets.BorderNone
@@ -477,6 +495,92 @@ func drawPlaygroundCanvas(f *terminal.Frame, state *AppState, accentColor cell.C
 
 	// Render moduna göre içerik üret
 	switch state.PlaygroundMode {
+	case "Profiler":
+		caps := terminal.DetectCapabilities()
+		lastFrameTime := t.LastFrameDuration()
+
+		tableRows := []widgets.TableRow{
+			{Cells: []widgets.TableCell{
+				{Text: "Terminal Yetenegi", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Durum", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "TrueColor (24-bit RGB)"},
+				{Text: strconv.FormatBool(caps.TrueColor), Style: cell.Style{Fg: func() cell.Color {
+					if caps.TrueColor {
+						return cell.NewColorRGB(0, 255, 0)
+					}
+					return cell.NewColorRGB(255, 0, 0)
+				}()}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "256 Renk Destegi"},
+				{Text: strconv.FormatBool(caps.Colors256), Style: cell.Style{Fg: func() cell.Color {
+					if caps.Colors256 {
+						return cell.NewColorRGB(0, 255, 0)
+					}
+					return cell.NewColorRGB(255, 0, 0)
+				}()}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "Mouse Raporlama"},
+				{Text: strconv.FormatBool(caps.MouseSupport), Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "Bracketed Paste"},
+				{Text: strconv.FormatBool(caps.BracketedPaste), Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "Grafik Protokolu"},
+				{Text: func() string {
+					switch caps.GraphicsProto {
+					case graphics.ProtocolKitty:
+						return "Kitty Graphics"
+					case graphics.ProtocolSixel:
+						return "Sixel Graphics"
+					case graphics.ProtocolIterm2:
+						return "iTerm2 Inline"
+					default:
+						return "HalfBlock (Fallback)"
+					}
+				}()},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "Performans Olcumleri", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Sure", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+			}},
+			{Cells: []widgets.TableCell{
+				{Text: "Son Kare Cizim Suresi (Frame)"},
+				{Text: fmt.Sprintf("%5.2f ms", float64(lastFrameTime.Microseconds())/1000.0), Style: cell.Style{Fg: cell.NewColorRGB(255, 200, 50)}},
+			}},
+		}
+
+		for _, stat := range t.LastWidgetStats() {
+			tableRows = append(tableRows, widgets.TableRow{
+				Cells: []widgets.TableCell{
+					{Text: fmt.Sprintf("  %s Rendertime", stat.Type)},
+					{Text: fmt.Sprintf("%5.2f ms", float64(stat.Duration.Microseconds())/1000.0)},
+				},
+			})
+		}
+
+		childWidget = &widgets.Table{
+			ID: "profiler_showcase_table",
+			Header: &widgets.TableRow{
+				Cells: []widgets.TableCell{
+					{Text: "BILESEN / YETENEK", Style: cell.Style{Modifier: cell.ModifierBold}},
+					{Text: "OLCUM / DEGER", Style: cell.Style{Modifier: cell.ModifierBold}},
+				},
+				Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 45)},
+			},
+			Rows: tableRows,
+			Constraints: []widgets.TableConstraint{
+				{Type: widgets.ConstraintPercentage, Value: 60},
+				{Type: widgets.ConstraintFill},
+			},
+			GridStyle: cell.Style{Fg: cell.NewColorRGB(70, 70, 70)},
+			DrawGrid:  true,
+		}
 	case "Chart":
 		childWidget = widgets.Sparkline{
 			Data:  state.CPUHistory,
@@ -505,6 +609,73 @@ func drawPlaygroundCanvas(f *terminal.Frame, state *AppState, accentColor cell.C
 					col = cell.Style{Fg: cell.NewColorRGB(0, uint8(intensity), 0)}
 				}
 				canvas.Set(stream.X, yIdx, col)
+			}
+		}
+		childWidget = canvas
+	case "ChartTable":
+		// Canlı parametreleri içeren küçük bir önizleme tablosu
+		childWidget = widgets.Table{
+			Header: &widgets.TableRow{
+				Cells: []widgets.TableCell{
+					{Text: "Parametre"}, {Text: "Değer"},
+				},
+				Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 55), Fg: cell.NewColorRGB(255, 255, 255)},
+			},
+			Rows: []widgets.TableRow{
+				{Cells: []widgets.TableCell{{Text: "Yön / Layout"}, {Text: string(state.PlaygroundDir)}}},
+				{Cells: []widgets.TableCell{{Text: "Oran / Ratio"}, {Text: fmt.Sprintf("%%%d", state.PlaygroundRatio)}}},
+				{Cells: []widgets.TableCell{{Text: "Kenarlık Stili"}, {Text: state.PlaygroundBorder}}},
+				{Cells: []widgets.TableCell{{Text: "Izgara Çizgileri"}, {Text: fmt.Sprintf("%v", state.PlayShowGrid)}}},
+			},
+			Constraints: []widgets.TableConstraint{
+				{Type: widgets.ConstraintPercentage, Value: 50},
+				{Type: widgets.ConstraintPercentage, Value: 50},
+			},
+		}
+	case "Particle":
+		// Turkuaz renkli parçacık yağmuru
+		for _, stream := range state.MatrixStreams {
+			if stream.X >= virtualW {
+				continue
+			}
+			headY := int(stream.Y)
+			for k := 0; k < 8; k++ {
+				yIdx := headY - k
+				if yIdx < 0 || yIdx >= virtualH {
+					continue
+				}
+				intensity := 255 - (k * 30)
+				if intensity < 30 {
+					intensity = 30
+				}
+				var col cell.Style
+				if k == 0 {
+					col = cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}
+				} else {
+					col = cell.Style{Fg: cell.NewColorRGB(0, uint8(intensity), uint8(intensity))}
+				}
+				canvas.Set(stream.X, yIdx, col)
+			}
+		}
+		childWidget = canvas
+	case "Dither":
+		// Bayer 4x4 dither gradyan görselleştirmesi (Animasyonlu)
+		bayer4x4 := [4][4]float64{
+			{0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0},
+			{12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0},
+			{3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0},
+			{15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0},
+		}
+		pulse := state.PulseVal.Value()
+		for y := 0; y < virtualH; y++ {
+			rowThresh := float64(y) / float64(virtualH)
+			// Pulse değerine göre eşik değerini kaydırarak dalgalanma efekti yapıyoruz
+			thresh := rowThresh + (pulse-0.5)*1.5
+			for x := 0; x < virtualW; x++ {
+				bayerVal := bayer4x4[y%4][x%4]
+				if thresh > bayerVal {
+					canvas.Set(x, y, cell.Style{Fg: cell.NewColorRGB(255, 100, 180)}) // Neon Pembe
+				}
 			}
 		}
 		childWidget = canvas
@@ -539,6 +710,16 @@ func drawPlaygroundCanvas(f *terminal.Frame, state *AppState, accentColor cell.C
 		modeLabel = "MATRIX RAIN"
 	case "Chart":
 		modeLabel = "SPARKLINE"
+	case "ChartTable":
+		modeLabel = "TABLE VIEW"
+	case "Particle":
+		modeLabel = "PARTICLE RAIN"
+	case "Dither":
+		modeLabel = "DITHER EFFECT"
+	case "Profiler":
+		modeLabel = "PROFILER & SHOWCASE"
+	case "Model3D":
+		modeLabel = "3D MODEL VIEW"
 	}
 
 	canvasBlock := widgets.Block{

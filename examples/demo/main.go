@@ -205,8 +205,8 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 		state.PulseVal.Update(now)
 	}
 
-	// Matrix Rain Stream Animasyonu
-	if state.PlaygroundMode == "Matrix" {
+	// Matrix/Particle Rain Stream Animasyonu
+	if state.PlaygroundMode == "Matrix" || state.PlaygroundMode == "Particle" {
 		if len(state.MatrixStreams) == 0 {
 			state.MatrixStreams = make([]MatrixStream, 150)
 			for i := range state.MatrixStreams {
@@ -742,7 +742,7 @@ func main() {
 					}
 				} else if focused == "play_mode" {
 					state.PlayModeState.Open = true
-					state.PlayModeState.HandleKey(ev.Key, 3)
+					state.PlayModeState.HandleKey(ev.Key, 7)
 					switch state.PlayModeState.Selected {
 					case 0:
 						state.PlaygroundMode = "Vector"
@@ -750,6 +750,14 @@ func main() {
 						state.PlaygroundMode = "Matrix"
 					case 2:
 						state.PlaygroundMode = "Chart"
+					case 3:
+						state.PlaygroundMode = "ChartTable"
+					case 4:
+						state.PlaygroundMode = "Particle"
+					case 5:
+						state.PlaygroundMode = "Dither"
+					case 6:
+						state.PlaygroundMode = "Profiler"
 					}
 
 				} else if focused == "play_ratio" {
@@ -803,6 +811,12 @@ func main() {
 					} else if ev.Key.Type == backend.KeyArrowUp {
 						state.TableState.Prev()
 						state.LastKey = "Tablo Yukarı (Ok Tuşu)"
+					} else if ev.Key.Type == backend.KeyArrowLeft {
+						state.TableState.ScrollHorizontal(-2)
+						state.LastKey = "Tablo Sola Kaydır (Sol Ok)"
+					} else if ev.Key.Type == backend.KeyArrowRight {
+						state.TableState.ScrollHorizontal(2)
+						state.LastKey = "Tablo Sağa Kaydır (Sağ Ok)"
 					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
 						state.TableState.ToggleRow(state.TableState.Selected)
 						state.LastKey = "Tablo satır seçimi değişti"
@@ -1117,6 +1131,58 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		// Çıkış buton alanı koordinatını kaydet
 		state.ExitButtonArea = menuChunks[4]
 
+		// Profiler & Capabilities HUD (Çizim if Height >= 6)
+		if menuChunks[5].Height >= 6 {
+			caps := terminal.DetectCapabilities()
+			lastFrameTime := t.LastFrameDuration()
+
+			var lines []string
+			lines = append(lines, fmt.Sprintf("Kare: %5.2f ms", float64(lastFrameTime.Microseconds())/1000.0))
+
+			trueColorText := "TrueColor: [✕]"
+			if caps.TrueColor {
+				trueColorText = "TrueColor: [✓]"
+			}
+			lines = append(lines, trueColorText)
+
+			var protoName string
+			switch caps.GraphicsProto {
+			case graphics.ProtocolKitty:
+				protoName = "Kitty"
+			case graphics.ProtocolSixel:
+				protoName = "Sixel"
+			case graphics.ProtocolIterm2:
+				protoName = "iTerm2"
+			default:
+				protoName = "HalfBlock"
+			}
+			lines = append(lines, "Grafik: "+protoName)
+
+			if menuChunks[5].Height >= 8 && len(t.LastWidgetStats()) > 0 {
+				var slowestType string
+				var slowestDur time.Duration
+				for _, stat := range t.LastWidgetStats() {
+					if stat.Duration > slowestDur {
+						slowestDur = stat.Duration
+						slowestType = stat.Type
+					}
+				}
+				lines = append(lines, fmt.Sprintf("Yavas: %s", slowestType))
+				lines = append(lines, fmt.Sprintf("  %5.2f ms", float64(slowestDur.Microseconds())/1000.0))
+			}
+
+			linesText := strings.Join(lines, "\n")
+			f.RenderWidget(widgets.Block{
+				Title: " PROFILER ",
+				Borders: widgets.BorderAll,
+				BorderSymbols: widgets.SymbolsRounded,
+				BorderStyle: cell.Style{Fg: cell.NewColorRGB(120, 120, 120)},
+				PaddingLeft: 1,
+				PaddingRight: 1,
+				Child: label{text: linesText, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}},
+			}, menuChunks[5])
+		}
+
 		// Sekme geçişi Terminal seviyesindeki dither motoru tarafından uygulanır.
 		// Böylece eski frame ile yeni frame tüm hücrelerde doğru şekilde harmanlanır;
 		// gövdeyi ayrı bir geçici buffer'a çizip gösterilmeyen hücreleri temiz bırakmayız.
@@ -1414,7 +1480,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
 				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 0, 255)},
-				Child:          widgets.Image{Img: state.ActiveImg, ZIndex: -1, ForceHalfBlock: true},
+				Child:          widgets.Image{Img: state.ActiveImg, ForceHalfBlock: true},
 			}
 			f.RenderWidget(imageBlock, sağChunks[0])
 
@@ -1621,6 +1687,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					BorderSymbols:  widgets.SymbolsRounded,
 					BorderStyle:    cell.Style{Fg: accentColor},
 					Style:          cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
+					Opaque:         true,
 				}
 				f.BeginFocusScope("help_dialog")
 				f.RenderWidget(helpBlock, animatedHelpArea)
@@ -1703,7 +1770,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				// Sağ Taraf: Profil resmi
 				avatarBlock := widgets.Block{
 					Borders: widgets.BorderNone,
-					Child:   widgets.Image{Img: state.ActiveImg, CircleMask: true, ForceHalfBlock: true},
+					Child:   widgets.Image{Img: state.ActiveImg, CircleMask: true},
 				}
 				f.RenderWidget(avatarBlock, helpChunks[1])
 			}
