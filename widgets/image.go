@@ -46,8 +46,12 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if im.Opacity > 0.0 && im.Opacity < 1.0 {
 		img = graphics.ApplyOpacity(img, im.Opacity)
 	}
-	if im.OpaqueBackground {
-		r, g, b := im.Background.RGB()
+	bgCol := im.Background
+	if bgCol.Type() == cell.ColorDefault {
+		bgCol = ctx.Style.Bg
+	}
+	if im.OpaqueBackground && bgCol.Type() != cell.ColorDefault {
+		r, g, b := bgCol.RGB()
 		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
 	}
 
