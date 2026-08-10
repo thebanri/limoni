@@ -3,6 +3,7 @@
 package testkit
 
 import (
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
@@ -12,8 +13,9 @@ import (
 // It deliberately does not start a backend, raw mode, event loop, or output
 // writer.
 type Terminal struct {
-	buffer *buffer.Buffer
-	frame  *terminal.Frame
+	buffer  *buffer.Buffer
+	frame   *terminal.Frame
+	capture func(ev backend.MouseEvent)
 }
 
 // NewTerminal creates an in-memory terminal with its origin at (0, 0).
@@ -34,12 +36,66 @@ func (t *Terminal) Draw(fn func(frame *terminal.Frame)) {
 	t.buffer.Clear()
 	t.frame.Buffer = t.buffer
 	t.frame.Reset()
+	t.capture = nil
 	if t.frame.FocusManager != nil {
 		t.frame.FocusManager.Clear()
 	}
 	if fn != nil {
 		fn(t.frame)
 	}
+}
+
+// Mouse dispatches a mouse event through the regions registered by the last
+// Draw call. It returns true when a region or a mouse capture handled it.
+func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
+	if t == nil || t.frame == nil {
+		return false
+	}
+	if t.capture != nil {
+		t.capture(ev)
+		if ev.Button == backend.MouseRelease {
+			t.capture = nil
+		}
+		return true
+	}
+
+	if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+		return false
+	}
+	if ev.Button == backend.MouseLeft && ev.Drag {
+		return false
+	}
+
+	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
+		region := t.frame.ClickRegions[i]
+		if !region.Area.Contains(ev.X, ev.Y) {
+			continue
+		}
+		if region.MouseOnly && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+			continue
+		}
+		if !region.MouseOnly && ev.Button != backend.MouseLeft {
+			continue
+		}
+		region.Handler(ev)
+		t.capture = t.frame.TakeMouseCapture()
+		return true
+	}
+	return false
+}
+
+// Click dispatches a left-button click at the given position.
+func (t *Terminal) Click(x, y uint16) bool {
+	return t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft})
+}
+
+// Drag sends a captured drag event followed by a mouse release.
+func (t *Terminal) Drag(x, y uint16) bool {
+	if !t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft, Drag: true}) {
+		return false
+	}
+	t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseRelease})
+	return true
 }
 
 // Snapshot returns the plain-text cell snapshot of the most recently drawn

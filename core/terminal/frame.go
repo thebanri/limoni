@@ -286,6 +286,15 @@ func (f *Frame) CaptureMouse(handler func(ev backend.MouseEvent)) {
 	}
 }
 
+// TakeMouseCapture returns and clears a mouse capture requested while drawing.
+// It is primarily useful to deterministic test harnesses and custom event
+// loops that dispatch events without owning a Terminal instance.
+func (f *Frame) TakeMouseCapture() func(ev backend.MouseEvent) {
+	handler := f.mouseCaptureRequest
+	f.mouseCaptureRequest = nil
+	return handler
+}
+
 // RegisterClickHandlerInLayer, belirtilen katman ID'si altında bir tıklama alanı kaydeder.
 func (f *Frame) RegisterClickHandlerInLayer(area cell.Rect, handler func(ev backend.MouseEvent), layerID string) {
 	if handler == nil {
