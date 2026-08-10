@@ -11,7 +11,7 @@ import (
 // Sadece değişen hücreleri ve stildeki değişimleri tespit ederek, minimum ANSI escape kodunu
 // `out` byte dilimine (slice) ekler ve güncellenmiş dilimi döner.
 // Bellek Optimizasyonu: Eğer `out` yeterli kapasiteye sahipse sıfır heap bellek tahsisatı (zero-allocation) ile çalışır.
-func Diff(front, back *Buffer, out []byte) ([]byte, error) {
+func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, error) {
 	// Boyutlar uyuşmuyorsa, ekranı temizle ve back tamponu yeniden boyutlandır
 	if front.Area.Width != back.Area.Width || front.Area.Height != back.Area.Height {
 		back.Resize(front.Area)
@@ -71,7 +71,7 @@ func Diff(front, back *Buffer, out []byte) ([]byte, error) {
 
 			// Stil güncellenmeli mi?
 			if frontCell.Style != currentStyle {
-				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style)
+				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256)
 			}
 
 			// Karakteri yaz
@@ -98,7 +98,7 @@ func Diff(front, back *Buffer, out []byte) ([]byte, error) {
 	var defaultStyle cell.Style
 	defaultStyle.Reset()
 	if currentStyle != defaultStyle {
-		out, _ = appendStyle(out, currentStyle, defaultStyle)
+		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256)
 	}
 
 	return out, nil
@@ -115,7 +115,8 @@ func appendCursor(out []byte, x, y uint16) []byte {
 
 // appendStyle stildeki değişiklikleri analiz eder ve sadece değişen kısımlar için ANSI kodlarını ekler.
 // Performans: Sıfır tahsisat sağlamak için closure kullanılmadan tamamen düz inline olarak yazılmıştır.
-func appendStyle(out []byte, cur, target cell.Style) ([]byte, cell.Style) {
+func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool) ([]byte, cell.Style) {
+	target = target.Downsample(trueColor, colors256)
 	if cur == target {
 		return out, cur
 	}

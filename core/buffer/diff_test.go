@@ -13,7 +13,7 @@ func TestDiffNoChanges(t *testing.T) {
 	back := NewBuffer(area)
 
 	out := make([]byte, 0, 1024)
-	out, err := Diff(front, back, out)
+	out, err := Diff(front, back, out, true, true)
 	if err != nil {
 		t.Fatalf("Diff hatası: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestDiffCharacterChange(t *testing.T) {
 	front.SetCell(1, 0, cell.Cell{Content: 'A'})
 
 	out := make([]byte, 0, 1024)
-	out, _ = Diff(front, back, out)
+	out, _ = Diff(front, back, out, true, true)
 
 	// Beklenen: İmleç konumlandırma "\x1b[1;2HA" (y+1=1, x+1=2) ve ardından "A"
 	expected := "\x1b[1;2HA"
@@ -60,7 +60,7 @@ func TestDiffStyleTransitions(t *testing.T) {
 	front.SetCell(0, 0, cell.Cell{Content: 'B', Style: style})
 
 	out := make([]byte, 0, 1024)
-	out, _ = Diff(front, back, out)
+	out, _ = Diff(front, back, out, true, true)
 
 	// Beklenen: İmleç (\x1b[1;1H) + Fg RGB (\x1b[38;2;255;0;0m) + Bold (\x1b[1m) + 'B' + Reset style at frame end (\x1b[0m)
 	if !bytes.Contains(out, []byte("B")) {
@@ -93,7 +93,7 @@ func TestDiffModifierRemoval(t *testing.T) {
 	})
 
 	out := make([]byte, 0, 1024)
-	out, _ = Diff(front, back, out)
+	out, _ = Diff(front, back, out, true, true)
 
 	// Çıktıda Bold 'A' dan Normal 'B' ye geçerken \x1b[0m (reset) bulunmalıdır.
 	// Tam çıktı: \x1b[1;1H\x1b[1mA\x1b[0mB
@@ -117,7 +117,7 @@ func BenchmarkDiff_NoChanges(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out = out[:0]
-		out, _ = Diff(front, back, out)
+		out, _ = Diff(front, back, out, true, true)
 	}
 }
 
@@ -146,7 +146,7 @@ func BenchmarkDiff_PartialChanges(b *testing.B) {
 		out = out[:0]
 		// Her turda back tamponunu sıfırlayarak değişikliklerin tekrar diff'e düşmesini sağlıyoruz
 		back.Clear()
-		out, _ = Diff(front, back, out)
+		out, _ = Diff(front, back, out, true, true)
 	}
 }
 
@@ -169,7 +169,7 @@ func BenchmarkDiff_FullChanges(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		out = out[:0]
 		back.Clear()
-		out, _ = Diff(front, back, out)
+		out, _ = Diff(front, back, out, true, true)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestDiffWideCharacters(t *testing.T) {
 	}
 
 	out := make([]byte, 0, 1024)
-	out, err := Diff(front, back, out)
+	out, err := Diff(front, back, out, true, true)
 	if err != nil {
 		t.Fatalf("Diff hatası: %v", err)
 	}
@@ -209,4 +209,41 @@ func TestDiffWideCharacters(t *testing.T) {
 		t.Errorf("Çıktı 'A' karakterini içermeliydi: %q", string(out))
 	}
 }
+
+func TestDiffColorDownsampling(t *testing.T) {
+	area := cell.NewRect(0, 0, 1, 1)
+
+	// 1. Test downsampling RGB to 256 colors
+	front256 := NewBuffer(area)
+	back256 := NewBuffer(area)
+	// Neon Purple: RGB(255, 0, 255)
+	front256.SetCell(0, 0, cell.Cell{
+		Content: 'X',
+		Style: cell.Style{
+			Fg: cell.NewColorRGB(255, 0, 255),
+		},
+	})
+	out256, _ := Diff(front256, back256, nil, false, true)
+	// Expected Fg code should be \x1b[38;5;201m (index 201 is pure Magenta in 256-color cube)
+	if !bytes.Contains(out256, []byte("\x1b[38;5;201m")) {
+		t.Errorf("Expected 256 color code for magenta in out, got: %q", string(out256))
+	}
+
+	// 2. Test downsampling RGB/256 to 16 colors
+	front16 := NewBuffer(area)
+	back16 := NewBuffer(area)
+	front16.SetCell(0, 0, cell.Cell{
+		Content: 'Y',
+		Style: cell.Style{
+			Fg: cell.NewColorRGB(255, 0, 255),
+		},
+	})
+	out16, _ := Diff(front16, back16, nil, false, false)
+	// Expected Fg code should be \x1b[38;5;13m or \x1b[38;5;5m (ansi 13 is bright magenta, ansi 5 is magenta)
+	// Since 16 colors uses ColorANSI type, it writes \x1b[38;5;<ansi>m
+	if !bytes.Contains(out16, []byte("\x1b[38;5;13m")) && !bytes.Contains(out16, []byte("\x1b[38;5;5m")) {
+		t.Errorf("Expected 16-color ANSI code (13 or 5) for RGB magenta, got: %q", string(out16))
+	}
+}
+
 

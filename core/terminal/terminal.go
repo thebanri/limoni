@@ -56,6 +56,9 @@ type Terminal struct {
 	// Profiling metrics
 	lastFrameDuration time.Duration
 	lastWidgetStats   []WidgetStat
+
+	// Terminal capabilities
+	caps CapabilityProfile
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -78,6 +81,7 @@ func New(b *backend.Backend) (*Terminal, error) {
 		back:     back,
 		frame:    NewFrame(front, focusMgr),
 		writeBuf: make([]byte, 0, 8192), // Başlangıçta 8 KB'lık yazma tamponu tahsis et
+		caps:     DetectCapabilities(),
 	}, nil
 }
 
@@ -89,6 +93,11 @@ func (t *Terminal) LastFrameDuration() time.Duration {
 // LastWidgetStats returns the individual render durations of all widgets rendered in the last frame.
 func (t *Terminal) LastWidgetStats() []WidgetStat {
 	return t.lastWidgetStats
+}
+
+// Capabilities returns the capability profile of the active terminal.
+func (t *Terminal) Capabilities() CapabilityProfile {
+	return t.caps
 }
 
 // Draw, çizim döngüsünü başlatır. Boyut değişimlerini algılar, güncel tamponu temizler,
@@ -228,7 +237,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// Bu, dialog/modal gibi ASCII widget'ların resmin önünde görünmesini sağlar.
 	t.writeBuf = t.writeBuf[:0]
 	var diffErr error
-	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf)
+	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf, t.caps.TrueColor, t.caps.Colors256)
 	if diffErr != nil {
 		t.backend.EndSyncUpdate()
 		return diffErr

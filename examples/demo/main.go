@@ -107,10 +107,12 @@ type AppState struct {
 	TableState         *widgets.TableState
 	TableFilterState   *widgets.TextInputState
 	DemoSliderState    *widgets.SliderState
-	PlayDirectionState *widgets.SelectState
-	PlayModeState      *widgets.SelectState
-	PlayBorderState    *widgets.SelectState
-	PlayRatioState     *widgets.SliderState
+	PlayDirectionState  *widgets.SelectState
+	PlayModeState       *widgets.SelectState
+	PlayBorderState     *widgets.SelectState
+	PlayRatioState      *widgets.SliderState
+	ShowcaseSelected    string
+	ShowcaseSelectState *widgets.SelectState
 	DemoMarkdown       string
 	MarkdownOffset     int
 	MarkdownHeight     int
@@ -362,12 +364,14 @@ func main() {
 		TableState:         widgets.NewTableState(),
 		TableFilterState:   widgets.NewTextInputState(),
 		DemoSliderState:    widgets.NewSliderState(50),
-		PlayDirectionState: widgets.NewSelectState(),
-		PlayModeState:      widgets.NewSelectState(),
-		PlayBorderState:    widgets.NewSelectState(),
-		PlayRatioState:     widgets.NewSliderState(50),
-		MarkdownHeight:     6,
-		ProcessSamples:     make(map[string]processSample),
+		PlayDirectionState:  widgets.NewSelectState(),
+		PlayModeState:       widgets.NewSelectState(),
+		PlayBorderState:     widgets.NewSelectState(),
+		PlayRatioState:      widgets.NewSliderState(50),
+		ShowcaseSelected:    "Paragraph",
+		ShowcaseSelectState: widgets.NewSelectState(),
+		MarkdownHeight:      6,
+		ProcessSamples:      make(map[string]processSample),
 	}
 	state.UsernameInputState.SetValue("LimoniGelistirici")
 	state.DemoMarkdown = loadDemoMarkdown()
@@ -760,6 +764,19 @@ func main() {
 						state.PlaygroundMode = "Profiler"
 					}
 
+				} else if focused == "play_showcase_select" {
+					state.ShowcaseSelectState.Open = true
+					state.ShowcaseSelectState.HandleKey(ev.Key, 4)
+					switch state.ShowcaseSelectState.Selected {
+					case 0:
+						state.ShowcaseSelected = "Paragraph"
+					case 1:
+						state.ShowcaseSelected = "Table"
+					case 2:
+						state.ShowcaseSelected = "Forms"
+					case 3:
+						state.ShowcaseSelected = "Vector"
+					}
 				} else if focused == "play_ratio" {
 					state.PlayRatioState.HandleKey(ev.Key, 10, 90)
 					state.PlaygroundRatio = state.PlayRatioState.Value

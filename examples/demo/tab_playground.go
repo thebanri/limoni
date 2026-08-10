@@ -493,15 +493,21 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 
 	var childWidget widgets.Widget
 
-	// Render moduna göre içerik üret
-	switch state.PlaygroundMode {
-	case "Profiler":
-		caps := terminal.DetectCapabilities()
+	if state.PlaygroundMode == "Profiler" {
+		profilerLay := layout.NewFlexLayout(
+			layout.Horizontal,
+			1,
+			layout.Percentage(45),
+			layout.Percentage(55),
+		)
+		chunks := profilerLay.Split(canvasArea)
+
+		caps := t.Capabilities()
 		lastFrameTime := t.LastFrameDuration()
 
 		tableRows := []widgets.TableRow{
 			{Cells: []widgets.TableCell{
-				{Text: "Terminal Yetenegi", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Terminal Yeteneği", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
 				{Text: "Durum", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
 			}},
 			{Cells: []widgets.TableCell{
@@ -514,7 +520,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				}()}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "256 Renk Destegi"},
+				{Text: "256 Renk Desteği"},
 				{Text: strconv.FormatBool(caps.Colors256), Style: cell.Style{Fg: func() cell.Color {
 					if caps.Colors256 {
 						return cell.NewColorRGB(0, 255, 0)
@@ -531,7 +537,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				{Text: strconv.FormatBool(caps.BracketedPaste), Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Grafik Protokolu"},
+				{Text: "Grafik Protokolü"},
 				{Text: func() string {
 					switch caps.GraphicsProto {
 					case graphics.ProtocolKitty:
@@ -546,11 +552,11 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				}()},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Performans Olcumleri", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
-				{Text: "Sure", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Performans Ölçümleri", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Süre", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Son Kare Cizim Suresi (Frame)"},
+				{Text: "Son Kare Çizim Süresi"},
 				{Text: fmt.Sprintf("%5.2f ms", float64(lastFrameTime.Microseconds())/1000.0), Style: cell.Style{Fg: cell.NewColorRGB(255, 200, 50)}},
 			}},
 		}
@@ -564,12 +570,12 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			})
 		}
 
-		childWidget = &widgets.Table{
+		profilerTable := &widgets.Table{
 			ID: "profiler_showcase_table",
 			Header: &widgets.TableRow{
 				Cells: []widgets.TableCell{
-					{Text: "BILESEN / YETENEK", Style: cell.Style{Modifier: cell.ModifierBold}},
-					{Text: "OLCUM / DEGER", Style: cell.Style{Modifier: cell.ModifierBold}},
+					{Text: "BİLEŞEN / YETENEK", Style: cell.Style{Modifier: cell.ModifierBold}},
+					{Text: "ÖLÇÜM / DEĞER", Style: cell.Style{Modifier: cell.ModifierBold}},
 				},
 				Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 45)},
 			},
@@ -581,6 +587,182 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			GridStyle: cell.Style{Fg: cell.NewColorRGB(70, 70, 70)},
 			DrawGrid:  true,
 		}
+
+		f.RenderWidget(widgets.Block{
+			Title: " DIAGNOSTICS & PROFILER ",
+			Borders: borders,
+			BorderSymbols: sym,
+			BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
+			Child: profilerTable,
+		}, chunks[0])
+
+		rightLay := layout.NewFlexLayout(
+			layout.Vertical,
+			1,
+			layout.Fixed(3),
+			layout.Fill(),
+		)
+		rightChunks := rightLay.Split(chunks[1])
+
+		showcaseOptions := []string{"Paragraph", "Table", "Forms", "Vector"}
+		showcaseIdx := 0
+		switch state.ShowcaseSelected {
+		case "Paragraph":
+			showcaseIdx = 0
+		case "Table":
+			showcaseIdx = 1
+		case "Forms":
+			showcaseIdx = 2
+		case "Vector":
+			showcaseIdx = 3
+		}
+		state.ShowcaseSelectState.Selected = showcaseIdx
+
+		f.RenderWidget(widgets.Block{
+			Title: " SHOWCASE SEÇİN ",
+			Borders: widgets.BorderAll,
+			BorderSymbols: widgets.SymbolsRounded,
+			BorderStyle: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)},
+			Child: widgets.Select{
+				ID: "play_showcase_select",
+				Options: showcaseOptions,
+				State: state.ShowcaseSelectState,
+				OnChange: func(index int, _ string) {
+					switch index {
+					case 0:
+						state.ShowcaseSelected = "Paragraph"
+					case 1:
+						state.ShowcaseSelected = "Table"
+					case 2:
+						state.ShowcaseSelected = "Forms"
+					case 3:
+						state.ShowcaseSelected = "Vector"
+					}
+				},
+				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
+				SelectedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: accentColor, Modifier: cell.ModifierBold},
+				HoverStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(100, 100, 120)},
+			},
+		}, rightChunks[0])
+
+		var showcaseWidget widgets.Widget
+		switch state.ShowcaseSelected {
+		case "Paragraph":
+			showcaseWidget = widgets.Paragraph{
+				Text: "Limoni TUI Kütüphanesi ile yazılmış olan bu paragraf bileşeni, otomatik sözcük sarma (word wrapping) desteğine sahiptir. " +
+					"Farklı pencere boyutlarına göre kendini yeniden hesaplar ve düzgün şekilde konumlandırır.\n\n" +
+					"Ayrıca **kalın**, *italik*, `kod` ve diğer biçimlendirmeleri de başarıyla işleyebilir.",
+			}
+		case "Table":
+			showcaseWidget = &widgets.Table{
+				ID: "showcase_table",
+				Header: &widgets.TableRow{
+					Cells: []widgets.TableCell{
+						{Text: "Sınıf", Style: cell.Style{Modifier: cell.ModifierBold}},
+						{Text: "Değer", Style: cell.Style{Modifier: cell.ModifierBold}},
+						{Text: "Oran", Style: cell.Style{Modifier: cell.ModifierBold}},
+					},
+					Style: cell.Style{Bg: cell.NewColorRGB(60, 60, 70)},
+				},
+				Rows: []widgets.TableRow{
+					{Cells: []widgets.TableCell{{Text: "Hafıza"}, {Text: "12.4 MB"}, {Text: "25%"}}},
+					{Cells: []widgets.TableCell{{Text: "CPU"}, {Text: "1.2%"}, {Text: "10%"}}},
+					{Cells: []widgets.TableCell{{Text: "İş parçacığı"}, {Text: "8 adet"}, {Text: "60%"}}},
+				},
+				Constraints: []widgets.TableConstraint{
+					{Type: widgets.ConstraintPercentage, Value: 35},
+					{Type: widgets.ConstraintPercentage, Value: 35},
+					{Type: widgets.ConstraintFill},
+				},
+				GridStyle: cell.Style{Fg: cell.NewColorRGB(90, 90, 100)},
+				DrawGrid:  true,
+			}
+		case "Forms":
+			formLay := layout.NewFlexLayout(
+				layout.Vertical,
+				0,
+				layout.Fixed(1),
+				layout.Fixed(2),
+				layout.Fixed(2),
+				layout.Fixed(2),
+				layout.Fill(),
+			)
+			formChunks := formLay.Split(rightChunks[1])
+
+			f.RenderWidget(widgets.Block{
+				Borders: widgets.BorderNone,
+				Child: widgets.Paragraph{
+					Text: "İnteraktif Form Bileşenleri:",
+				},
+			}, formChunks[0])
+
+			f.RenderWidget(widgets.TextInput{
+				ID: "showcase_input",
+				State: state.UsernameInputState,
+				Placeholder: "Kullanıcı adı...",
+				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200), Bg: cell.NewColorRGB(45, 45, 55)},
+				FocusedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(65, 65, 80)},
+			}, formChunks[1])
+
+			f.RenderWidget(widgets.Checkbox{
+				ID: "showcase_checkbox",
+				Checked: &state.MouseModeChecked,
+				Label: "Mouse Etkinleştir",
+				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
+				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
+			}, formChunks[2])
+
+			f.RenderWidget(widgets.Slider{
+				ID: "showcase_slider",
+				State: state.DemoSliderState,
+				Min: 0,
+				Max: 100,
+				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
+				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
+			}, formChunks[3])
+
+			val := float64(state.DemoSliderState.Value)
+			f.RenderWidget(widgets.ProgressBar{
+				Value: val,
+				Min: 0,
+				Max: 100,
+				ShowPercent: true,
+				FilledStyle: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)},
+			}, formChunks[4])
+
+		case "Vector":
+			rw := rightChunks[1].Width
+			rh := rightChunks[1].Height
+			if rw > 2 && rh > 2 {
+				subCanvas := widgets.NewCanvas(rw-2, rh-2)
+				cx := int(rw-2) * 2 / 2
+				cy := int(rh-2) * 4 / 2
+				r := int(rh-2) * 4 / 3
+				pulse := state.PulseVal.Value()
+				r = int(float64(r) * (0.8 + 0.3*pulse))
+
+				subCanvas.DrawCircle(cx, cy, r, cell.Style{Fg: cell.NewColorRGB(255, 0, 128)})
+				subCanvas.DrawLine(cx, cy, cx+int(float64(r)*0.9), cy, cell.Style{Fg: cell.NewColorRGB(0, 255, 255)})
+				showcaseWidget = subCanvas
+			}
+		}
+
+		if showcaseWidget != nil {
+			f.RenderWidget(widgets.Block{
+				Title: fmt.Sprintf(" BİLEŞEN GÖSTERİMİ: %s ", state.ShowcaseSelected),
+				Borders: borders,
+				BorderSymbols: sym,
+				BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
+				Child: showcaseWidget,
+			}, rightChunks[1])
+		}
+		return
+	}
+
+	// Render moduna göre içerik üret
+	switch state.PlaygroundMode {
+	case "Profiler":
+		// Handled early
 	case "Chart":
 		childWidget = widgets.Sparkline{
 			Data:  state.CPUHistory,
