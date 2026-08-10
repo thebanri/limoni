@@ -136,8 +136,11 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	y := ctx.Area.Y
 	maxY := ctx.Area.Y + ctx.Area.Height
-	visualLines := m.visualLineCount(ctx.Area.Width)
-	maxOffset := maxMarkdownOffset(visualLines, int(ctx.Area.Height))
+	// ScrollOffset is indexed by parsed Markdown rows because the renderer
+	// advances through cachedLines in the same coordinate system. Using the
+	// wrapped visual-row count here would skip too many source rows and make
+	// scrolling appear stuck or leave the viewport blank.
+	maxOffset := maxMarkdownOffset(len(m.cachedLines), int(ctx.Area.Height))
 	offset := 0
 	if m.ScrollOffset != nil {
 		offset = *m.ScrollOffset
