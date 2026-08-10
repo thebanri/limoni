@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -78,7 +79,8 @@ type Frame struct {
 	ThemeSet bool
 
 	// WidgetStats, bu çizim karesinde çizilen widget'ların render sürelerini saklar.
-	WidgetStats []WidgetStat
+	WidgetStats   []WidgetStat
+	Accessibility []accessibility.AccessibilityNode
 }
 
 // DispatchClick dispatches a click to the topmost enabled target region and
@@ -178,6 +180,24 @@ func (f *Frame) Reset() {
 	f.lastClickID = ""
 	f.lastClickAt = time.Time{}
 	f.WidgetStats = f.WidgetStats[:0]
+	f.Accessibility = f.Accessibility[:0]
+}
+
+// RegisterAccessibility adds a semantic node to the current frame tree.
+func (f *Frame) RegisterAccessibility(node accessibility.AccessibilityNode) {
+	if f != nil {
+		f.Accessibility = append(f.Accessibility, node)
+	}
+}
+
+// AccessibilityTree returns the nodes registered during the current frame.
+func (f *Frame) AccessibilityTree() []accessibility.AccessibilityNode {
+	if f == nil {
+		return nil
+	}
+	result := make([]accessibility.AccessibilityNode, len(f.Accessibility))
+	copy(result, f.Accessibility)
+	return result
 }
 
 // RegisterModal, bu karede çizilen aktif bir modal katmanı kaydeder.

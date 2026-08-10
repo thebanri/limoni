@@ -5,6 +5,7 @@ package testkit
 import (
 	"time"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -179,6 +180,14 @@ func (t *Terminal) HoveredRegionID() string {
 		return ""
 	}
 	return t.frame.HoveredRegionID()
+}
+
+// AccessibilityTree returns semantic nodes from the last frame.
+func (t *Terminal) AccessibilityTree() []accessibility.AccessibilityNode {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	return t.frame.AccessibilityTree()
 }
 
 // ClickAt dispatches a deterministic click using the supplied timestamp.
