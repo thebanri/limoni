@@ -26,8 +26,11 @@ type Image struct {
 	Background       cell.Color
 	// Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir.
 	Transparent bool
-	// Opacity, resmin opaklık değeridir (0.0 ile 1.0 arasında). Belirtilmezse varsayılan 1.0 (opak) kabul edilir.
+	// Opacity, resmin opaklık değeridir (0.0 ile 1.0 arasında).
 	Opacity float64
+	// OpacitySet, Opacity alanının bilinçli olarak ayarlandığını belirtir.
+	// Böylece 0.0 değeri ile varsayılan (belirtilmemiş) değer ayrıştırılır.
+	OpacitySet bool
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
@@ -43,7 +46,7 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if im.CircleMask {
 		img = graphics.ApplyCircleMask(img)
 	}
-	if im.Opacity > 0.0 && im.Opacity < 1.0 {
+	if im.OpacitySet && im.Opacity < 1.0 {
 		img = graphics.ApplyOpacity(img, im.Opacity)
 	}
 	bgCol := im.Background
@@ -80,6 +83,12 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				if c := buf.Get(x, y); c != nil {
 					c.Content = cell.RuneImage
 					c.Style.Reset()
+					if im.Transparent {
+						// Native image protocols composite transparent pixels over the
+						// terminal cell background. Resetting the style here would turn
+						// that background into the terminal default (usually black).
+						c.Style.Bg = ctx.Style.Bg
+					}
 				}
 			}
 		}

@@ -15,6 +15,12 @@ import (
 )
 
 func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, bodyArea cell.Rect) {
+	// Playground'a ait + / - kısayolları yalnızca bu sekme çizilirken aktiftir.
+	f.BeginFocusScope("playground")
+	if state.PlaygroundMode == "VirtualList" {
+		f.BeginFocusScope("playground_virtual_list")
+	}
+
 	// ─── ANA İKİ SÜTUN: Sol Kontroller (34 sütun) | Sağ Önizleme (Fill) ───
 	mainLay := layout.NewFlexLayout(
 		layout.Horizontal,
@@ -33,6 +39,31 @@ func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame,
 	//  SAĞ PANEL: CANLI ÖNİZLEME
 	// ═══════════════════════════════════════════════
 	drawPlaygroundPreview(t, f, state, mainColor, accentColor, mainChunks[1])
+}
+
+type playgroundVirtualListProvider struct{}
+
+func (playgroundVirtualListProvider) Len() int { return 1000 }
+
+func (playgroundVirtualListProvider) ItemAt(index int) string {
+	return fmt.Sprintf("Kayıt %04d · lazy provider", index+1)
+}
+
+func moveVirtualListSelection(state *AppState, delta int) {
+	if state.VirtualListState == nil {
+		state.VirtualListState = widgets.NewListState()
+	}
+	if state.VirtualListState.Selected < 0 {
+		state.VirtualListState.Selected = 0
+	} else {
+		state.VirtualListState.Selected += delta
+	}
+	if state.VirtualListState.Selected < 0 {
+		state.VirtualListState.Selected = 0
+	}
+	if state.VirtualListState.Selected >= 1000 {
+		state.VirtualListState.Selected = 999
+	}
 }
 
 // ── Sol Panel: Gruplandırılmış Kontroller ──────────────────────────────────
@@ -211,6 +242,8 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		modeIndex = 5
 	case "Profiler":
 		modeIndex = 6
+	case "VirtualList":
+		modeIndex = 7
 	}
 	state.PlayModeState.Selected = modeIndex
 	f.RenderWidget(widgets.Block{
@@ -219,7 +252,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		BorderStyle: cell.Style{Fg: modeBorderCol},
 		Child: widgets.Select{
 			ID:      "play_mode",
-			Options: []string{"Vector Canvas", "Matrix Rain", "Sparkline", "Table", "Particle Rain", "Dither Effect", "Profiler & Showcase"},
+			Options: []string{"Vector Canvas", "Matrix Rain", "Sparkline", "Table", "Particle Rain", "Dither Effect", "Profiler & Showcase", "Virtual List + Scrollbar"},
 			State:   state.PlayModeState,
 			OnChange: func(index int, _ string) {
 				switch index {
@@ -237,6 +270,8 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 					state.PlaygroundMode = "Dither"
 				case 6:
 					state.PlaygroundMode = "Profiler"
+				case 7:
+					state.PlaygroundMode = "VirtualList"
 				}
 			},
 			Style:         cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
@@ -342,10 +377,6 @@ func drawPlaygroundStatusBar(f *terminal.Frame, state *AppState, accentColor cel
 }
 
 func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
-	profileImg := state.ProfileImg
-	if profileImg == nil {
-		profileImg = state.ActiveImg
-	}
 	parts := layout.NewFlexLayout(layout.Vertical, 1, layout.Percentage(28), layout.Percentage(28), layout.Fill()).Split(area)
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
@@ -354,7 +385,7 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	sym := widgets.SymbolsRounded
 	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
-	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Child: widgets.Image{Img: profileImg, CircleMask: true, ForceHalfBlock: false, OpaqueBackground: true, Opacity: float64(state.AvatarOpacityState.Value) / 100.0}}, parts[1])
+	drawPlaygroundProfile(f, state, accentColor, parts[1], " PROFİL · VERTICAL ", true, borders, sym)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
 }
 
@@ -362,10 +393,6 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 var playgroundSurfaceImage = image.NewUniform(color.RGBA{R: 25, G: 28, B: 36, A: 255})
 
 func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
-	profileImg := state.ProfileImg
-	if profileImg == nil {
-		profileImg = state.ActiveImg
-	}
 	if area.Width < 6 || area.Height < 4 {
 		return
 	}
@@ -435,17 +462,15 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 	if state.ProfileFrame == "Stretched" {
 		profileSymbols = widgets.SymbolsDouble
 	}
-	imgBlock := widgets.Block{
-		Title:          fmt.Sprintf(" PROFİL · %s ", state.ProfileFrame),
-		TitleAlignment: widgets.AlignCenter,
-		Borders:        borders,
-		BorderSymbols:  profileSymbols,
-		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 165, 0)},
-		Child:          widgets.Image{Img: profileImg, CircleMask: state.ProfileFrame == "Rounded", ForceHalfBlock: false, OpaqueBackground: true, Opacity: float64(state.AvatarOpacityState.Value) / 100.0},
-	}
 	profileArea := gridAreas.Cell(0, 1).Area
-	f.RenderWidget(imgBlock, profileArea)
-	registerTargetClick(f, profileArea, func(backend.MouseEvent) {
+	profileClickArea := cell.Rect{}
+	if borders != widgets.BorderNone && profileArea.Width > 2 && profileArea.Height > 5 {
+		profileClickArea = cell.Rect{X: profileArea.X + 1, Y: profileArea.Y + 1, Width: profileArea.Width - 2, Height: profileArea.Height - 5}
+	} else if borders == widgets.BorderNone && profileArea.Height > 3 {
+		profileClickArea = profileArea
+		profileClickArea.Height -= 3
+	}
+	registerTargetClick(f, profileClickArea, func(backend.MouseEvent) {
 		switch state.ProfileFrame {
 		case "Rounded":
 			state.ProfileFrame = "Full"
@@ -455,10 +480,73 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 			state.ProfileFrame = "Rounded"
 		}
 	})
+	drawPlaygroundProfile(f, state, accentColor, profileArea, fmt.Sprintf(" PROFİL · %s ", state.ProfileFrame), state.ProfileFrame == "Rounded", borders, profileSymbols)
 
 	// ── Hücre (1,0) span 1 row, 2 cols: Canvas / Sparkline ──
 	canvasArea := gridAreas.Cell(1, 0).Span(1, 2)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, canvasArea)
+}
+
+// drawPlaygroundProfile renders the avatar and its opacity control in one profile card.
+func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect, title string, circleMask bool, borders uint8, symbols widgets.BorderSymbols) {
+	profileBlock := widgets.Block{
+		Title:          title,
+		TitleAlignment: widgets.AlignCenter,
+		Borders:        borders,
+		BorderSymbols:  symbols,
+		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 165, 0)},
+	}
+	f.RenderWidget(profileBlock, area)
+
+	innerArea := area
+	if borders != widgets.BorderNone {
+		innerArea = cell.Rect{X: area.X + 1, Y: area.Y + 1, Width: area.Width - 2, Height: area.Height - 2}
+	}
+	if innerArea.Width == 0 || innerArea.Height == 0 {
+		return
+	}
+
+	profileParts := layout.NewFlexLayout(layout.Vertical, 1, layout.Fill(), layout.Fixed(3)).Split(innerArea)
+	profileImg := state.ProfileImg
+	if profileImg == nil {
+		profileImg = state.ActiveImg
+	}
+	// Native image protocols may use the terminal default (black) behind alpha
+	// pixels. Read the already-rendered theme background from the target cell and
+	// flatten against that color so the avatar follows the active theme.
+	profileBackground := cell.NewColorDefault()
+	if c := f.Buffer.Get(profileParts[0].X, profileParts[0].Y); c != nil {
+		profileBackground = c.Style.Bg
+	}
+	f.RenderWidget(widgets.Image{
+		Img:              profileImg,
+		CircleMask:       circleMask,
+		ForceHalfBlock:   false,
+		OpaqueBackground: profileBackground.Type() != cell.ColorDefault,
+		Background:       profileBackground,
+		Opacity:          float64(state.AvatarOpacityState.Value) / 100.0,
+		OpacitySet:       true,
+	}, profileParts[0])
+
+	opacityBorder := cell.NewColorRGB(60, 65, 80)
+	if f.FocusManager != nil && f.FocusManager.Focused() == "avatar_opacity" {
+		opacityBorder = accentColor
+	}
+	f.RenderWidget(widgets.Block{
+		Title:         fmt.Sprintf(" OPAKLIK: %%%d ", state.AvatarOpacityState.Value),
+		Borders:       widgets.BorderAll,
+		BorderSymbols: widgets.SymbolsRounded,
+		BorderStyle:   cell.Style{Fg: opacityBorder},
+		PaddingLeft:   1,
+		PaddingRight:  1,
+		Child: widgets.Slider{
+			ID: "avatar_opacity", State: state.AvatarOpacityState,
+			Min: 0, Max: 100,
+			TrackStyle:  cell.Style{Fg: cell.NewColorRGB(60, 65, 80)},
+			FilledStyle: cell.Style{Fg: accentColor},
+			ThumbStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
+		},
+	}, profileParts[1])
 }
 
 // ── Canvas / Sparkline render alanı ─────────────────────────────────────────
@@ -588,11 +676,11 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		}
 
 		f.RenderWidget(widgets.Block{
-			Title: " DIAGNOSTICS & PROFILER ",
-			Borders: borders,
+			Title:         " DIAGNOSTICS & PROFILER ",
+			Borders:       borders,
 			BorderSymbols: sym,
-			BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
-			Child: profilerTable,
+			BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
+			Child:         profilerTable,
 		}, chunks[0])
 
 		rightLay := layout.NewFlexLayout(
@@ -618,14 +706,14 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		state.ShowcaseSelectState.Selected = showcaseIdx
 
 		f.RenderWidget(widgets.Block{
-			Title: " SHOWCASE SEÇİN ",
-			Borders: widgets.BorderAll,
+			Title:         " SHOWCASE SEÇİN ",
+			Borders:       widgets.BorderAll,
 			BorderSymbols: widgets.SymbolsRounded,
-			BorderStyle: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)},
+			BorderStyle:   cell.Style{Fg: cell.NewColorRGB(180, 180, 180)},
 			Child: widgets.Select{
-				ID: "play_showcase_select",
+				ID:      "play_showcase_select",
 				Options: showcaseOptions,
-				State: state.ShowcaseSelectState,
+				State:   state.ShowcaseSelectState,
 				OnChange: func(index int, _ string) {
 					switch index {
 					case 0:
@@ -638,9 +726,9 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 						state.ShowcaseSelected = "Vector"
 					}
 				},
-				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
+				Style:         cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
 				SelectedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: accentColor, Modifier: cell.ModifierBold},
-				HoverStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(100, 100, 120)},
+				HoverStyle:    cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(100, 100, 120)},
 			},
 		}, rightChunks[0])
 
@@ -696,35 +784,35 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			}, formChunks[0])
 
 			f.RenderWidget(widgets.TextInput{
-				ID: "showcase_input",
-				State: state.UsernameInputState,
-				Placeholder: "Kullanıcı adı...",
-				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200), Bg: cell.NewColorRGB(45, 45, 55)},
+				ID:           "showcase_input",
+				State:        state.UsernameInputState,
+				Placeholder:  "Kullanıcı adı...",
+				Style:        cell.Style{Fg: cell.NewColorRGB(200, 200, 200), Bg: cell.NewColorRGB(45, 45, 55)},
 				FocusedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(65, 65, 80)},
 			}, formChunks[1])
 
 			f.RenderWidget(widgets.Checkbox{
-				ID: "showcase_checkbox",
-				Checked: &state.MouseModeChecked,
-				Label: "Mouse Etkinleştir",
-				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
+				ID:           "showcase_checkbox",
+				Checked:      &state.MouseModeChecked,
+				Label:        "Mouse Etkinleştir",
+				Style:        cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
 				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 			}, formChunks[2])
 
 			f.RenderWidget(widgets.Slider{
-				ID: "showcase_slider",
-				State: state.DemoSliderState,
-				Min: 0,
-				Max: 100,
-				Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
+				ID:           "showcase_slider",
+				State:        state.DemoSliderState,
+				Min:          0,
+				Max:          100,
+				Style:        cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
 				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 			}, formChunks[3])
 
 			val := float64(state.DemoSliderState.Value)
 			f.RenderWidget(widgets.ProgressBar{
-				Value: val,
-				Min: 0,
-				Max: 100,
+				Value:       val,
+				Min:         0,
+				Max:         100,
 				ShowPercent: true,
 				FilledStyle: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)},
 			}, formChunks[4])
@@ -748,11 +836,11 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 
 		if showcaseWidget != nil {
 			f.RenderWidget(widgets.Block{
-				Title: fmt.Sprintf(" BİLEŞEN GÖSTERİMİ: %s ", state.ShowcaseSelected),
-				Borders: borders,
+				Title:         fmt.Sprintf(" BİLEŞEN GÖSTERİMİ: %s ", state.ShowcaseSelected),
+				Borders:       borders,
 				BorderSymbols: sym,
-				BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
-				Child: showcaseWidget,
+				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
+				Child:         showcaseWidget,
 			}, rightChunks[1])
 		}
 		return
@@ -762,6 +850,23 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 	switch state.PlaygroundMode {
 	case "Profiler":
 		// Handled early
+	case "VirtualList":
+		if state.VirtualListState == nil {
+			state.VirtualListState = widgets.NewListState()
+		}
+		if state.VirtualListState.Selected < 0 {
+			state.VirtualListState.Selected = 0
+		}
+		childWidget = widgets.List{
+			Provider:            playgroundVirtualListProvider{},
+			State:               state.VirtualListState,
+			Scrollbar:           true,
+			ScrollbarTrackStyle: cell.Style{Fg: cell.NewColorRGB(60, 65, 80)},
+			ScrollbarThumbStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
+			Style:               cell.Style{Fg: cell.NewColorRGB(190, 195, 210)},
+			SelectedStyle:       cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: accentColor, Modifier: cell.ModifierBold},
+			HighlightSymbol:     "> ",
+		}
 	case "Chart":
 		childWidget = widgets.Sparkline{
 			Data:  state.CPUHistory,
@@ -899,6 +1004,8 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		modeLabel = "DITHER EFFECT"
 	case "Profiler":
 		modeLabel = "PROFILER & SHOWCASE"
+	case "VirtualList":
+		modeLabel = "VIRTUAL LIST + SCROLLBAR"
 	case "Model3D":
 		modeLabel = "3D MODEL VIEW"
 	}

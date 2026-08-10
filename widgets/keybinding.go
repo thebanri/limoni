@@ -24,6 +24,8 @@ type Keybinding struct {
 	Category string
 	// Scope, kısayolun geçerli olduğu odak kapsamıdır (ör: "settings_modal"). Boş bırakılırsa global kabul edilir.
 	Scope string
+	// When, kısayolun o anda etkin olup olmadığını belirler. Nil ise daima etkindir.
+	When func() bool
 }
 
 // KeybindingManager, bildirimsel (declarative) olarak tanımlanan
@@ -66,6 +68,9 @@ func (km *KeybindingManager) Handle(ev backend.KeyEvent, activeScopes ...string)
 			}
 
 			if kbScope != normTarget {
+				continue
+			}
+			if kb.When != nil && !kb.When() {
 				continue
 			}
 			if kb.Key != ev.Type {

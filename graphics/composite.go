@@ -4,11 +4,13 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 	"reflect"
 	"sync"
 )
 
 var flattenedImageCache sync.Map
+var opacityImageCache sync.Map
 
 type flattenedImageKey struct {
 	pointer       uintptr
@@ -49,7 +51,16 @@ func FlattenImage(src image.Image, background color.Color) image.Image {
 	return dst
 }
 
+type opacityImageKey struct {
+	pointer       uintptr
+	opacity       uint64
+	width, height int
+}
+
 // ApplyOpacity multiplies the image's alpha channel by the given opacity factor (0.0 to 1.0).
+// Pointer-backed images are cached because this function is called from Image.Draw,
+// which runs on every frame. Keeping the transformed image stable also prevents native
+// terminal protocols from re-uploading the same avatar on every frame.
 func ApplyOpacity(src image.Image, opacity float64) image.Image {
 	if src == nil || opacity >= 1.0 {
 		return src
@@ -57,6 +68,21 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 	bounds := src.Bounds()
 	if opacity <= 0.0 {
 		return image.NewRGBA(bounds)
+	}
+
+	value := reflect.ValueOf(src)
+	cacheable := value.Kind() == reflect.Pointer
+	var key opacityImageKey
+	if cacheable {
+		key = opacityImageKey{
+			pointer: value.Pointer(),
+			opacity: math.Float64bits(opacity),
+			width:   bounds.Dx(),
+			height:  bounds.Dy(),
+		}
+		if cached, ok := opacityImageCache.Load(key); ok {
+			return cached.(image.Image)
+		}
 	}
 
 	dst := image.NewRGBA(bounds)
@@ -74,6 +100,8 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 			dst.Set(x, y, color.RGBA{R: nr, G: ng, B: nb, A: uint8(newA / 257)})
 		}
 	}
+	if cacheable {
+		opacityImageCache.Store(key, dst)
+	}
 	return dst
 }
-

@@ -104,9 +104,9 @@ type AppState struct {
 	ExitDialogAnim     *animation.Float
 
 	// Giriş sekmesindeki interaktif tablo durumu
-	TableState         *widgets.TableState
-	TableFilterState   *widgets.TextInputState
-	DemoSliderState    *widgets.SliderState
+	TableState          *widgets.TableState
+	TableFilterState    *widgets.TextInputState
+	DemoSliderState     *widgets.SliderState
 	PlayDirectionState  *widgets.SelectState
 	PlayModeState       *widgets.SelectState
 	PlayBorderState     *widgets.SelectState
@@ -114,13 +114,13 @@ type AppState struct {
 	AvatarOpacityState  *widgets.SliderState
 	ShowcaseSelected    string
 	ShowcaseSelectState *widgets.SelectState
-	DemoMarkdown       string
-	MarkdownOffset     int
-	MarkdownHeight     int
-	Processes          []ProcessInfo
-	ProcessSamples     map[string]processSample
-	LastProcessRead    time.Time
-	FormProgress       *animation.Float
+	DemoMarkdown        string
+	MarkdownOffset      int
+	MarkdownHeight      int
+	Processes           []ProcessInfo
+	ProcessSamples      map[string]processSample
+	LastProcessRead     time.Time
+	FormProgress        *animation.Float
 
 	// Açılır menü durumu
 	NotificationMode string
@@ -138,9 +138,10 @@ type AppState struct {
 	TransitionStartTime time.Time
 
 	// Oyun alanı ek özellikleri (Matrix ve Sparkline)
-	PlaygroundMode string
-	MatrixStreams  []MatrixStream
-	CPUHistory     []float64
+	PlaygroundMode   string
+	VirtualListState *widgets.ListState
+	MatrixStreams    []MatrixStream
+	CPUHistory       []float64
 
 	// Sürükleme ve Yardım Modali özellikleri
 	ShowHelpDialog  bool
@@ -342,34 +343,35 @@ func main() {
 			"Playground": animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 			"Çıkış":      animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 		},
-		UsernameInputState: widgets.NewTextInputState(),
-		ExitDialogAnim:     animation.NewFloat(0.0),
-		HelpDialogAnim:     animation.NewFloat(0.0),
-		NotificationMode:   "Normal Mod",
-		NotifPopupState:    widgets.NewPopupState(),
-		PlaygroundDir:      layout.Horizontal,
-		PlaygroundRatio:    50,
-		PlaygroundBorder:   "Rounded",
-		PlaygroundMode:     "Vector",
-		MouseModeChecked:   true,
-		ThemeSelected:      "Koyu",
-		ProfileFrame:       "Rounded",
-		DebugMode:          false,
-		RotX:               30.0,
-		RotY:               45.0,
-		RotZ:               0.0,
-		IsResizingModal:    false,
-		HelpDialogW:        64,
-		HelpDialogH:        16,
-		LastImageToggle:    time.Now(),
-		TableState:         widgets.NewTableState(),
-		TableFilterState:   widgets.NewTextInputState(),
-		DemoSliderState:    widgets.NewSliderState(50),
+		UsernameInputState:  widgets.NewTextInputState(),
+		ExitDialogAnim:      animation.NewFloat(0.0),
+		HelpDialogAnim:      animation.NewFloat(0.0),
+		NotificationMode:    "Normal Mod",
+		NotifPopupState:     widgets.NewPopupState(),
+		PlaygroundDir:       layout.Horizontal,
+		PlaygroundRatio:     50,
+		PlaygroundBorder:    "Rounded",
+		PlaygroundMode:      "Vector",
+		VirtualListState:    widgets.NewListState(),
+		MouseModeChecked:    true,
+		ThemeSelected:       "Koyu",
+		ProfileFrame:        "Rounded",
+		DebugMode:           false,
+		RotX:                30.0,
+		RotY:                45.0,
+		RotZ:                0.0,
+		IsResizingModal:     false,
+		HelpDialogW:         64,
+		HelpDialogH:         16,
+		LastImageToggle:     time.Now(),
+		TableState:          widgets.NewTableState(),
+		TableFilterState:    widgets.NewTextInputState(),
+		DemoSliderState:     widgets.NewSliderState(50),
 		PlayDirectionState:  widgets.NewSelectState(),
 		PlayModeState:       widgets.NewSelectState(),
 		PlayBorderState:     widgets.NewSelectState(),
 		PlayRatioState:      widgets.NewSliderState(50),
-		AvatarOpacityState: widgets.NewSliderState(100),
+		AvatarOpacityState:  widgets.NewSliderState(100),
 		ShowcaseSelected:    "Paragraph",
 		ShowcaseSelectState: widgets.NewSelectState(),
 		MarkdownHeight:      6,
@@ -469,6 +471,135 @@ func main() {
 		Label: "Komut Paletini Aç/Kapa", Category: "Genel",
 		Handler: func() { state.CmdPalette.Toggle() },
 	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
+		Label: "Hata Ayıklama Modunu Aç/Kapa", Category: "Görünüm",
+		Handler: func() { state.DebugMode = !state.DebugMode },
+	})
+	canHandleGlobalCommand := func() bool {
+		focused := t.FocusManager().Focused()
+		return !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen &&
+			focused != "username_input" && focused != "showcase_input" && focused != "table_filter"
+	}
+	openHelp := func() {
+		state.ShowHelpDialog = true
+		state.ModalOffsetX = 0
+		state.ModalOffsetY = 0
+		state.HelpDialogW = 66
+		state.HelpDialogH = 12
+		state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+		state.LastKey = "Yardım Paneli Açıldı"
+	}
+	openExitConfirmation := func() {
+		state.ShowExitDialog = true
+		state.ModalOffsetX = 0
+		state.ModalOffsetY = 0
+		state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+		t.FocusManager().SetFocused("exit_dialog_btn_1")
+		state.LastKey = "Çıkış Onay Modali Açıldı"
+		t.ForceFullRedraw()
+	}
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: '?', Label: "Yardım Panelini Aç", Category: "Görünüm",
+		When: canHandleGlobalCommand, Handler: openHelp,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'q', Label: "Çıkış Onayını Aç", Category: "Genel",
+		When: canHandleGlobalCommand, Handler: openExitConfirmation,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Çıkış Onayını Aç", Category: "Genel",
+		When: canHandleGlobalCommand, Handler: openExitConfirmation,
+	})
+	closeExitDialog := func() {
+		state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+		t.FocusManager().SetFocused("")
+		t.ForceFullRedraw()
+	}
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Scope: "exit_dialog", Label: "Çıkış Diyaloğunu Kapat", Category: "Modal",
+		Handler: closeExitDialog,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Scope: "help_dialog", Label: "Yardım Panelini Kapat", Category: "Modal",
+		Handler: func() {
+			state.ShowHelpDialog = false
+			t.FocusManager().SetFocused("")
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Açılır Menüyü Kapat", Category: "Modal",
+		When:    func() bool { return state.NotifPopupState.IsOpen },
+		Handler: func() { state.NotifPopupState.Close() },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Aktif Kontrolden Çık", Category: "Navigasyon",
+		When: func() bool {
+			switch t.FocusManager().Focused() {
+			case "username_input", "showcase_input", "demo_markdown", "table_filter":
+				return true
+			default:
+				return false
+			}
+		},
+		Handler: func() { t.FocusManager().SetFocused("") },
+	})
+	registerGraphicKey := func(ch rune, label string, handler func()) {
+		state.KeyManager.Register(widgets.Keybinding{
+			Key: backend.KeyRune, Ch: ch, Label: label, Category: "3D Grafik",
+			When: func() bool { return state.ActiveTab == "Grafik" }, Handler: handler,
+		})
+	}
+	registerGraphicKey('1', "3D Model: Küp", func() { state.ThreeDModel = "Küp" })
+	registerGraphicKey('2', "3D Model: Piramit", func() { state.ThreeDModel = "Piramit" })
+	registerGraphicKey('3', "3D Model: Dörtyüzlü", func() { state.ThreeDModel = "Dörtyüzlü" })
+	registerGraphicKey('4', "Render Stili: Dokulu", func() { state.ThreeDStyle = "Dokulu" })
+	registerGraphicKey('5', "Render Stili: Dolu Renkli", func() { state.ThreeDStyle = "Dolu Renkli" })
+	registerGraphicKey('6', "Render Stili: Kafes", func() { state.ThreeDStyle = "Kafes" })
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: '+', Scope: "playground",
+		Label: "Playground Oranını Artır", Category: "Playground",
+		When: func() bool {
+			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() {
+			state.PlaygroundRatio += 5
+			if state.PlaygroundRatio > 90 {
+				state.PlaygroundRatio = 90
+			}
+			state.PlayRatioState.Set(state.PlaygroundRatio, 10, 90)
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: '-', Scope: "playground",
+		Label: "Playground Oranını Azalt", Category: "Playground",
+		When: func() bool {
+			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() {
+			state.PlaygroundRatio -= 5
+			if state.PlaygroundRatio < 10 {
+				state.PlaygroundRatio = 10
+			}
+			state.PlayRatioState.Set(state.PlaygroundRatio, 10, 90)
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'j', Scope: "playground_virtual_list",
+		Label: "Sanal Listede Aşağı Git", Category: "Playground",
+		When: func() bool {
+			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() { moveVirtualListSelection(state, 1) },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'k', Scope: "playground_virtual_list",
+		Label: "Sanal Listede Yukarı Git", Category: "Playground",
+		When: func() bool {
+			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() { moveVirtualListSelection(state, -1) },
+	})
 
 	// Sekme navigasyon komutlarını Command Palette'e kaydet
 	cmdItems := []widgets.CommandItem{
@@ -508,16 +639,6 @@ func main() {
 					state.IsTransitioning = true
 				}
 			}},
-
-		{Label: "Yardım Panelini Aç", Detail: "?", Category: "Görünüm",
-			Handler: func() {
-				state.ShowHelpDialog = true
-				state.ModalOffsetX = 0
-				state.ModalOffsetY = 0
-				state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
-			}},
-		{Label: "Hata Ayıklama Modunu Aç/Kapa", Detail: "Ctrl+D", Category: "Görünüm",
-			Handler: func() { state.DebugMode = !state.DebugMode }},
 
 		{Label: "3D Model: Küp", Detail: "1", Category: "3D Grafik",
 			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Küp" }},
@@ -576,11 +697,18 @@ func main() {
 					break
 				}
 
-				// Hata ayıklama modunu (Layout Inspector) her koşulda en öncelikli global kısayol olarak dinle
-				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'd' && ev.Key.Ctrl {
-					state.DebugMode = !state.DebugMode
-					state.LastKey = fmt.Sprintf("Hata Ayıklama Katmanı Toggled: %v", state.DebugMode)
-					break
+				// Playground yönü, bir kontrol widget'ı odakta değilken ok tuşlarıyla değişir.
+				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb" || focused == "avatar_opacity"
+				if state.ActiveTab == "Playground" && !playgroundControlFocused && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen {
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						if state.PlaygroundDir == layout.Horizontal {
+							state.PlaygroundDir = layout.Vertical
+						} else {
+							state.PlaygroundDir = layout.Horizontal
+						}
+						state.LastKey = "Playground Yön Değiştir"
+						break
+					}
 				}
 
 				// Eğer Çıkış Onay Modali açıksa, klavye girdilerini sadece onun butonlarına yönlendir
@@ -652,34 +780,6 @@ func main() {
 					}
 					state.LastKey = "Açılır Menü Klavye Navigasyonu"
 					break
-				}
-
-				// Playground'ın global kısayolları yalnızca bir kontrol widget'ı focus'ta değilken çalışır.
-				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb"
-				if state.ActiveTab == "Playground" && !playgroundControlFocused {
-					if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' {
-						state.PlaygroundRatio += 5
-						if state.PlaygroundRatio > 90 {
-							state.PlaygroundRatio = 90
-						}
-						state.LastKey = "Playground Oran Arttır (+)"
-						break
-					} else if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' {
-						state.PlaygroundRatio -= 5
-						if state.PlaygroundRatio < 10 {
-							state.PlaygroundRatio = 10
-						}
-						state.LastKey = "Playground Oran Azalt (-)"
-						break
-					} else if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
-						if state.PlaygroundDir == layout.Horizontal {
-							state.PlaygroundDir = layout.Vertical
-						} else {
-							state.PlaygroundDir = layout.Horizontal
-						}
-						state.LastKey = "Playground Yön Değiştir"
-						break
-					}
 				}
 
 				// Yön tuşları veya Vim tuşları (h/j/k/l) ile 2B spatial odak navigasyonu
@@ -784,10 +884,7 @@ func main() {
 					if state.UsernameInputState.HandleKey(ev.Key) {
 						// TextInput durumu güncellendi
 					}
-					// ESC tuşu basıldığında metin kutusu odağından çık
-					if ev.Key.Type == backend.KeyEsc {
-						t.FocusManager().SetFocused("")
-					}
+
 				} else if focused == "demo_slider" {
 					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
 				} else if focused == "avatar_opacity" {
@@ -824,7 +921,7 @@ func main() {
 					}
 				} else if focused == "play_mode" {
 					state.PlayModeState.Open = true
-					state.PlayModeState.HandleKey(ev.Key, 7)
+					state.PlayModeState.HandleKey(ev.Key, 8)
 					switch state.PlayModeState.Selected {
 					case 0:
 						state.PlaygroundMode = "Vector"
@@ -840,6 +937,8 @@ func main() {
 						state.PlaygroundMode = "Dither"
 					case 6:
 						state.PlaygroundMode = "Profiler"
+					case 7:
+						state.PlaygroundMode = "VirtualList"
 					}
 
 				} else if focused == "play_showcase_select" {
@@ -868,8 +967,7 @@ func main() {
 						state.MarkdownHeight++
 					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
 						state.MarkdownHeight--
-					case ev.Key.Type == backend.KeyEsc:
-						t.FocusManager().SetFocused("")
+
 					}
 				} else if focused == "table_filter" {
 					switch ev.Key.Type {
@@ -896,9 +994,7 @@ func main() {
 					default:
 						state.TableFilterState.HandleKey(ev.Key)
 					}
-					if ev.Key.Type == backend.KeyEsc {
-						t.FocusManager().SetFocused("")
-					}
+
 				} else if focused == "process_table" {
 					if ev.Key.Type == backend.KeyArrowDown {
 						state.TableState.Next(len(state.Processes))
@@ -915,61 +1011,6 @@ func main() {
 					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
 						state.TableState.ToggleRow(state.TableState.Selected)
 						state.LastKey = "Tablo satır seçimi değişti"
-					} else if ev.Key.Type == backend.KeyEsc {
-						t.FocusManager().SetFocused("")
-					}
-				}
-
-				// Grafik sekmesi klavye kısayolları
-				if state.ActiveTab == "Grafik" {
-					if ev.Key.Type == backend.KeyRune {
-						switch ev.Key.Ch {
-						case '1':
-							state.ThreeDModel = "Küp"
-							state.LastKey = "Model: Küp"
-						case '2':
-							state.ThreeDModel = "Piramit"
-							state.LastKey = "Model: Piramit"
-						case '3':
-							state.ThreeDModel = "Dörtyüzlü"
-							state.LastKey = "Model: Dörtyüzlü"
-
-						case '4':
-							state.ThreeDStyle = "Dokulu"
-							state.LastKey = "Stil: Dokulu"
-						case '5':
-							state.ThreeDStyle = "Dolu Renkli"
-							state.LastKey = "Stil: Dolu Renkli"
-						case '6':
-							state.ThreeDStyle = "Kafes"
-							state.LastKey = "Stil: Kafes"
-						}
-					}
-				}
-
-				// Genel kısayollar: Eğer kullanıcı aktif olarak metin yazma alanında değilse
-				// ?, q ve Esc tuşlarının genel pencere olaylarını tetiklemesine izin ver.
-				if focused != "username_input" {
-					if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?' {
-						state.ShowHelpDialog = true
-						state.ModalOffsetX = 0
-						state.ModalOffsetY = 0
-						state.HelpDialogW = 66
-						state.HelpDialogH = 12
-						state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
-						state.LastKey = "Yardım Paneli Açıldı"
-						break
-					}
-
-					if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
-						state.ShowExitDialog = true
-						state.ModalOffsetX = 0
-						state.ModalOffsetY = 0
-						state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
-						t.FocusManager().SetFocused("exit_dialog_btn_1")
-						state.LastKey = "Çıkış Onay Modali Açıldı"
-						t.ForceFullRedraw()
-						break
 					}
 				}
 
@@ -1268,13 +1309,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			linesText := strings.Join(lines, "\n")
 			f.RenderWidget(widgets.Block{
-				Title: " PROFILER ",
-				Borders: widgets.BorderAll,
+				Title:         " PROFILER ",
+				Borders:       widgets.BorderAll,
 				BorderSymbols: widgets.SymbolsRounded,
-				BorderStyle: cell.Style{Fg: cell.NewColorRGB(120, 120, 120)},
-				PaddingLeft: 1,
-				PaddingRight: 1,
-				Child: label{text: linesText, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}},
+				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(120, 120, 120)},
+				PaddingLeft:   1,
+				PaddingRight:  1,
+				Child:         label{text: linesText, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}},
 			}, menuChunks[5])
 		}
 

@@ -22,7 +22,6 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 		layout.Fixed(1), // Checkbox (Mouse modu)
 		layout.Fixed(6), // Tema grubu kutusu (Bordered Block height 6)
 		layout.Fixed(3), // Bildirim modu açılır kutusu (Bordered Block height 3)
-		layout.Fixed(3), // Profil Görseli Opaklığı (Bordered Block height 3)
 	)
 	formChunks := formLay.Split(innerArea)
 
@@ -186,43 +185,4 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	}
 
 	f.RenderWidget(notificationModePopup, popupArea)
-
-	// 4. Profil Görseli Opaklığı (Slider) Çizimi
-	opacityBorderCol := cell.NewColorRGB(100, 100, 100)
-	if t.FocusManager().Focused() == "avatar_opacity" {
-		opacityBorderCol = accentColor
-	}
-
-	sliderArea := cell.Rect{
-		X:      formChunks[5].X + 2,
-		Y:      formChunks[5].Y + 1,
-		Width:  formChunks[5].Width - 4,
-		Height: 1,
-	}
-
-	opacitySlider := widgets.Slider{
-		ID:          "avatar_opacity",
-		State:       state.AvatarOpacityState,
-		Min:         0,
-		Max:         100,
-		TrackStyle:  cell.Style{Fg: demoTheme.Colors.Border},
-		FilledStyle: cell.Style{Fg: demoTheme.Colors.Success},
-		ThumbStyle:  cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
-	}
-
-	opacityBlock := widgets.Block{
-		Title:          " PROFİL GÖRSELİ OPAKLIĞI (SLIDER) ",
-		TitleAlignment: widgets.AlignLeft,
-		Borders:        widgets.BorderAll,
-		BorderSymbols:  widgets.SymbolsRounded,
-		BorderStyle:    cell.Style{Fg: opacityBorderCol},
-		Child:          opacitySlider,
-	}
-	f.RenderWidget(opacityBlock, formChunks[5])
-
-	if t.FocusManager().Focused() == "avatar_opacity" {
-		widgets.DrawFocusRing(f.Buffer, formChunks[5], cell.Style{Fg: accentColor})
-	}
-
-	f.RenderWidget(opacitySlider, sliderArea)
 }
