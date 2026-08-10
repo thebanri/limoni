@@ -22,6 +22,8 @@ type Keybinding struct {
 	Label string
 	// Category, kısayolun ait olduğu kategoridir (ör: "Navigasyon", "Görünüm").
 	Category string
+	// Scope, kısayolun geçerli olduğu odak kapsamıdır (ör: "settings_modal"). Boş bırakılırsa global kabul edilir.
+	Scope string
 }
 
 // KeybindingManager, bildirimsel (declarative) olarak tanımlanan
@@ -42,27 +44,47 @@ func (km *KeybindingManager) Register(kb Keybinding) {
 	km.bindings = append(km.bindings, kb)
 }
 
-// Handle, gelen tuş olayını kayıtlı kısayollar ile karşılaştırır.
-// Eşleşen bir kısayol bulunursa handler çağrılır ve true döner.
-// Eşleşme yoksa false döner.
-func (km *KeybindingManager) Handle(ev backend.KeyEvent) bool {
-	for _, kb := range km.bindings {
-		if kb.Key != ev.Type {
-			continue
+// Handle, gelen tuş olayını aktif odak kapsamları (activeScopes) sırasına göre kontrol eder.
+// Kapsamlar en içtekiden (highest priority) en dıştakine doğru taranır. En son global kapsam kontrol edilir.
+func (km *KeybindingManager) Handle(ev backend.KeyEvent, activeScopes ...string) bool {
+	// Kapsam kontrol sırasını oluştur: en içten en dışa, sonra global ("")
+	scopesToCheck := make([]string, 0, len(activeScopes)+1)
+	for i := len(activeScopes) - 1; i >= 0; i-- {
+		scopesToCheck = append(scopesToCheck, activeScopes[i])
+	}
+	scopesToCheck = append(scopesToCheck, "") // Global fallback
+
+	for _, targetScope := range scopesToCheck {
+		for _, kb := range km.bindings {
+			kbScope := kb.Scope
+			if kbScope == "global" {
+				kbScope = ""
+			}
+			normTarget := targetScope
+			if normTarget == "global" {
+				normTarget = ""
+			}
+
+			if kbScope != normTarget {
+				continue
+			}
+			if kb.Key != ev.Type {
+				continue
+			}
+			if kb.Key == backend.KeyRune && kb.Ch != ev.Ch {
+				continue
+			}
+			if kb.Ctrl != ev.Ctrl {
+				continue
+			}
+			if kb.Shift != ev.Shift {
+				continue
+			}
+			if kb.Handler != nil {
+				kb.Handler()
+			}
+			return true
 		}
-		if kb.Key == backend.KeyRune && kb.Ch != ev.Ch {
-			continue
-		}
-		if kb.Ctrl != ev.Ctrl {
-			continue
-		}
-		if kb.Shift != ev.Shift {
-			continue
-		}
-		if kb.Handler != nil {
-			kb.Handler()
-		}
-		return true
 	}
 	return false
 }

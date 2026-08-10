@@ -572,7 +572,7 @@ func main() {
 					break
 				}
 				// Declarative kısayolların merkezi yönlendiricisi.
-				if state.KeyManager.Handle(ev.Key) {
+				if state.KeyManager.Handle(ev.Key, t.FocusManager().ActiveScopes()...) {
 					break
 				}
 

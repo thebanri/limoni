@@ -91,6 +91,17 @@ func (fm *FocusManager) ActiveScope() string {
 	return fm.scopeStack[len(fm.scopeStack)-1]
 }
 
+// ActiveScopes returns a copy of the current active focus scope stack.
+func (fm *FocusManager) ActiveScopes() []string {
+	if len(fm.scopeStack) == 0 {
+		return nil
+	}
+	res := make([]string, len(fm.scopeStack))
+	copy(res, fm.scopeStack)
+	return res
+}
+
+
 // Focused, aktif olarak odaklanmış olan widget'ın ID'sini döndürür.
 func (fm *FocusManager) Focused() string {
 	return fm.focusedID

@@ -243,6 +243,7 @@ type Table struct {
 	FilterQuery   string                                            // Fuzzy filtre sorgusu; boşsa tüm satırlar çizilir.
 	CellStyle     func(row, column int, value TableCell) cell.Style // Hücre bazlı stil kuralı.
 	StickyColumns int                                               // Soldan sabit kalacak sütun sayısı.
+	Scrollbar     bool                                              // Sağ kenarda dikey kaydırma çubuğu çizer.
 }
 
 func (t Table) columnX(area cell.Rect, widths []uint16, column int) uint16 {
@@ -343,7 +344,46 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		ctx.RegisterFocus(t.ID)
 	}
 
-	// 1. SÜTUN GENİŞLİKLERİNİN HESAPLANMASI VE İLKLENDİRİLMESİ
+	// 1. SATIR SAYISININ VE FİLTRENİN HESAPLANMASI
+	rows := t.Rows
+	rowCount := len(rows)
+	rowAt := func(index int) TableRow { return rows[index] }
+	if t.DataSource != nil {
+		rowCount = t.DataSource.RowCount()
+		rowAt = t.DataSource.RowAt
+	}
+	if t.FilterQuery != "" {
+		filtered := make([]TableRow, 0, rowCount)
+		for i := 0; i < rowCount; i++ {
+			row := rowAt(i)
+			if _, matched := FuzzyMatch(t.FilterQuery, row.SearchText()); matched {
+				filtered = append(filtered, row)
+			}
+		}
+		rows = filtered
+		rowCount = len(rows)
+		rowAt = func(index int) TableRow { return rows[index] }
+	}
+
+	// 2. SCROLLBAR TALEBİNİN VE ALAN GENİŞLİĞİNİN HESAPLANMASI
+	visibleRows := int(ctx.Area.Height)
+	if t.Header != nil {
+		visibleRows--
+		if ctx.Area.Height > 1 {
+			visibleRows--
+		}
+	}
+	if visibleRows < 0 {
+		visibleRows = 0
+	}
+
+	drawScrollbar := false
+	if t.Scrollbar && t.State != nil && rowCount > visibleRows && ctx.Area.Width > 1 {
+		drawScrollbar = true
+		ctx.Area.Width--
+	}
+
+	// 3. SÜTUN GENİŞLİKLERİNİN HESAPLANMASI VE İLKLENDİRİLMESİ
 	colsCount := len(t.Constraints)
 	netWidth := ctx.Area.Width
 	// Izgara çizgileri çiziliyorsa, her sütun arası için 1 karakterlik boşluğu düş
@@ -383,26 +423,6 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if t.DrawGrid && i < colsCount-1 {
 			stickyWidth++
 		}
-	}
-
-	rows := t.Rows
-	rowCount := len(rows)
-	rowAt := func(index int) TableRow { return rows[index] }
-	if t.DataSource != nil {
-		rowCount = t.DataSource.RowCount()
-		rowAt = t.DataSource.RowAt
-	}
-	if t.FilterQuery != "" {
-		filtered := make([]TableRow, 0, rowCount)
-		for i := 0; i < rowCount; i++ {
-			row := rowAt(i)
-			if _, matched := FuzzyMatch(t.FilterQuery, row.SearchText()); matched {
-				filtered = append(filtered, row)
-			}
-		}
-		rows = filtered
-		rowCount = len(rows)
-		rowAt = func(index int) TableRow { return rows[index] }
 	}
 
 	// Scroll olayları tabloya yönlendirilir; click/resize bölgeleri aşağıda daha önceliklidir.
@@ -661,7 +681,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if currY >= ctx.Area.Y+ctx.Area.Height {
 		return
 	}
-	visibleRows := int(ctx.Area.Y + ctx.Area.Height - currY)
+	visibleRows = int(ctx.Area.Y + ctx.Area.Height - currY)
 	if visibleRows <= 0 {
 		return
 	}
@@ -717,6 +737,41 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, getOwner, cellsMap, gridStyle, row.Style)
 		currY++
+	}
+
+	// Scrollbar Çizimi
+	if drawScrollbar {
+		scrollbarX := ctx.Area.X + ctx.Area.Width
+		scrollbarH := int(ctx.Area.Height)
+		thumbH := (scrollbarH * scrollbarH) / rowCount
+		if thumbH < 1 {
+			thumbH = 1
+		}
+		maxOffset := rowCount - visibleRows
+		thumbY := 0
+		if maxOffset > 0 {
+			thumbY = (t.State.Offset * (scrollbarH - thumbH)) / maxOffset
+		}
+
+		if t.GridStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+			gridStyle = gridStyle.Merge(ctx.ThemeStyle("border"))
+		}
+		thumbStyle := gridStyle
+		if ctx.ThemeStyle != nil {
+			thumbStyle = thumbStyle.Merge(ctx.ThemeStyle("focus"))
+		}
+
+		for y := 0; y < scrollbarH; y++ {
+			c := buf.Get(scrollbarX, ctx.Area.Y+uint16(y))
+			if c != nil {
+				c.Content = '░'
+				c.Style = gridStyle
+				if y >= thumbY && y < thumbY+thumbH {
+					c.Content = '█'
+					c.Style = thumbStyle
+				}
+			}
+		}
 	}
 }
 

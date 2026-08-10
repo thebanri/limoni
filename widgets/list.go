@@ -3,6 +3,7 @@ package widgets
 import (
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -72,6 +73,15 @@ func (s *ListState) ScrollTo(height int, total int) {
 type List struct {
 	// Items, listede gösterilecek olan metin dizilimleridir.
 	Items []string
+	// Provider, sanal liste (virtual scrolling) için veri sağlayıcıdır.
+	// Eğer belirtilirse Items dizisi yerine bu kullanılır.
+	Provider ListProvider
+	// Scrollbar, aktif edilirse listenin sağ kenarında bir dikey kaydırma çubuğu çizer.
+	Scrollbar bool
+	// ScrollbarTrackStyle, kaydırma çubuğu rayının (track) stilidir.
+	ScrollbarTrackStyle cell.Style
+	// ScrollbarThumbStyle, kaydırma çubuğu kaydırıcısının (thumb) stilidir.
+	ScrollbarThumbStyle cell.Style
 	// Style, listenin genel rengini ve yazı stilini belirtir.
 	Style cell.Style
 	// SelectedStyle, seçili olan öğenin vurgulanacağı stildir.
@@ -87,7 +97,11 @@ type List struct {
 // ve listedeki her öğe için otomatik fare tıklama bölgeleri (RegisterClick) kaydeder.
 func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := ctx.Area
-	if area.Width == 0 || area.Height == 0 || len(l.Items) == 0 {
+	totalItems := len(l.Items)
+	if l.Provider != nil {
+		totalItems = l.Provider.Len()
+	}
+	if area.Width == 0 || area.Height == 0 || totalItems == 0 {
 		return
 	}
 
@@ -101,16 +115,80 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Kaydırma (Scroll) sınırlarını otomatik çöz
-	state.ScrollTo(int(area.Height), len(l.Items))
+	state.ScrollTo(int(area.Height), totalItems)
+
+	// Fare tekerleği olaylarını dinle ve kaydır
+	if ctx.RegisterMouse != nil {
+		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			if ev.Button == backend.MouseScrollUp {
+				state.Offset--
+				if state.Offset < 0 {
+					state.Offset = 0
+				}
+			} else if ev.Button == backend.MouseScrollDown {
+				state.Offset++
+				maxOffset := totalItems - int(ctx.Area.Height)
+				if maxOffset < 0 {
+					maxOffset = 0
+				}
+				if state.Offset > maxOffset {
+					state.Offset = maxOffset
+				}
+			}
+		})
+	}
+
+	// Dikey kaydırma çubuğunu (Scrollbar) çiz
+	visibleHeight := int(area.Height)
+	if l.Scrollbar && totalItems > visibleHeight && area.Width > 1 {
+		scrollbarX := area.X + area.Width - 1
+		thumbH := (visibleHeight * visibleHeight) / totalItems
+		if thumbH < 1 {
+			thumbH = 1
+		}
+		maxOffset := totalItems - visibleHeight
+		thumbY := 0
+		if maxOffset > 0 {
+			thumbY = (state.Offset * (visibleHeight - thumbH)) / maxOffset
+		}
+
+		trackStyle := listStyle.Merge(l.ScrollbarTrackStyle)
+		if l.ScrollbarTrackStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+			trackStyle = listStyle.Merge(ctx.ThemeStyle("border"))
+		}
+		thumbStyle := listStyle.Merge(l.ScrollbarThumbStyle)
+		if l.ScrollbarThumbStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+			thumbStyle = listStyle.Merge(ctx.ThemeStyle("focus"))
+		}
+
+		for y := 0; y < visibleHeight; y++ {
+			c := buf.Get(scrollbarX, area.Y+uint16(y))
+			if c != nil {
+				c.Content = '░'
+				c.Style = trackStyle
+				if y >= thumbY && y < thumbY+thumbH {
+					c.Content = '█'
+					c.Style = thumbStyle
+				}
+			}
+		}
+		// Ray alanını metin çizim alanından düş
+		area.Width--
+	}
 
 	for i := 0; i < int(area.Height); i++ {
 		itemIdx := state.Offset + i
-		if itemIdx >= len(l.Items) {
+		if itemIdx >= totalItems {
 			break
 		}
 
 		currY := area.Y + uint16(i)
-		itemText := l.Items[itemIdx]
+		itemText := ""
+		if l.Provider != nil {
+			itemText = l.Provider.ItemAt(itemIdx)
+		} else {
+			itemText = l.Items[itemIdx]
+		}
 
 		isSel := itemIdx == state.Selected
 		itemStyle := listStyle
@@ -153,21 +231,43 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 // SizeHint, listenin en uzun öğesini ve toplam öğe sayısını hesaplayarak ideal boyutları döndürür.
 func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
-	if len(l.Items) == 0 {
+	totalItems := len(l.Items)
+	if l.Provider != nil {
+		totalItems = l.Provider.Len()
+	}
+	if totalItems == 0 {
 		return 0, 0
 	}
 
 	symbolLen := utf8.RuneCountInString(l.HighlightSymbol)
 	maxW := 0
-	for _, item := range l.Items {
-		w := utf8.RuneCountInString(item) + symbolLen
-		if w > maxW {
-			maxW = w
+
+	if l.Provider != nil {
+		limit := totalItems
+		if limit > 100 {
+			limit = 100
+		}
+		for i := 0; i < limit; i++ {
+			w := utf8.RuneCountInString(l.Provider.ItemAt(i)) + symbolLen
+			if w > maxW {
+				maxW = w
+			}
+		}
+	} else {
+		for _, item := range l.Items {
+			w := utf8.RuneCountInString(item) + symbolLen
+			if w > maxW {
+				maxW = w
+			}
 		}
 	}
 
+	if l.Scrollbar && totalItems > int(maxArea.Height) {
+		maxW++
+	}
+
 	w := uint16(maxW)
-	h := uint16(len(l.Items))
+	h := uint16(totalItems)
 
 	if w > maxArea.Width {
 		w = maxArea.Width
