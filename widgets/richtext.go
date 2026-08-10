@@ -145,3 +145,40 @@ func wrapTextLines(lines []Line, maxWidth int) []Line {
 	}
 	return result
 }
+
+// TextFromRichText parses a tag-formatted text string (e.g. "Hello <fg=red>World</>\nNew line!")
+// and builds a Text widget ready for rendering.
+func TextFromRichText(text string, baseStyle cell.Style, theme Theme) Text {
+	resolver := func(tag string) cell.Style {
+		return theme.RoleStyle(tag)
+	}
+	cells := cell.ParseRichText(text, baseStyle, resolver)
+
+	var lines []Line
+	var currentLine Line
+
+	for _, c := range cells {
+		if c.Content == '\n' {
+			lines = append(lines, currentLine)
+			currentLine = Line{}
+			continue
+		}
+		// Group consecutive characters with the same style into a single Span to keep rendering fast
+		n := len(currentLine.Spans)
+		if n > 0 && currentLine.Spans[n-1].Style == c.Style {
+			currentLine.Spans[n-1].Text += string(c.Content)
+		} else {
+			currentLine.Spans = append(currentLine.Spans, Span{
+				Text:  string(c.Content),
+				Style: c.Style,
+			})
+		}
+	}
+	lines = append(lines, currentLine)
+
+	return Text{
+		Lines: lines,
+		Style: baseStyle,
+	}
+}
+

@@ -78,3 +78,58 @@ func TestRichTextDrawAndSizeHint(t *testing.T) {
 		t.Fatalf("size hint = %dx%d; want 10x1", width, height)
 	}
 }
+
+func TestThemeCustomClasses(t *testing.T) {
+	theme := DarkTheme()
+	customStyle := cell.Style{Fg: cell.NewColorRGB(123, 45, 67), Modifier: cell.ModifierUnderline}
+	theme = theme.AddClass("myclass", customStyle)
+
+	resolved := theme.RoleStyle("myclass")
+	if resolved != customStyle {
+		t.Fatalf("Expected custom class style %+v, got %+v", customStyle, resolved)
+	}
+}
+
+func TestTextFromRichText(t *testing.T) {
+	theme := DarkTheme()
+	customStyle := cell.Style{Fg: cell.NewColorRGB(200, 100, 50)}
+	theme = theme.AddClass("highlight", customStyle)
+
+	baseStyle := cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}
+	textWidget := TextFromRichText("Hello <highlight>World</>\nNew <bold>Line</>", baseStyle, theme)
+
+	if len(textWidget.Lines) != 2 {
+		t.Fatalf("Expected 2 lines, got %d", len(textWidget.Lines))
+	}
+
+	// Line 0: "Hello " (base style), "World" (highlight style)
+	line0 := textWidget.Lines[0]
+	if len(line0.Spans) != 2 {
+		t.Fatalf("Expected 2 spans in line 0, got %d", len(line0.Spans))
+	}
+
+	if line0.Spans[0].Text != "Hello " || line0.Spans[0].Style != baseStyle {
+		t.Errorf("Span 0 style mismatch: got %q / %+v", line0.Spans[0].Text, line0.Spans[0].Style)
+	}
+
+	if line0.Spans[1].Text != "World" || line0.Spans[1].Style != customStyle {
+		t.Errorf("Span 1 style mismatch: got %q / %+v", line0.Spans[1].Text, line0.Spans[1].Style)
+	}
+
+	// Line 1: "New " (base style), "Line" (base + bold style)
+	line1 := textWidget.Lines[1]
+	if len(line1.Spans) != 2 {
+		t.Fatalf("Expected 2 spans in line 1, got %d", len(line1.Spans))
+	}
+
+	if line1.Spans[0].Text != "New " || line1.Spans[0].Style != baseStyle {
+		t.Errorf("Span 0 line 1 style mismatch: got %q / %+v", line1.Spans[0].Text, line1.Spans[0].Style)
+	}
+
+	expectedBoldStyle := baseStyle
+	expectedBoldStyle.Modifier = cell.ModifierBold
+	if line1.Spans[1].Text != "Line" || line1.Spans[1].Style != expectedBoldStyle {
+		t.Errorf("Span 1 line 1 style mismatch: got %q / %+v", line1.Spans[1].Text, line1.Spans[1].Style)
+	}
+}
+

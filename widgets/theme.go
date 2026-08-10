@@ -22,10 +22,11 @@ type ThemeColors struct {
 
 // Theme is the semantic style palette for an application.
 type Theme struct {
-	Colors ThemeColors
-	Base   cell.Style
-	Border cell.Style
-	Focus  cell.Style
+	Colors  ThemeColors
+	Base    cell.Style
+	Border  cell.Style
+	Focus   cell.Style
+	Classes map[string]cell.Style
 }
 
 // DarkTheme returns a high-contrast dark terminal theme.
@@ -46,6 +47,11 @@ func DarkTheme() Theme {
 
 // RoleStyle resolves a semantic role to a foreground style.
 func (t Theme) RoleStyle(role string) cell.Style {
+	if t.Classes != nil {
+		if style, ok := t.Classes[role]; ok {
+			return style
+		}
+	}
 	switch role {
 	case "primary":
 		return cell.Style{Fg: t.Colors.Primary}
@@ -72,6 +78,15 @@ func (t Theme) RoleStyle(role string) cell.Style {
 	default:
 		return t.Base
 	}
+}
+
+// AddClass adds a custom class-based style mapping to the theme.
+func (t Theme) AddClass(name string, style cell.Style) Theme {
+	if t.Classes == nil {
+		t.Classes = make(map[string]cell.Style)
+	}
+	t.Classes[name] = style
+	return t
 }
 
 // HighContrastTheme returns a black/white accessibility-focused theme.
