@@ -172,7 +172,7 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault && ctx.RegisterImage != nil {
 		solidImg := getSolidImage(blockStyle.Bg)
-		ctx.RegisterImage(area, solidImg, -99) // Marker for frame.go to map ZIndex
+		ctx.RegisterImage(area, solidImg, -99, false) // Marker for frame.go to map ZIndex
 	}
 
 	// 2. Aşama: Kenarlıkları çiz

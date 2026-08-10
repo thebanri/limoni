@@ -116,7 +116,7 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 // ResizeImageContain resmi aspect ratio'sunu koruyarak hedef alana sığdırır.
 // Hedef canvas tam boyuttadır; kullanılmayan alan kaynak görselin sol üst
 // pikseliyle doldurulur. Böylece native protokoller görseli esnetmez.
-func ResizeImageContain(img image.Image, w, h int) image.Image {
+func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image {
 	if img == nil || w <= 0 || h <= 0 {
 		return img
 	}
@@ -140,11 +140,14 @@ func ResizeImageContain(img image.Image, w, h int) image.Image {
 	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	background := img.At(bounds.Min.X, bounds.Min.Y)
+	var background color.Color = color.RGBA{0, 0, 0, 0}
+	if !transparent {
+		background = img.At(bounds.Min.X, bounds.Min.Y)
+	}
 	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: background}, image.Point{}, draw.Src)
 	resized := ResizeImage(img, fitW, fitH)
 	offset := image.Pt((w-fitW)/2, (h-fitH)/2)
-	draw.Draw(dst, image.Rectangle{Min: offset, Max: offset.Add(image.Pt(fitW, fitH))}, resized, image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rectangle{Min: offset, Max: offset.Add(image.Pt(fitW, fitH))}, resized, image.Point{}, draw.Over)
 	return dst
 }
 
@@ -196,14 +199,14 @@ func chunkKittyPayload(controlKeys string, b64Data string) string {
 }
 
 // EncodeKitty, resmi Kitty Graphics Protocol formatında kodlar.
-func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageID uint32, zIndex int) string {
+func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageID uint32, zIndex int, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
 	}
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImageContain(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH, transparent)
 	var pngBuf bytes.Buffer
 	if err := png.Encode(&pngBuf, resized); err != nil {
 		return ""
@@ -216,14 +219,14 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 }
 
 // EncodeIterm2, resmi iTerm2 Inline Image Protocol formatında kodlar.
-func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16) string {
+func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
 	}
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImageContain(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH, transparent)
 	var pngBuf bytes.Buffer
 	if err := png.Encode(&pngBuf, resized); err != nil {
 		return ""
@@ -235,14 +238,14 @@ func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16) strin
 }
 
 // EncodeSixel, resmi Sixel Graphics formatında kodlar.
-func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16) string {
+func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
 	}
 	targetW := int(cols) * int(cellW)
 	targetH := int(rows) * int(cellH)
 
-	resized := ResizeImageContain(img, targetW, targetH)
+	resized := ResizeImageContain(img, targetW, targetH, transparent)
 	pal := buildPalette(resized, 256)
 
 	var buf bytes.Buffer
@@ -346,27 +349,29 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16) string
 
 // ImageCacheKey, resim escape sequence önbelleği için benzersiz bir anahtar görevi görür.
 type ImageCacheKey struct {
-	Img    image.Image
-	Cols   uint16
-	Rows   uint16
-	CellW  uint16
-	CellH  uint16
-	Proto  Protocol
-	ZIndex int
+	Img         image.Image
+	Cols        uint16
+	Rows        uint16
+	CellW       uint16
+	CellH       uint16
+	Proto       Protocol
+	ZIndex      int
+	Transparent bool
 }
 
 var escapeSequenceCache = make(map[ImageCacheKey]string)
 
 // GetCachedEscapeSequence, önbellekten veya yeni nesil olarak resmin escape sequence çıktısını döner.
-func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int) string {
+func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
 	key := ImageCacheKey{
-		Img:    img,
-		Cols:   cols,
-		Rows:   rows,
-		CellW:  cellW,
-		CellH:  cellH,
-		Proto:  proto,
-		ZIndex: zIndex,
+		Img:         img,
+		Cols:        cols,
+		Rows:        rows,
+		CellW:       cellW,
+		CellH:       cellH,
+		Proto:       proto,
+		ZIndex:      zIndex,
+		Transparent: transparent,
 	}
 
 	if seq, ok := escapeSequenceCache[key]; ok {
@@ -377,11 +382,11 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 	switch proto {
 	case ProtocolKitty:
 		imageID := GetImageID(img)
-		seq = EncodeKitty(img, cols, rows, cellW, cellH, imageID, zIndex)
+		seq = EncodeKitty(img, cols, rows, cellW, cellH, imageID, zIndex, transparent)
 	case ProtocolIterm2:
-		seq = EncodeIterm2(img, cols, rows, cellW, cellH)
+		seq = EncodeIterm2(img, cols, rows, cellW, cellH, transparent)
 	case ProtocolSixel:
-		seq = EncodeSixel(img, cols, rows, cellW, cellH)
+		seq = EncodeSixel(img, cols, rows, cellW, cellH, transparent)
 	}
 
 	escapeSequenceCache[key] = seq

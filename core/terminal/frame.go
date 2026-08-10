@@ -35,6 +35,8 @@ type ImageRegion struct {
 	Img image.Image
 	// ZIndex, resmin dikey katman sıralama parametresidir.
 	ZIndex int
+	// Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir.
+	Transparent bool
 }
 
 // Frame, tek bir çizim karesinin (render pass) bağlamını temsil eder.
@@ -412,7 +414,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Not: Resimler pasif çizim elemanlarıdır, olay almazlar.
 	// Bu yüzden modal/popup dışında olsalar bile kaydedilmelidirler;
 	// aksi halde arka plandaki resimler modal açıldığında kaybolur.
-	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int) bool {
+	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int, transparent bool) bool {
 		// Z-Index otomatik eşleme mantığı (WezTerm/Ghostty vb. katman çakışmalarını önlemek için):
 		// - ZIndex = -99 ise: Block arka plan resmi. Modal/katman için -2, kök için -4 olur.
 		// - ZIndex <= 0 ise: Normal görsel. Modal/katman içindeyse -1, arka plandaysa -3 olur.
@@ -444,9 +446,10 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		}
 
 		f.ImageRegions = append(f.ImageRegions, ImageRegion{
-			Area:   imageArea,
-			Img:    img,
-			ZIndex: zIndex,
+			Area:        imageArea,
+			Img:         img,
+			ZIndex:      zIndex,
+			Transparent: transparent,
 		})
 		return true
 	}

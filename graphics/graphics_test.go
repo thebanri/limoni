@@ -41,7 +41,7 @@ func TestEncodeKitty(t *testing.T) {
 	img := createTestImage()
 
 	// Direct transfer (without ID cache)
-	esc := EncodeKitty(img, 2, 1, 10, 20, 0, 0)
+	esc := EncodeKitty(img, 2, 1, 10, 20, 0, 0, false)
 	if !strings.HasPrefix(esc, "\x1b_G") {
 		t.Errorf("Expected escape prefix, got %q", esc[:3])
 	}
@@ -52,7 +52,7 @@ func TestEncodeKitty(t *testing.T) {
 
 func TestEncodeIterm2(t *testing.T) {
 	img := createTestImage()
-	esc := EncodeIterm2(img, 2, 1, 10, 20)
+	esc := EncodeIterm2(img, 2, 1, 10, 20, false)
 
 	if !strings.HasPrefix(esc, "\x1b]1337;File=") {
 		t.Errorf("Expected iTerm2 escape prefix, got %q", esc[:12])
@@ -64,7 +64,7 @@ func TestEncodeIterm2(t *testing.T) {
 
 func TestEncodeSixel(t *testing.T) {
 	img := createTestImage()
-	esc := EncodeSixel(img, 2, 1, 10, 20)
+	esc := EncodeSixel(img, 2, 1, 10, 20, false)
 
 	if !strings.HasPrefix(esc, "\x1bPq\"1;1;") {
 		t.Errorf("Expected Sixel escape prefix, got %q", esc[:7])

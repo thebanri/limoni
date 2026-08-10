@@ -208,7 +208,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 			}
 
 			for _, reg := range t.frame.ImageRegions {
-				escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex)
+				escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex, reg.Transparent)
 				if escSeq != "" {
 					moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
 					t.backend.Write([]byte(moveCursor + escSeq))

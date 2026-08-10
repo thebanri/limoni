@@ -354,7 +354,7 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	sym := widgets.SymbolsRounded
 	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
-	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}, Child: widgets.Image{Img: profileImg, CircleMask: true, ForceHalfBlock: false, OpaqueBackground: true, Background: cell.NewColorRGB(25, 28, 36)}}, parts[1])
+	f.RenderWidget(widgets.Block{Title: " PROFİL · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 165, 0)}, Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}, Child: widgets.Image{Img: profileImg, CircleMask: true, ForceHalfBlock: false, Transparent: true}}, parts[1])
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
 }
 
@@ -442,7 +442,7 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 		BorderSymbols:  profileSymbols,
 		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 165, 0)},
 		Style:          cell.Style{Bg: cell.NewColorRGB(25, 28, 36)},
-		Child:          widgets.Image{Img: profileImg, CircleMask: state.ProfileFrame == "Rounded", ForceHalfBlock: false, OpaqueBackground: true, Background: cell.NewColorRGB(25, 28, 36)},
+		Child:          widgets.Image{Img: profileImg, CircleMask: state.ProfileFrame == "Rounded", ForceHalfBlock: false, Transparent: true},
 	}
 	profileArea := gridAreas.Cell(0, 1).Area
 	f.RenderWidget(imgBlock, profileArea)

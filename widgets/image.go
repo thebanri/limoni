@@ -24,6 +24,8 @@ type Image struct {
 	// OpaqueBackground composites transparency over Background before native rendering.
 	OpaqueBackground bool
 	Background       cell.Color
+	// Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir.
+	Transparent bool
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
@@ -45,7 +47,7 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	proto := graphics.DetectProtocol()
-	if !im.ForceHalfBlock && !im.OpaqueBackground && proto != graphics.ProtocolHalfBlock {
+	if !im.ForceHalfBlock && !im.OpaqueBackground && !im.Transparent && proto != graphics.ProtocolHalfBlock {
 		// Native image protocols transparan pikselleri terminalin varsayılan
 		// arka planına bırakır. Bu renk çoğu terminalde siyahtır ve widget'ın
 		// arka planından farklı bir dikdörtgen/şerit oluşturur.
@@ -59,7 +61,7 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	registered := false
 	if ctx.RegisterImage != nil {
-		registered = ctx.RegisterImage(ctx.Area, img, im.ZIndex)
+		registered = ctx.RegisterImage(ctx.Area, img, im.ZIndex, im.Transparent)
 	}
 
 	if registered {
