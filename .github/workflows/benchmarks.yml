@@ -20,6 +20,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Prepare benchmark results
         run: mkdir -p benchmark-results
