@@ -5,6 +5,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // Span is a styled fragment of a line.
@@ -97,6 +98,18 @@ func (t Text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 		height = maxArea.Height
 	}
 	return width, height
+}
+
+// Measure provides explicit size negotiation for Text (RichText).
+func (t Text) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := t.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
 }
 
 func richLineWidth(line Line) int {

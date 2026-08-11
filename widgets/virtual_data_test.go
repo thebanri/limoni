@@ -258,3 +258,59 @@ func (variableVirtualSource) RowAt(_ context.Context, index int) (Row, error) {
 	return Row{ID: RowID(string(rune('a' + index))), Text: string(rune('a' + index)), Height: height}, nil
 }
 func (variableVirtualSource) RowID(index int) RowID { return RowID(string(rune('a' + index))) }
+
+func TestVirtualDataAdvancedFeatures(t *testing.T) {
+	state := NewVirtualDataState()
+	source := virtualSource{}
+
+	// 1. Test Multi-select helpers
+	state.ToggleSelect("row-1")
+	state.ToggleSelect("row-2")
+	if !state.IsSelected("row-1") || !state.IsSelected("row-2") {
+		t.Error("expected row-1 and row-2 to be selected")
+	}
+	state.ToggleSelect("row-1")
+	if state.IsSelected("row-1") {
+		t.Error("expected row-1 to be deselected")
+	}
+	state.ClearSelected()
+	if len(state.SelectedSet()) != 0 {
+		t.Error("expected selected set to be empty")
+	}
+
+	// 2. Test Selection Remapping to Closest
+	err := state.Refresh(nil, source, 0, 5, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Select row 4 (ID: row\x04)
+	id4 := source.RowID(4)
+	state.Select(id4)
+	if state.SelectedIndex() != 4 {
+		t.Errorf("SelectedIndex = %d, want 4", state.SelectedIndex())
+	}
+
+	// Now refresh viewport to rows 6 to 10
+	err = state.Refresh(nil, source, 6, 4, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Remap selection should map to the closest loaded row (which is index 6, row\x06)
+	remapped := state.RemapSelection()
+	if !remapped {
+		t.Error("expected RemapSelection to return true")
+	}
+	id6 := source.RowID(6)
+	if state.Selected() != id6 {
+		t.Errorf("selected RowID = %s, want %s", state.Selected(), id6)
+	}
+
+	// 3. Test Queue Stats
+	stats := state.QueueStats()
+	if stats.Completed != 2 {
+		t.Errorf("stats.Completed = %d, want 2", stats.Completed)
+	}
+	if stats.Started != 2 {
+		t.Errorf("stats.Started = %d, want 2", stats.Started)
+	}
+}

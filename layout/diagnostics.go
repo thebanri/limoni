@@ -6,10 +6,14 @@ import "github.com/thebanri/limoni/core/cell"
 // child. It is intentionally data-only so inspectors and tests can consume it
 // without depending on terminal rendering.
 type LayoutDiagnostic struct {
-	Index      int
-	Measured   Measure
-	Allocated  cell.Rect
-	Overflowed bool
+	Index          int
+	Measured       Measure
+	Allocated      cell.Rect
+	Overflowed     bool
+	Shrunk         bool
+	Grown          bool
+	BaselineOffset uint16
+	Policy         OverflowPolicy
 }
 
 // Diagnose pairs measurements with allocated rectangles and reports whether a
@@ -22,8 +26,18 @@ func Diagnose(measurements []Measure, allocated []cell.Rect) []LayoutDiagnostic 
 		if i < len(allocated) {
 			rect = allocated[i]
 		}
-		overflowed := rect.Width < measured.IdealWidth || rect.Height < measured.IdealHeight
-		result[i] = LayoutDiagnostic{Index: i, Measured: measured, Allocated: rect, Overflowed: overflowed}
+		shrunk := rect.Width < measured.IdealWidth || rect.Height < measured.IdealHeight
+		grown := rect.Width > measured.IdealWidth || rect.Height > measured.IdealHeight
+		result[i] = LayoutDiagnostic{
+			Index:          i,
+			Measured:       measured,
+			Allocated:      rect,
+			Overflowed:     shrunk,
+			Shrunk:         shrunk,
+			Grown:          grown,
+			BaselineOffset: measured.Baseline,
+			Policy:         measured.Overflow,
+		}
 	}
 	return result
 }

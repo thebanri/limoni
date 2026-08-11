@@ -15,7 +15,7 @@ func TestParagraphWrapAndDraw(t *testing.T) {
 	// 1. "Merhaba" (7 chars)
 	// 2. "TUI" (3 chars)
 	// 3. "Dunya" (5 chars)
-	p := Paragraph{
+	p := &Paragraph{
 		Text: "Merhaba TUI Dunya",
 		Wrap: true,
 	}

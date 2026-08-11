@@ -1,6 +1,9 @@
 package widgets
 
 import (
+	"fmt"
+
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -141,3 +144,23 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 }
 
 func (s Slider) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
+
+// AccessibilityNode returns the semantic node description for Slider.
+func (s Slider) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	val := ""
+	if s.State != nil {
+		val = fmt.Sprintf("%d", s.State.Value)
+	}
+	return accessibility.AccessibilityNode{
+		ID:     s.ID,
+		Role:   accessibility.RoleSlider,
+		Label:  fmt.Sprintf("Slider range %d to %d", s.Min, s.Max),
+		Value:  val,
+		State:  state,
+		Bounds: bounds,
+	}
+}

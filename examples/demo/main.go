@@ -203,6 +203,7 @@ type AppState struct {
 	ReferenceAccessibilityASCII   bool
 	ScreenReaderMode              bool
 	LastScreenReaderTree          string
+	ReferenceActiveSubTab         string
 }
 
 func recordReferenceInteraction(state *AppState, event string) {

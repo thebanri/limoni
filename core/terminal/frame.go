@@ -1,10 +1,11 @@
 package terminal
 
 import (
-	"fmt"
 	"image"
 	"io"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -14,6 +15,13 @@ import (
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
+
+type TraceEntry struct {
+	RegionID string
+	Action   string // "enter", "leave", "capture", "target", "bubble"
+	ZIndex   int
+	Phase    backend.EventPhase
+}
 
 // ClickRegion, ekranda tıklanabilir (interaktif) bir bölgeyi ve bu bölgeye tıklandığında
 // çalıştırılacak olan fare olay yöneticisi (callback) fonksiyonunu tanımlar.
@@ -77,6 +85,7 @@ type Frame struct {
 	lastClickID         string
 	lastClickAt         time.Time
 	lastEventTrace      []string
+	lastTraceEntries    []TraceEntry
 
 	Theme    widgets.Theme
 	ThemeSet bool
@@ -84,6 +93,19 @@ type Frame struct {
 	// WidgetStats, bu çizim karesinde çizilen widget'ların render sürelerini saklar.
 	WidgetStats   []WidgetStat
 	Accessibility []accessibility.AccessibilityNode
+
+	// Pre-allocated context parameters and closures to avoid heap allocation
+	currentArea           cell.Rect
+	currentIsOutsideModal bool
+	currentLayerID        string
+
+	clickClosure    func(cell.Rect, func())
+	mouseClosure    func(cell.Rect, func(backend.MouseEvent))
+	eventClosure    func(cell.Rect, backend.EventPhase, func(*backend.EventContext))
+	captureClosure  func(func(backend.MouseEvent))
+	imageClosure    func(cell.Rect, image.Image, int, bool) bool
+	focusClosure    func(string)
+	setFocusClosure func(string)
 }
 
 // DispatchClick dispatches a click to the topmost enabled target region and
@@ -135,7 +157,7 @@ type DebugRegion struct {
 
 // NewFrame, belirtilen buffer ve odak yöneticisi üzerinde çizim yapacak yeni bir Frame örneği oluşturur.
 func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
-	return &Frame{
+	f := &Frame{
 		Buffer:       buf,
 		ClickRegions: make([]ClickRegion, 0, 32),
 		EventRegions: make([]eventRegion, 0, 16),
@@ -144,6 +166,111 @@ func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 		ActiveModal:  nil,
 		Layers:       make([]Layer, 0, 4),
 		DebugRegions: make([]DebugRegion, 0, 32),
+	}
+	f.initClosures()
+	return f
+}
+
+var typeNameCache sync.Map
+
+func getWidgetTypeName(w widgets.Widget) string {
+	t := reflect.TypeOf(w)
+	if val, ok := typeNameCache.Load(t); ok {
+		return val.(string)
+	}
+	name := t.String()
+	if idx := strings.Index(name, "."); idx != -1 {
+		name = name[idx+1:]
+	}
+	typeNameCache.Store(t, name)
+	return name
+}
+
+func (f *Frame) initClosures() {
+	f.clickClosure = func(clickArea cell.Rect, handler func()) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		f.RegisterClickHandlerInLayer(clickArea, func(ev backend.MouseEvent) {
+			handler()
+		}, f.currentLayerID)
+	}
+
+	f.mouseClosure = func(mouseArea cell.Rect, handler func(ev backend.MouseEvent)) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		f.registerMouseHandler(mouseArea, handler, f.currentLayerID)
+	}
+
+	f.eventClosure = func(eventArea cell.Rect, phase backend.EventPhase, handler func(*backend.EventContext)) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		f.RegisterEventHandler(eventArea, phase, handler)
+	}
+
+	f.captureClosure = func(handler func(ev backend.MouseEvent)) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		f.mouseCaptureRequest = handler
+	}
+
+	f.imageClosure = func(imageArea cell.Rect, img image.Image, zIndex int, transparent bool) bool {
+		topModal := f.TopmostModal()
+		if zIndex == -99 {
+			if topModal != nil || len(f.Layers) > 0 {
+				zIndex = -2
+			} else {
+				zIndex = -4
+			}
+		} else if zIndex == 0 {
+			isForeground := false
+			if topModal != nil && ContainsRect(topModal.Area, imageArea) {
+				isForeground = true
+			} else {
+				for _, layer := range f.Layers {
+					if ContainsRect(layer.Area, imageArea) {
+						isForeground = true
+						break
+					}
+				}
+			}
+
+			if isForeground {
+				zIndex = -1
+			} else {
+				zIndex = -3
+			}
+		}
+
+		f.ImageRegions = append(f.ImageRegions, ImageRegion{
+			Area:        imageArea,
+			Img:         img,
+			ZIndex:      zIndex,
+			Transparent: transparent,
+		})
+		return true
+	}
+
+	f.focusClosure = func(id string) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		if f.FocusManager != nil {
+			f.FocusManager.Register(id)
+			f.FocusManager.RegisterBounds(id, f.currentArea)
+		}
+	}
+
+	f.setFocusClosure = func(id string) {
+		if f.currentIsOutsideModal {
+			return
+		}
+		if f.FocusManager != nil {
+			f.FocusManager.SetFocused(id)
+		}
 	}
 }
 
@@ -186,6 +313,7 @@ func (f *Frame) Reset() {
 	f.lastClickID = ""
 	f.lastClickAt = time.Time{}
 	f.lastEventTrace = f.lastEventTrace[:0]
+	f.lastTraceEntries = f.lastTraceEntries[:0]
 	f.WidgetStats = f.WidgetStats[:0]
 	f.Accessibility = f.Accessibility[:0]
 }
@@ -425,6 +553,12 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 			region := &f.EventRegions[i]
 			if region.ID == f.hoveredRegionID && region.OnLeave != nil {
 				f.lastEventTrace = append(f.lastEventTrace, region.ID+":leave")
+				f.lastTraceEntries = append(f.lastTraceEntries, TraceEntry{
+					RegionID: region.ID,
+					Action:   "leave",
+					ZIndex:   region.ZIndex,
+					Phase:    TargetPhase,
+				})
 				ctx := &backend.EventContext{
 					Mouse: ev, Phase: TargetPhase, RegionID: region.ID,
 					LayerID: region.LayerID, ZIndex: region.ZIndex,
@@ -436,6 +570,12 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 	}
 	if target != nil && target.OnEnter != nil {
 		f.lastEventTrace = append(f.lastEventTrace, target.ID+":enter")
+		f.lastTraceEntries = append(f.lastTraceEntries, TraceEntry{
+			RegionID: target.ID,
+			Action:   "enter",
+			ZIndex:   target.ZIndex,
+			Phase:    TargetPhase,
+		})
 		ctx := &backend.EventContext{
 			Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
 			LayerID: target.LayerID, ZIndex: target.ZIndex,
@@ -466,6 +606,12 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
 					f.lastEventTrace = append(f.lastEventTrace, region.ID+":"+phaseName(phase))
+					f.lastTraceEntries = append(f.lastTraceEntries, TraceEntry{
+						RegionID: region.ID,
+						Action:   phaseName(phase),
+						ZIndex:   region.ZIndex,
+						Phase:    phase,
+					})
 					handled = true
 					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
@@ -480,6 +626,12 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
 					f.lastEventTrace = append(f.lastEventTrace, region.ID+":"+phaseName(phase))
+					f.lastTraceEntries = append(f.lastTraceEntries, TraceEntry{
+						RegionID: region.ID,
+						Action:   phaseName(phase),
+						ZIndex:   region.ZIndex,
+						Phase:    phase,
+					})
 					handled = true
 					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
@@ -560,10 +712,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Hata ayıklama bölgesi olarak kaydet. Overlay widget'ları çizim için
 	// tam ekran alanı kullanabilir; DebugArea ile gerçek görünür sınırlarını
 	// ayrıca bildirebilirler.
-	wType := fmt.Sprintf("%T", w)
-	if idx := strings.Index(wType, "."); idx != -1 {
-		wType = wType[idx+1:]
-	}
+	wType := getWidgetTypeName(w)
 	debugArea := area
 	if provider, ok := w.(interface{ DebugArea(cell.Rect) cell.Rect }); ok {
 		debugArea = provider.DebugArea(area)
@@ -591,12 +740,6 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 
 	var defStyle cell.Style
 	defStyle.Reset()
-
-	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
-	ctx := cell.NewContext(area, defStyle)
-	if f.ThemeSet {
-		ctx.ThemeStyle = func(role string) cell.Style { return f.Theme.RoleStyle(role) }
-	}
 
 	// Katman durumunu belirle: Widget, herhangi bir katmanın içinde mi?
 	isInsideLayer := f.activeLayerID != ""
@@ -631,98 +774,28 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		isOutsideModal = true
 	}
 
-	// Tıklama kaydını Frame'in RegisterClickHandler metoduna köprüle
-	layerID := f.activeLayerID
-	ctx.RegisterClick = func(clickArea cell.Rect, handler func()) {
-		if isOutsideModal {
-			return // Dışarıdaki tıklamaları yut!
-		}
-		f.RegisterClickHandlerInLayer(clickArea, func(ev backend.MouseEvent) {
-			handler()
-		}, layerID)
+	// Update pre-allocated closures state parameters
+	f.currentArea = area
+	f.currentIsOutsideModal = isOutsideModal
+	f.currentLayerID = f.activeLayerID
+
+	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
+	ctx := cell.NewContext(area, defStyle)
+	if f.ThemeSet {
+		ctx.ThemeStyle = func(role string) cell.Style { return f.Theme.RoleStyle(role) }
 	}
 
-	ctx.RegisterMouse = func(mouseArea cell.Rect, handler func(ev backend.MouseEvent)) {
-		if isOutsideModal {
-			return
-		}
-		f.registerMouseHandler(mouseArea, handler, layerID)
-	}
-	ctx.RegisterEvent = func(eventArea cell.Rect, phase backend.EventPhase, handler func(*backend.EventContext)) {
-		if isOutsideModal {
-			return
-		}
-		f.RegisterEventHandler(eventArea, phase, handler)
-	}
+	// Assign pre-allocated closures to avoid heap allocation on draw loops
+	ctx.RegisterClick = f.clickClosure
+	ctx.RegisterMouse = f.mouseClosure
+	ctx.RegisterEvent = f.eventClosure
+	ctx.CaptureMouse = f.captureClosure
+	ctx.RegisterImage = f.imageClosure
+	ctx.RegisterFocus = f.focusClosure
+	ctx.SetFocus = f.setFocusClosure
 
-	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {
-		if isOutsideModal {
-			return
-		}
-		f.mouseCaptureRequest = handler
-	}
-
-	// Resim kaydını Frame'in ImageRegions listesine köprüle
-	// Not: Resimler pasif çizim elemanlarıdır, olay almazlar.
-	// Bu yüzden modal/popup dışında olsalar bile kaydedilmelidirler;
-	// aksi halde arka plandaki resimler modal açıldığında kaybolur.
-	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int, transparent bool) bool {
-		// Z-Index otomatik eşleme mantığı (WezTerm/Ghostty vb. katman çakışmalarını önlemek için):
-		// - ZIndex = -99 ise: Block arka plan resmi. Modal/katman için -2, kök için -4 olur.
-		// - ZIndex < 0 ise: Widget'ın açıkça istediği native z-index korunur.
-		// - ZIndex = 0 ise: Normal görsel. Modal/katman içindeyse -1, arka plandaysa -3 olur.
-		topModal := f.TopmostModal()
-		if zIndex == -99 {
-			if topModal != nil || len(f.Layers) > 0 {
-				zIndex = -2
-			} else {
-				zIndex = -4
-			}
-		} else if zIndex == 0 {
-			isForeground := false
-			if topModal != nil && ContainsRect(topModal.Area, imageArea) {
-				isForeground = true
-			} else {
-				for _, layer := range f.Layers {
-					if ContainsRect(layer.Area, imageArea) {
-						isForeground = true
-						break
-					}
-				}
-			}
-
-			if isForeground {
-				zIndex = -1
-			} else {
-				zIndex = -3
-			}
-		}
-
-		f.ImageRegions = append(f.ImageRegions, ImageRegion{
-			Area:        imageArea,
-			Img:         img,
-			ZIndex:      zIndex,
-			Transparent: transparent,
-		})
-		return true
-	}
-
-	// Odaklanma kaydını FocusManager'a köprüle
 	if f.FocusManager != nil {
 		ctx.FocusedID = f.FocusManager.Focused()
-		ctx.RegisterFocus = func(id string) {
-			if isOutsideModal {
-				return // Dışarıdaki odaklanma isteklerini engelle!
-			}
-			f.FocusManager.Register(id)
-			f.FocusManager.RegisterBounds(id, area)
-		}
-		ctx.SetFocus = func(id string) {
-			if isOutsideModal {
-				return
-			}
-			f.FocusManager.SetFocused(id)
-		}
 	}
 
 	t0 := time.Now()
@@ -751,4 +824,14 @@ func (f *Frame) BeginLayer(id string) {
 // EndLayer, aktif katman çizimini sonlandırır ve kök katmana geri döner.
 func (f *Frame) EndLayer() {
 	f.activeLayerID = ""
+}
+
+// EventTraceEntries returns the chronological metadata event trace.
+func (f *Frame) EventTraceEntries() []TraceEntry {
+	if f == nil {
+		return nil
+	}
+	entries := make([]TraceEntry, len(f.lastTraceEntries))
+	copy(entries, f.lastTraceEntries)
+	return entries
 }

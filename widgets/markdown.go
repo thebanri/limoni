@@ -7,6 +7,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 type Markdown struct {
@@ -383,6 +384,18 @@ func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		width = maxArea.Width
 	}
 	return width, h
+}
+
+// Measure provides explicit size negotiation for Markdown.
+func (m *Markdown) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := m.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
 }
 
 func parseInlineStyles(text string, baseStyle cell.Style) []rawSegment {

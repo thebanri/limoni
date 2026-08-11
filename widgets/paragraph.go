@@ -3,6 +3,7 @@ package widgets
 import (
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // Paragraph, çok satırlı metinleri gösteren görsel bileşendir.
@@ -14,10 +15,16 @@ type Paragraph struct {
 	Style cell.Style
 	// Wrap, metnin sınır genişliğine göre otomatik olarak alt satıra kaydırılıp kaydırılmayacağını belirler.
 	Wrap bool
+
+	// Caching fields to avoid heap allocation on draw loops
+	lastText    string
+	lastWidth   uint16
+	lastWrap    bool
+	cachedLines []string
 }
 
 // Draw, metni çözümler, gerekliyse satır genişliğine göre böler ve terminal tamponuna çizer.
-func (p Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
+func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := ctx.Area
 	if area.Width == 0 || area.Height == 0 {
 		return
@@ -25,16 +32,20 @@ func (p Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	mergedStyle := ctx.Style.Merge(p.Style)
 
-	// Metni satırlara ayır
-	var lines []string
-	if p.Wrap {
-		lines = wrapText(p.Text, area.Width)
-	} else {
-		lines = splitLines(p.Text)
+	// Metni satırlara ayır ve önbelleğe al
+	if p.Text != p.lastText || area.Width != p.lastWidth || p.Wrap != p.lastWrap || p.cachedLines == nil {
+		p.lastText = p.Text
+		p.lastWidth = area.Width
+		p.lastWrap = p.Wrap
+		if p.Wrap {
+			p.cachedLines = wrapText(p.Text, area.Width)
+		} else {
+			p.cachedLines = splitLines(p.Text)
+		}
 	}
 
 	// Sınır yüksekliğini aşmayacak şekilde satır satır çiz
-	for i, line := range lines {
+	for i, line := range p.cachedLines {
 		if uint16(i) >= area.Height {
 			break
 		}
@@ -44,28 +55,33 @@ func (p Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 // SizeHint, metnin kaplamak istediği en uygun genişlik ve yüksekliği raporlar.
 // Düzen Pazarlığı: Eğer Wrap aktifse, verilen genişliğe (maxArea.Width) göre metnin kaç satır tutacağını hesaplar.
-func (p Paragraph) SizeHint(maxArea cell.Rect) (width, height uint16) {
+func (p *Paragraph) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	if len(p.Text) == 0 {
 		return 0, 0
 	}
 
-	var lines []string
-	if p.Wrap && maxArea.Width > 0 {
-		lines = wrapText(p.Text, maxArea.Width)
-	} else {
-		lines = splitLines(p.Text)
+	// Metni satırlara ayır ve önbelleğe al
+	if p.Text != p.lastText || maxArea.Width != p.lastWidth || p.Wrap != p.lastWrap || p.cachedLines == nil {
+		p.lastText = p.Text
+		p.lastWidth = maxArea.Width
+		p.lastWrap = p.Wrap
+		if p.Wrap && maxArea.Width > 0 {
+			p.cachedLines = wrapText(p.Text, maxArea.Width)
+		} else {
+			p.cachedLines = splitLines(p.Text)
+		}
 	}
 
 	// En uzun satırın genişliğini bul
 	maxW := 0
-	for _, line := range lines {
+	for _, line := range p.cachedLines {
 		if width := cell.StringWidth(line); width > maxW {
 			maxW = width
 		}
 	}
 
 	w := uint16(maxW)
-	h := uint16(len(lines))
+	h := uint16(len(p.cachedLines))
 
 	// Üst sınırları aşma
 	if w > maxArea.Width {
@@ -76,6 +92,18 @@ func (p Paragraph) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	}
 
 	return w, h
+}
+
+// Measure provides explicit size negotiation for Paragraph.
+func (p *Paragraph) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := p.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
 }
 
 // wrapText, uzun bir metni kelime sınırlarından bölerek satır genişliğini (width) aşmayacak şekilde satırlara ayırır.

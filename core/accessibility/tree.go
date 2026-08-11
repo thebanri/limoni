@@ -16,6 +16,8 @@ const (
 	RoleDialog
 	RoleProgress
 	RoleImage
+	RoleRadioButton
+	RoleSlider
 )
 
 type NodeState uint32

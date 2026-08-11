@@ -18,4 +18,7 @@ func TestDashboardWriters(t *testing.T) {
 	if !strings.Contains(jsonOut.String(), "limoni") || !strings.Contains(htmlOut.String(), "Benchmark Dashboard") {
 		t.Fatalf("dashboard output missing: %q / %q", jsonOut.String(), htmlOut.String())
 	}
+	if !strings.Contains(htmlOut.String(), "<th>Implementation</th>") || !strings.Contains(htmlOut.String(), "<th>Allocs</th>") {
+		t.Fatal("dashboard is missing implementation/alloc columns")
+	}
 }

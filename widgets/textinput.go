@@ -1,9 +1,11 @@
 package widgets
 
 import (
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // TextInputState, metin giriş kutusunun veri durumunu (text ve imleç konumu) saklar.
@@ -167,4 +169,36 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 // SizeHint, metin giriş kutusunun tek satırlı olduğunu bildirir.
 func (ti TextInput) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, 1
+}
+
+// Measure provides explicit size negotiation for TextInput.
+func (ti TextInput) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := ti.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
+}
+
+// AccessibilityNode returns the semantic node description for TextInput.
+func (ti TextInput) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	val := ""
+	if ti.State != nil {
+		val = string(ti.State.Text)
+	}
+	return accessibility.AccessibilityNode{
+		ID:     ti.ID,
+		Role:   accessibility.RoleInput,
+		Label:  ti.Placeholder,
+		Value:  val,
+		State:  state,
+		Bounds: bounds,
+	}
 }

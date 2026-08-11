@@ -1,12 +1,16 @@
 package widgets
 
 import (
+	"fmt"
+
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
 
 // ProgressBar renders a bounded horizontal progress indicator.
 type ProgressBar struct {
+	ID          string
 	Value       float64
 	Min         float64
 	Max         float64
@@ -49,3 +53,30 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 }
 
 func (p ProgressBar) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
+
+// AccessibilityNode returns the semantic node description for ProgressBar.
+func (p ProgressBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	ratio := 0.0
+	if p.Max > p.Min {
+		ratio = (p.Value - p.Min) / (p.Max - p.Min)
+		if ratio < 0 {
+			ratio = 0
+		}
+		if ratio > 1 {
+			ratio = 1
+		}
+	}
+	val := fmt.Sprintf("%d%%", int(ratio*100))
+	return accessibility.AccessibilityNode{
+		ID:     p.ID,
+		Role:   accessibility.RoleProgress,
+		Label:  "ProgressBar",
+		Value:  val,
+		State:  state,
+		Bounds: bounds,
+	}
+}

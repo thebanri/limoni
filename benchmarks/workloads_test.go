@@ -23,7 +23,7 @@ func BenchmarkEmptyFrame(b *testing.B) {
 
 func BenchmarkTextHeavyFrame(b *testing.B) {
 	term := testkit.NewTerminal(120, 40)
-	text := widgets.Paragraph{Text: "Limoni benchmark text with unicode ✓ and wrapping. ", Wrap: true}
+	text := &widgets.Paragraph{Text: "Limoni benchmark text with unicode ✓ and wrapping. ", Wrap: true}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		term.Render(text, cell.NewRect(0, 0, 120, 40))

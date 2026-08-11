@@ -41,6 +41,36 @@ func MeasureWorkloadWithStats(iterations int, fn func() []byte) Metrics {
 	return metrics
 }
 
+// MeasureWorkloadWithWarmup runs warmupIterations first (without recording statistics),
+// then runs timedIterations while recording time and output bytes. It also captures
+// heap allocation deltas.
+func MeasureWorkloadWithWarmup(warmupIterations, timedIterations int, fn func() []byte) Metrics {
+	for i := 0; i < warmupIterations; i++ {
+		if fn != nil {
+			_ = fn()
+		}
+	}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	var metrics Metrics
+	if timedIterations < 0 {
+		timedIterations = 0
+	}
+	for i := 0; i < timedIterations; i++ {
+		start := time.Now()
+		var output []byte
+		if fn != nil {
+			output = fn()
+		}
+		metrics.ObserveDuration(time.Since(start).Nanoseconds(), output)
+	}
+	runtime.ReadMemStats(&after)
+	metrics.AllocBytes = after.TotalAlloc - before.TotalAlloc
+	metrics.Allocs = after.Mallocs - before.Mallocs
+	return metrics
+}
+
 // ObserveDuration records a duration and emitted output size from one
 // workload iteration.
 func (m *Metrics) ObserveDuration(durationNS int64, output []byte) {

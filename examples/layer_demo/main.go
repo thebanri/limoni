@@ -279,7 +279,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			BorderSymbols:  widgets.SymbolsRounded,
 			BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
 			Style:          cell.Style{Bg: cell.NewColorRGB(18, 18, 24)},
-			Child: widgets.Paragraph{
+			Child: &widgets.Paragraph{
 				Text: "Hoş geldiniz!\n\n" +
 					"Faz 10 Yenilikleri:\n" +
 					"  • Katmanlı Render: z-index ile üst üste binen katmanlar\n" +
@@ -299,7 +299,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			BorderStyle:  cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
 			PaddingLeft:  1,
 			PaddingRight: 1,
-			Child: widgets.Paragraph{
+			Child: &widgets.Paragraph{
 				Text: state.StatusBar,
 				Style: cell.Style{
 					Fg: cell.NewColorRGB(140, 160, 180),

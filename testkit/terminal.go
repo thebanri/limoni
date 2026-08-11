@@ -403,3 +403,72 @@ func (t *Terminal) AssertEventTrace(expected ...string) error {
 	}
 	return nil
 }
+
+// TraceEntry wraps the core terminal trace entry for TestKit consumers.
+type TraceEntry struct {
+	RegionID string
+	Action   string
+	ZIndex   int
+	Phase    backend.EventPhase
+}
+
+// EventTraceEntries returns the chronological metadata event trace.
+func (t *Terminal) EventTraceEntries() []TraceEntry {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	coreEntries := t.frame.EventTraceEntries()
+	entries := make([]TraceEntry, len(coreEntries))
+	for i, e := range coreEntries {
+		entries[i] = TraceEntry{
+			RegionID: e.RegionID,
+			Action:   e.Action,
+			ZIndex:   e.ZIndex,
+			Phase:    e.Phase,
+		}
+	}
+	return entries
+}
+
+// AssertHoverEnter asserts that a region was hovered (mouse enter).
+func (t *Terminal) AssertHoverEnter(id string) error {
+	for _, entry := range t.EventTraceEntries() {
+		if entry.RegionID == id && entry.Action == "enter" {
+			return nil
+		}
+	}
+	return fmt.Errorf("hover enter for region %q not found in trace", id)
+}
+
+// AssertHoverLeave asserts that a region's hover was left (mouse leave).
+func (t *Terminal) AssertHoverLeave(id string) error {
+	for _, entry := range t.EventTraceEntries() {
+		if entry.RegionID == id && entry.Action == "leave" {
+			return nil
+		}
+	}
+	return fmt.Errorf("hover leave for region %q not found in trace", id)
+}
+
+// AssertStyleSnapshot verifies the style snapshot of the terminal.
+func (t *Terminal) AssertStyleSnapshot(expected string) error {
+	if got := t.StyleSnapshot(); got != expected {
+		return fmt.Errorf("style snapshot mismatch:\nGot:\n%s\nWant:\n%s", got, expected)
+	}
+	return nil
+}
+
+// ResizeAndRender changes the test terminal surface size and renders the widget.
+func (t *Terminal) ResizeAndRender(widget widgets.Widget, width, height uint16) string {
+	t.Resize(width, height)
+	t.Render(widget, cell.NewRect(0, 0, width, height))
+	return t.Snapshot()
+}
+
+// AssertRedrawChanged asserts that the snapshot changed between render passes.
+func (t *Terminal) AssertRedrawChanged(before, after string) error {
+	if before == after {
+		return fmt.Errorf("redraw expected content changes, but snapshot remains identical")
+	}
+	return nil
+}

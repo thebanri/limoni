@@ -6,6 +6,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // ListState, kaydırılabilir ve seçilebilir listenin durumunu (state) temsil eder.
@@ -277,4 +278,16 @@ func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	}
 
 	return w, h
+}
+
+// Measure provides explicit size negotiation for List.
+func (l List) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := l.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
 }

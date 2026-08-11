@@ -737,7 +737,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		var showcaseWidget widgets.Widget
 		switch state.ShowcaseSelected {
 		case "Paragraph":
-			showcaseWidget = widgets.Paragraph{
+			showcaseWidget = &widgets.Paragraph{
 				Text: "Limoni TUI Kütüphanesi ile yazılmış olan bu paragraf bileşeni, otomatik sözcük sarma (word wrapping) desteğine sahiptir. " +
 					"Farklı pencere boyutlarına göre kendini yeniden hesaplar ve düzgün şekilde konumlandırır.\n\n" +
 					"Ayrıca **kalın**, *italik*, `kod` ve diğer biçimlendirmeleri de başarıyla işleyebilir.",
@@ -780,7 +780,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 
 			f.RenderWidget(widgets.Block{
 				Borders: widgets.BorderNone,
-				Child: widgets.Paragraph{
+				Child: &widgets.Paragraph{
 					Text: "İnteraktif Form Bileşenleri:",
 				},
 			}, formChunks[0])

@@ -28,6 +28,10 @@ func (r Role) String() string {
 		return "progress"
 	case RoleImage:
 		return "image"
+	case RoleRadioButton:
+		return "radio-button"
+	case RoleSlider:
+		return "slider"
 	default:
 		return "generic"
 	}

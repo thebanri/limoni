@@ -1,10 +1,18 @@
 # Cross-implementation benchmark runners
 
-Each runner writes a `benchmarks.DashboardReport` compatible JSON document:
+Each runner writes a `benchmarks.DashboardReport` compatible JSON document,
+including implementation, environment, validity, warnings, workload specs and
+summary metrics:
 
-```text
-{ "implementation": "...", "workloads": [{ "spec": {...}, "summary": {...} }] }
+```json
+{ "implementation": "...", "environment": {...}, "valid": true,
+  "workloads": [{ "spec": {...}, "summary": {...} }] }
 ```
+
+Every runner must emit the same three workload names (`empty-frame`,
+`text-heavy-120x40`, and `unicode-table`) with at least 20 measured frames.
+The CI validation step rejects missing implementations, mismatched workload
+counts, or insufficient frame samples.
 
 The Bubble Tea runner has its own `go.mod`/`go.sum` because it intentionally
 uses the external Charm dependency tree. The Rust runner requires the Rust

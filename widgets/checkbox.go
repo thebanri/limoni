@@ -3,6 +3,7 @@ package widgets
 import (
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -64,4 +65,27 @@ func (cb Checkbox) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		neededW = maxArea.Width
 	}
 	return neededW, 1
+}
+
+// AccessibilityNode returns the semantic node description for Checkbox.
+func (cb Checkbox) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	if cb.Checked != nil && *cb.Checked {
+		state |= accessibility.StateChecked
+	}
+	val := "false"
+	if cb.Checked != nil && *cb.Checked {
+		val = "true"
+	}
+	return accessibility.AccessibilityNode{
+		ID:     cb.ID,
+		Role:   accessibility.RoleCheckbox,
+		Label:  cb.Label,
+		Value:  val,
+		State:  state,
+		Bounds: bounds,
+	}
 }

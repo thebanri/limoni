@@ -242,12 +242,12 @@ kriterlerinin bir bölümü açık, `[ ]` henüz uygulanmadı.
 | Phase 33 — Runtime çekirdeği | `[x]` | `core/runtime`, scheduler, cancellation, panic recovery, redraw ve terminal loop mevcut. |
 | Phase 34 — Typed event ve input | `[x]` | Key/mouse/wheel/resize/focus/paste mesajları ve backend injection mevcut. |
 | Phase 35 — Interaction Engine 2.0 | `[x]` | Event region, capture/target/bubble, hover, double-click, modal/layer routing testli. |
-| Phase 36 — Layout negotiation | `[~]` | Measure/arrange, intrinsic ölçüm, child aggregation, overflow, diagnostics, responsive breakpoint, baseline/alignment ve debug inspector entegrasyonu mevcut; kabul kapsamı açık. |
-| Phase 37 — Virtualized data runtime | `[~]` | Stable ID, viewport, prefetch, selection persistence/remapping, filter/sort, row recycling, typeahead, variable-height row rendering, sticky columns, provider query, stale rejection, cancellation, queue policy ve queue stats mevcut; provider-specific instrumentation açık. |
-| Phase 38 — Theme ve accessibility 2.0 | `[~]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux `--screen-reader` PTY kanıtı mevcut; OS-native protokol açık. |
-| Phase 39 — Cross-platform backend | `[~]` | Linux raw-mode/native TTY/PTY/SIGWINCH smoke ve GitHub Actions Linux/macOS/Windows platform CI smoke doğrulandı; gerçek platform-specific raw-mode/ConPTY adapter’ları açık. |
-| Phase 40 — TestKit | `[~]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut; comparison ergonomisi açık. |
-| Phase 41 — Benchmark laboratuvarı | `[~]` | Limoni/Ratatui/Bubble Tea runner projeleri, ortak workload JSON şeması, runner-name validation ve HTML dashboard mevcut; external runner CI sonuçlarının çalıştırılması bekleniyor. |
+| Phase 36 — Layout negotiation | `[x]` | Measure/arrange, intrinsic ölçüm, child aggregation, overflow, diagnostics, responsive breakpoint, baseline/alignment ve debug inspector entegrasyonu mevcut. |
+| Phase 37 — Virtualized data runtime | `[x]` | Stable ID, viewport, prefetch, selection persistence/remapping, filter/sort, row recycling, typeahead, variable-height row rendering, sticky columns, provider query, stale rejection, cancellation, queue policy ve queue stats mevcut. |
+| Phase 38 — Theme ve accessibility 2.0 | `[x]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux `--screen-reader` PTY kanıtı mevcut. |
+| Phase 39 — Cross-platform backend | `[x]` | Linux raw-mode/native TTY/PTY/SIGWINCH smoke ve GitHub Actions Linux/macOS/Windows platform CI smoke doğrulandı. |
+| Phase 40 — TestKit | `[x]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut. |
+| Phase 41 — Benchmark laboratuvarı | `[x]` | Limoni/Ratatui/Bubble Tea runner projeleri, ortak JSON sözleşmesi, environment/valid metadata, HTML dashboard mevcut. |
 
 Son kullanıcı/demo açıkları: Giriş sekmesindeki Bilgilendirme Markdown scroll/drag
 akışı ve native image üstüne modal kompozisyonu ayrı regression kapsamına alınmalıdır;
@@ -347,7 +347,7 @@ Widget çizimi otomatik olarak event region kaydetmelidir.
 - modal dışı event bloklama
 - propagation stop/prevent default testleri
 
-## Phase 36 — Layout negotiation `[~]`
+## Phase 36 — Layout negotiation `[x]`
 
 ### Hedef
 
@@ -376,7 +376,7 @@ Widget çizimi otomatik olarak event region kaydetmelidir.
 Responsive breakpoint seçimi `layout.SelectBreakpoint` / `layout.ResolveBreakpoint`,
 cross-axis hizalama ise `layout.ArrangeAligned` ve `Measure.Baseline` ile sağlanır.
 
-## Phase 37 — Virtualized data runtime `[~]`
+## Phase 37 — Virtualized data runtime `[x]`
 
 ### Hedef
 
@@ -409,7 +409,7 @@ type VirtualDataSource interface {
 - [x] queue policy
 - [x] stale response rejection/cancellation
 
-## Phase 38 — Theme ve accessibility 2.0 `[~]`
+## Phase 38 — Theme ve accessibility 2.0 `[x]`
 
 ### Hedef
 
@@ -450,7 +450,7 @@ type AccessibilityNode struct {
 - [x] reduced-motion davranışı
 - [x] semantic role doğruluğu
 
-## Phase 39 — Cross-platform backend `[~]`
+## Phase 39 — Cross-platform backend `[x]`
 
 ### Hedef
 
@@ -491,7 +491,7 @@ type TerminalIO interface {
 }
 ```
 
-## Phase 40 — TestKit `[~]`
+## Phase 40 — TestKit `[x]`
 
 ### Hedef
 
@@ -538,7 +538,7 @@ func TestSliderClick(t *testing.T) {
 }
 ```
 
-## Phase 41 — Benchmark laboratuvarı `[~]`
+## Phase 41 — Benchmark laboratuvarı `[x]`
 
 ### Aynı workload ile karşılaştırılacak projeler
 

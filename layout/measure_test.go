@@ -68,9 +68,21 @@ func TestMeasureAnyAndAggregateMeasures(t *testing.T) {
 }
 
 func TestDiagnoseReportsAllocatedOverflow(t *testing.T) {
-	measurements := []Measure{{IdealWidth: 10, IdealHeight: 4}}
+	measurements := []Measure{{IdealWidth: 10, IdealHeight: 4, Baseline: 2, Overflow: OverflowScroll}}
 	diagnostics := Diagnose(measurements, []cell.Rect{cell.NewRect(0, 0, 8, 4)})
 	if len(diagnostics) != 1 || !diagnostics[0].Overflowed {
 		t.Fatalf("diagnostics = %+v, want width overflow", diagnostics)
+	}
+	if !diagnostics[0].Shrunk {
+		t.Error("expected Shrunk to be true")
+	}
+	if diagnostics[0].Grown {
+		t.Error("expected Grown to be false")
+	}
+	if diagnostics[0].BaselineOffset != 2 {
+		t.Errorf("expected BaselineOffset to be 2, got %d", diagnostics[0].BaselineOffset)
+	}
+	if diagnostics[0].Policy != OverflowScroll {
+		t.Errorf("expected Policy to be OverflowScroll, got %v", diagnostics[0].Policy)
 	}
 }

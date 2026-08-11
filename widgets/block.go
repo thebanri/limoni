@@ -8,6 +8,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // Kenarlık yön maskeleri (bitmask).
@@ -389,6 +390,18 @@ func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	}
 
 	return width, height
+}
+
+// Measure provides explicit size negotiation for Block.
+func (b Block) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := b.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowClip,
+	}
 }
 
 var (

@@ -9,6 +9,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // ConstraintType, sütun genişlik kuralını belirleyen kısıt türüdür.
@@ -548,8 +549,21 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	// Body satırlarını (row 0..len(Rows)-1) matrise işle
-	for rIdx := 0; rIdx < len(rows); rIdx++ {
+	// Body satırlarını matrise işle (satır kırpma optimizasyonu ile)
+	offset := 0
+	if t.State != nil {
+		offset = t.State.Offset
+	}
+	startRow := offset - 2
+	if startRow < 0 {
+		startRow = 0
+	}
+	endRow := offset + int(ctx.Area.Height) + 2
+	if endRow > len(rows) {
+		endRow = len(rows)
+	}
+
+	for rIdx := startRow; rIdx < endRow; rIdx++ {
 		row := rows[rIdx]
 		cellIdx := 0
 		for colIdx := 0; colIdx < colsCount; {
@@ -1008,6 +1022,18 @@ func numericTableValue(value string) (float64, bool) {
 // SizeHint, tablonun esnek yerleşim ihtiyacını belirtir.
 func (t Table) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, maxArea.Height
+}
+
+// Measure provides explicit size negotiation for Table.
+func (t Table) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := t.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowScroll,
+	}
 }
 
 func clipString(s string, maxW int) string {

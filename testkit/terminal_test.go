@@ -234,3 +234,55 @@ func TestTerminalEventTraceAssertion(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTerminalAdvancedErgonomics(t *testing.T) {
+	testTerm := NewTerminal(10, 2)
+
+	// 1. Test style snapshot assertion
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.Buffer.SetString(0, 0, "A", cell.Style{Fg: cell.NewColorANSI(1), Bg: cell.NewColorANSI(4), Modifier: cell.ModifierBold})
+	})
+	styleSnapshot := testTerm.StyleSnapshot()
+	if err := testTerm.AssertStyleSnapshot(styleSnapshot); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Test hover enter/leave assertions and EventTraceEntries
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterEventRegion(terminal.EventRegion{
+			ID: "btn", Area: cell.NewRect(0, 0, 4, 1), Phase: terminal.TargetPhase,
+			Handler: func(*terminal.EventContext) {},
+			OnEnter: func(*terminal.EventContext) {},
+			OnLeave: func(*terminal.EventContext) {},
+		})
+	})
+	testTerm.MovePointer(1, 0) // triggers hover enter on btn
+	if err := testTerm.AssertHoverEnter("btn"); err != nil {
+		t.Fatal(err)
+	}
+	testTerm.MovePointer(8, 0) // triggers hover leave on btn
+	if err := testTerm.AssertHoverLeave("btn"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify EventTraceEntries
+	entries := testTerm.EventTraceEntries()
+	if len(entries) < 2 {
+		t.Fatalf("expected at least 2 trace entries, got %d", len(entries))
+	}
+	if entries[0].RegionID != "btn" || entries[0].Action != "enter" {
+		t.Errorf("first entry = %+v", entries[0])
+	}
+	if entries[1].RegionID != "btn" || entries[1].Action != "leave" {
+		t.Errorf("second entry = %+v", entries[1])
+	}
+
+	// 3. Test ResizeAndRender and AssertRedrawChanged
+	p := &widgets.Paragraph{Text: "Limoni"}
+	snapBefore := testTerm.ResizeAndRender(p, 10, 2)
+	p2 := &widgets.Paragraph{Text: "Changed"}
+	snapAfter := testTerm.ResizeAndRender(p2, 10, 2)
+	if err := testTerm.AssertRedrawChanged(snapBefore, snapAfter); err != nil {
+		t.Fatal(err)
+	}
+}

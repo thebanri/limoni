@@ -3,6 +3,7 @@ package widgets
 import (
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -65,4 +66,28 @@ func (rb RadioButton) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		neededW = maxArea.Width
 	}
 	return neededW, 1
+}
+
+// AccessibilityNode returns the semantic node description for RadioButton.
+func (rb RadioButton) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	isSelected := rb.Selected != nil && *rb.Selected == rb.Value
+	if isSelected {
+		state |= accessibility.StateSelected
+	}
+	val := "false"
+	if isSelected {
+		val = "true"
+	}
+	return accessibility.AccessibilityNode{
+		ID:     rb.ID,
+		Role:   accessibility.RoleRadioButton,
+		Label:  rb.Label,
+		Value:  val,
+		State:  state,
+		Bounds: bounds,
+	}
 }

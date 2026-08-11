@@ -74,24 +74,32 @@ const (
 
 // VirtualDataState is a concurrency-safe viewport cache.
 type VirtualDataState struct {
-	mu          sync.RWMutex
-	rows        map[int]Row
-	selected    RowID
-	status      VirtualStatus
-	err         error
-	count       int
-	filter      string
-	sortKey     string
-	sortDesc    bool
-	generation  uint64
-	cancel      context.CancelFunc
-	queuePolicy VirtualQueuePolicy
-	activeDone  chan struct{}
-	stats       VirtualQueueStats
+	mu                sync.RWMutex
+	rows              map[int]Row
+	selected          RowID
+	lastSelectedIndex int
+	selectedSet       map[RowID]struct{}
+	queryResult       VirtualQueryResult
+	status            VirtualStatus
+	err               error
+	count             int
+	filter            string
+	sortKey           string
+	sortDesc          bool
+	generation        uint64
+	cancel            context.CancelFunc
+	queuePolicy       VirtualQueuePolicy
+	activeDone        chan struct{}
+	stats             VirtualQueueStats
 }
 
 func NewVirtualDataState() *VirtualDataState {
-	return &VirtualDataState{rows: make(map[int]Row), status: VirtualIdle, queuePolicy: VirtualLatestOnly}
+	return &VirtualDataState{
+		rows:        make(map[int]Row),
+		status:      VirtualIdle,
+		queuePolicy: VirtualLatestOnly,
+		selectedSet: make(map[RowID]struct{}),
+	}
 }
 
 func (s *VirtualDataState) SetQueuePolicy(policy VirtualQueuePolicy) {
@@ -130,13 +138,88 @@ func (s *VirtualDataState) RemapSelection() bool {
 	if s.selected == "" {
 		return false
 	}
-	for _, row := range s.rows {
+	for idx, row := range s.rows {
 		if row.ID == s.selected {
+			s.lastSelectedIndex = idx
 			return true
 		}
 	}
+	// Selection went out of viewport. Remap to closest loaded index.
+	if len(s.rows) == 0 {
+		s.selected = ""
+		return false
+	}
+	closestIdx := -1
+	minDiff := -1
+	for idx := range s.rows {
+		diff := idx - s.lastSelectedIndex
+		if diff < 0 {
+			diff = -diff
+		}
+		if minDiff == -1 || diff < minDiff {
+			minDiff = diff
+			closestIdx = idx
+		}
+	}
+	if closestIdx != -1 {
+		s.selected = s.rows[closestIdx].ID
+		s.lastSelectedIndex = closestIdx
+		return true
+	}
 	s.selected = ""
 	return false
+}
+
+func (s *VirtualDataState) ToggleSelect(id RowID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.selectedSet == nil {
+		s.selectedSet = make(map[RowID]struct{})
+	}
+	if _, ok := s.selectedSet[id]; ok {
+		delete(s.selectedSet, id)
+	} else {
+		s.selectedSet[id] = struct{}{}
+	}
+}
+
+func (s *VirtualDataState) IsSelected(id RowID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.selectedSet == nil {
+		return false
+	}
+	_, ok := s.selectedSet[id]
+	return ok
+}
+
+func (s *VirtualDataState) ClearSelected() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.selectedSet = make(map[RowID]struct{})
+	s.selected = ""
+}
+
+func (s *VirtualDataState) SelectedSet() map[RowID]struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make(map[RowID]struct{}, len(s.selectedSet))
+	for k := range s.selectedSet {
+		res[k] = struct{}{}
+	}
+	return res
+}
+
+type VirtualQueryResult struct {
+	Count    int
+	Filtered int
+	Offset   int
+}
+
+func (s *VirtualDataState) QueryResult() VirtualQueryResult {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.queryResult
 }
 
 func (s *VirtualDataState) Status() (VirtualStatus, error) {
@@ -152,7 +235,17 @@ func (s *VirtualDataState) Row(index int) (Row, bool) {
 	return row, ok
 }
 func (s *VirtualDataState) Selected() RowID { s.mu.RLock(); defer s.mu.RUnlock(); return s.selected }
-func (s *VirtualDataState) Select(id RowID) { s.mu.Lock(); s.selected = id; s.mu.Unlock() }
+func (s *VirtualDataState) Select(id RowID) {
+	s.mu.Lock()
+	s.selected = id
+	for idx, r := range s.rows {
+		if r.ID == id {
+			s.lastSelectedIndex = idx
+			break
+		}
+	}
+	s.mu.Unlock()
+}
 
 // FilterQuery returns the current incremental viewport filter.
 func (s *VirtualDataState) FilterQuery() string { s.mu.RLock(); defer s.mu.RUnlock(); return s.filter }
@@ -232,23 +325,29 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	for s.activeDone != nil {
 		policy := s.queuePolicy
 		if policy == VirtualDropLatest {
+			s.stats.Dropped++
 			s.mu.Unlock()
 			return ErrVirtualBusy
 		}
 		if policy == VirtualSequential {
+			s.stats.QueueLength++
 			done := s.activeDone
 			s.mu.Unlock()
 			<-done
 			s.mu.Lock()
+			s.stats.QueueLength--
 			continue
 		}
 		if s.cancel != nil {
 			s.cancel()
+			s.stats.Canceled++
+			s.stats.Dropped++
 		}
 		break
 	}
 	if s.cancel != nil {
 		s.cancel()
+		s.stats.Canceled++
 	}
 	requestCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -276,6 +375,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		s.mu.Lock()
 		if s.generation == generation {
 			s.status, s.err = VirtualError, err
+			s.stats.Canceled++
 		}
 		s.mu.Unlock()
 		return err
@@ -284,6 +384,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		if err := queryable.ApplyQuery(requestCtx, query); err != nil {
 			s.mu.Lock()
 			if s.generation != generation {
+				s.stats.Stale++
 				s.mu.Unlock()
 				return ErrVirtualStale
 			}
@@ -302,6 +403,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		}
 		s.status = VirtualError
 		s.err = err
+		s.stats.Canceled++
 		s.mu.Unlock()
 		return err
 	}
@@ -321,11 +423,13 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		if rowErr != nil {
 			s.mu.Lock()
 			if s.generation != generation {
+				s.stats.Stale++
 				s.mu.Unlock()
 				return ErrVirtualStale
 			}
 			s.status = VirtualError
 			s.err = rowErr
+			s.stats.Canceled++
 			s.mu.Unlock()
 			return rowErr
 		}
@@ -343,6 +447,12 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	if count == 0 {
 		s.status = VirtualEmpty
 	}
+	s.queryResult = VirtualQueryResult{
+		Count:    count,
+		Filtered: len(loaded),
+		Offset:   first,
+	}
+	s.stats.Completed++
 	s.mu.Unlock()
 	return nil
 }

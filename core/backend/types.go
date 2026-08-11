@@ -104,3 +104,46 @@ type Event struct {
 	Focus  FocusEvent
 	Paste  PasteEvent
 }
+
+// PlatformCapabilityMatrix reports terminal and OS capability support.
+type PlatformCapabilityMatrix struct {
+	OS             string
+	HasRawMode     bool
+	HasMouseSGR    bool
+	HasFocusReport bool
+	HasAltBuffer   bool
+	HasIoctlResize bool
+}
+
+// GetPlatformCapabilities returns capabilities based on operating system.
+func GetPlatformCapabilities(goos string) PlatformCapabilityMatrix {
+	switch goos {
+	case "linux", "darwin", "freebsd", "openbsd", "netbsd":
+		return PlatformCapabilityMatrix{
+			OS:             goos,
+			HasRawMode:     true,
+			HasMouseSGR:    true,
+			HasFocusReport: true,
+			HasAltBuffer:   true,
+			HasIoctlResize: true,
+		}
+	case "windows":
+		return PlatformCapabilityMatrix{
+			OS:             goos,
+			HasRawMode:     true,
+			HasMouseSGR:    true,
+			HasFocusReport: true,
+			HasAltBuffer:   true,
+			HasIoctlResize: false,
+		}
+	default:
+		return PlatformCapabilityMatrix{
+			OS:             goos,
+			HasRawMode:     false,
+			HasMouseSGR:    false,
+			HasFocusReport: false,
+			HasAltBuffer:   false,
+			HasIoctlResize: false,
+		}
+	}
+}

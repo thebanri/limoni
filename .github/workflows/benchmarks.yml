@@ -67,6 +67,16 @@ jobs:
           jq -e '.implementation == "limoni" or .workload.implementation == "limoni"' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
           jq -e '.implementation == "bubbletea" or .workload.implementation == "bubbletea"' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
           jq -e '.implementation == "ratatui" or .workload.implementation == "ratatui"' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
+          jq -e '.valid == true and .environment.os != null and .environment.arch != null' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
+          jq -e '.valid == true and .environment.os != null and .environment.arch != null' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
+          jq -e '.valid == true and .environment.os != null and .environment.arch != null' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
+          echo "=== Validating common workload names and frame samples ==="
+          jq -e '[.workloads[].spec.name] | length == 3' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
+          jq -e '[.workloads[].spec.name] | length == 3' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
+          jq -e '[.workloads[].spec.name] | length == 3' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
+          jq -e 'all(.workloads[]; .summary.Frames >= 20)' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
+          jq -e 'all(.workloads[]; .summary.Frames >= 20)' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
+          jq -e 'all(.workloads[]; .summary.Frames >= 20)' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
 
       - name: Generate workload schema sample
         run: |

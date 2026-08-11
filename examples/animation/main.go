@@ -218,7 +218,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			BorderStyle:    cell.Style{Fg: btnCol},
 			PaddingLeft:    2,
 			PaddingTop:     1,
-			Child: widgets.Paragraph{
+			Child: &widgets.Paragraph{
 				Text:  fmt.Sprintf("Kutunun çerçeve rengi yumuşak bir şekilde değişmektedir.\n\n[Enter] tuşuna basarak veya bu kutuya tıklayarak renk geçişini tetikleyin.\nAktif Renk (RGB): %+v\nSon Olaylar - Tuş: %s | Fare: %s", btnCol, state.LastKey, state.LastMouse),
 				Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
 				Wrap:  true,

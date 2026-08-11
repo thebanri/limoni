@@ -6,6 +6,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 )
 
 // TextAreaState stores multiline text and a rune cursor.
@@ -126,3 +127,15 @@ func (a TextArea) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 func (a TextArea) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, maxArea.Height }
+
+// Measure provides explicit size negotiation for TextArea.
+func (a TextArea) Measure(maxArea cell.Rect) layout.Measure {
+	w, h := a.SizeHint(maxArea)
+	return layout.Measure{
+		IdealWidth:  w,
+		IdealHeight: h,
+		MaxWidth:    maxArea.Width,
+		MaxHeight:   maxArea.Height,
+		Overflow:    layout.OverflowScroll,
+	}
+}
