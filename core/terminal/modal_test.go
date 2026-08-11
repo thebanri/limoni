@@ -286,3 +286,45 @@ func TestResetClearsLayers(t *testing.T) {
 		t.Errorf("After Reset, ActiveModal = nil değildi")
 	}
 }
+
+func TestRegisterImageZIndexMapping(t *testing.T) {
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 80, 24))
+	frame := NewFrame(buf, NewFocusManager())
+
+	// We render a dummy widget that registers an image.
+	// 1. An explicit negative z-index is preserved without a modal.
+	frame.RenderWidget(dummyImageWidget{zIndex: -1}, cell.NewRect(10, 5, 20, 10))
+	if len(frame.ImageRegions) != 1 {
+		t.Fatalf("Expected 1 image region, got %d", len(frame.ImageRegions))
+	}
+	if frame.ImageRegions[0].ZIndex != -1 {
+		t.Errorf("Expected explicit ZIndex -1 when no modal, got %d", frame.ImageRegions[0].ZIndex)
+	}
+
+	// Reset frame
+	frame.Reset()
+
+	// 2. The explicit z-index remains below the modal when it overlaps.
+	frame.RegisterModal("modal", cell.NewRect(15, 5, 20, 10), nil)
+	frame.RenderWidget(dummyImageWidget{zIndex: -1}, cell.NewRect(10, 5, 20, 10))
+	if len(frame.ImageRegions) != 1 {
+		t.Fatalf("Expected 1 image region, got %d", len(frame.ImageRegions))
+	}
+	if frame.ImageRegions[0].ZIndex != -1 {
+		t.Errorf("Expected explicit ZIndex -1 due to modal overlap, got %d", frame.ImageRegions[0].ZIndex)
+	}
+}
+
+type dummyImageWidget struct {
+	zIndex int
+}
+
+func (d dummyImageWidget) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if ctx.RegisterImage != nil {
+		ctx.RegisterImage(ctx.Area, nil, d.zIndex, false)
+	}
+}
+
+func (d dummyImageWidget) SizeHint(maxArea cell.Rect) (width, height uint16) {
+	return maxArea.Width, maxArea.Height
+}

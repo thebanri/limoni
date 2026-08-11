@@ -20,6 +20,9 @@ type VirtualDataView struct {
 	LoadingText   string
 	ErrorText     string
 	Offset        *int
+	// OnSelect is called with the virtual row index after a row is clicked.
+	// It lets applications keep selection metadata alongside the stable RowID.
+	OnSelect func(index int, row Row)
 }
 
 func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -47,6 +50,23 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 	style := ctx.Style.Merge(v.Style)
+	// Register the viewport handler before row click regions. The router walks
+	// regions from top to bottom, so row clicks must win over the wheel area
+	// while wheel events still reach this handler.
+	if ctx.RegisterMouse != nil && v.Offset != nil {
+		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			max := v.State.Count() - int(ctx.Area.Height)
+			if max < 0 {
+				max = 0
+			}
+			if ev.Button == backend.MouseScrollUp && *v.Offset > 0 {
+				(*v.Offset)--
+			}
+			if ev.Button == backend.MouseScrollDown && *v.Offset < max {
+				(*v.Offset)++
+			}
+		})
+	}
 	for row := 0; row < visible; row++ {
 		index := first + row
 		item, ok := v.State.Row(index)
@@ -64,22 +84,14 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(row), line, rowStyle)
 		if ctx.RegisterClick != nil {
 			id := item.ID
-			ctx.RegisterClick(cell.NewRect(ctx.Area.X, ctx.Area.Y+uint16(row), ctx.Area.Width, 1), func() { v.State.Select(id) })
+			rowIndex := index
+			ctx.RegisterClick(cell.NewRect(ctx.Area.X, ctx.Area.Y+uint16(row), ctx.Area.Width, 1), func() {
+				v.State.Select(id)
+				if v.OnSelect != nil {
+					v.OnSelect(rowIndex, item)
+				}
+			})
 		}
-	}
-	if ctx.RegisterMouse != nil && v.Offset != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			max := v.State.Count() - int(ctx.Area.Height)
-			if max < 0 {
-				max = 0
-			}
-			if ev.Button == backend.MouseScrollUp && *v.Offset > 0 {
-				(*v.Offset)--
-			}
-			if ev.Button == backend.MouseScrollDown && *v.Offset < max {
-				(*v.Offset)++
-			}
-		})
 	}
 }
 

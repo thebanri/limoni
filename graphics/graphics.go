@@ -12,6 +12,21 @@ import (
 	"os"
 )
 
+// CropImage returns a pixel-exact crop of img. The returned image uses a
+// zero-based RGBA canvas so it can be safely passed to native image encoders.
+func CropImage(img image.Image, crop image.Rectangle) image.Image {
+	if img == nil {
+		return nil
+	}
+	crop = crop.Intersect(img.Bounds())
+	if crop.Empty() {
+		return nil
+	}
+	out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+	draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+	return out
+}
+
 // Protocol, terminalin desteklediği grafik protokol türünü temsil eder.
 type Protocol int
 

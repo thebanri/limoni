@@ -597,7 +597,8 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	ctx.RegisterImage = func(imageArea cell.Rect, img image.Image, zIndex int, transparent bool) bool {
 		// Z-Index otomatik eşleme mantığı (WezTerm/Ghostty vb. katman çakışmalarını önlemek için):
 		// - ZIndex = -99 ise: Block arka plan resmi. Modal/katman için -2, kök için -4 olur.
-		// - ZIndex <= 0 ise: Normal görsel. Modal/katman içindeyse -1, arka plandaysa -3 olur.
+		// - ZIndex < 0 ise: Widget'ın açıkça istediği native z-index korunur.
+		// - ZIndex = 0 ise: Normal görsel. Modal/katman içindeyse -1, arka plandaysa -3 olur.
 		topModal := f.TopmostModal()
 		if zIndex == -99 {
 			if topModal != nil || len(f.Layers) > 0 {
@@ -605,7 +606,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 			} else {
 				zIndex = -4
 			}
-		} else if zIndex <= 0 {
+		} else if zIndex == 0 {
 			isForeground := false
 			if topModal != nil && ContainsRect(topModal.Area, imageArea) {
 				isForeground = true

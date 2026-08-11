@@ -84,7 +84,11 @@ func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
 		if !region.Area.Contains(ev.X, ev.Y) {
 			continue
 		}
-		if ev.Button != backend.MouseLeft && (!region.MouseOnly || (ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown)) {
+		if region.MouseOnly {
+			if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+				continue
+			}
+		} else if ev.Button != backend.MouseLeft {
 			continue
 		}
 		region.Handler(ev)

@@ -135,12 +135,12 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	m.parse(baseStyle)
 
 	y := ctx.Area.Y
-	maxY := ctx.Area.Y + ctx.Area.Height
-	// ScrollOffset is indexed by parsed Markdown rows because the renderer
-	// advances through cachedLines in the same coordinate system. Using the
-	// wrapped visual-row count here would skip too many source rows and make
-	// scrolling appear stuck or leave the viewport blank.
-	maxOffset := maxMarkdownOffset(len(m.cachedLines), int(ctx.Area.Height))
+	rows := m.visualRows(ctx.Area.Width, baseStyle)
+	// ScrollOffset is a viewport row offset. It must use the same wrapped
+	// visual-row coordinate system as the renderer; using parsed source rows
+	// makes long lines/header spacing clamp too early and appear stuck.
+	contentRows := len(rows)
+	maxOffset := maxMarkdownOffset(contentRows, int(ctx.Area.Height))
 	offset := 0
 	if m.ScrollOffset != nil {
 		offset = *m.ScrollOffset
@@ -178,66 +178,81 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		})
 	}
 
-	for lineIndex, line := range m.cachedLines {
-		if lineIndex < offset {
-			continue
-		}
-		if y >= maxY {
+	for row := 0; row < int(ctx.Area.Height); row++ {
+		contentRow := offset + row
+		if contentRow >= len(rows) {
 			break
 		}
-
-		if line.isDivider {
-			divStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(100, 100, 100)})
-			for col := ctx.Area.X; col < ctx.Area.X+ctx.Area.Width; col++ {
-				buf.SetCell(col, y, cell.Cell{Content: '┄', Style: divStyle})
+		for col, item := range rows[contentRow] {
+			if col >= int(ctx.Area.Width) {
+				break
 			}
-			y++
-			continue
-		}
-
-		currX := ctx.Area.X
-		indent := uint16(0)
-		if line.prefix != "" {
-			buf.SetString(ctx.Area.X, y, line.prefix, baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}))
-			currX += uint16(len(line.prefix))
-			indent = currX - ctx.Area.X
-		}
-
-		for _, seg := range line.segments {
-			for idx, wordRunes := range seg.WordRunes {
-				if idx > 0 && currX < ctx.Area.X+ctx.Area.Width {
-					buf.SetCell(currX, y, cell.Cell{Content: ' ', Style: seg.Style})
-					currX++
-				}
-
-				wordLen := uint16(len(wordRunes))
-				// Eğer kelime satıra sığmıyorsa alt satıra geç (ve indent uygula)
-				if currX+wordLen >= ctx.Area.X+ctx.Area.Width {
-					y++
-					if y >= maxY {
-						return
-					}
-					currX = ctx.Area.X + indent
-				}
-
-				// Kelimeyi çiz
-				for _, r := range wordRunes {
-					if currX >= ctx.Area.X+ctx.Area.Width {
-						break
-					}
-					buf.SetCell(currX, y, cell.Cell{Content: r, Style: seg.Style})
-					currX++
-				}
-			}
-		}
-
-		// Satır sonu: Eğer başlık ise altını boş bırakıp 2 satır atla
-		if line.isHeader {
-			y += 2
-		} else {
-			y++
+			buf.SetCell(ctx.Area.X+uint16(col), y+uint16(row), item)
 		}
 	}
+}
+
+// visualRows expands parsed markdown into the exact cell rows used by Draw.
+// Keeping scrolling and rendering on this single representation prevents
+// wrapped lines and header spacing from drifting apart.
+func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell {
+	if width == 0 {
+		return nil
+	}
+	rows := make([][]cell.Cell, 0, len(m.cachedLines))
+	blank := func() []cell.Cell { return make([]cell.Cell, 0, int(width)) }
+	for _, line := range m.cachedLines {
+		if line.isDivider {
+			row := blank()
+			style := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(100, 100, 100)})
+			for len(row) < int(width) {
+				row = append(row, cell.Cell{Content: '┄', Style: style})
+			}
+			rows = append(rows, row)
+			continue
+		}
+		indent := 0
+		row := blank()
+		if line.prefix != "" {
+			prefixStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)})
+			for _, r := range []rune(line.prefix) {
+				row = append(row, cell.Cell{Content: r, Style: prefixStyle})
+			}
+			indent = len(row)
+		}
+		for _, seg := range line.segments {
+			for index, word := range seg.WordRunes {
+				space := 0
+				if index > 0 {
+					space = 1
+				}
+				if len(row)+space+len(word) >= int(width) && len(row) > indent {
+					for len(row) < indent {
+						row = append(row, cell.Cell{Content: ' ', Style: baseStyle})
+					}
+					rows = append(rows, row)
+					row = blank()
+					for i := 0; i < indent; i++ {
+						row = append(row, cell.Cell{Content: ' ', Style: baseStyle})
+					}
+				}
+				if space == 1 && len(row) < int(width) {
+					row = append(row, cell.Cell{Content: ' ', Style: seg.Style})
+				}
+				for _, r := range word {
+					if len(row) >= int(width) {
+						break
+					}
+					row = append(row, cell.Cell{Content: r, Style: seg.Style})
+				}
+			}
+		}
+		rows = append(rows, row)
+		if line.isHeader {
+			rows = append(rows, blank(), blank())
+		}
+	}
+	return rows
 }
 
 // visualLineCount mirrors the renderer's one-cell-per-row layout, including
@@ -280,6 +295,43 @@ func (m *Markdown) visualLineCount(width uint16) int {
 		count += rows
 	}
 	return count
+}
+
+// markdownLineRows returns the number of visual rows occupied by one parsed
+// line. It mirrors visualLineCount and is used by the viewport walker.
+func markdownLineRows(line markdownLine, width uint16) int {
+	if width == 0 {
+		return 0
+	}
+	if line.isDivider {
+		return 1
+	}
+	lineWidth := 0
+	indent := 0
+	if line.prefix != "" {
+		lineWidth = len([]rune(line.prefix))
+		indent = lineWidth
+	}
+	rows := 1
+	for _, segment := range line.segments {
+		for index, word := range segment.WordRunes {
+			wordWidth := len(word)
+			space := 0
+			if index > 0 {
+				space = 1
+			}
+			if lineWidth+space+wordWidth >= int(width) {
+				rows++
+				lineWidth = indent + wordWidth
+			} else {
+				lineWidth += space + wordWidth
+			}
+		}
+	}
+	if line.isHeader {
+		rows += 2
+	}
+	return rows
 }
 
 func maxMarkdownOffset(lineCount, visibleHeight int) int {

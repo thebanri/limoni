@@ -73,3 +73,22 @@ func TestVirtualDataViewRendersVisibleRows(t *testing.T) {
 		t.Fatal("expected visible virtual row")
 	}
 }
+
+func TestVirtualDataViewSelectsRowAndReportsIndex(t *testing.T) {
+	state := NewVirtualDataState()
+	selected := -1
+	click := func(area cell.Rect, handler func()) {
+		if area.Contains(2, 1) {
+			handler()
+		}
+	}
+	view := VirtualDataView{
+		State: state, Source: virtualSource{}, OnSelect: func(index int, _ Row) { selected = index },
+	}
+	ctx := cell.NewContext(cell.NewRect(0, 0, 20, 3), cell.Style{})
+	ctx.RegisterClick = click
+	view.Draw(ctx, buffer.NewBuffer(cell.NewRect(0, 0, 20, 3)))
+	if selected != 1 || state.Selected() == "" {
+		t.Fatalf("selection = index %d, id %q; want row 1", selected, state.Selected())
+	}
+}

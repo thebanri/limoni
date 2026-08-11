@@ -16,23 +16,14 @@ import (
 	"github.com/thebanri/limoni/widgets"
 )
 
-// drawReference is the demo's compact reference application for the roadmap
-// foundations. It intentionally uses the public runtime/TestKit/layout/data
-// APIs instead of duplicating their internals.
 func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, theme widgets.Theme, mainColor, accentColor cell.Color, area cell.Rect) {
 	rows := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(6), layout.Fixed(6), layout.Fixed(6), layout.Fill()).Split(area)
 	drawReferenceRuntime(f, state, theme, rows[0])
 	drawReferenceInteraction(t, f, state, theme, rows[1])
 	drawReferenceLayout(f, state, theme, rows[2])
 	drawReferenceData(f, state, theme, accentColor, rows[3])
-
-	// Register a semantic root so TestKit and accessibility inspectors can see
-	// the same metadata used by the reference screen.
-	f.RegisterAccessibility(accessibility.AccessibilityNode{
-		ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni referans ve geliştirici araçları", Bounds: area,
-	})
+	f.RegisterAccessibility(accessibility.AccessibilityNode{ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni referans ve geliştirici araçları", Bounds: area})
 	_ = mainColor
-	_ = state
 }
 
 func drawReferenceRuntime(f *terminal.Frame, state *AppState, theme widgets.Theme, area cell.Rect) {
@@ -46,48 +37,76 @@ func drawReferenceRuntime(f *terminal.Frame, state *AppState, theme widgets.Them
 }
 
 func drawReferenceInteraction(t *terminal.Terminal, f *terminal.Frame, state *AppState, theme widgets.Theme, area cell.Rect) {
-	text := fmt.Sprintf("Bu panel fare/odak olaylarını gösterir.\nBu panele tıkla: event kaydet\nFocused: %s\nHovered region: %s\nSon event: %s\nPropagation: capture → target → bubble", t.FocusManager().Focused(), f.HoveredRegionID(), state.ReferenceInteractionLast)
+	if state.ReferenceInteractionLast == "" {
+		state.ReferenceInteractionLast = "henüz event yok"
+	}
+	if state.ReferenceInteractionHover == "" {
+		state.ReferenceInteractionHover = "yok (panel dışı)"
+	}
+	history := strings.Join(state.ReferenceInteractionHistory, " | ")
+	if history == "" {
+		history = "henüz event yok"
+	}
+	text := fmt.Sprintf("Global event monitor | total: %d | focus: %s\nPointer: (%d,%d) | hover: %s | route: %s\nSon: %s\nHistory: %s", state.ReferenceInteractionEvents, t.FocusManager().Focused(), state.ReferenceInteractionPointerX, state.ReferenceInteractionPointerY, state.ReferenceInteractionHover, state.ReferenceInteractionLastRoute, state.ReferenceInteractionLast, history)
 	f.RenderWidget(widgets.Block{Title: " INTERACTION INSPECTOR ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: theme.Border, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
-			state.ReferenceInteractionLast = fmt.Sprintf("click (%d,%d)", ev.X, ev.Y)
+	f.RegisterEventRegion(terminal.EventRegion{Area: area, ID: "reference.interaction", Phase: terminal.TargetPhase, Handler: func(ctx *terminal.EventContext) {
+		state.ReferenceInteractionHover = ctx.RegionID
+		if ctx.Mouse.Button == backend.MouseLeft && !ctx.Mouse.Drag {
+			ctx.PreventDefault()
 		}
-	})
+	}, OnEnter: func(ctx *terminal.EventContext) {
+		state.ReferenceInteractionHover = ctx.RegionID
+	}, OnLeave: func(ctx *terminal.EventContext) {
+		state.ReferenceInteractionHover = "yok (panel dışı)"
+	}})
 }
 
 func drawReferenceLayout(f *terminal.Frame, state *AppState, theme widgets.Theme, area cell.Rect) {
-	measure := layout.Measure{MinWidth: 10, IdealWidth: area.Width, IdealHeight: area.Height, MaxWidth: area.Width, MaxHeight: area.Height, GrowPriority: 1 + state.ReferenceLayoutPass, Overflow: layout.OverflowClip}.Normalize(area)
-	text := fmt.Sprintf("Bu panel measure/arrange sonucunu gösterir.\nBu panele tıkla: ölçüm turunu değiştir\nMeasure pass: %d\nMeasured: %dx%d\nAllocated: X=%d Y=%d W=%d H=%d\nOverflow: clip", state.ReferenceLayoutPass, measure.IdealWidth, measure.IdealHeight, area.X, area.Y, area.Width, area.Height)
+	idealHeight := uint16(2 + (state.ReferenceLayoutPass % 4))
+	measure := layout.Measure{MinWidth: 10, MinHeight: 1, IdealWidth: area.Width, IdealHeight: idealHeight, MaxWidth: area.Width, MaxHeight: area.Height, GrowPriority: 1 + state.ReferenceLayoutPass, Overflow: layout.OverflowClip}.Normalize(area)
+	allocated := layout.Arrange(area, []layout.Measure{measure}, layout.Vertical, 0)[0]
+	state.ReferenceLayoutAllocated = allocated
+	if state.ReferenceLayoutLastAction == "" {
+		state.ReferenceLayoutLastAction = "henüz ölçüm yapılmadı"
+	}
+	text := fmt.Sprintf("Bu panel gerçek measure/arrange sonucunu gösterir.\nTıkla: ideal yükseklik ve grow priority değişsin\nPass: %d | Last action: %s\nMin: %dx%d | Ideal: %dx%d | Max: %dx%d\nGrow priority: %d | Overflow: clip\nAllocated: X=%d Y=%d W=%d H=%d", state.ReferenceLayoutPass, state.ReferenceLayoutLastAction, measure.MinWidth, measure.MinHeight, measure.IdealWidth, measure.IdealHeight, measure.MaxWidth, measure.MaxHeight, measure.GrowPriority, allocated.X, allocated.Y, allocated.Width, allocated.Height)
 	f.RenderWidget(widgets.Block{Title: " LAYOUT INSPECTOR ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: theme.Border, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
+	f.RegisterEventRegion(terminal.EventRegion{Area: area, ID: "reference.layout", Phase: terminal.TargetPhase, Handler: func(ctx *terminal.EventContext) {
+		if ctx.Mouse.Button == backend.MouseLeft && !ctx.Mouse.Drag {
 			state.ReferenceLayoutPass = (state.ReferenceLayoutPass + 1) % 10
+			state.ReferenceLayoutLastAction = fmt.Sprintf("click target=%s at (%d,%d)", ctx.RegionID, ctx.Mouse.X, ctx.Mouse.Y)
+			ctx.PreventDefault()
 		}
-	})
+	}})
 }
 
 func drawReferenceData(f *terminal.Frame, state *AppState, theme widgets.Theme, accent cell.Color, area cell.Rect) {
 	provider := referenceProvider{}
-	data := widgets.NewVirtualDataState()
-	_ = data.Refresh(nil, provider, 0, int(area.Height)-2, 2)
+	if state.ReferenceDataState == nil {
+		state.ReferenceDataState = widgets.NewVirtualDataState()
+	}
+	data := state.ReferenceDataState
+	viewportHeight := int(area.Height) - 7
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+	_ = data.Refresh(nil, provider, state.ReferenceDataOffset, viewportHeight, 2)
 	data.Select(provider.RowID(state.ReferenceSelectedRow))
 	status, _ := data.Status()
+	lastVisible := state.ReferenceDataOffset + viewportHeight - 1
+	if lastVisible >= data.Count() {
+		lastVisible = data.Count() - 1
+	}
 	mode := accessibility.Mode{HighContrast: theme.Colors.Primary == cell.NewColorRGB(255, 255, 0), ReducedMotion: false}
 	testTerm := testkit.NewTerminal(20, 2)
 	testTerm.Draw(func(frame *terminal.Frame) { frame.Buffer.SetString(0, 0, "benchmark-ready", cell.Style{Fg: accent}) })
 	snapshot := strings.ReplaceAll(testTerm.Snapshot(), "\n", " / ")
-	text := fmt.Sprintf("Bu panel virtual data, accessibility ve TestKit örneğidir.\nTıkla: satır seç / benchmark sayacını artır\nVirtual rows: %d (%v) | Stable ID: %s\nAccessibility: high-contrast=%t | Snapshot: %s\nBenchmark runs: %d | Updated: %s", data.Count(), status, data.Selected(), mode.HighContrast, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
+	text := fmt.Sprintf("Virtual data: %d kayıt | görünür: %d-%d | scroll: mouse wheel\nSatıra tıkla: seç (seçili satır: #%d) | Stable ID: %s\nStatus: %v | Accessibility: high-contrast=%t\nTestKit snapshot: %s | Benchmark runs: %d | Updated: %s", data.Count(), state.ReferenceDataOffset+1, lastVisible+1, state.ReferenceSelectedRow, data.Selected(), status, mode.HighContrast, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
 	inner := cell.NewRect(area.X+1, area.Y+1, area.Width-2, area.Height-2)
 	f.RenderWidget(widgets.Block{Title: " VIRTUAL DATA / ACCESSIBILITY / BENCHMARK ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: accent}, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
 	if inner.Width > 2 && inner.Height > 1 {
-		f.RenderWidget(widgets.VirtualDataView{State: data, Source: provider, First: state.ReferenceSelectedRow, Prefetch: 2, Style: theme.RoleStyle("muted"), SelectedStyle: cell.Style{Fg: accent, Modifier: cell.ModifierBold}}, cell.NewRect(inner.X, inner.Y+5, inner.Width, inner.Height-5))
+		f.RenderWidget(widgets.VirtualDataView{State: data, Source: provider, First: 0, Prefetch: 2, Offset: &state.ReferenceDataOffset, OnSelect: func(index int, _ widgets.Row) { state.ReferenceSelectedRow = index; state.ReferenceBenchmarkRuns++ }, Style: theme.RoleStyle("muted"), SelectedStyle: cell.Style{Fg: accent, Modifier: cell.ModifierBold}}, cell.NewRect(inner.X, inner.Y+5, inner.Width, inner.Height-5))
 	}
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
-			state.ReferenceSelectedRow = (state.ReferenceSelectedRow + 1) % 1000000
-			state.ReferenceBenchmarkRuns++
-		}
-	})
 }
 
 type referenceLabel struct {
@@ -98,10 +117,9 @@ type referenceLabel struct {
 func (l referenceLabel) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	style := ctx.Style.Merge(l.style)
 	for row, line := range strings.Split(l.text, "\n") {
-		if row >= int(ctx.Area.Height) {
-			break
+		if row < int(ctx.Area.Height) {
+			buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(row), line, style)
 		}
-		buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(row), line, style)
 	}
 }
 func (l referenceLabel) SizeHint(max cell.Rect) (uint16, uint16) { return max.Width, max.Height }
@@ -110,7 +128,7 @@ type referenceProvider struct{}
 
 func (referenceProvider) RowCount(context.Context) (int, error) { return 1000000, nil }
 func (referenceProvider) RowAt(_ context.Context, index int) (widgets.Row, error) {
-	return widgets.Row{ID: widgets.RowID(fmt.Sprintf("row-%d", index)), Text: "lazy row"}, nil
+	return widgets.Row{ID: widgets.RowID(fmt.Sprintf("row-%d", index)), Text: fmt.Sprintf("#%06d  |  örnek kayıt %d  |  viewport cache", index, index)}, nil
 }
 func (referenceProvider) RowID(index int) widgets.RowID {
 	return widgets.RowID(fmt.Sprintf("row-%d", index))

@@ -168,15 +168,16 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
 	proto := graphics.DetectProtocol()
-	if len(t.frame.ImageRegions) > 0 {
+	imageRegions := t.clippedImageRegions()
+	if len(imageRegions) > 0 {
 		cellW, cellH, _ := t.backend.CellPixelSize()
 
 		imagesChanged := needsFullClear || layersChanged
 		if !imagesChanged {
-			if len(t.frame.ImageRegions) != len(t.lastDrawnImages) {
+			if len(imageRegions) != len(t.lastDrawnImages) {
 				imagesChanged = true
 			} else {
-				for i, reg := range t.frame.ImageRegions {
+				for i, reg := range imageRegions {
 					prev := t.lastDrawnImages[i]
 					if reg.Img != prev.Img || reg.Area != prev.Area || reg.ZIndex != prev.ZIndex {
 						imagesChanged = true
@@ -207,7 +208,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 				}
 			}
 
-			for _, reg := range t.frame.ImageRegions {
+			for _, reg := range imageRegions {
 				escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex, reg.Transparent)
 				if escSeq != "" {
 					moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
@@ -215,10 +216,10 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 				}
 			}
 
-			t.lastDrawnImages = make([]ImageRegion, len(t.frame.ImageRegions))
-			copy(t.lastDrawnImages, t.frame.ImageRegions)
+			t.lastDrawnImages = make([]ImageRegion, len(imageRegions))
+			copy(t.lastDrawnImages, imageRegions)
 		}
-		t.lastImageCount = len(t.frame.ImageRegions)
+		t.lastImageCount = len(imageRegions)
 	} else {
 		if t.lastImageCount > 0 {
 			if proto == graphics.ProtocolKitty {
@@ -264,6 +265,17 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 
 	return nil
+}
+
+// clippedImageRegions intentionally preserves native image placements.
+// Modal çizimi hücre tabakasında resimlerin üstünde yapılır; modal hareket
+// ederken resmi crop etmek veya yeniden encode etmek resmin yerini/ölçeğini
+// değiştirmiş gibi görünmesine ve gereksiz pahalı redraw'lara yol açar.
+func (t *Terminal) clippedImageRegions() []ImageRegion {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	return t.frame.ImageRegions
 }
 
 // SetTransitionProgress, dither-fade geçiş ilerlemesini (0.0 - 1.0) ayarlar.
@@ -422,6 +434,17 @@ func (t *Terminal) dispatchEventRegions(ev backend.MouseEvent) bool {
 // FocusManager, terminalin odak yöneticisini döndürür.
 func (t *Terminal) FocusManager() *FocusManager {
 	return t.frame.FocusManager
+}
+
+// HoveredRegionID returns the semantic event-region ID under the pointer in
+// the most recently routed frame. It is intentionally separate from the
+// visual mouse coordinates so inspectors can distinguish semantic targets
+// from ordinary click regions.
+func (t *Terminal) HoveredRegionID() string {
+	if t == nil || t.frame == nil {
+		return ""
+	}
+	return t.frame.HoveredRegionID()
 }
 
 // SetDebugMode, hata ayıklama (Layout Inspector) modunu açar veya kapatır.

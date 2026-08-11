@@ -183,11 +183,30 @@ type AppState struct {
 	KeyManager *widgets.KeybindingManager
 
 	// Referans sekmesi etkileşim sayaçları
-	ReferenceRuntimeMessages int
-	ReferenceInteractionLast string
-	ReferenceLayoutPass      int
-	ReferenceSelectedRow     int
-	ReferenceBenchmarkRuns   int
+	ReferenceRuntimeMessages      int
+	ReferenceInteractionLast      string
+	ReferenceLayoutPass           int
+	ReferenceSelectedRow          int
+	ReferenceBenchmarkRuns        int
+	ReferenceDataOffset           int
+	ReferenceDataState            *widgets.VirtualDataState
+	ReferenceInteractionHover     string
+	ReferenceInteractionEvents    int
+	ReferenceInteractionLastRoute string
+	ReferenceInteractionPointerX  uint16
+	ReferenceInteractionPointerY  uint16
+	ReferenceInteractionHistory   []string
+	ReferenceLayoutLastAction     string
+	ReferenceLayoutAllocated      cell.Rect
+}
+
+func recordReferenceInteraction(state *AppState, event string) {
+	state.ReferenceInteractionEvents++
+	state.ReferenceInteractionLast = event
+	state.ReferenceInteractionHistory = append(state.ReferenceInteractionHistory, event)
+	if len(state.ReferenceInteractionHistory) > 4 {
+		state.ReferenceInteractionHistory = state.ReferenceInteractionHistory[len(state.ReferenceInteractionHistory)-4:]
+	}
 }
 
 // UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
@@ -389,6 +408,7 @@ func main() {
 	state.DemoMarkdown = loadDemoMarkdown()
 	state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, time.Now())
 	state.TableState.Select(0) // Tabloda ilk satırı seçili başlat
+	state.ReferenceDataState = widgets.NewVirtualDataState()
 
 	// 1. Resmi oluştur (Merkez kırmızı, dışı mavi daire)
 	imgW, imgH := 128, 128
@@ -693,6 +713,7 @@ func main() {
 			}
 			switch ev.Type {
 			case backend.EventKey:
+				recordReferenceInteraction(state, fmt.Sprintf("key type=%d rune=%q ctrl=%t alt=%t shift=%t", ev.Key.Type, ev.Key.Ch, ev.Key.Ctrl, ev.Key.Alt, ev.Key.Shift))
 				focused := t.FocusManager().Focused()
 
 				// Palet açıksa tüm tuşları ona yönlendir. Ctrl+P burada
@@ -702,7 +723,12 @@ func main() {
 				}
 				// Markdown alanı odaktayken ok tuşları global focus kısayollarına
 				// gitmemeli; doğrudan içeriği kaydırmalıdır.
-				if focused == "demo_markdown" && (ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))) {
+				// Giriş sekmesinde Bilgilendirme alanı bir metin editörü değildir;
+				// odak başka bir widget'a geçmiş olsa bile ok tuşları scroll'u
+				// doğrudan bu viewport'a yönlendirilir. Aksi halde bir redraw
+				// sonrasında focus değişince alan "çalışmıyor" gibi görünür.
+				markdownKey := ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))
+				if state.ActiveTab == "Giriş" && markdownKey && (focused == "demo_markdown" || focused == "" || focused[:minInt(len(focused), len("tab_"))] == "tab_") {
 					switch {
 					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
 						state.MarkdownOffset--
@@ -1047,6 +1073,14 @@ func main() {
 
 			case backend.EventMouse:
 				handled := t.RouteMouseEvent(ev.Mouse)
+				state.ReferenceInteractionPointerX = ev.Mouse.X
+				state.ReferenceInteractionPointerY = ev.Mouse.Y
+				state.ReferenceInteractionHover = t.HoveredRegionID()
+				if state.ReferenceInteractionHover == "" {
+					state.ReferenceInteractionHover = "no semantic target"
+				}
+				state.ReferenceInteractionLastRoute = fmt.Sprintf("handled=%t", handled)
+				recordReferenceInteraction(state, fmt.Sprintf("mouse button=%d pos=(%d,%d) drag=%t route=%t", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag, handled))
 				if !handled {
 					if ev.Mouse.Drag {
 						if state.IsDraggingModal {
@@ -1096,8 +1130,14 @@ func main() {
 				}
 
 			case backend.EventResize:
-				// Pencere boyutu değiştikçe ekran otomatik olarak bir sonraki tick'te yeniden çizilecek
+				recordReferenceInteraction(state, fmt.Sprintf("resize %dx%d", ev.Resize.Width, ev.Resize.Height))
+			case backend.EventFocus:
+				recordReferenceInteraction(state, fmt.Sprintf("focus gained=%t", ev.Focus.Gained))
+			case backend.EventPaste:
+				recordReferenceInteraction(state, fmt.Sprintf("paste %d chars", len(ev.Paste.Text)))
 			}
+			// Input state is visible immediately; do not wait for the animation tick.
+			drawApp(t, b, state, fps)
 
 		case <-ticker.C:
 			// Animasyonları güncelle
@@ -1136,6 +1176,13 @@ func main() {
 	}
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
 func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
 	t.SetDebugMode(state.DebugMode)
@@ -1154,13 +1201,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 		// Eğer çıkış veya yardım diyalogu açık olacaksa, en baştan modalı kaydet ki çizilen arka plan widget'ları olay alamasın!
 		if state.ShowExitDialog {
-			dialogW, dialogH := uint16(48), uint16(10)
+			dialogW, dialogH := uint16(46), uint16(9)
 			dialogArea := terminal.CenterRect(f.Buffer.Area, dialogW, dialogH)
 			dialogArea.X = uint16(int(dialogArea.X) + state.ModalOffsetX)
 			dialogArea.Y = uint16(int(dialogArea.Y) + state.ModalOffsetY)
-			progress := state.ExitDialogAnim.Value()
-			animatedArea := terminal.ScaleRect(dialogArea, progress)
-			f.RegisterModal("exit_dialog", animatedArea, func() {
+			// Modal alanı sabit kalır. Resimlerin native yerleşimi bu alana göre
+			// yeniden ölçeklenmez veya yeniden konumlandırılmaz. Görsel dialog
+			// aşağıda ayrıca animasyonlu olarak çizilir.
+			f.RegisterModal("exit_dialog", dialogArea, func() {
 				state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
 				t.ForceFullRedraw()
 			})
@@ -1707,6 +1755,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			dialogArea.X = uint16(int(dialogArea.X) + state.ModalOffsetX)
 			dialogArea.Y = uint16(int(dialogArea.Y) + state.ModalOffsetY)
 
+			// Dialog sabit boyutlu bir overlay'dir. Açılış/kapanış animasyonu
+			// görsel alanı küçültür/büyütür; modal ve resim alanına dokunmaz.
 			progress := state.ExitDialogAnim.Value()
 			animatedArea := terminal.ScaleRect(dialogArea, progress)
 
@@ -1745,6 +1795,20 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						}
 					})
 				})
+
+				// Native profil resmi hücre tamponundan bağımsız çizildiği için
+				// yalnızca Dialog.Draw içindeki hücre arka planı resmi örtemez.
+				// Sabit opak katman resmi değiştirmeden dialogun arkasını kapatır;
+				// Dialog'un ASCII içeriği bunun üstünde çizilir.
+				// Native kaplama da dialogla aynı animasyonlu alanı takip eder.
+				// Böylece açılışta arka plan/gölge dialogdan önce görünmez.
+				if animatedArea.Width > 0 && animatedArea.Height > 0 {
+					shadowBackdrop := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width+2, animatedArea.Height+1)
+					f.RenderWidget(widgets.Block{
+						Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
+						Opaque: true,
+					}, shadowBackdrop)
+				}
 
 				exitDialog := widgets.Dialog{
 					ID:          "exit_dialog",

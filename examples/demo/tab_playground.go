@@ -519,9 +519,11 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 		profileBackground = c.Style.Bg
 	}
 	f.RenderWidget(widgets.Image{
-		Img:              profileImg,
-		CircleMask:       circleMask,
-		ForceHalfBlock:   false,
+		Img:        profileImg,
+		CircleMask: circleMask,
+		// Keep the avatar native and below the modal's opaque backdrop and
+		// the cell/text layer. Negative z-index is preserved by Frame.RegisterImage.
+		ZIndex:           -3,
 		OpaqueBackground: profileBackground.Type() != cell.ColorDefault,
 		Background:       profileBackground,
 		Opacity:          float64(state.AvatarOpacityState.Value) / 100.0,
