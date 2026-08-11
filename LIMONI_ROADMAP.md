@@ -112,8 +112,8 @@ Bubble Tea'nin eksik bıraktığı veya ekosisteme devrettiği konular Limoni'ni
 
 ### Kritik eksikler
 
-1. Gerçek OS-native screen-reader protokol adapter’ları yok; Linux line-mode/PTY smoke doğrulandı.
-2. macOS/Windows/BSD gerçek raw-mode ve PTY smoke ortamları yok; Linux native TTY/PTY smoke doğrulandı.
+1. Gerçek OS-native screen-reader protokol adapter’ları yok; Linux `--screen-reader` line-mode/PTY smoke doğrulandı.
+2. macOS/Windows/BSD gerçek raw-mode ve PTY smoke ortamları yok; Linux native TTY/PTY/SIGWINCH smoke doğrulandı.
 3. Ratatui/Bubble Tea native runner sonuçları henüz bu repository’ye bağlanmadı.
 4. Gerçek hedef işletim sistemlerinde raw-mode/screen-reader smoke sonuçları henüz artifact olarak toplanmadı.
 5. Dokümantasyon kodun gerisinde kalmamalı; Phase 32 sonrası her aşamada güncellenmeli.
@@ -244,8 +244,8 @@ kriterlerinin bir bölümü açık, `[ ]` henüz uygulanmadı.
 | Phase 35 — Interaction Engine 2.0 | `[x]` | Event region, capture/target/bubble, hover, double-click, modal/layer routing testli. |
 | Phase 36 — Layout negotiation | `[~]` | Measure/arrange, intrinsic ölçüm, child aggregation, overflow, diagnostics, responsive breakpoint, baseline/alignment ve debug inspector entegrasyonu mevcut; kabul kapsamı açık. |
 | Phase 37 — Virtualized data runtime | `[~]` | Stable ID, viewport, prefetch, selection persistence/remapping, filter/sort, row recycling, typeahead, variable-height row rendering, sticky columns, provider query, stale rejection, cancellation, queue policy ve queue stats mevcut; provider-specific instrumentation açık. |
-| Phase 38 — Theme ve accessibility 2.0 | `[~]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux TTY/PTY smoke kanıtı mevcut; OS-native protokol açık. |
-| Phase 39 — Cross-platform backend | `[~]` | Linux raw-mode/native TTY/PTY smoke doğrulandı, portable IO ve compile smoke mevcut; gerçek macOS/Windows/BSD raw-mode adapter’ları açık. |
+| Phase 38 — Theme ve accessibility 2.0 | `[~]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux `--screen-reader` PTY kanıtı mevcut; OS-native protokol açık. |
+| Phase 39 — Cross-platform backend | `[~]` | Linux raw-mode/native TTY/PTY/SIGWINCH smoke doğrulandı, portable IO ve compile smoke mevcut; gerçek macOS/Windows/BSD raw-mode adapter’ları açık. |
 | Phase 40 — TestKit | `[~]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut; comparison ergonomisi açık. |
 | Phase 41 — Benchmark laboratuvarı | `[~]` | Reproducible workload schema, p50/p95/p99, emitted-byte, allocation, latency, dirty-cell, rows/sec, goroutine, JSON ve HTML dashboard report mevcut; harici runner sonuçları açık. |
 

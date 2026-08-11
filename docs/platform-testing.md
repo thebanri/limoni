@@ -54,6 +54,20 @@ panic/fatal output. A successful xterm-kitty PTY run verifies the Linux TTY
 lifecycle and line-mode emission. It does not prove macOS VoiceOver, Windows
 Narrator, or BSD raw-mode support.
 
+Verified Linux evidence (2026-08-11):
+
+```text
+COMMAND="go run ./examples/demo --screen-reader"
+TERM="xterm-kitty"
+TTY="/dev/pts/0"
+COLUMNS="185" LINES="40"
+COMMAND_EXIT_CODE="0"
+```
+
+The run emitted the `[limoni screen-reader]` semantic line-mode marker and
+completed with the normal Limoni exit message. SIGWINCH/resize was verified in
+the same Linux TTY test environment.
+
 Direct stdout redirection is not a valid raw-mode test:
 
 ```bash
