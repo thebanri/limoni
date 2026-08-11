@@ -22,6 +22,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          cache: false
 
       - name: Prepare benchmark results
         run: mkdir -p benchmark-results
@@ -40,7 +41,9 @@ jobs:
           go run . -output ../../../benchmark-results/bubbletea.json
 
       - name: Run Ratatui runner
-        run: cargo run --manifest-path benchmarks/runners/ratatui/Cargo.toml -- benchmark-results/ratatui.json
+        working-directory: benchmarks/runners/ratatui
+        run: |
+          cargo run -- ../../../benchmark-results/ratatui.json
 
       - name: Build comparison dashboard
         run: |
