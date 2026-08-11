@@ -23,6 +23,7 @@ jobs:
         with:
           toolchain: stable
           cache: false
+          components: rust-src
 
       - name: Prepare benchmark results
         run: mkdir -p benchmark-results
