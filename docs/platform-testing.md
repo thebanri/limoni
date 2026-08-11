@@ -40,6 +40,20 @@ go run ./examples/demo
 Resize the terminal while the demo is running and verify resize events, mouse
 routing, paste, focus, and modal isolation.
 
+Verified Platform Smoke artifacts (2026-08-11) are stored under
+`platform-results/`:
+
+```text
+platform-results/linux.env    Linux X64, go1.26.5 linux/amd64
+platform-results/macos.env    macOS ARM64, go1.26.5 darwin/arm64
+platform-results/windows.env  Windows X64, go1.26.5 windows/amd64
+```
+
+All three native CI jobs completed successfully. These artifacts prove the
+workflow's native test/build/vet/compile path; they do not by themselves prove
+OS-native screen-reader protocol behavior or a platform-specific raw-mode
+feature that is not exercised by the workflow.
+
 ## Linux TTY and PTY
 
 For raw-mode testing, use a real TTY rather than only an IDE terminal:
