@@ -228,3 +228,35 @@ func (t *Terminal) ClickAt(x, y uint16, at time.Time) bool {
 	}
 	return t.frame.DispatchClick(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft}, at)
 }
+
+// SendKey delivers a deterministic key event to a caller-provided handler.
+// It is useful for testing application-level key routing without a TTY.
+func (t *Terminal) SendKey(key backend.KeyEvent, handler func(backend.KeyEvent) bool) bool {
+	if t == nil || handler == nil {
+		return false
+	}
+	return handler(key)
+}
+
+// ResizeEvent returns a backend resize event for the current test surface.
+func (t *Terminal) ResizeEvent() backend.Event {
+	area := t.Area()
+	return backend.Event{Type: backend.EventResize, Resize: backend.ResizeEvent{Width: area.Width, Height: area.Height}}
+}
+
+// LayerIDs returns the registered layer IDs in frame order.
+func (t *Terminal) LayerIDs() []string {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	ids := make([]string, len(t.frame.Layers))
+	for i, layer := range t.frame.Layers {
+		ids[i] = layer.ID
+	}
+	return ids
+}
+
+// HasModal reports whether the current frame has an active modal layer.
+func (t *Terminal) HasModal() bool {
+	return t != nil && t.frame != nil && t.frame.TopmostModal() != nil
+}

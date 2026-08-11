@@ -76,8 +76,12 @@ func drawReferenceData(f *terminal.Frame, state *AppState, theme widgets.Theme, 
 	testTerm := testkit.NewTerminal(20, 2)
 	testTerm.Draw(func(frame *terminal.Frame) { frame.Buffer.SetString(0, 0, "benchmark-ready", cell.Style{Fg: accent}) })
 	snapshot := strings.ReplaceAll(testTerm.Snapshot(), "\n", " / ")
-	text := fmt.Sprintf("Bu panel virtual data, accessibility ve TestKit örneğidir.\nBu panele tıkla: satır seç / benchmark çalıştır\nVirtual rows: %d (%v)\nStable ID: %s\nAccessibility: high-contrast=%t\nTestKit snapshot: %s\nBenchmark runs: %d\nUpdated: %s", data.Count(), status, data.Selected(), mode.HighContrast, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
+	text := fmt.Sprintf("Bu panel virtual data, accessibility ve TestKit örneğidir.\nTıkla: satır seç / benchmark sayacını artır\nVirtual rows: %d (%v) | Stable ID: %s\nAccessibility: high-contrast=%t | Snapshot: %s\nBenchmark runs: %d | Updated: %s", data.Count(), status, data.Selected(), mode.HighContrast, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
+	inner := cell.NewRect(area.X+1, area.Y+1, area.Width-2, area.Height-2)
 	f.RenderWidget(widgets.Block{Title: " VIRTUAL DATA / ACCESSIBILITY / BENCHMARK ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: accent}, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
+	if inner.Width > 2 && inner.Height > 1 {
+		f.RenderWidget(widgets.VirtualDataView{State: data, Source: provider, First: state.ReferenceSelectedRow, Prefetch: 2, Style: theme.RoleStyle("muted"), SelectedStyle: cell.Style{Fg: accent, Modifier: cell.ModifierBold}}, cell.NewRect(inner.X, inner.Y+5, inner.Width, inner.Height-5))
+	}
 	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
 		if ev.Button == backend.MouseLeft && !ev.Drag {
 			state.ReferenceSelectedRow = (state.ReferenceSelectedRow + 1) % 1000000

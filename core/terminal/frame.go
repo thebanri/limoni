@@ -654,6 +654,13 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 
 	t0 := time.Now()
 	w.Draw(ctx, f.Buffer)
+	if provider, ok := w.(accessibility.Provider); ok {
+		node := provider.AccessibilityNode(area, false)
+		if f.FocusManager != nil && f.FocusManager.IsFocused(node.ID) {
+			node.State |= accessibility.StateFocused
+		}
+		f.RegisterAccessibility(node)
+	}
 	dur := time.Since(t0)
 
 	f.WidgetStats = append(f.WidgetStats, WidgetStat{

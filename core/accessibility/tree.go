@@ -41,6 +41,12 @@ type AccessibilityNode struct {
 	Children    []AccessibilityNode
 }
 
+// Provider is an optional widget capability for automatic semantic node
+// registration during rendering.
+type Provider interface {
+	AccessibilityNode(bounds cell.Rect, focused bool) AccessibilityNode
+}
+
 func (n *AccessibilityNode) AddChild(child AccessibilityNode) { n.Children = append(n.Children, child) }
 
 func (n AccessibilityNode) Find(id string) *AccessibilityNode {

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/terminal"
 )
 
@@ -14,6 +15,8 @@ type programOptions struct {
 	messageQueue int
 	commandQueue int
 	onPanic      func(any)
+	fps          int
+	altScreen    bool
 }
 
 // Option configures a Program.
@@ -48,6 +51,15 @@ func WithPanicHandler(handler func(any)) Option {
 	return func(opts *programOptions) { opts.onPanic = handler }
 }
 
+func WithFPS(fps int) Option {
+	return func(opts *programOptions) {
+		if fps > 0 {
+			opts.fps = fps
+		}
+	}
+}
+func WithAltScreen() Option { return func(opts *programOptions) { opts.altScreen = true } }
+
 type commandResult struct {
 	sequence uint64
 	message  Msg
@@ -62,7 +74,9 @@ type Program struct {
 	commandResults chan commandResult
 	redraw         chan struct{}
 
-	onPanic func(any)
+	onPanic   func(any)
+	fps       int
+	altScreen bool
 
 	sequence atomic.Uint64
 	workers  sync.WaitGroup
@@ -96,6 +110,8 @@ func New(options ...Option) *Program {
 		commandResults: make(chan commandResult, opts.commandQueue),
 		redraw:         make(chan struct{}, 1),
 		onPanic:        opts.onPanic,
+		fps:            opts.fps,
+		altScreen:      opts.altScreen,
 		stop:           make(chan struct{}),
 	}
 }
@@ -122,6 +138,15 @@ func (p *Program) Send(ctx context.Context, message Msg) error {
 	case p.messages <- message:
 		return nil
 	}
+}
+
+// SendBackend converts a low-level backend event and injects its typed message.
+func (p *Program) SendBackend(ctx context.Context, event backend.Event) error {
+	message := MessageFromBackend(event)
+	if message == nil {
+		return nil
+	}
+	return p.Send(ctx, message)
 }
 
 // RequestRedraw asks the host renderer for a frame. Multiple requests before

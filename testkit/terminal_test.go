@@ -107,3 +107,24 @@ func TestTerminalFocusAndPropagationSnapshot(t *testing.T) {
 		t.Fatalf("propagation order = %v, want capture/target/bubble", order)
 	}
 }
+
+func TestTerminalKeyResizeAndLayerAssertions(t *testing.T) {
+	testTerm := NewTerminal(8, 4)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterLayer("popup", terminal.LayerPopup, cell.NewRect(1, 1, 4, 2), 5, nil)
+		frame.RegisterLayer("modal", terminal.LayerModal, cell.NewRect(2, 1, 3, 2), 10, nil)
+	})
+	seen := false
+	if !testTerm.SendKey(backend.KeyEvent{Type: backend.KeyEnter}, func(key backend.KeyEvent) bool { seen = key.Type == backend.KeyEnter; return seen }) || !seen {
+		t.Fatal("key was not injected")
+	}
+	if got := testTerm.ResizeEvent().Resize.Width; got != 8 {
+		t.Fatalf("resize width = %d", got)
+	}
+	if ids := testTerm.LayerIDs(); len(ids) != 2 || ids[0] != "popup" || ids[1] != "modal" {
+		t.Fatalf("layers = %v", ids)
+	}
+	if !testTerm.HasModal() {
+		t.Fatal("expected modal assertion to be true")
+	}
+}

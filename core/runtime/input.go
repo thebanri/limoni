@@ -53,6 +53,8 @@ func MessageFromBackend(event backend.Event) Msg {
 			return FocusMsg{Gained: true}
 		}
 		return BlurMsg{}
+	case backend.EventPaste:
+		return PasteMsg{Text: event.Paste.Text}
 	case backend.EventMouse:
 		position := cell.Point{X: event.Mouse.X, Y: event.Mouse.Y}
 		switch event.Mouse.Button {

@@ -3,6 +3,8 @@ package widgets
 import (
 	"context"
 	"errors"
+	"github.com/thebanri/limoni/core/buffer"
+	"github.com/thebanri/limoni/core/cell"
 	"testing"
 )
 
@@ -56,5 +58,18 @@ func TestVirtualDataStableSelectionAndCancellation(t *testing.T) {
 	cancel()
 	if err := s.Refresh(ctx, virtualSource{}, 0, 1, 0); !errors.Is(err, context.Canceled) {
 		t.Fatalf("refresh error = %v, want context.Canceled", err)
+	}
+}
+
+func TestVirtualDataViewRendersVisibleRows(t *testing.T) {
+	state := NewVirtualDataState()
+	if err := state.Refresh(context.Background(), virtualSource{}, 4, 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	view := VirtualDataView{State: state, Source: virtualSource{}, First: 4}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 20, 3))
+	view.Draw(cell.NewContext(cell.NewRect(0, 0, 20, 3), cell.Style{}), buf)
+	if buf.Get(0, 0).Content == ' ' {
+		t.Fatal("expected visible virtual row")
 	}
 }

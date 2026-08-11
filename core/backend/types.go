@@ -8,6 +8,7 @@ const (
 	EventMouse
 	EventResize
 	EventFocus
+	EventPaste
 )
 
 // KeyType özel klavye tuşlarını temsil eder.
@@ -91,6 +92,8 @@ type FocusEvent struct {
 	Gained bool
 }
 
+type PasteEvent struct{ Text string }
+
 // Event tüm TUI olaylarını tek bir düz yapıda birleştiren kapsayıcıdır.
 // Interface'ler yerine bu yapıyı kullanmak bellek tahsisatını (heap allocation) sıfıra indirir.
 type Event struct {
@@ -99,4 +102,5 @@ type Event struct {
 	Mouse  MouseEvent
 	Resize ResizeEvent
 	Focus  FocusEvent
+	Paste  PasteEvent
 }
