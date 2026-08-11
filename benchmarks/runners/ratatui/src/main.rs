@@ -70,9 +70,13 @@ struct EnvMetadata {
 
 fn buffer_bytes(buf: &Buffer) -> usize {
     let mut bytes = 0;
-    for cell in buf.iter() {
-        bytes += cell.symbol().len();
-        bytes += 10; // Estimate style overhead
+    let area = buf.area();
+    for y in 0..area.height {
+        for x in 0..area.width {
+            let cell = &buf[(x, y)];
+            bytes += cell.symbol().len();
+            bytes += 10; // Estimate style overhead
+        }
     }
     bytes
 }
