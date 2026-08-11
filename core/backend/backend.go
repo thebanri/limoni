@@ -159,7 +159,10 @@ func (b *Backend) StartEventLoop() {
 
 				// Tamponu ayrıştır
 				for len(readBuf) > 0 {
-					ev, consumed := ParseEvent(readBuf)
+					ev, consumed := ParseBracketedPaste(readBuf)
+					if consumed == 0 {
+						ev, consumed = ParseEvent(readBuf)
+					}
 					if consumed > 0 {
 						b.events <- ev
 						readBuf = readBuf[consumed:]

@@ -2,13 +2,72 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/terminal"
 )
+
+// RunTerminal owns the backend lifecycle and connects backend input, runtime
+// updates, redraw scheduling, and terminal rendering. It is the optional
+// batteries-included entry point; callers can still use Run and Draw separately.
+func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *backend.Backend) error {
+	if p == nil || p.model == nil {
+		return fmt.Errorf("runtime: model is required")
+	}
+	if term == nil || b == nil {
+		return fmt.Errorf("runtime: terminal and backend are required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := b.Setup(); err != nil {
+		return err
+	}
+	defer b.Close()
+	b.StartEventLoop()
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- p.Run(ctx) }()
+	fps := p.fps
+	if fps <= 0 {
+		fps = 30
+	}
+	ticker := time.NewTicker(time.Second / time.Duration(fps))
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-runDone:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
+		case event, ok := <-b.Events():
+			if !ok {
+				p.Stop()
+				return nil
+			}
+			if err := p.SendBackend(ctx, event); err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+		case <-ticker.C:
+			if err := p.Draw(term); err != nil {
+				return err
+			}
+		case <-p.Redraws():
+			if err := p.Draw(term); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			p.Stop()
+			return ctx.Err()
+		}
+	}
+}
 
 type programOptions struct {
 	model        Model
