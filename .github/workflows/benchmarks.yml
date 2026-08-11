@@ -19,11 +19,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          cache: false
-          components: rust-src
 
       - name: Prepare benchmark results
         run: mkdir -p benchmark-results
@@ -43,8 +41,10 @@ jobs:
 
       - name: Run Ratatui runner
         working-directory: benchmarks/runners/ratatui
+        env:
+          RUSTFLAGS: ""
         run: |
-          cargo run -- ../../../benchmark-results/ratatui.json
+          cargo run --release -- ../../../benchmark-results/ratatui.json
 
       - name: Build comparison dashboard
         run: |
