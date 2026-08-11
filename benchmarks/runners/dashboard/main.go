@@ -5,9 +5,35 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/thebanri/limoni/benchmarks"
 )
+
+func normalizeOS(osStr string) string {
+	osStr = strings.ToLower(osStr)
+	if strings.Contains(osStr, "linux") {
+		return "linux"
+	}
+	if strings.Contains(osStr, "darwin") || strings.Contains(osStr, "macos") {
+		return "darwin"
+	}
+	if strings.Contains(osStr, "windows") {
+		return "windows"
+	}
+	return osStr
+}
+
+func normalizeArch(archStr string) string {
+	archStr = strings.ToLower(archStr)
+	if strings.Contains(archStr, "x86_64") || strings.Contains(archStr, "amd64") {
+		return "amd64"
+	}
+	if strings.Contains(archStr, "aarch64") || strings.Contains(archStr, "arm64") {
+		return "arm64"
+	}
+	return archStr
+}
 
 func main() {
 	output := flag.String("output", "dashboard.html", "dashboard output")
@@ -37,7 +63,16 @@ func main() {
 	}
 
 	for _, report := range reports[1:] {
-		if !report.Valid || report.Environment.OS != reports[0].Environment.OS || report.Environment.Arch != reports[0].Environment.Arch {
+		os1 := normalizeOS(report.Environment.OS)
+		os2 := normalizeOS(reports[0].Environment.OS)
+		arch1 := normalizeArch(report.Environment.Arch)
+		arch2 := normalizeArch(reports[0].Environment.Arch)
+
+		if !report.Valid || os1 != os2 || arch1 != arch2 {
+			fmt.Printf("Environment validation failed for %s:\n", report.Implementation)
+			fmt.Printf("  Report valid: %t\n", report.Valid)
+			fmt.Printf("  OS: %q (normalized: %q), want %q (normalized: %q)\n", report.Environment.OS, os1, reports[0].Environment.OS, os2)
+			fmt.Printf("  Arch: %q (normalized: %q), want %q (normalized: %q)\n", report.Environment.Arch, arch1, reports[0].Environment.Arch, arch2)
 			panic(fmt.Sprintf("invalid or incompatible environment for %s", report.Implementation))
 		}
 		if len(report.Workloads) != len(reports[0].Workloads) {
