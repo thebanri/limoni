@@ -59,8 +59,8 @@ func (p Paragraph) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	// En uzun satırın genişliğini bul
 	maxW := 0
 	for _, line := range lines {
-		if len(line) > maxW {
-			maxW = len(line)
+		if width := cell.StringWidth(line); width > maxW {
+			maxW = width
 		}
 	}
 
@@ -99,7 +99,7 @@ func wrapText(text string, width uint16) []string {
 		for _, word := range words {
 			if len(currentLine) == 0 {
 				currentLine = word
-			} else if len(currentLine)+1+len(word) <= int(width) {
+			} else if cell.StringWidth(currentLine)+1+cell.StringWidth(word) <= int(width) {
 				currentLine += " " + word
 			} else {
 				wrappedLines = append(wrappedLines, currentLine)

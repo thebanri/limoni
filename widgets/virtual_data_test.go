@@ -6,6 +6,7 @@ import (
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"testing"
+	"time"
 )
 
 type virtualSource struct{ fail bool }
@@ -61,6 +62,135 @@ func TestVirtualDataStableSelectionAndCancellation(t *testing.T) {
 	}
 }
 
+func TestVirtualDataFilterSortRecycleAndTypeahead(t *testing.T) {
+	s := NewVirtualDataState()
+	if err := s.Refresh(context.Background(), virtualSource{}, 0, 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.Select(RowID("row" + string(rune(1))))
+	s.FilterCached("row")
+	if _, ok := s.Typeahead("row"); !ok {
+		t.Fatal("expected typeahead match")
+	}
+	s.SortCached(func(a, b Row) bool { return a.ID > b.ID })
+	if s.Selected() == "" {
+		t.Fatal("stable selection was lost during cache transforms")
+	}
+	if s.SelectedIndex() < 0 || !s.RemapSelection() {
+		t.Fatal("selection remapping failed")
+	}
+}
+
+func TestVirtualDataOptionalProviderQuery(t *testing.T) {
+	s := NewVirtualDataState()
+	provider := &queryVirtualSource{}
+	s.SetFilter("needle")
+	s.SetSort("name", true)
+	if err := s.Refresh(context.Background(), provider, 0, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if provider.query.Filter != "needle" || provider.query.SortKey != "name" || !provider.query.SortDescending {
+		t.Fatalf("provider query = %+v", provider.query)
+	}
+}
+
+func TestVirtualDataRejectsStaleRefresh(t *testing.T) {
+	s := NewVirtualDataState()
+	provider := &blockingVirtualSource{started: make(chan struct{}), release: make(chan struct{})}
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- s.Refresh(context.Background(), provider, 0, 1, 0) }()
+	<-provider.started
+	if err := s.Refresh(context.Background(), virtualSource{}, 0, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	close(provider.release)
+	if err := <-firstDone; !errors.Is(err, ErrVirtualStale) {
+		t.Fatalf("stale refresh error = %v", err)
+	}
+	if status, _ := s.Status(); status != VirtualReady {
+		t.Fatalf("status after stale refresh = %v, want ready", status)
+	}
+}
+
+func TestVirtualDataBackpressureCancelsPreviousRefresh(t *testing.T) {
+	s := NewVirtualDataState()
+	provider := &cancelAwareVirtualSource{started: make(chan struct{}), canceled: make(chan struct{})}
+	first := s.RefreshLatest(context.Background(), provider, 0, 1, 0)
+	<-provider.started
+	second := s.RefreshLatest(context.Background(), virtualSource{}, 0, 1, 0)
+	if err := <-second; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-first; !errors.Is(err, ErrVirtualStale) {
+		t.Fatalf("first refresh error = %v, want stale", err)
+	}
+	select {
+	case <-provider.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("previous provider was not canceled")
+	}
+}
+
+func TestVirtualDataQueuePolicies(t *testing.T) {
+	s := NewVirtualDataState()
+	provider := &cancelAwareVirtualSource{started: make(chan struct{}), canceled: make(chan struct{})}
+	s.SetQueuePolicy(VirtualDropLatest)
+	ctx, cancel := context.WithCancel(context.Background())
+	first := s.RefreshLatest(ctx, provider, 0, 1, 0)
+	<-provider.started
+	if err := s.Refresh(context.Background(), virtualSource{}, 0, 1, 0); !errors.Is(err, ErrVirtualBusy) {
+		t.Fatalf("drop-latest error = %v", err)
+	}
+	cancel()
+	_ = <-first
+
+	s.SetQueuePolicy(VirtualSequential)
+	provider2 := &blockingVirtualSource{started: make(chan struct{}), release: make(chan struct{})}
+	first = s.RefreshLatest(context.Background(), provider2, 0, 1, 0)
+	<-provider2.started
+	second := s.RefreshLatest(context.Background(), virtualSource{}, 0, 1, 0)
+	close(provider2.release)
+	if err := <-second; err != nil {
+		t.Fatal(err)
+	}
+	_ = <-first
+}
+
+type cancelAwareVirtualSource struct{ started, canceled chan struct{} }
+
+func (c *cancelAwareVirtualSource) RowCount(ctx context.Context) (int, error) {
+	close(c.started)
+	<-ctx.Done()
+	close(c.canceled)
+	return 0, ctx.Err()
+}
+func (*cancelAwareVirtualSource) RowAt(context.Context, int) (Row, error) { return Row{}, nil }
+func (*cancelAwareVirtualSource) RowID(int) RowID                         { return "cancel" }
+
+type blockingVirtualSource struct{ started, release chan struct{} }
+
+func (b *blockingVirtualSource) RowCount(context.Context) (int, error) {
+	close(b.started)
+	<-b.release
+	return 1, nil
+}
+func (*blockingVirtualSource) RowAt(context.Context, int) (Row, error) {
+	return Row{ID: "blocked", Text: "blocked"}, nil
+}
+func (*blockingVirtualSource) RowID(int) RowID { return "blocked" }
+
+type queryVirtualSource struct{ query VirtualQuery }
+
+func (q *queryVirtualSource) ApplyQuery(_ context.Context, query VirtualQuery) error {
+	q.query = query
+	return nil
+}
+func (*queryVirtualSource) RowCount(context.Context) (int, error) { return 1, nil }
+func (*queryVirtualSource) RowAt(context.Context, int) (Row, error) {
+	return Row{ID: "query", Text: "needle"}, nil
+}
+func (*queryVirtualSource) RowID(int) RowID { return "query" }
+
 func TestVirtualDataViewRendersVisibleRows(t *testing.T) {
 	state := NewVirtualDataState()
 	if err := state.Refresh(context.Background(), virtualSource{}, 4, 3, 0); err != nil {
@@ -92,3 +222,39 @@ func TestVirtualDataViewSelectsRowAndReportsIndex(t *testing.T) {
 		t.Fatalf("selection = index %d, id %q; want row 1", selected, state.Selected())
 	}
 }
+
+func TestVirtualDataViewRendersVariableRowHeight(t *testing.T) {
+	state := NewVirtualDataState()
+	source := variableVirtualSource{}
+	if err := state.Refresh(context.Background(), source, 0, 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	view := VirtualDataView{State: state, Source: source, First: 0}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 20, 3))
+	view.Draw(cell.NewContext(cell.NewRect(0, 0, 20, 3), cell.Style{}), buf)
+	if buf.Get(0, 0).Content != 'a' || buf.Get(0, 1).Content != 'a' || buf.Get(0, 2).Content != 'b' {
+		t.Fatalf("variable rows snapshot = %q/%q/%q", buf.Get(0, 0).Content, buf.Get(0, 1).Content, buf.Get(0, 2).Content)
+	}
+}
+
+func TestVirtualRowTextKeepsStickyColumnsDuringHorizontalScroll(t *testing.T) {
+	row := Row{Cells: []TableCell{{Text: "ID"}, {Text: "name"}, {Text: "status"}}}
+	if got := virtualRowText(row, 5, 1); got != "ID | | status" {
+		t.Fatalf("sticky row text = %q", got)
+	}
+	if got := virtualRowText(row, 0, 2); got != "ID | name | status" {
+		t.Fatalf("unscrolled row text = %q", got)
+	}
+}
+
+type variableVirtualSource struct{}
+
+func (variableVirtualSource) RowCount(context.Context) (int, error) { return 3, nil }
+func (variableVirtualSource) RowAt(_ context.Context, index int) (Row, error) {
+	height := uint16(1)
+	if index == 0 {
+		height = 2
+	}
+	return Row{ID: RowID(string(rune('a' + index))), Text: string(rune('a' + index)), Height: height}, nil
+}
+func (variableVirtualSource) RowID(index int) RowID { return RowID(string(rune('a' + index))) }

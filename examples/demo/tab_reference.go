@@ -18,12 +18,31 @@ import (
 
 func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, theme widgets.Theme, mainColor, accentColor cell.Color, area cell.Rect) {
 	rows := layout.NewFlexLayout(layout.Vertical, 1, layout.Fixed(6), layout.Fixed(6), layout.Fixed(6), layout.Fill()).Split(area)
+	f.RegisterAccessibility(referenceAccessibilityTree(state, area))
 	drawReferenceRuntime(f, state, theme, rows[0])
 	drawReferenceInteraction(t, f, state, theme, rows[1])
 	drawReferenceLayout(f, state, theme, rows[2])
 	drawReferenceData(f, state, theme, accentColor, rows[3])
-	f.RegisterAccessibility(accessibility.AccessibilityNode{ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni referans ve geliştirici araçları", Bounds: area})
 	_ = mainColor
+}
+
+func referenceAccessibilityTree(state *AppState, area cell.Rect) accessibility.AccessibilityNode {
+	dataY := area.Y + 21
+	dataHeight := uint16(0)
+	if area.Height > 21 {
+		dataHeight = area.Height - 21
+	} else if area.Height > 0 {
+		dataY = area.Y + area.Height - 1
+		dataHeight = 1
+	}
+	return accessibility.AccessibilityNode{
+		ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni referans ve geliştirici araçları", Bounds: area,
+		Children: []accessibility.AccessibilityNode{
+			{ID: "runtime", Role: accessibility.RoleGeneric, Label: "Runtime CMD-MSG", Value: fmt.Sprintf("%d mesaj", state.ReferenceRuntimeMessages), Bounds: cell.NewRect(area.X, area.Y, area.Width, 6)},
+			{ID: "interaction", Role: accessibility.RoleGeneric, Label: "Interaction Inspector", Value: state.ReferenceInteractionLastRoute, Bounds: cell.NewRect(area.X, area.Y+7, area.Width, 6)},
+			{ID: "virtual-data", Role: accessibility.RoleList, Label: "Virtual data", Value: fmt.Sprintf("seçili satır %d", state.ReferenceSelectedRow), State: accessibility.StateBusy, Bounds: cell.NewRect(area.X, dataY, area.Width, dataHeight)},
+		},
+	}
 }
 
 func drawReferenceRuntime(f *terminal.Frame, state *AppState, theme widgets.Theme, area cell.Rect) {
@@ -97,11 +116,17 @@ func drawReferenceData(f *terminal.Frame, state *AppState, theme widgets.Theme, 
 	if lastVisible >= data.Count() {
 		lastVisible = data.Count() - 1
 	}
-	mode := accessibility.Mode{HighContrast: theme.Colors.Primary == cell.NewColorRGB(255, 255, 0), ReducedMotion: false}
+	mode := accessibility.Mode{HighContrast: theme.Colors.Primary == cell.NewColorRGB(255, 255, 0), ReducedMotion: false, ScreenReader: true, ASCIIOnly: state.ReferenceAccessibilityASCII}
+	lineMode := f.AccessibilityLineMode(mode)
+	previewLines := strings.Split(lineMode, "\n")
+	if len(previewLines) > 3 {
+		previewLines = previewLines[:3]
+	}
+	linePreview := strings.Join(previewLines, " / ")
 	testTerm := testkit.NewTerminal(20, 2)
 	testTerm.Draw(func(frame *terminal.Frame) { frame.Buffer.SetString(0, 0, "benchmark-ready", cell.Style{Fg: accent}) })
 	snapshot := strings.ReplaceAll(testTerm.Snapshot(), "\n", " / ")
-	text := fmt.Sprintf("Virtual data: %d kayıt | görünür: %d-%d | scroll: mouse wheel\nSatıra tıkla: seç (seçili satır: #%d) | Stable ID: %s\nStatus: %v | Accessibility: high-contrast=%t\nTestKit snapshot: %s | Benchmark runs: %d | Updated: %s", data.Count(), state.ReferenceDataOffset+1, lastVisible+1, state.ReferenceSelectedRow, data.Selected(), status, mode.HighContrast, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
+	text := fmt.Sprintf("Virtual data: %d kayıt | görünür: %d-%d | scroll: mouse wheel\nSatıra tıkla: seç (seçili satır: #%d) | Stable ID: %s\nStatus: %v | Accessibility: high-contrast=%t | screen-reader=line mode\nLine mode (%s): %s\nTestKit snapshot: %s | Benchmark runs: %d | Updated: %s", data.Count(), state.ReferenceDataOffset+1, lastVisible+1, state.ReferenceSelectedRow, data.Selected(), status, mode.HighContrast, map[bool]string{true: "ASCII", false: "Unicode"}[mode.ASCIIOnly], linePreview, snapshot, state.ReferenceBenchmarkRuns, time.Now().Format("15:04:05"))
 	inner := cell.NewRect(area.X+1, area.Y+1, area.Width-2, area.Height-2)
 	f.RenderWidget(widgets.Block{Title: " VIRTUAL DATA / ACCESSIBILITY / BENCHMARK ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: accent}, PaddingLeft: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")}}, area)
 	if inner.Width > 2 && inner.Height > 1 {

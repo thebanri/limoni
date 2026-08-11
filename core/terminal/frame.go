@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"image"
+	"io"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -74,6 +76,7 @@ type Frame struct {
 	hoveredRegionID     string
 	lastClickID         string
 	lastClickAt         time.Time
+	lastEventTrace      []string
 
 	Theme    widgets.Theme
 	ThemeSet bool
@@ -125,6 +128,9 @@ type DebugRegion struct {
 	Area       cell.Rect
 	WidgetType string
 	ZIndex     int
+	Measured   layout.Measure
+	Allocated  cell.Rect
+	Overflowed bool
 }
 
 // NewFrame, belirtilen buffer ve odak yöneticisi üzerinde çizim yapacak yeni bir Frame örneği oluşturur.
@@ -179,6 +185,7 @@ func (f *Frame) Reset() {
 	f.hoveredRegionID = ""
 	f.lastClickID = ""
 	f.lastClickAt = time.Time{}
+	f.lastEventTrace = f.lastEventTrace[:0]
 	f.WidgetStats = f.WidgetStats[:0]
 	f.Accessibility = f.Accessibility[:0]
 }
@@ -198,6 +205,42 @@ func (f *Frame) AccessibilityTree() []accessibility.AccessibilityNode {
 	result := make([]accessibility.AccessibilityNode, len(f.Accessibility))
 	copy(result, f.Accessibility)
 	return result
+}
+
+// ValidateAccessibility validates the semantic tree registered in this frame.
+func (f *Frame) ValidateAccessibility() error {
+	if f == nil {
+		return nil
+	}
+	return accessibility.ValidateTree(f.Accessibility)
+}
+
+// ImageRegionsSnapshot returns a copy of image registrations for assertions.
+func (f *Frame) ImageRegionsSnapshot() []ImageRegion {
+	if f == nil {
+		return nil
+	}
+	regions := make([]ImageRegion, len(f.ImageRegions))
+	copy(regions, f.ImageRegions)
+	return regions
+}
+
+// AccessibilityLineMode returns the current frame's semantic tree in a
+// deterministic, line-oriented format suitable for screen readers.
+func (f *Frame) AccessibilityLineMode(mode accessibility.Mode) string {
+	if f == nil {
+		return ""
+	}
+	return mode.LineMode(f.Accessibility)
+}
+
+// WriteAccessibilityLineMode streams the current semantic tree to a
+// screen-reader or log writer without exposing renderer internals.
+func (f *Frame) WriteAccessibilityLineMode(w io.Writer, mode accessibility.Mode) error {
+	if f == nil {
+		return accessibility.Mode{}.WriteLineMode(w, nil)
+	}
+	return mode.WriteLineMode(w, f.Accessibility)
 }
 
 // RegisterModal, bu karede çizilen aktif bir modal katmanı kaydeder.
@@ -381,6 +424,7 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 		for i := range f.EventRegions {
 			region := &f.EventRegions[i]
 			if region.ID == f.hoveredRegionID && region.OnLeave != nil {
+				f.lastEventTrace = append(f.lastEventTrace, region.ID+":leave")
 				ctx := &backend.EventContext{
 					Mouse: ev, Phase: TargetPhase, RegionID: region.ID,
 					LayerID: region.LayerID, ZIndex: region.ZIndex,
@@ -391,6 +435,7 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 		}
 	}
 	if target != nil && target.OnEnter != nil {
+		f.lastEventTrace = append(f.lastEventTrace, target.ID+":enter")
 		ctx := &backend.EventContext{
 			Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
 			LayerID: target.LayerID, ZIndex: target.ZIndex,
@@ -420,6 +465,7 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 					continue
 				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					f.lastEventTrace = append(f.lastEventTrace, region.ID+":"+phaseName(phase))
 					handled = true
 					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
@@ -433,6 +479,7 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 					continue
 				}
 				if region.Phase == phase && region.Area.Contains(ev.X, ev.Y) {
+					f.lastEventTrace = append(f.lastEventTrace, region.ID+":"+phaseName(phase))
 					handled = true
 					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
 					region.Handler(ctx)
@@ -447,6 +494,27 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 		}
 	}
 	return handled || ctx.IsDefaultPrevented()
+}
+
+func phaseName(phase backend.EventPhase) string {
+	switch phase {
+	case backend.CapturePhase:
+		return "capture"
+	case backend.TargetPhase:
+		return "target"
+	default:
+		return "bubble"
+	}
+}
+
+// EventTrace returns the propagation/hover trace from the last dispatched event.
+func (f *Frame) EventTrace() []string {
+	if f == nil {
+		return nil
+	}
+	trace := make([]string, len(f.lastEventTrace))
+	copy(trace, f.lastEventTrace)
+	return trace
 }
 
 // CaptureMouse, aktif farenin sürükleme boyunca kayıtlı handler'a yönlendirilmesini sağlar.
@@ -500,6 +568,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	if provider, ok := w.(interface{ DebugArea(cell.Rect) cell.Rect }); ok {
 		debugArea = provider.DebugArea(area)
 	}
+	measured := layout.MeasureAny(w, area)
 	zIndex := 0
 	if f.activeLayerID != "" {
 		for _, l := range f.Layers {
@@ -515,6 +584,9 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		Area:       debugArea,
 		WidgetType: wType,
 		ZIndex:     zIndex,
+		Measured:   measured,
+		Allocated:  debugArea,
+		Overflowed: debugArea.Width < measured.IdealWidth || debugArea.Height < measured.IdealHeight,
 	})
 
 	var defStyle cell.Style

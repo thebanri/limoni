@@ -1,0 +1,39 @@
+name: Limoni Benchmarks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run benchmark suite
+        run: |
+          mkdir -p benchmark-results
+          go test ./benchmarks -run '^$' -bench . -benchmem -count=3 | tee benchmark-results/go-benchmark.txt
+
+      - name: Generate workload schema sample
+        run: |
+          cat > benchmark-results/README.txt <<'EOF'
+          Benchmark artifacts use the workload schema from benchmarks.WorkloadSpec
+          and the summary schema from benchmarks.Summary. Compare implementations
+          only when dimensions, content, output sink, color mode, build and host
+          are equivalent.
+          EOF
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: limoni-benchmarks
+          path: benchmark-results/

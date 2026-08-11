@@ -4,6 +4,7 @@ package testkit
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -79,6 +80,16 @@ func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
 		return false
 	}
 
+	// Dispatch semantic regions before legacy click regions, matching the production router.
+	if ev.Button == backend.MouseNone {
+		t.frame.DispatchPointerMove(ev)
+	}
+	if t.frame.DispatchEventRegions(ev) {
+		t.capture = t.frame.TakeMouseCapture()
+		return true
+	}
+	t.capture = t.frame.TakeMouseCapture()
+
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		region := t.frame.ClickRegions[i]
 		if !region.Area.Contains(ev.X, ev.Y) {
@@ -146,7 +157,14 @@ func (t *Terminal) StyleSnapshot() string {
 // AssertSnapshot returns a descriptive error when the text snapshot differs.
 func (t *Terminal) AssertSnapshot(expected string) error {
 	if got := t.Snapshot(); got != expected {
-		return fmt.Errorf("snapshot mismatch: got %q want %q", got, expected)
+		return fmt.Errorf("snapshot mismatch:\n%s", FormatSnapshotDiff(DiffSnapshot(expected, got)))
+	}
+	return nil
+}
+
+func (t *Terminal) AssertHovered(id string) error {
+	if got := t.HoveredRegionID(); got != id {
+		return fmt.Errorf("hovered region=%q want %q", got, id)
 	}
 	return nil
 }
@@ -225,6 +243,69 @@ func (t *Terminal) AccessibilityTree() []accessibility.AccessibilityNode {
 	return t.frame.AccessibilityTree()
 }
 
+// ValidateAccessibility validates the semantic tree from the last draw.
+func (t *Terminal) ValidateAccessibility() error {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	return t.frame.ValidateAccessibility()
+}
+
+// AssertImageRegistration verifies an image area and z-index registered by
+// the current frame.
+func (t *Terminal) AssertImageRegistration(area cell.Rect, zIndex int) error {
+	if t == nil || t.frame == nil {
+		return fmt.Errorf("image registration: terminal is nil")
+	}
+	for _, region := range t.frame.ImageRegionsSnapshot() {
+		if region.Area == area && region.ZIndex == zIndex {
+			return nil
+		}
+	}
+	return fmt.Errorf("image registration not found: area=%+v z=%d", area, zIndex)
+}
+
+// AccessibilityLineMode returns the semantic snapshot as screen-reader-safe
+// line-oriented text.
+func (t *Terminal) AccessibilityLineMode(mode accessibility.Mode) string {
+	if t == nil || t.frame == nil {
+		return ""
+	}
+	return t.frame.AccessibilityLineMode(mode)
+}
+
+// WriteAccessibilityLineMode streams the last semantic snapshot to a writer.
+func (t *Terminal) WriteAccessibilityLineMode(w io.Writer, mode accessibility.Mode) error {
+	if t == nil || t.frame == nil {
+		return mode.WriteLineMode(w, nil)
+	}
+	return t.frame.WriteAccessibilityLineMode(w, mode)
+}
+
+// AssertAccessibilityContains checks that the line-mode semantic snapshot
+// contains the requested text.
+func (t *Terminal) AssertAccessibilityContains(mode accessibility.Mode, text string) error {
+	snapshot := t.AccessibilityLineMode(mode)
+	if !strings.Contains(snapshot, text) {
+		return fmt.Errorf("accessibility snapshot %q does not contain %q", snapshot, text)
+	}
+	return nil
+}
+
+// SendKeys dispatches a deterministic sequence of key events. It stops at the
+// first unhandled key and returns its index, or len(keys) on success.
+func (t *Terminal) SendKeys(keys []backend.KeyEvent, handler func(backend.KeyEvent) bool) (handled int) {
+	if handler == nil {
+		return 0
+	}
+	for i, key := range keys {
+		if !handler(key) {
+			return i
+		}
+	}
+	return len(keys)
+}
+
 // ClickAt dispatches a deterministic click using the supplied timestamp.
 func (t *Terminal) ClickAt(x, y uint16, at time.Time) bool {
 	if t == nil || t.frame == nil {
@@ -263,4 +344,62 @@ func (t *Terminal) LayerIDs() []string {
 // HasModal reports whether the current frame has an active modal layer.
 func (t *Terminal) HasModal() bool {
 	return t != nil && t.frame != nil && t.frame.TopmostModal() != nil
+}
+
+// AssertFocused verifies the current focus owner.
+func (t *Terminal) AssertFocused(id string) error {
+	if got := t.Focused(); got != id {
+		return fmt.Errorf("focused widget = %q, want %q", got, id)
+	}
+	return nil
+}
+
+// AssertLayerZIndex verifies a registered layer's z-index.
+func (t *Terminal) AssertLayerZIndex(id string, zIndex int) error {
+	if t == nil || t.frame == nil {
+		return fmt.Errorf("layer assertion: terminal is nil")
+	}
+	for _, layer := range t.frame.Layers {
+		if layer.ID == id {
+			if layer.ZIndex != zIndex {
+				return fmt.Errorf("layer %q z-index = %d, want %d", id, layer.ZIndex, zIndex)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("layer %q not found", id)
+}
+
+// AssertModalIsolation verifies that a modal exists and is the topmost layer.
+func (t *Terminal) AssertModalIsolation(id string) error {
+	if t == nil || t.frame == nil {
+		return fmt.Errorf("modal assertion: terminal is nil")
+	}
+	top := t.frame.TopmostModal()
+	if top == nil || top.ID != id {
+		return fmt.Errorf("topmost modal = %q, want %q", func() string {
+			if top == nil {
+				return ""
+			}
+			return top.ID
+		}(), id)
+	}
+	return nil
+}
+
+// AssertEventTrace compares the deterministic propagation/hover trace.
+func (t *Terminal) AssertEventTrace(expected ...string) error {
+	if t == nil || t.frame == nil {
+		return fmt.Errorf("event trace: terminal is nil")
+	}
+	actual := t.frame.EventTrace()
+	if len(actual) != len(expected) {
+		return fmt.Errorf("event trace = %v, want %v", actual, expected)
+	}
+	for i := range expected {
+		if actual[i] != expected[i] {
+			return fmt.Errorf("event trace = %v, want %v", actual, expected)
+		}
+	}
+	return nil
 }

@@ -367,7 +367,22 @@ func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
 			h++
 		}
 	}
-	return maxArea.Width, h
+	width = uint16(0)
+	for _, line := range m.cachedLines {
+		lineWidth := cell.StringWidth(line.prefix)
+		for _, segment := range line.segments {
+			for _, word := range segment.Words {
+				lineWidth += cell.StringWidth(word) + 1
+			}
+		}
+		if uint16(lineWidth) > width {
+			width = uint16(lineWidth)
+		}
+	}
+	if width > maxArea.Width {
+		width = maxArea.Width
+	}
+	return width, h
 }
 
 func parseInlineStyles(text string, baseStyle cell.Style) []rawSegment {

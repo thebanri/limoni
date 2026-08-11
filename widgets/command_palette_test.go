@@ -49,6 +49,25 @@ func TestCommandPalette_DebugArea(t *testing.T) {
 	}
 }
 
+func TestCommandPaletteRegistersFocusAndKeepsArrowNavigationInState(t *testing.T) {
+	state := NewCommandPaletteState()
+	state.AllItems = testCommandItems()
+	state.Open()
+	registered := ""
+	ctx := cell.NewContext(cell.NewRect(0, 0, 100, 30), cell.Style{})
+	ctx.RegisterFocus = func(id string) { registered = id }
+	(CommandPalette{ID: "command_palette", State: state}).Draw(ctx, buffer.NewBuffer(ctx.Area))
+	if registered != "command_palette" {
+		t.Fatalf("registered focus = %q, want command_palette", registered)
+	}
+	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown}) || state.Selected != 1 {
+		t.Fatalf("arrow down selected = %d, want 1", state.Selected)
+	}
+	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp}) || state.Selected != 0 {
+		t.Fatalf("arrow up selected = %d, want 0", state.Selected)
+	}
+}
+
 func TestCommandPalettePositionBottom(t *testing.T) {
 	state := NewCommandPaletteState()
 	state.AllItems = testCommandItems()

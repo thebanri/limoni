@@ -10,12 +10,14 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/thebanri/limoni/animation"
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -198,6 +200,9 @@ type AppState struct {
 	ReferenceInteractionHistory   []string
 	ReferenceLayoutLastAction     string
 	ReferenceLayoutAllocated      cell.Rect
+	ReferenceAccessibilityASCII   bool
+	ScreenReaderMode              bool
+	LastScreenReaderTree          string
 }
 
 func recordReferenceInteraction(state *AppState, event string) {
@@ -335,6 +340,7 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 }
 
 func main() {
+	screenReaderMode := slices.Contains(os.Args[1:], "--screen-reader")
 	// Standard I/O kullanarak terminal backend'ini oluştur
 	b := backend.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
@@ -357,6 +363,7 @@ func main() {
 	// Başlangıç uygulama durumunu ata
 	state := &AppState{
 		ActiveTab:         "Giriş",
+		ScreenReaderMode:  screenReaderMode,
 		LastKey:           "Yok",
 		LastMouse:         "Yok",
 		SettingsListState: widgets.NewListState(),
@@ -497,7 +504,14 @@ func main() {
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
 		Label: "Komut Paletini Aç/Kapa", Category: "Genel",
-		Handler: func() { state.CmdPalette.Toggle() },
+		Handler: func() {
+			state.CmdPalette.Toggle()
+			if state.CmdPalette.IsOpen {
+				t.FocusManager().SetFocused("command_palette")
+			} else {
+				t.FocusManager().SetFocused("")
+			}
+		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
@@ -718,7 +732,17 @@ func main() {
 
 				// Palet açıksa tüm tuşları ona yönlendir. Ctrl+P burada
 				// paleti kapatır; kapalıyken aşağıdaki KeybindingManager açar.
+				paletteWasOpen := state.CmdPalette.IsOpen
 				if state.CmdPalette.HandleKey(ev.Key) {
+					if paletteWasOpen && !state.CmdPalette.IsOpen {
+						t.FocusManager().SetFocused("")
+					}
+					break
+				}
+				if state.ActiveTab == "Referans" && ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'a' &&
+					!state.ShowExitDialog && !state.ShowHelpDialog {
+					state.ReferenceAccessibilityASCII = !state.ReferenceAccessibilityASCII
+					state.LastKey = "Accessibility ASCII modu değişti"
 					break
 				}
 				// Markdown alanı odaktayken ok tuşları global focus kısayollarına
@@ -739,6 +763,15 @@ func main() {
 					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
 						state.MarkdownHeight--
 					}
+					break
+				}
+				// Bazı klavye düzenlerinde soru işareti terminale '?' yerine
+				// Shift+/ üretiminin ham '/' rune'u olarak ulaşabilir. Metin
+				// alanlarında slash normal karakter olarak kalmalı; yalnızca
+				// global kısayol kullanılabilir durumdaysa yardım panelini aç.
+				if state.KeyManager != nil && canHandleGlobalCommand() && ev.Key.Type == backend.KeyRune &&
+					(ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)) && !ev.Key.Ctrl && !ev.Key.Alt {
+					openHelp()
 					break
 				}
 				// Declarative kısayolların merkezi yönlendiricisi.
@@ -854,6 +887,14 @@ func main() {
 				case "play_direction", "play_mode", "play_border", "play_showcase_select":
 					// Select bileşeni yukarı/aşağı yön tuşlarını yutar
 					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						consumesArrow = true
+					}
+				case "table_filter":
+					// Tablo arama alanında yön tuşları sıralama kontrolüne
+					// aittir; spatial focus navigasyonuna kaçmamalıdır.
+					// Ctrl+Sol/Sağ aşağıda TextInput cursor hareketine aktarılır.
+					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown ||
+						ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
 						consumesArrow = true
 					}
 				}
@@ -1192,9 +1233,21 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 	if state.ShowHelpDialog || state.ShowExitDialog {
 		t.SetTransitionActive(false)
 	}
+	var accessibilityFrame *terminal.Frame
 	t.Draw(func(f *terminal.Frame) {
+		accessibilityFrame = f
 		demoTheme := themeForSelection(state.ThemeSelected)
 		f.SetTheme(demoTheme)
+		f.RegisterAccessibility(accessibility.AccessibilityNode{
+			ID: "limoni-demo", Role: accessibility.RoleDialog,
+			Label: "Limoni TUI demo", Value: state.ActiveTab,
+			Bounds: f.Buffer.Area,
+			Children: []accessibility.AccessibilityNode{{
+				ID: "active-tab", Role: accessibility.RoleGeneric,
+				Label: "Aktif sekme", Value: state.ActiveTab,
+				Bounds: f.Buffer.Area,
+			}},
+		})
 		// Tüm ana UI renkleri semantic theme token'larından gelir.
 		mainColor := demoTheme.Colors.Primary
 		accentColor := demoTheme.Colors.Success
@@ -1994,6 +2047,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		// 7. KOMUT PALETİ OVERLAY ÇİZİMİ (En üst katman)
 		if state.CmdPalette.IsOpen {
 			palette := widgets.CommandPalette{
+				ID:    "command_palette",
 				State: state.CmdPalette,
 				// CSS benzeri konumlandırma: panel ekranın altından 2 satır yukarıda açılır.
 				Position: &widgets.CommandPalettePosition{Bottom: 2},
@@ -2001,6 +2055,13 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			f.RenderWidget(palette, f.Buffer.Area)
 		}
 	})
+	if state.ScreenReaderMode {
+		lineMode := accessibilityFrame.AccessibilityLineMode(accessibility.Mode{ScreenReader: true})
+		if lineMode != "" && lineMode != state.LastScreenReaderTree {
+			fmt.Fprintf(os.Stderr, "\n[limoni screen-reader]\n%s\n", lineMode)
+			state.LastScreenReaderTree = lineMode
+		}
+	}
 }
 
 // label, çok satırlı metinleri (\n) çizim sınırlarına uygun olarak alt alta çizen basit bir metin widget'ıdır.

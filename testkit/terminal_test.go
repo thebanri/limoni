@@ -3,7 +3,9 @@ package testkit
 import (
 	"testing"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
@@ -108,6 +110,91 @@ func TestTerminalFocusAndPropagationSnapshot(t *testing.T) {
 	}
 }
 
+func TestTerminalSemanticRegionMouseDispatch(t *testing.T) {
+	testTerm := NewTerminal(20, 4)
+	var seen []backend.MouseButton
+	entered := false
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterEventRegion(terminal.EventRegion{
+			Area:  cell.NewRect(1, 1, 8, 2),
+			ID:    "viewport",
+			Phase: terminal.TargetPhase,
+			Handler: func(ctx *terminal.EventContext) {
+				seen = append(seen, ctx.Mouse.Button)
+			},
+			OnEnter: func(ctx *terminal.EventContext) {
+				entered = ctx.RegionID == "viewport"
+			},
+		})
+	})
+
+	if !testTerm.Mouse(backend.MouseEvent{X: 2, Y: 1, Button: backend.MouseNone}) {
+		t.Fatal("semantic hover event was not handled")
+	}
+	if !entered {
+		t.Fatal("semantic region enter callback was not called")
+	}
+	if !testTerm.Click(2, 1) {
+		t.Fatal("semantic click was not handled")
+	}
+	if !testTerm.Mouse(backend.MouseEvent{X: 2, Y: 1, Button: backend.MouseScrollDown}) {
+		t.Fatal("semantic wheel event was not handled")
+	}
+
+	want := []backend.MouseButton{backend.MouseNone, backend.MouseLeft, backend.MouseScrollDown}
+	if len(seen) != len(want) {
+		t.Fatalf("semantic event count = %d, want %d", len(seen), len(want))
+	}
+	for i := range want {
+		if seen[i] != want[i] {
+			t.Fatalf("semantic event %d = %d, want %d", i, seen[i], want[i])
+		}
+	}
+}
+
+func TestTerminalAccessibilityAssertionAndKeySequence(t *testing.T) {
+	testTerm := NewTerminal(10, 2)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterAccessibility(accessibility.AccessibilityNode{ID: "save", Role: accessibility.RoleButton, Label: "Save", Bounds: cell.NewRect(0, 0, 4, 1)})
+	})
+	if err := testTerm.AssertAccessibilityContains(accessibility.Mode{ScreenReader: true}, "button#save"); err != nil {
+		t.Fatal(err)
+	}
+	keys := []backend.KeyEvent{{Type: backend.KeyRune, Ch: 'a'}, {Type: backend.KeyEnter}}
+	if got := testTerm.SendKeys(keys, func(backend.KeyEvent) bool { return true }); got != len(keys) {
+		t.Fatalf("handled keys = %d, want %d", got, len(keys))
+	}
+	if err := testTerm.ValidateAccessibility(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTerminalImageRegistrationAssertion(t *testing.T) {
+	testTerm := NewTerminal(10, 2)
+	area := cell.NewRect(1, 0, 4, 2)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RenderWidget(imageRegistrationWidget{area: area, zIndex: 7}, area)
+	})
+	if err := testTerm.AssertImageRegistration(area, 7); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type imageRegistrationWidget struct {
+	area   cell.Rect
+	zIndex int
+}
+
+func (w imageRegistrationWidget) Draw(ctx cell.Context, _ *buffer.Buffer) {
+	if ctx.RegisterImage != nil {
+		ctx.RegisterImage(w.area, nil, w.zIndex, false)
+	}
+}
+
+func (imageRegistrationWidget) SizeHint(area cell.Rect) (uint16, uint16) {
+	return area.Width, area.Height
+}
+
 func TestTerminalKeyResizeAndLayerAssertions(t *testing.T) {
 	testTerm := NewTerminal(8, 4)
 	testTerm.Draw(func(frame *terminal.Frame) {
@@ -126,5 +213,24 @@ func TestTerminalKeyResizeAndLayerAssertions(t *testing.T) {
 	}
 	if !testTerm.HasModal() {
 		t.Fatal("expected modal assertion to be true")
+	}
+	if err := testTerm.AssertLayerZIndex("modal", 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := testTerm.AssertModalIsolation("modal"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTerminalEventTraceAssertion(t *testing.T) {
+	testTerm := NewTerminal(10, 2)
+	testTerm.Draw(func(frame *terminal.Frame) {
+		frame.RegisterEventHandler(cell.NewRect(0, 0, 10, 2), terminal.CapturePhase, func(*terminal.EventContext) {})
+		frame.RegisterEventHandler(cell.NewRect(1, 0, 3, 1), terminal.TargetPhase, func(*terminal.EventContext) {})
+		frame.RegisterEventHandler(cell.NewRect(0, 0, 10, 2), terminal.BubblePhase, func(*terminal.EventContext) {})
+	})
+	testTerm.PropagateMouse(backend.MouseEvent{X: 2, Y: 0, Button: backend.MouseLeft})
+	if err := testTerm.AssertEventTrace(":capture", ":target", ":bubble"); err != nil {
+		t.Fatal(err)
 	}
 }

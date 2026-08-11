@@ -13,12 +13,15 @@ const (
 
 // Measure is the negotiated size contract for a layout child.
 type Measure struct {
-	MinWidth       uint16
-	MinHeight      uint16
-	IdealWidth     uint16
-	IdealHeight    uint16
-	MaxWidth       uint16
-	MaxHeight      uint16
+	MinWidth    uint16
+	MinHeight   uint16
+	IdealWidth  uint16
+	IdealHeight uint16
+	MaxWidth    uint16
+	MaxHeight   uint16
+	// Baseline is the content baseline measured from the child's top edge.
+	// Zero falls back to the ideal cross-axis size for baseline alignment.
+	Baseline       uint16
 	ShrinkPriority int
 	GrowPriority   int
 	Overflow       OverflowPolicy
@@ -27,6 +30,15 @@ type Measure struct {
 // Measurable is implemented by widgets that provide explicit negotiation.
 type Measurable interface {
 	Measure(maxArea cell.Rect) Measure
+}
+
+// MeasureMeasurable invokes the explicit measure contract and normalizes its
+// result against the available area.
+func MeasureMeasurable(widget Measurable, maxArea cell.Rect) Measure {
+	if widget == nil {
+		return Measure{}
+	}
+	return widget.Measure(maxArea).Normalize(maxArea)
 }
 
 // LegacyMeasurable adapts the existing SizeHint contract without importing widgets.
@@ -44,6 +56,20 @@ func MeasureWidget(widget LegacyMeasurable, maxArea cell.Rect) Measure {
 		IdealWidth: w, IdealHeight: h,
 		MaxWidth: maxArea.Width, MaxHeight: maxArea.Height,
 		Overflow: OverflowClip,
+	}
+}
+
+// MeasureAny accepts either the explicit Measurable contract or the legacy
+// SizeHint contract. It is useful at framework boundaries where widgets may
+// be incrementally migrated to measure/arrange.
+func MeasureAny(widget any, maxArea cell.Rect) Measure {
+	switch measured := widget.(type) {
+	case Measurable:
+		return MeasureMeasurable(measured, maxArea)
+	case LegacyMeasurable:
+		return MeasureWidget(measured, maxArea).Normalize(maxArea)
+	default:
+		return Measure{}
 	}
 }
 
@@ -123,6 +149,74 @@ func Arrange(area cell.Rect, measurements []Measure, direction Direction, gap ui
 		pos += size + gap
 	}
 	return result
+}
+
+// AggregateMeasures combines child measurements into the intrinsic measure
+// of a parent. Main-axis dimensions are summed with gaps; cross-axis
+// dimensions use the largest child. A zero max means the aggregate is
+// unbounded unless the available area later normalizes it.
+func AggregateMeasures(children []Measure, direction Direction, gap uint16) Measure {
+	if len(children) == 0 {
+		return Measure{}
+	}
+	result := Measure{Overflow: OverflowClip}
+	for i, child := range children {
+		if i > 0 {
+			addMainMeasure(&result, direction, gap, gap, gap)
+		}
+		if direction == Horizontal {
+			addMainMeasure(&result, direction, child.MinWidth, child.IdealWidth, child.MaxWidth)
+		} else {
+			addMainMeasure(&result, direction, child.MinHeight, child.IdealHeight, child.MaxHeight)
+		}
+		if direction == Horizontal {
+			if child.MinHeight > result.MinHeight {
+				result.MinHeight = child.MinHeight
+			}
+			if child.IdealHeight > result.IdealHeight {
+				result.IdealHeight = child.IdealHeight
+			}
+			if child.MaxHeight > result.MaxHeight {
+				result.MaxHeight = child.MaxHeight
+			}
+		} else {
+			if child.MinWidth > result.MinWidth {
+				result.MinWidth = child.MinWidth
+			}
+			if child.IdealWidth > result.IdealWidth {
+				result.IdealWidth = child.IdealWidth
+			}
+			if child.MaxWidth > result.MaxWidth {
+				result.MaxWidth = child.MaxWidth
+			}
+		}
+		if child.Overflow > result.Overflow {
+			result.Overflow = child.Overflow
+		}
+		if child.Baseline > result.Baseline {
+			result.Baseline = child.Baseline
+		}
+	}
+	return result
+}
+
+func addMainMeasure(result *Measure, direction Direction, min, ideal, max uint16) {
+	if direction == Horizontal {
+		result.MinWidth = saturatingAdd(result.MinWidth, min)
+		result.IdealWidth = saturatingAdd(result.IdealWidth, ideal)
+		result.MaxWidth = saturatingAdd(result.MaxWidth, max)
+	} else {
+		result.MinHeight = saturatingAdd(result.MinHeight, min)
+		result.IdealHeight = saturatingAdd(result.IdealHeight, ideal)
+		result.MaxHeight = saturatingAdd(result.MaxHeight, max)
+	}
+}
+
+func saturatingAdd(left, right uint16) uint16 {
+	if uint32(left)+uint32(right) > 65535 {
+		return 65535
+	}
+	return left + right
 }
 
 func distributeSizes(sizes []uint16, measurements []Measure, available uint16, direction Direction) {

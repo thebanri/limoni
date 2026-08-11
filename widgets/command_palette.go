@@ -151,6 +151,7 @@ func NewCommandPalettePosition() *CommandPalettePosition {
 
 // CommandPalette, Komut Paleti overlay widget'ıdır.
 type CommandPalette struct {
+	ID          string
 	State       *CommandPaletteState
 	Position    *CommandPalettePosition
 	Style       cell.Style // Arka plan stili
@@ -231,6 +232,16 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := ctx.Area
 	if area.Width < 20 || area.Height < 6 {
 		return
+	}
+	if cp.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(cp.ID)
+	}
+	if cp.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(cp.ID)
+			}
+		})
 	}
 
 	panel := cp.panelArea(area)

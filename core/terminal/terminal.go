@@ -1,5 +1,3 @@
-//go:build linux
-
 package terminal
 
 import (
@@ -538,7 +536,11 @@ func (t *Terminal) drawDebugOverlay() {
 		}
 
 		// Sol üst köşeye boyut ve tür etiketi bas
-		label := fmt.Sprintf(" %s [%dx%d] z:%d ", reg.WidgetType, area.Width, area.Height, reg.ZIndex)
+		label := fmt.Sprintf(" %s [%dx%d m:%dx%d z:%d", reg.WidgetType, area.Width, area.Height, reg.Measured.IdealWidth, reg.Measured.IdealHeight, reg.ZIndex)
+		if reg.Overflowed {
+			label += " !overflow"
+		}
+		label += " "
 		for idx, r := range label {
 			col := area.X + 1 + uint16(idx)
 			if col < area.X+area.Width-1 {

@@ -354,7 +354,7 @@ func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	// Başlığın sığması için asgari genişlik sınırı
 	titleLen := uint16(0)
 	if b.Title != "" {
-		titleLen = uint16(utf8.RuneCountInString(b.Title)) + 4 // " Başlık " + köşeler
+		titleLen = uint16(cell.StringWidth(b.Title)) + 4 // " Başlık " + köşeler
 	}
 
 	if b.Child != nil {

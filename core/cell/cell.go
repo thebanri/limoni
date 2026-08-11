@@ -1,5 +1,7 @@
 package cell
 
+import "unicode/utf8"
+
 // ColorType temsilcisi, terminal renk türünü tanımlar.
 type ColorType uint8
 
@@ -53,17 +55,17 @@ func (c Color) RGB() (r, g, b uint8) {
 type Modifier uint16
 
 const (
-	ModifierReset          Modifier = 0
-	ModifierBold           Modifier = 1 << 0
-	ModifierDim            Modifier = 1 << 1
-	ModifierItalic         Modifier = 1 << 2
-	ModifierUnderline      Modifier = 1 << 3
-	ModifierBlink          Modifier = 1 << 4
-	ModifierReverse        Modifier = 1 << 5
-	ModifierHidden         Modifier = 1 << 6
-	ModifierStrikethrough  Modifier = 1 << 7
+	ModifierReset           Modifier = 0
+	ModifierBold            Modifier = 1 << 0
+	ModifierDim             Modifier = 1 << 1
+	ModifierItalic          Modifier = 1 << 2
+	ModifierUnderline       Modifier = 1 << 3
+	ModifierBlink           Modifier = 1 << 4
+	ModifierReverse         Modifier = 1 << 5
+	ModifierHidden          Modifier = 1 << 6
+	ModifierStrikethrough   Modifier = 1 << 7
 	ModifierDoubleUnderline Modifier = 1 << 8
-	ModifierUndercurl      Modifier = 1 << 9
+	ModifierUndercurl       Modifier = 1 << 9
 )
 
 // Style terminal hücresinin stilini ve rengini tanımlar.
@@ -128,7 +130,7 @@ func RuneWidth(r rune) int {
 		r == 0x200D || // Zero Width Joiner
 		r == 0x200B || // Zero Width Space
 		r == 0x200C || // Zero Width Non-Joiner
-		r == 0x00AD {  // Soft Hyphen
+		r == 0x00AD { // Soft Hyphen
 		return 0
 	}
 	if r >= 0x1F000 && r <= 0x1FFFF {
@@ -141,6 +143,17 @@ func RuneWidth(r rune) int {
 		return 2
 	}
 	return 1
+}
+
+// StringWidth returns the terminal-cell width of UTF-8 text.
+func StringWidth(text string) int {
+	width := 0
+	for len(text) > 0 {
+		r, size := utf8.DecodeRuneInString(text)
+		width += RuneWidth(r)
+		text = text[size:]
+	}
+	return width
 }
 
 // Downsample maps the color to a compatible representation based on the capabilities.
@@ -237,22 +250,22 @@ var ansi16Colors = []struct {
 	r, g, b uint8
 	ansi    uint8
 }{
-	{0, 0, 0, 0},         // Black
-	{128, 0, 0, 1},       // Red
-	{0, 128, 0, 2},       // Green
-	{128, 128, 0, 3},     // Yellow
-	{0, 0, 128, 4},       // Blue
-	{128, 0, 128, 5},     // Magenta
-	{0, 128, 128, 6},     // Cyan
-	{192, 192, 192, 7},   // White
-	{128, 128, 128, 8},   // Bright Black
-	{255, 0, 0, 9},       // Bright Red
-	{0, 255, 0, 10},      // Bright Green
-	{255, 255, 0, 11},     // Bright Yellow
-	{0, 0, 255, 12},      // Bright Blue
-	{255, 0, 255, 13},    // Bright Magenta
-	{0, 255, 255, 14},    // Bright Cyan
-	{255, 255, 255, 15},  // Bright White
+	{0, 0, 0, 0},        // Black
+	{128, 0, 0, 1},      // Red
+	{0, 128, 0, 2},      // Green
+	{128, 128, 0, 3},    // Yellow
+	{0, 0, 128, 4},      // Blue
+	{128, 0, 128, 5},    // Magenta
+	{0, 128, 128, 6},    // Cyan
+	{192, 192, 192, 7},  // White
+	{128, 128, 128, 8},  // Bright Black
+	{255, 0, 0, 9},      // Bright Red
+	{0, 255, 0, 10},     // Bright Green
+	{255, 255, 0, 11},   // Bright Yellow
+	{0, 0, 255, 12},     // Bright Blue
+	{255, 0, 255, 13},   // Bright Magenta
+	{0, 255, 255, 14},   // Bright Cyan
+	{255, 255, 255, 15}, // Bright White
 }
 
 // RGBToANSI16 maps an RGB color to the closest 16-color ANSI index.
@@ -296,5 +309,3 @@ func ANSI256To16(ansi uint8) uint8 {
 
 	return RGBToANSI16(r, g, b)
 }
-
-

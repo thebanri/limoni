@@ -34,6 +34,39 @@ func TestFlexLayoutHorizontalRatios(t *testing.T) {
 	}
 }
 
+func TestSelectBreakpointUsesWidestEligibleVariant(t *testing.T) {
+	breakpoints := []Breakpoint{
+		{Name: "compact", MinWidth: 0},
+		{Name: "medium", MinWidth: 80},
+		{Name: "wide", MinWidth: 120},
+	}
+	if got := SelectBreakpoint(100, breakpoints); got.Name != "medium" {
+		t.Fatalf("breakpoint at width 100 = %+v, want medium", got)
+	}
+	if got := SelectBreakpoint(140, breakpoints); got.Name != "wide" {
+		t.Fatalf("breakpoint at width 140 = %+v, want wide", got)
+	}
+	if got := SelectBreakpoint(0, nil); got != (Breakpoint{}) {
+		t.Fatalf("empty breakpoint selection = %+v, want zero value", got)
+	}
+}
+
+func TestResolveBreakpointFallbackAndUnsortedInput(t *testing.T) {
+	values := []BreakpointValue[Direction]{
+		{MinWidth: 120, Value: Horizontal},
+		{MinWidth: 40, Value: Vertical},
+	}
+	if got := ResolveBreakpoint(20, values, Horizontal); got != Horizontal {
+		t.Fatalf("fallback direction = %v, want horizontal", got)
+	}
+	if got := ResolveBreakpoint(80, values, Horizontal); got != Vertical {
+		t.Fatalf("medium direction = %v, want vertical", got)
+	}
+	if got := ResolveBreakpoint(160, values, Vertical); got != Horizontal {
+		t.Fatalf("wide direction = %v, want horizontal", got)
+	}
+}
+
 func TestFlexLayoutVerticalMixed(t *testing.T) {
 	// 50 yükseklikli alan, dikeyde Fixed(10), Percentage(20) (%20 of 50 = 10) ve Fill() (geriye kalan: 30)
 	area := cell.NewRect(0, 0, 80, 50)
@@ -172,4 +205,3 @@ func TestFlexLayoutFitContentMixed(t *testing.T) {
 		t.Errorf("Fill genişliği hatalı. Beklenen: 65, Alınan: %d", rects[2].Width)
 	}
 }
-

@@ -1,0 +1,73 @@
+name: Limoni Platform Smoke
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  platform-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+          - os: macos-latest
+            name: macos
+          - os: windows-latest
+            name: windows
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        shell: bash
+        run: go test ./...
+
+      - name: Vet
+        shell: bash
+        run: go vet ./...
+
+      - name: Race tests
+        if: runner.os != 'Windows'
+        shell: bash
+        run: go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend
+
+      - name: Build examples
+        shell: bash
+        run: |
+          go build ./examples/demo
+          go build ./examples/forms
+          go build ./examples/layer_demo
+
+      - name: Compile platform adapter packages
+        shell: bash
+        run: go test -run '^$' ./core/backend ./core/terminal ./testkit
+
+      - name: Upload test logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p platform-results
+          {
+            echo "platform=${{ matrix.name }}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            go version
+          } > platform-results/${{ matrix.name }}.env
+
+      - name: Upload platform metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-${{ matrix.name }}
+          path: platform-results/

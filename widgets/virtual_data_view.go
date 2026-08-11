@@ -5,6 +5,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"strings"
 )
 
 // VirtualDataView renders the visible portion of a VirtualDataState cache.
@@ -20,6 +21,11 @@ type VirtualDataView struct {
 	LoadingText   string
 	ErrorText     string
 	Offset        *int
+	// HorizontalOffset scrolls non-sticky cell text by terminal columns.
+	HorizontalOffset int
+	// StickyColumns keeps the first N Row.Cells visible while the remaining
+	// cells are horizontally scrolled.
+	StickyColumns int
 	// OnSelect is called with the virtual row index after a row is clicked.
 	// It lets applications keep selection metadata alongside the stable RowID.
 	OnSelect func(index int, row Row)
@@ -67,32 +73,76 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		})
 	}
-	for row := 0; row < visible; row++ {
-		index := first + row
+	visualRow := 0
+	for index := first; visualRow < visible; index++ {
 		item, ok := v.State.Row(index)
 		if !ok {
-			continue
+			break
 		}
-		line := item.Text
-		if line == "" {
-			line = string(item.ID)
-		}
+		line := virtualRowText(item, v.HorizontalOffset, v.StickyColumns)
 		rowStyle := style
 		if item.ID == v.State.Selected() {
 			rowStyle = rowStyle.Merge(v.SelectedStyle)
 		}
-		buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(row), line, rowStyle)
+		height := item.Height
+		if height == 0 {
+			height = 1
+		}
+		if visualRow+int(height) > visible {
+			height = uint16(visible - visualRow)
+		}
+		for lineRow := uint16(0); lineRow < height; lineRow++ {
+			buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(visualRow)+lineRow, line, rowStyle)
+		}
 		if ctx.RegisterClick != nil {
 			id := item.ID
 			rowIndex := index
-			ctx.RegisterClick(cell.NewRect(ctx.Area.X, ctx.Area.Y+uint16(row), ctx.Area.Width, 1), func() {
+			ctx.RegisterClick(cell.NewRect(ctx.Area.X, ctx.Area.Y+uint16(visualRow), ctx.Area.Width, height), func() {
 				v.State.Select(id)
 				if v.OnSelect != nil {
 					v.OnSelect(rowIndex, item)
 				}
 			})
 		}
+		visualRow += int(height)
 	}
+}
+
+func virtualRowText(row Row, offset, sticky int) string {
+	if len(row.Cells) == 0 {
+		if row.Text != "" {
+			return row.Text
+		}
+		return string(row.ID)
+	}
+	if sticky < 0 {
+		sticky = 0
+	}
+	if sticky > len(row.Cells) {
+		sticky = len(row.Cells)
+	}
+	parts := make([]string, len(row.Cells))
+	for i, cell := range row.Cells {
+		parts[i] = cell.Text
+	}
+	separator := " | "
+	prefix := strings.Join(parts[:sticky], separator)
+	rest := strings.Join(parts[sticky:], separator)
+	if offset > 0 {
+		runes := []rune(rest)
+		if offset >= len(runes) {
+			rest = ""
+		} else {
+			rest = string(runes[offset:])
+		}
+	}
+	if prefix == "" {
+		return rest
+	}
+	if rest == "" {
+		return prefix
+	}
+	return prefix + separator + rest
 }
 
 func fallback(value, defaultValue string) string {

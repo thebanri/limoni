@@ -12,6 +12,8 @@ Bu roadmap'in çekirdek mühendislik maddeleri aşağıdaki paketlerde uygulanm�
 - **Interaction:** `core/terminal` metadata'lı event region, disabled region,
   capture/target/bubble, hover enter/leave ve deterministic double-click desteği sağlar.
 - **Layout:** `layout/measure.go` min/ideal/max ölçü, overflow policy ve measure/arrange çözümlemesi sağlar.
+  `layout/responsive.go` breakpoint seçimi, `layout/alignment.go` baseline/cross-axis
+  hizalama, `layout/diagnostics.go` ise measured/allocated/overflow diagnostics sağlar.
 - **Virtual data:** `widgets/virtual_data.go` stable row ID, async provider sözleşmesi,
   viewport prefetch, loading/error/empty state ve cancellation sağlar.
 - **Accessibility:** `core/accessibility` semantic tree, role/state ve high-contrast,
@@ -110,14 +112,11 @@ Bubble Tea'nin eksik bıraktığı veya ekosisteme devrettiği konular Limoni'ni
 
 ### Kritik eksikler
 
-1. Opsiyonel ama standart bir application runtime yok.
-2. `Cmd/Msg` ve cancellation modeli yok.
-3. Async update, stale response, backpressure ve redraw coalescing sözleşmesi yok.
-4. `SizeHint` henüz tam bir measure/arrange sistemine dönüşmedi.
-5. Cross-platform backend Linux ağırlıklı.
-6. Ratatui/Bubble Tea ile aynı workload kullanan benchmark suite yok.
-7. Accessibility tree, reduced-motion ve screen-reader mode yok.
-8. Dokümantasyon kodun gerisinde kalmamalı; Phase 32 sonrası her aşamada güncellenmeli.
+1. Gerçek OS-native screen-reader protokol adapter’ları yok; Linux line-mode/PTY smoke doğrulandı.
+2. macOS/Windows/BSD gerçek raw-mode ve PTY smoke ortamları yok; Linux native TTY/PTY smoke doğrulandı.
+3. Ratatui/Bubble Tea native runner sonuçları henüz bu repository’ye bağlanmadı.
+4. Gerçek hedef işletim sistemlerinde raw-mode/screen-reader smoke sonuçları henüz artifact olarak toplanmadı.
+5. Dokümantasyon kodun gerisinde kalmamalı; Phase 32 sonrası her aşamada güncellenmeli.
 
 ## 4. Ana mimari kararlar
 
@@ -233,7 +232,28 @@ Markdown, 3D, image ve ağır grafik özellikleri çekirdek runtime'a zorunlu ba
 
 ## 5. Roadmap aşamaları
 
-## Phase 33 — Runtime çekirdeği
+### Durum özeti — 2026-08-11
+
+`[x]` doğrulanmış tamamlandı, `[~]` çekirdek/ilk sürüm tamamlandı ancak kabul
+kriterlerinin bir bölümü açık, `[ ]` henüz uygulanmadı.
+
+| Faz | Durum | Mevcut karşılık / açık kapsam |
+|---|---|---|
+| Phase 33 — Runtime çekirdeği | `[x]` | `core/runtime`, scheduler, cancellation, panic recovery, redraw ve terminal loop mevcut. |
+| Phase 34 — Typed event ve input | `[x]` | Key/mouse/wheel/resize/focus/paste mesajları ve backend injection mevcut. |
+| Phase 35 — Interaction Engine 2.0 | `[x]` | Event region, capture/target/bubble, hover, double-click, modal/layer routing testli. |
+| Phase 36 — Layout negotiation | `[~]` | Measure/arrange, intrinsic ölçüm, child aggregation, overflow, diagnostics, responsive breakpoint, baseline/alignment ve debug inspector entegrasyonu mevcut; kabul kapsamı açık. |
+| Phase 37 — Virtualized data runtime | `[~]` | Stable ID, viewport, prefetch, selection persistence/remapping, filter/sort, row recycling, typeahead, variable-height row rendering, sticky columns, provider query, stale rejection, cancellation, queue policy ve queue stats mevcut; provider-specific instrumentation açık. |
+| Phase 38 — Theme ve accessibility 2.0 | `[~]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux TTY/PTY smoke kanıtı mevcut; OS-native protokol açık. |
+| Phase 39 — Cross-platform backend | `[~]` | Linux raw-mode/native TTY/PTY smoke doğrulandı, portable IO ve compile smoke mevcut; gerçek macOS/Windows/BSD raw-mode adapter’ları açık. |
+| Phase 40 — TestKit | `[~]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut; comparison ergonomisi açık. |
+| Phase 41 — Benchmark laboratuvarı | `[~]` | Reproducible workload schema, p50/p95/p99, emitted-byte, allocation, latency, dirty-cell, rows/sec, goroutine, JSON ve HTML dashboard report mevcut; harici runner sonuçları açık. |
+
+Son kullanıcı/demo açıkları: Giriş sekmesindeki Bilgilendirme Markdown scroll/drag
+akışı ve native image üstüne modal kompozisyonu ayrı regression kapsamına alınmalıdır;
+bu iki konu roadmap fazlarının tamamlandı olarak işaretlenmesine dahil edilmemiştir.
+
+## Phase 33 — Runtime çekirdeği `[x]`
 
 ### Hedef
 
@@ -266,7 +286,7 @@ Bubble Tea'nin en değerli tarafı olan `Cmd / Msg` modelini Limoni renderer'ın
 - deterministic message ordering testi
 - model unit test'i
 
-## Phase 34 — Typed event ve input sistemi
+## Phase 34 — Typed event ve input sistemi `[x]`
 
 ### Hedef
 
@@ -294,7 +314,7 @@ type BlurMsg struct{}
 - dışarıdan `Program.Send` benzeri mesaj enjeksiyonu
 - input reader'ın test edilebilir interface olması
 
-## Phase 35 — Interaction Engine 2.0
+## Phase 35 — Interaction Engine 2.0 `[x]`
 
 ### Hedef
 
@@ -327,7 +347,7 @@ Widget çizimi otomatik olarak event region kaydetmelidir.
 - modal dışı event bloklama
 - propagation stop/prevent default testleri
 
-## Phase 36 — Layout negotiation
+## Phase 36 — Layout negotiation `[~]`
 
 ### Hedef
 
@@ -335,25 +355,28 @@ Widget çizimi otomatik olarak event region kaydetmelidir.
 
 ### Yapılacaklar
 
-- intrinsic content ölçümü
-- min/ideal/max size
-- shrink/grow priority
-- overflow policy
-- child size aggregation
-- baseline/alignment
-- responsive breakpoint
-- layout diagnostics
-- debug inspector'da measure ve allocated rect gösterimi
+- [x] intrinsic content ölçümü
+- [x] min/ideal/max size
+- [x] shrink/grow priority
+- [x] overflow policy
+- [x] child size aggregation
+- [x] baseline/alignment
+- [x] responsive breakpoint
+- [x] layout diagnostics
+- [x] debug inspector'da measure ve allocated rect gösterimi
 
 ### Kabul kriterleri
 
-- paragraph içeriğine göre ölçüm
-- block title ve border ölçümü
-- nested layout measure testi
-- imkânsız constraint için deterministic sonuç
-- overflow clipping testi
+- [x] paragraph içeriğine göre ölçüm
+- [x] block title ve border ölçümü
+- [x] nested layout measure testi
+- [x] imkânsız constraint için deterministic sonuç
+- [x] overflow clipping testi
 
-## Phase 37 — Virtualized data runtime
+Responsive breakpoint seçimi `layout.SelectBreakpoint` / `layout.ResolveBreakpoint`,
+cross-axis hizalama ise `layout.ArrangeAligned` ve `Measure.Baseline` ile sağlanır.
+
+## Phase 37 — Virtualized data runtime `[~]`
 
 ### Hedef
 
@@ -373,18 +396,20 @@ type VirtualDataSource interface {
 
 ### Yapılacaklar
 
-- stable row identity
-- async provider
-- incremental filtering
-- row recycling
-- viewport prefetch
-- sticky columns
-- variable row height
-- selection persistence
-- typeahead
-- loading/error/empty rows
+- [x] stable row identity
+- [x] async provider
+- [x] incremental filtering
+- [x] row recycling
+- [x] viewport prefetch
+- [x] sticky columns
+- [x] variable row height
+- [x] selection persistence
+- [x] typeahead
+- [x] loading/error/empty rows
+- [x] queue policy
+- [x] stale response rejection/cancellation
 
-## Phase 38 — Theme ve accessibility 2.0
+## Phase 38 — Theme ve accessibility 2.0 `[~]`
 
 ### Hedef
 
@@ -407,25 +432,25 @@ type AccessibilityNode struct {
 
 ### Modlar
 
-- high contrast
-- no color
-- ASCII-only
-- reduced motion
-- screen-reader/line mode
-- no mouse
-- low capability terminal
+- [x] high contrast
+- [x] no color
+- [x] ASCII-only
+- [x] reduced motion
+- [x] screen-reader/line mode
+- [x] no mouse
+- [x] low capability terminal
 
 ### Testler
 
-- focus visibility
-- disabled/enabled distinction
-- selection visibility
-- error/warning distinction
-- no-color bilgi kaybı
-- reduced-motion davranışı
-- semantic role doğruluğu
+- [x] focus visibility
+- [x] disabled/enabled distinction
+- [x] selection visibility
+- [x] error/warning distinction
+- [x] no-color bilgi kaybı
+- [x] reduced-motion davranışı
+- [x] semantic role doğruluğu
 
-## Phase 39 — Cross-platform backend
+## Phase 39 — Cross-platform backend `[~]`
 
 ### Hedef
 
@@ -450,7 +475,7 @@ core/backend/
 
 ### Öncelik
 
-1. Linux backend'i stabilize et
+1. [x] Linux backend'i stabilize et
 2. macOS
 3. BSD
 4. Windows Terminal/ConPTY
@@ -466,7 +491,7 @@ type TerminalIO interface {
 }
 ```
 
-## Phase 40 — TestKit
+## Phase 40 — TestKit `[~]`
 
 ### Hedef
 
@@ -490,13 +515,14 @@ snapshot := testTerm.Snapshot()
 - focus snapshot
 - event routing
 - mouse click/drag simulation
-- key sequence simulation
-- resize simulation
-- modal isolation
-- z-index assertion
-- accessibility tree assertion
-- image registration assertion
-- golden files
+- [x] key sequence simulation
+- [x] resize simulation
+- [x] modal isolation
+- [x] z-index assertion
+- [x] accessibility tree assertion
+- [x] image registration assertion
+- [x] golden files
+- [x] hover/propagation trace assertion
 
 ### Örnek davranış testi
 
@@ -512,7 +538,7 @@ func TestSliderClick(t *testing.T) {
 }
 ```
 
-## Phase 41 — Benchmark laboratuvarı
+## Phase 41 — Benchmark laboratuvarı `[~]`
 
 ### Aynı workload ile karşılaştırılacak projeler
 
@@ -538,15 +564,17 @@ func TestSliderClick(t *testing.T) {
 ### Metrikler
 
 - `ns/op`
-- `B/op`
-- `allocs/op`
-- emitted ANSI byte
-- input-to-render latency
-- p50/p95/p99 frame time
-- visible rows/sec
-- retained memory
-- goroutine count
-- dirty cell count
+- [x] `B/op`
+- [x] `allocs/op`
+- [x] emitted ANSI byte
+- [x] input-to-render latency
+- [x] p50/p95/p99 frame time
+- [x] visible rows/sec
+- [x] retained memory
+- [x] goroutine count
+- [x] dirty cell count
+- [x] input-to-render latency
+- [x] JSON report
 
 "Ratatui'den hızlıyız" gibi iddialar yalnızca aynı ekran, içerik, renk modu, output sink, build tipi, donanım ve ölçüm yöntemiyle yapılmalıdır.
 
