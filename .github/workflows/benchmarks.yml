@@ -57,13 +57,16 @@ jobs:
 
       - name: Validate runner reports
         run: |
-          test -s benchmark-results/limoni.json
-          test -s benchmark-results/bubbletea.json
-          test -s benchmark-results/ratatui.json
-          test -s benchmark-results/dashboard.html
-          grep -q '"implementation":"limoni"' benchmark-results/limoni.json
-          grep -q '"implementation":"bubbletea"' benchmark-results/bubbletea.json
-          grep -q '"implementation":"ratatui"' benchmark-results/ratatui.json
+          echo "=== Checking file existence and non-empty size ==="
+          test -s benchmark-results/limoni.json || (echo "limoni.json missing or empty" && exit 1)
+          test -s benchmark-results/bubbletea.json || (echo "bubbletea.json missing or empty" && exit 1)
+          test -s benchmark-results/ratatui.json || (echo "ratatui.json missing or empty" && exit 1)
+          test -s benchmark-results/dashboard.html || (echo "dashboard.html missing or empty" && exit 1)
+
+          echo "=== Validating JSON Implementation fields with jq ==="
+          jq -e '.implementation == "limoni" or .workload.implementation == "limoni"' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
+          jq -e '.implementation == "bubbletea" or .workload.implementation == "bubbletea"' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
+          jq -e '.implementation == "ratatui" or .workload.implementation == "ratatui"' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
 
       - name: Generate workload schema sample
         run: |
