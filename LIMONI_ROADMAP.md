@@ -247,7 +247,7 @@ kriterlerinin bir bölümü açık, `[ ]` henüz uygulanmadı.
 | Phase 38 — Theme ve accessibility 2.0 | `[~]` | Frame/TestKit semantic tree validation, line-mode serializer, writer, backend-independent adapter ve Linux `--screen-reader` PTY kanıtı mevcut; OS-native protokol açık. |
 | Phase 39 — Cross-platform backend | `[~]` | Linux raw-mode/native TTY/PTY/SIGWINCH smoke ve GitHub Actions Linux/macOS/Windows platform CI smoke doğrulandı; gerçek platform-specific raw-mode/ConPTY adapter’ları açık. |
 | Phase 40 — TestKit | `[~]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut; comparison ergonomisi açık. |
-| Phase 41 — Benchmark laboratuvarı | `[~]` | Reproducible workload schema, p50/p95/p99, emitted-byte, allocation, latency, dirty-cell, rows/sec, goroutine, JSON ve HTML dashboard report mevcut; harici runner sonuçları açık. |
+| Phase 41 — Benchmark laboratuvarı | `[~]` | Limoni/Ratatui/Bubble Tea runner projeleri, ortak workload JSON şeması, runner-name validation ve HTML dashboard mevcut; external runner CI sonuçlarının çalıştırılması bekleniyor. |
 
 Son kullanıcı/demo açıkları: Giriş sekmesindeki Bilgilendirme Markdown scroll/drag
 akışı ve native image üstüne modal kompozisyonu ayrı regression kapsamına alınmalıdır;

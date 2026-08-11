@@ -18,10 +18,45 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare benchmark results
+        run: mkdir -p benchmark-results
+
       - name: Run benchmark suite
         run: |
-          mkdir -p benchmark-results
           go test ./benchmarks -run '^$' -bench . -benchmem -count=3 | tee benchmark-results/go-benchmark.txt
+
+      - name: Run Limoni runner
+        run: go run ./benchmarks/runners/limoni -output benchmark-results/limoni.json
+
+      - name: Run Bubble Tea runner
+        working-directory: benchmarks/runners/bubbletea
+        run: |
+          go mod download
+          go run . -output ../../../benchmark-results/bubbletea.json
+
+      - name: Run Ratatui runner
+        run: cargo run --manifest-path benchmarks/runners/ratatui/Cargo.toml -- benchmark-results/ratatui.json
+
+      - name: Build comparison dashboard
+        run: |
+          go run ./benchmarks/runners/dashboard \
+            -output benchmark-results/dashboard.html \
+            benchmark-results/limoni.json \
+            benchmark-results/bubbletea.json \
+            benchmark-results/ratatui.json
+
+      - name: Validate runner reports
+        run: |
+          test -s benchmark-results/limoni.json
+          test -s benchmark-results/bubbletea.json
+          test -s benchmark-results/ratatui.json
+          test -s benchmark-results/dashboard.html
+          grep -q '"implementation":"limoni"' benchmark-results/limoni.json
+          grep -q '"implementation":"bubbletea"' benchmark-results/bubbletea.json
+          grep -q '"implementation":"ratatui"' benchmark-results/ratatui.json
 
       - name: Generate workload schema sample
         run: |

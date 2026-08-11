@@ -128,6 +128,19 @@ implementation. At minimum, keep these fields equivalent:
 - full redraw versus diff mode
 - build mode and host CPU
 
+The repository includes minimal runners under `benchmarks/runners/`:
+
+- `limoni` — Go/Limoni runner
+- `bubbletea` — Go/Bubble Tea runner
+- `ratatui` — Rust/Ratatui runner
+- `dashboard` — combines runner JSON files into HTML
+
+The benchmark workflow installs the Rust toolchain, downloads the nested Go
+module dependencies, runs all three runners, validates their implementation
+names, and uploads the JSON/HTML artifacts. Local environments without Cargo
+or network access can still run the Limoni runner and dashboard; the external
+runner steps remain CI-only in that case.
+
 The Limoni report/dashboard helpers write the common JSON/HTML shape. External
-Ratatui and Bubble Tea runners should upload their reports as CI artifacts and
-must not be compared with different workloads or sinks.
+runners should upload their reports as CI artifacts and must not be compared
+with different workloads or sinks.
