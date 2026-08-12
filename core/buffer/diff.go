@@ -12,6 +12,20 @@ import (
 // `out` byte dilimine (slice) ekler ve güncellenmiş dilimi döner.
 // Bellek Optimizasyonu: Eğer `out` yeterli kapasiteye sahipse sıfır heap bellek tahsisatı (zero-allocation) ile çalışır.
 func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, error) {
+	// Hızlı Yol (Fast-Path): Tamponlar tamamen aynıysa hiçbir işlem yapma
+	if front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
+		identical := true
+		for i := range front.Content {
+			if front.Content[i] != back.Content[i] {
+				identical = false
+				break
+			}
+		}
+		if identical {
+			return out, nil
+		}
+	}
+
 	// Boyutlar uyuşmuyorsa, ekranı temizle ve back tamponu yeniden boyutlandır
 	if front.Area.Width != back.Area.Width || front.Area.Height != back.Area.Height {
 		back.Resize(front.Area)

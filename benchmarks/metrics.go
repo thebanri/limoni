@@ -3,6 +3,7 @@ package benchmarks
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"runtime"
 	"sort"
 	"time"
@@ -129,6 +130,10 @@ type Summary struct {
 	P50NS         int64
 	P95NS         int64
 	P99NS         int64
+	MinNS         int64
+	MaxNS         int64
+	MeanNS        int64
+	StdDevNS      int64
 	BytesPerFrame float64
 	AllocBytes    uint64
 	Allocs        uint64
@@ -166,11 +171,45 @@ func (m Metrics) Summary() Summary {
 		index := (len(latency)*95+99)/100 - 1
 		latencyP95 = latency[index]
 	}
+	sum := int64(0)
+	for _, val := range values {
+		sum += val
+	}
+	meanNS := int64(0)
+	if len(values) > 0 {
+		meanNS = sum / int64(len(values))
+	}
+	var varianceSum float64
+	for _, val := range values {
+		diff := float64(val - meanNS)
+		varianceSum += diff * diff
+	}
+	stdDevNS := int64(0)
+	if len(values) > 0 {
+		stdDevNS = int64(math.Sqrt(varianceSum / float64(len(values))))
+	}
 	rowsPerSecond := 0.0
 	if quantile(50) > 0 {
 		rowsPerSecond = float64(m.VisibleRows) / (float64(quantile(50)) / 1e9 * float64(frames))
 	}
-	return Summary{Frames: frames, P50NS: quantile(50), P95NS: quantile(95), P99NS: quantile(99), BytesPerFrame: float64(m.OutputBytes) / float64(frames), AllocBytes: m.AllocBytes, Allocs: m.Allocs, DirtyCells: m.DirtyCells, VisibleRows: m.VisibleRows, RowsPerSecond: rowsPerSecond, Goroutines: m.Goroutines, LatencyP95NS: latencyP95}
+	return Summary{
+		Frames:        frames,
+		P50NS:         quantile(50),
+		P95NS:         quantile(95),
+		P99NS:         quantile(99),
+		MinNS:         values[0],
+		MaxNS:         values[len(values)-1],
+		MeanNS:        meanNS,
+		StdDevNS:      stdDevNS,
+		BytesPerFrame: float64(m.OutputBytes) / float64(frames),
+		AllocBytes:    m.AllocBytes,
+		Allocs:        m.Allocs,
+		DirtyCells:    m.DirtyCells,
+		VisibleRows:   m.VisibleRows,
+		RowsPerSecond: rowsPerSecond,
+		Goroutines:    m.Goroutines,
+		LatencyP95NS:  latencyP95,
+	}
 }
 
 func (m Metrics) JSON() ([]byte, error) { return json.Marshal(m.Summary()) }

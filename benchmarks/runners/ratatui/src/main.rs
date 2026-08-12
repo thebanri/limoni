@@ -5,24 +5,50 @@ use ratatui::{
     widgets::{Block, Paragraph, Table, Row, Cell, Widget},
     Terminal,
 };
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::{env, fs, time::Instant};
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-#[derive(Serialize)]
+struct Counter;
+static ALLOCATED: AtomicU64 = AtomicU64::new(0);
+static ALLOCS: AtomicU64 = AtomicU64::new(0);
+
+unsafe impl GlobalAlloc for Counter {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let ret = System.alloc(layout);
+        if !ret.is_null() {
+            ALLOCATED.fetch_add(layout.size() as u64, Ordering::SeqCst);
+            ALLOCS.fetch_add(1, Ordering::SeqCst);
+        }
+        ret
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        System.dealloc(ptr, layout);
+    }
+}
+
+#[global_allocator]
+static A: Counter = Counter;
+
+#[derive(Serialize, Deserialize, Clone)]
 struct Spec {
     name: String,
     width: u16,
     height: u16,
+    #[serde(default)]
     rows: usize,
+    #[serde(default)]
     unicode: bool,
-    #[serde(rename="full_draw")]
+    #[serde(default, rename="full_draw")]
     full_draw: bool,
+    #[serde(default)]
     mouse: bool,
-    #[serde(rename="async_burst")]
+    #[serde(default, rename="async_burst")]
     async_burst: usize,
-    #[serde(rename="output_mode")]
+    #[serde(default, rename="output_mode")]
     output_mode: String,
-    #[serde(rename="color_mode")]
+    #[serde(default, rename="color_mode")]
     color_mode: String,
     iterations: usize,
 }
@@ -37,6 +63,14 @@ struct Summary {
     p95_ns: u128,
     #[serde(rename="P99NS")]
     p99_ns: u128,
+    #[serde(rename="MinNS")]
+    min_ns: u128,
+    #[serde(rename="MaxNS")]
+    max_ns: u128,
+    #[serde(rename="MeanNS")]
+    mean_ns: u128,
+    #[serde(rename="StdDevNS")]
+    std_dev_ns: u128,
     #[serde(rename="BytesPerFrame")]
     bytes_per_frame: f64,
     #[serde(rename="AllocBytes")]
@@ -86,20 +120,16 @@ fn buffer_bytes(buf: &Buffer) -> usize {
 fn main() {
     let output = env::args().nth(1).unwrap_or_else(|| "ratatui.json".into());
 
-    let mut specs = vec![
-        Spec { name: "empty-frame".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "full-redraw-120x40".into(), width: 120, height: 40, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "single-cell-update".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "text-heavy-120x40".into(), width: 120, height: 40, rows: 0, unicode: true, full_draw: true, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "unicode-emoji".into(), width: 80, height: 24, rows: 0, unicode: true, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "table-10000".into(), width: 120, height: 40, rows: 10000, unicode: true, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "virtual-1000000".into(), width: 120, height: 40, rows: 1000000, unicode: true, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "mouse-hit-test".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: true, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "hundred-layers".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "resize".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "async-update-burst".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-        Spec { name: "native-image-capability".into(), width: 80, height: 24, rows: 0, unicode: false, full_draw: false, mouse: false, async_burst: 0, output_mode: "memory".into(), color_mode: "truecolor".into(), iterations: 100 },
-    ];
+    // Load specs from workload manifest
+    let mut manifest_path = "benchmarks/workloads.json".to_string();
+    if !fs::metadata(&manifest_path).is_ok() {
+        manifest_path = "../../workloads.json".to_string();
+    }
+    if !fs::metadata(&manifest_path).is_ok() {
+        manifest_path = "../../../workloads.json".to_string();
+    }
+    let data = fs::read_to_string(&manifest_path).expect("failed to read workloads.json");
+    let mut specs: Vec<Spec> = serde_json::from_str(&data).expect("failed to parse workloads.json");
 
     let mut workloads = Vec::new();
 
@@ -198,11 +228,15 @@ fn main() {
             }
         }
 
-        // Timing & allocation measurements (100 runs)
+        // Timing & allocation measurements
         let mut durations = Vec::with_capacity(spec.iterations);
         let mut total_bytes = 0;
 
-        for i in 0..spec.iterations {
+        // Reset memory counters before measurement
+        ALLOCATED.store(0, Ordering::SeqCst);
+        ALLOCS.store(0, Ordering::SeqCst);
+
+        for _ in 0..spec.iterations {
             let start = Instant::now();
             match spec.name.as_str() {
                 "empty-frame" => {
@@ -281,10 +315,22 @@ fn main() {
             total_bytes += buffer_bytes(terminal.backend().buffer());
         }
 
+        let alloc_bytes_total = ALLOCATED.load(Ordering::SeqCst);
+        let allocs_total = ALLOCS.load(Ordering::SeqCst);
+
         durations.sort_unstable();
         let p50 = durations[durations.len() * 50 / 100];
         let p95 = durations[durations.len() * 95 / 100];
         let p99 = durations[durations.len() * 99 / 100];
+
+        let sum: u128 = durations.iter().sum();
+        let mean = sum / durations.len() as u128;
+        let variance_sum: f64 = durations.iter().map(|&val| {
+            let diff = val as f64 - mean as f64;
+            diff * diff
+        }).sum();
+        let std_dev = variance_sum / durations.len() as f64;
+        let std_dev_ns = std_dev.sqrt() as u128;
 
         workloads.push(Workload {
             spec,
@@ -293,9 +339,13 @@ fn main() {
                 p50_ns: p50,
                 p95_ns: p95,
                 p99_ns: p99,
+                min_ns: durations[0],
+                max_ns: durations[durations.len() - 1],
+                mean_ns: mean,
+                std_dev_ns,
                 bytes_per_frame: total_bytes as f64 / durations.len() as f64,
-                alloc_bytes: 0,
-                allocs: 0,
+                alloc_bytes: alloc_bytes_total,
+                allocs: allocs_total,
             },
         });
     }

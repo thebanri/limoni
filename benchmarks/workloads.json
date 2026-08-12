@@ -1,0 +1,14 @@
+[
+  {"name": "empty-frame", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "full-redraw-120x40", "width": 120, "height": 40, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "single-cell-update", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "text-heavy-120x40", "width": 120, "height": 40, "iterations": 1000, "unicode": true, "full_draw": true, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "unicode-emoji", "width": 80, "height": 24, "iterations": 1000, "unicode": true, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "table-10000", "width": 120, "height": 40, "iterations": 1000, "rows": 10000, "unicode": true, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "virtual-1000000", "width": 120, "height": 40, "iterations": 1000, "rows": 1000000, "unicode": true, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "mouse-hit-test", "width": 80, "height": 24, "iterations": 1000, "mouse": true, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "hundred-layers", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "resize", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "async-update-burst", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"},
+  {"name": "native-image-capability", "width": 80, "height": 24, "iterations": 1000, "output_mode": "memory", "color_mode": "truecolor"}
+]

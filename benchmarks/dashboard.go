@@ -49,25 +49,45 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 		return fmt.Sprintf("%.2f ms", float64(ns)/1000000.0)
 	}
 
+	formatAlloc := func(allocs uint64, bytes uint64) string {
+		if allocs == 0 && bytes == 0 {
+			return "0"
+		}
+		if bytes < 1024 {
+			return fmt.Sprintf("%d (%d B)", allocs, bytes)
+		}
+		if bytes < 1024*1024 {
+			return fmt.Sprintf("%d (%.1f KB)", allocs, float64(bytes)/1024.0)
+		}
+		return fmt.Sprintf("%d (%.1f MB)", allocs, float64(bytes)/(1024.0*1024.0))
+	}
+
 	var comparisonRows []ComparisonRow
 	for _, name := range workloadNames {
 		row := ComparisonRow{
-			WorkloadName: name,
-			LimoniP50:    "N/A",
-			BubbleTeaP50: "N/A",
-			RatatuiP50:   "N/A",
+			WorkloadName:   name,
+			LimoniP50:      "N/A",
+			BubbleTeaP50:   "N/A",
+			RatatuiP50:     "N/A",
+			LimoniAlloc:    "N/A",
+			BubbleTeaAlloc: "N/A",
+			RatatuiAlloc:   "N/A",
 		}
 		for _, w := range report.Workloads {
 			if w.Spec.Name == name {
 				impl := w.Implementation
-				p50Str := formatDuration(w.Summary.P50NS)
+				p50Str := fmt.Sprintf("%s (±%s)", formatDuration(w.Summary.P50NS), formatDuration(w.Summary.StdDevNS))
+				allocStr := formatAlloc(w.Summary.Allocs, w.Summary.AllocBytes)
 				switch impl {
 				case "limoni":
 					row.LimoniP50 = p50Str
+					row.LimoniAlloc = allocStr
 				case "bubbletea":
 					row.BubbleTeaP50 = p50Str
+					row.BubbleTeaAlloc = allocStr
 				case "ratatui":
 					row.RatatuiP50 = p50Str
+					row.RatatuiAlloc = allocStr
 				}
 			}
 		}
@@ -221,14 +241,17 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 
         <!-- Comparison Matrix Card -->
         <div class="card">
-            <div class="card-title">Side-by-Side p50 Latency Comparison Matrix</div>
+            <div class="card-title">Side-by-Side p50 Latency & Allocation Comparison Matrix</div>
             <table>
                 <thead>
                     <tr>
                         <th>Workload</th>
-                        <th>Limoni p50</th>
-                        <th>Bubble Tea p50</th>
-                        <th>Ratatui p50</th>
+                        <th>Limoni p50 (StdDev)</th>
+                        <th>Limoni Allocs (Bytes)</th>
+                        <th>Bubble Tea p50 (StdDev)</th>
+                        <th>Bubble Tea Allocs (Bytes)</th>
+                        <th>Ratatui p50 (StdDev)</th>
+                        <th>Ratatui Allocs (Bytes)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -236,8 +259,11 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
                     <tr>
                         <td><strong>{{.WorkloadName}}</strong></td>
                         <td class="highlight-limoni">{{.LimoniP50}}</td>
+                        <td class="highlight-limoni">{{.LimoniAlloc}}</td>
                         <td>{{.BubbleTeaP50}}</td>
+                        <td>{{.BubbleTeaAlloc}}</td>
                         <td>{{.RatatuiP50}}</td>
+                        <td>{{.RatatuiAlloc}}</td>
                     </tr>
                     {{end}}
                 </tbody>
@@ -254,8 +280,10 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
                         <th>Workload</th>
                         <th>Frames</th>
                         <th>p50 Latency</th>
-                        <th>p95 Latency</th>
-                        <th>p99 Latency</th>
+                        <th>Mean Latency</th>
+                        <th>StdDev Latency</th>
+                        <th>Min Latency</th>
+                        <th>Max Latency</th>
                         <th>Bytes / Frame</th>
                         <th>AllocBytes</th>
                         <th>Allocs</th>
@@ -268,8 +296,10 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
                         <td>{{.Spec.Name}}</td>
                         <td>{{.Summary.Frames}}</td>
                         <td>{{formatDuration .Summary.P50NS}}</td>
-                        <td>{{formatDuration .Summary.P95NS}}</td>
-                        <td>{{formatDuration .Summary.P99NS}}</td>
+                        <td>{{formatDuration .Summary.MeanNS}}</td>
+                        <td>{{formatDuration .Summary.StdDevNS}}</td>
+                        <td>{{formatDuration .Summary.MinNS}}</td>
+                        <td>{{formatDuration .Summary.MaxNS}}</td>
                         <td>{{printf "%.2f" .Summary.BytesPerFrame}}</td>
                         <td>{{.Summary.AllocBytes}}</td>
                         <td>{{.Summary.Allocs}}</td>

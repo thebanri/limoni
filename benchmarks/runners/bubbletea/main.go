@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +36,10 @@ type summary struct {
 	P50NS         int64   `json:"P50NS"`
 	P95NS         int64   `json:"P95NS"`
 	P99NS         int64   `json:"P99NS"`
+	MinNS         int64   `json:"MinNS"`
+	MaxNS         int64   `json:"MaxNS"`
+	MeanNS        int64   `json:"MeanNS"`
+	StdDevNS      int64   `json:"StdDevNS"`
 	BytesPerFrame float64 `json:"BytesPerFrame"`
 	AllocBytes    uint64  `json:"AllocBytes"`
 	Allocs        uint64  `json:"Allocs"`
@@ -168,19 +174,21 @@ func main() {
 	output := flag.String("output", "bubbletea.json", "dashboard report path")
 	flag.Parse()
 
-	items := []spec{
-		{Name: "empty-frame", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "full-redraw-120x40", Width: 120, Height: 40, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "single-cell-update", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "text-heavy-120x40", Width: 120, Height: 40, Unicode: true, FullDraw: true, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "unicode-emoji", Width: 80, Height: 24, Unicode: true, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "table-10000", Width: 120, Height: 40, Rows: 10000, Unicode: true, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "virtual-1000000", Width: 120, Height: 40, Rows: 1000000, Unicode: true, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "mouse-hit-test", Width: 80, Height: 24, Mouse: true, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "hundred-layers", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "resize", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "async-update-burst", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
-		{Name: "native-image-capability", Width: 80, Height: 24, Iterations: 100, OutputMode: "memory", ColorMode: "truecolor"},
+	// Load specs from workload manifest
+	manifestPath := "benchmarks/workloads.json"
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		manifestPath = "../../workloads.json"
+	}
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		manifestPath = "../../../workloads.json"
+	}
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		panic(err)
+	}
+	var items []spec
+	if err := json.Unmarshal(data, &items); err != nil {
+		panic(err)
 	}
 
 	result := report{
@@ -236,8 +244,24 @@ func main() {
 
 		runtime.ReadMemStats(&after)
 
-		// Calculate quantiles
-		p50, p95, p99 := calculateQuantiles(durations)
+		// Calculate statistics
+		sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+		p50 := durations[len(durations)*50/100]
+		p95 := durations[len(durations)*95/100]
+		p99 := durations[len(durations)*99/100]
+
+		sum := int64(0)
+		for _, val := range durations {
+			sum += val
+		}
+		mean := sum / int64(len(durations))
+
+		var varianceSum float64
+		for _, val := range durations {
+			diff := float64(val - mean)
+			varianceSum += diff * diff
+		}
+		stdDev := int64(math.Sqrt(varianceSum / float64(len(durations))))
 
 		result.Workloads = append(result.Workloads, workload{
 			Spec: item,
@@ -246,6 +270,10 @@ func main() {
 				P50NS:         p50,
 				P95NS:         p95,
 				P99NS:         p99,
+				MinNS:         durations[0],
+				MaxNS:         durations[len(durations)-1],
+				MeanNS:        mean,
+				StdDevNS:      stdDev,
 				BytesPerFrame: float64(totalBytes) / float64(item.Iterations),
 				AllocBytes:    after.TotalAlloc - before.TotalAlloc,
 				Allocs:        after.Mallocs - before.Mallocs,
@@ -261,22 +289,4 @@ func main() {
 	if err := json.NewEncoder(f).Encode(result); err != nil {
 		panic(err)
 	}
-}
-
-func calculateQuantiles(durations []int64) (p50, p95, p99 int64) {
-	// Simple bubble sort / selection sort for small list size (100 elements)
-	// We want to avoid dynamic sorting allocations if possible, but sorting 100 elements is fast.
-	sorted := make([]int64, len(durations))
-	copy(sorted, durations)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[i] > sorted[j] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-	p50 = sorted[len(sorted)*50/100]
-	p95 = sorted[len(sorted)*95/100]
-	p99 = sorted[len(sorted)*99/100]
-	return
 }
