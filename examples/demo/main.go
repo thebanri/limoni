@@ -543,7 +543,7 @@ func main() {
 		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: '?', Label: "Yardım Panelini Aç", Category: "Görünüm",
+		Key: backend.KeyRune, Ch: 'h', Ctrl: true, Label: "Yardım Panelini Aç", Category: "Görünüm",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
@@ -771,7 +771,7 @@ func main() {
 				// alanlarında slash normal karakter olarak kalmalı; yalnızca
 				// global kısayol kullanılabilir durumdaysa yardım panelini aç.
 				if state.KeyManager != nil && canHandleGlobalCommand() && ev.Key.Type == backend.KeyRune &&
-					(ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)) && !ev.Key.Ctrl && !ev.Key.Alt {
+					((ev.Key.Ch == 'h' && ev.Key.Ctrl) || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)) && !ev.Key.Alt {
 					openHelp()
 					break
 				}
