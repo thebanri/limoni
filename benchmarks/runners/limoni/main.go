@@ -302,7 +302,7 @@ func main() {
 
 	report := benchmarks.DashboardReport{
 		Implementation: "limoni",
-		Environment:    benchmarks.CurrentEnvironment(),
+		Environment:    benchmarks.CurrentEnvironment(data),
 		Valid:          true,
 		Workloads:      workloads,
 	}

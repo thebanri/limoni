@@ -42,7 +42,23 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 	cursorY := uint16(9999)
 
 	for y := uint16(0); y < height; y++ {
-		for x := uint16(0); x < width; x++ {
+		first := int(-1)
+		last := int(-1)
+		rowOffset := int(y)*int(width)
+		for x := 0; x < int(width); x++ {
+			idx := rowOffset + x
+			if front.Content[idx] != back.Content[idx] {
+				if first == -1 {
+					first = x
+				}
+				last = x
+			}
+		}
+		if first == -1 {
+			continue // Bu satırda hiçbir değişiklik yok!
+		}
+
+		for x := uint16(first); x <= uint16(last); x++ {
 			idx := int(y)*int(width) + int(x)
 			frontCell := &front.Content[idx]
 			backCell := &back.Content[idx]

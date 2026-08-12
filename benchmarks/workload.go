@@ -1,16 +1,25 @@
 package benchmarks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"os/exec"
 	"runtime"
+	"strings"
 )
 
 type Environment struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
-	Go     string `json:"go,omitempty"`
-	CPU    string `json:"cpu,omitempty"`
-	Output string `json:"output,omitempty"`
+	OS            string `json:"os"`
+	Arch          string `json:"arch"`
+	Go            string `json:"go,omitempty"`
+	CPU           string `json:"cpu,omitempty"`
+	Output        string `json:"output,omitempty"`
+	ManifestHash  string `json:"manifest_hash,omitempty"`
+	GitCommit     string `json:"git_commit,omitempty"`
+	RunnerVersion string `json:"runner_version,omitempty"`
+	WarmupCount   int    `json:"warmup_count,omitempty"`
+	BuildMode     string `json:"build_mode,omitempty"`
 }
 
 // WorkloadSpec describes a reproducible benchmark workload independent of the
@@ -53,6 +62,26 @@ func (s WorkloadSpec) ReportFor(implementation string, metrics Metrics) Workload
 	return WorkloadReport{Implementation: implementation, Spec: s, Summary: metrics.Summary()}
 }
 
-func CurrentEnvironment() Environment {
-	return Environment{OS: runtime.GOOS, Arch: runtime.GOARCH, Go: runtime.Version(), Output: "memory"}
+func CurrentEnvironment(manifestData []byte) Environment {
+	hash := sha256.Sum256(manifestData)
+	manifestHash := hex.EncodeToString(hash[:])
+
+	gitCommit := "unknown"
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	if out, err := cmd.Output(); err == nil {
+		gitCommit = strings.TrimSpace(string(out))
+	}
+
+	buildMode := "release"
+	return Environment{
+		OS:            runtime.GOOS,
+		Arch:          runtime.GOARCH,
+		Go:            runtime.Version(),
+		Output:        "memory",
+		ManifestHash:  manifestHash,
+		GitCommit:     gitCommit,
+		RunnerVersion: "v1.0.0",
+		WarmupCount:   10,
+		BuildMode:     buildMode,
+	}
 }

@@ -75,6 +75,15 @@ func main() {
 			fmt.Printf("  Arch: %q (normalized: %q), want %q (normalized: %q)\n", report.Environment.Arch, arch1, reports[0].Environment.Arch, arch2)
 			panic(fmt.Sprintf("invalid or incompatible environment for %s", report.Implementation))
 		}
+		if report.Environment.ManifestHash != reports[0].Environment.ManifestHash {
+			panic(fmt.Sprintf("workload manifest hash mismatch for %s: got %q, want %q", report.Implementation, report.Environment.ManifestHash, reports[0].Environment.ManifestHash))
+		}
+		if report.Environment.GitCommit != reports[0].Environment.GitCommit {
+			warningMsg := fmt.Sprintf("git commit mismatch for %s: got %q, want %q", report.Implementation, report.Environment.GitCommit, reports[0].Environment.GitCommit)
+			fmt.Println("Warning:", warningMsg)
+			combined.Warnings = append(combined.Warnings, warningMsg)
+		}
+
 		if len(report.Workloads) != len(reports[0].Workloads) {
 			panic(fmt.Sprintf("workload count mismatch for %s: got %d, want %d", report.Implementation, len(report.Workloads), len(reports[0].Workloads)))
 		}

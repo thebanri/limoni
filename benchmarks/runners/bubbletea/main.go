@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
@@ -58,11 +61,16 @@ type report struct {
 }
 
 type envMetadata struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
-	Go     string `json:"go,omitempty"`
-	CPU    string `json:"cpu,omitempty"`
-	Output string `json:"output,omitempty"`
+	OS            string `json:"os"`
+	Arch          string `json:"arch"`
+	Go            string `json:"go,omitempty"`
+	CPU           string `json:"cpu,omitempty"`
+	Output        string `json:"output,omitempty"`
+	ManifestHash  string `json:"manifest_hash,omitempty"`
+	GitCommit     string `json:"git_commit,omitempty"`
+	RunnerVersion string `json:"runner_version,omitempty"`
+	WarmupCount   int    `json:"warmup_count,omitempty"`
+	BuildMode     string `json:"build_mode,omitempty"`
 }
 
 type model struct {
@@ -191,13 +199,27 @@ func main() {
 		panic(err)
 	}
 
+	hash := sha256.Sum256(data)
+	manifestHash := hex.EncodeToString(hash[:])
+
+	gitCommit := "unknown"
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	if out, err := cmd.Output(); err == nil {
+		gitCommit = strings.TrimSpace(string(out))
+	}
+
 	result := report{
 		Implementation: "bubbletea",
 		Environment: envMetadata{
-			OS:     runtime.GOOS,
-			Arch:   runtime.GOARCH,
-			Go:     runtime.Version(),
-			Output: "memory",
+			OS:            runtime.GOOS,
+			Arch:          runtime.GOARCH,
+			Go:            runtime.Version(),
+			Output:        "memory",
+			ManifestHash:  manifestHash,
+			GitCommit:     gitCommit,
+			RunnerVersion: "v1.0.0",
+			WarmupCount:   10,
+			BuildMode:     "release",
 		},
 		Valid: true,
 	}

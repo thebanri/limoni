@@ -54,13 +54,24 @@ jobs:
             benchmark-results/bubbletea.json \
             benchmark-results/ratatui.json
 
-      - name: Validate runner reports
+      - name: Validate runner reports & check regressions
         run: |
           echo "=== Checking file existence and non-empty size ==="
           test -s benchmark-results/limoni.json || (echo "limoni.json missing or empty" && exit 1)
           test -s benchmark-results/bubbletea.json || (echo "bubbletea.json missing or empty" && exit 1)
           test -s benchmark-results/ratatui.json || (echo "ratatui.json missing or empty" && exit 1)
           test -s benchmark-results/dashboard.html || (echo "dashboard.html missing or empty" && exit 1)
+
+          echo "=== Extracting baseline from main branch ==="
+          git fetch origin main || true
+          git show origin/main:benchmark-results/limoni.json > benchmark-results/limoni-baseline.json 2>/dev/null || echo "No baseline file found on main branch"
+
+          echo "=== Running regression checks ==="
+          if [ -s benchmark-results/limoni-baseline.json ]; then
+            go run ./benchmarks/runners/compare -baseline benchmark-results/limoni-baseline.json -current benchmark-results/limoni.json
+          else
+            echo "Skipping regression comparison: baseline not available"
+          fi
 
           echo "=== Validating JSON Implementation & Workloads with jq ==="
           jq -e '.implementation == "limoni" and (.workloads | length > 0)' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)

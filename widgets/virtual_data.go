@@ -91,14 +91,18 @@ type VirtualDataState struct {
 	queuePolicy       VirtualQueuePolicy
 	activeDone        chan struct{}
 	stats             VirtualQueueStats
+	rowTextCache      map[RowID]string
+	lastOffset        int
+	lastSticky        int
 }
 
 func NewVirtualDataState() *VirtualDataState {
 	return &VirtualDataState{
-		rows:        make(map[int]Row),
-		status:      VirtualIdle,
-		queuePolicy: VirtualLatestOnly,
-		selectedSet: make(map[RowID]struct{}),
+		rows:         make(map[int]Row),
+		status:       VirtualIdle,
+		queuePolicy:  VirtualLatestOnly,
+		selectedSet:  make(map[RowID]struct{}),
+		rowTextCache: make(map[RowID]string),
 	}
 }
 
@@ -321,6 +325,33 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	last := first + visible + prefetch
+	if first < 0 {
+		first = 0
+	}
+
+	// 1. Viewport Caching Check: If requested range is already fully loaded, return immediately.
+	s.mu.RLock()
+	if (s.status == VirtualReady || s.status == VirtualEmpty) && s.filter == s.filter && s.sortKey == s.sortKey && s.sortDesc == s.sortDesc {
+		clipLast := last
+		if s.count > 0 && clipLast > s.count {
+			clipLast = s.count
+		}
+		hasAll := true
+		for i := first; i < clipLast; i++ {
+			if _, ok := s.rows[i]; !ok {
+				hasAll = false
+				break
+			}
+		}
+		if hasAll {
+			s.mu.RUnlock()
+			return nil
+		}
+	}
+	s.mu.RUnlock()
+
 	s.mu.Lock()
 	for s.activeDone != nil {
 		policy := s.queuePolicy
@@ -410,15 +441,21 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	if count < 0 {
 		count = 0
 	}
-	last := first + visible + prefetch
-	if first < 0 {
-		first = 0
-	}
 	if last > count {
 		last = count
 	}
+
+	// 2. Incremental Loading Check: Copy existing rows first, only load what is missing.
+	s.mu.RLock()
+	existing := s.rows
+	s.mu.RUnlock()
+
 	loaded := make(map[int]Row)
 	for i := first; i < last; i++ {
+		if row, ok := existing[i]; ok {
+			loaded[i] = row
+			continue
+		}
 		row, rowErr := source.RowAt(requestCtx, i)
 		if rowErr != nil {
 			s.mu.Lock()
@@ -435,6 +472,16 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		}
 		loaded[i] = row
 	}
+
+	// 3. Cache Eviction: Avoid unbounded memory growth.
+	if len(loaded) > 500 {
+		for idx := range loaded {
+			if idx < first-100 || idx > last+100 {
+				delete(loaded, idx)
+			}
+		}
+	}
+
 	s.mu.Lock()
 	if s.generation != generation {
 		s.stats.Stale++
@@ -455,6 +502,25 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	s.stats.Completed++
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *VirtualDataState) GetCachedRowText(row Row, offset, sticky int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rowTextCache == nil {
+		s.rowTextCache = make(map[RowID]string)
+	}
+	if s.lastOffset != offset || s.lastSticky != sticky {
+		s.rowTextCache = make(map[RowID]string)
+		s.lastOffset = offset
+		s.lastSticky = sticky
+	}
+	if text, ok := s.rowTextCache[row.ID]; ok {
+		return text
+	}
+	text := virtualRowText(row, offset, sticky)
+	s.rowTextCache[row.ID] = text
+	return text
 }
 
 // RefreshLatest starts a refresh asynchronously. Starting another refresh on

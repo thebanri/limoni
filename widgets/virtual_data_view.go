@@ -79,7 +79,7 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if !ok {
 			break
 		}
-		line := virtualRowText(item, v.HorizontalOffset, v.StickyColumns)
+		line := v.State.GetCachedRowText(item, v.HorizontalOffset, v.StickyColumns)
 		rowStyle := style
 		if item.ID == v.State.Selected() {
 			rowStyle = rowStyle.Merge(v.SelectedStyle)
