@@ -100,6 +100,42 @@ struct EnvMetadata {
     go: Option<String>,
     cpu: Option<String>,
     output: Option<String>,
+    #[serde(rename="manifest_hash")]
+    manifest_hash: Option<String>,
+    #[serde(rename="git_commit")]
+    git_commit: Option<String>,
+    #[serde(rename="runner_version")]
+    runner_version: Option<String>,
+    #[serde(rename="warmup_count")]
+    warmup_count: Option<usize>,
+    #[serde(rename="build_mode")]
+    build_mode: Option<String>,
+}
+
+fn sha256_file(path: &str) -> String {
+    use std::process::Command;
+    if let Ok(output) = Command::new("sha256sum").arg(path).output() {
+        if output.status.success() {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                if let Some(hash) = stdout.split_whitespace().next() {
+                    return hash.to_string();
+                }
+            }
+        }
+    }
+    "unknown".to_string()
+}
+
+fn git_commit() -> String {
+    use std::process::Command;
+    if let Ok(output) = Command::new("git").args(&["rev-parse", "HEAD"]).output() {
+        if output.status.success() {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                return stdout.trim().to_string();
+            }
+        }
+    }
+    "unknown".to_string()
 }
 
 fn buffer_bytes(buf: &Buffer) -> usize {
@@ -358,6 +394,11 @@ fn main() {
             go: None,
             cpu: None,
             output: Some("memory".into()),
+            manifest_hash: Some(sha256_file(&manifest_path)),
+            git_commit: Some(git_commit()),
+            runner_version: Some("v1.0.0".into()),
+            warmup_count: Some(10),
+            build_mode: Some("release".into()),
         },
         valid: true,
         workloads,
