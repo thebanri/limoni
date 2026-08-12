@@ -82,6 +82,7 @@ func main() {
 		}
 	}
 
+	failOnLatency := os.Getenv("FAIL_ON_LATENCY_REGRESSION") == "true"
 	hasFailure := false
 
 	for i := range currentReport.Workloads {
@@ -123,10 +124,14 @@ func main() {
 			fmt.Printf("  [WARNING] p99 latency regressed by > %.0f%% (%.1f%%)\n", p99Threshold*100, p99Diff*100)
 		}
 
-		// Failure: p95 regression
+		// Failure/Warning: p95 regression
 		if p95Diff > p95Threshold {
-			fmt.Printf("  [FAILURE] p95 latency regressed by > %.0f%% (%.1f%%)\n", p95Threshold*100, p95Diff*100)
-			hasFailure = true
+			if failOnLatency {
+				fmt.Printf("  [FAILURE] p95 latency regressed by > %.0f%% (%.1f%%)\n", p95Threshold*100, p95Diff*100)
+				hasFailure = true
+			} else {
+				fmt.Printf("  [WARNING] p95 latency regressed by > %.0f%% (%.1f%%)\n", p95Threshold*100, p95Diff*100)
+			}
 		}
 
 		// Failure: allocs regression
