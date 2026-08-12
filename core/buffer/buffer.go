@@ -11,6 +11,7 @@ import (
 type Buffer struct {
 	Area    cell.Rect   // Tamponun kapladığı alan koordinatları
 	Content []cell.Cell // Bellekte ardışık duran hücre dilimi
+	IsDirty bool        // Tamponda değişiklik yapılıp yapılmadığını gösterir
 }
 
 // NewBuffer belirtilen alan boyutunda yeni bir Buffer oluşturur.
@@ -20,6 +21,7 @@ func NewBuffer(area cell.Rect) *Buffer {
 	b := &Buffer{
 		Area:    area,
 		Content: content,
+		IsDirty: true,
 	}
 	b.Clear()
 	return b
@@ -33,7 +35,10 @@ func NewEmptyBuffer() *Buffer {
 // Clear tüm tamponu temizler ve varsayılan hücre değerlerine (boşluk, default style) sıfırlar.
 func (b *Buffer) Clear() {
 	for i := range b.Content {
-		b.Content[i].Reset()
+		if b.Content[i].Content != ' ' || b.Content[i].Style != (cell.Style{}) {
+			b.Content[i].Reset()
+			b.IsDirty = true
+		}
 	}
 }
 
@@ -49,6 +54,7 @@ func (b *Buffer) Resize(area cell.Rect) {
 		// Yetersiz kapasite durumunda yeni alan tahsis edilir
 		b.Content = make([]cell.Cell, needed)
 	}
+	b.IsDirty = true
 	b.Clear()
 }
 
@@ -64,7 +70,10 @@ func (b *Buffer) Get(x, y uint16) *cell.Cell {
 // SetCell belirtilen koordinattaki hücreyi doğrudan değiştirir.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	if idx := b.index(x, y); idx != -1 {
-		b.Content[idx] = c
+		if b.Content[idx] != c {
+			b.Content[idx] = c
+			b.IsDirty = true
+		}
 	}
 }
 
@@ -93,12 +102,17 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 		}
 
 		idx := y*b.Area.Width + currX
-		b.Content[idx].Content = r
-		b.Content[idx].Style = style
+		if b.Content[idx].Content != r || b.Content[idx].Style != style {
+			b.Content[idx].Content = r
+			b.Content[idx].Style = style
+			b.IsDirty = true
+		}
 
 		if w == 2 {
-			b.Content[idx+1].Content = cell.RuneContinuation
-			b.Content[idx+1].Style = style
+			if b.Content[idx+1].Content != cell.RuneContinuation {
+				b.Content[idx+1].Content = cell.RuneContinuation
+				b.IsDirty = true
+			}
 		}
 
 		currX += uint16(w)

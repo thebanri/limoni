@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"strconv"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -12,6 +13,11 @@ import (
 // `out` byte dilimine (slice) ekler ve güncellenmiş dilimi döner.
 // Bellek Optimizasyonu: Eğer `out` yeterli kapasiteye sahipse sıfır heap bellek tahsisatı (zero-allocation) ile çalışır.
 func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, error) {
+	// Sıfır-Döngü Hızlı Yol (Zero-Loop Fast-Path): Eğer tamponda hiç değişiklik yapılmadıysa doğrudan dön
+	if !front.IsDirty && front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
+		return out, nil
+	}
+
 	// Hızlı Yol (Fast-Path): Tamponlar tamamen aynıysa hiçbir işlem yapma
 	if front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
 		identical := true
@@ -22,6 +28,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 			}
 		}
 		if identical {
+			front.IsDirty = false
 			return out, nil
 		}
 	}
@@ -148,6 +155,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256)
 	}
 
+	front.IsDirty = false
 	return out, nil
 }
 
@@ -160,9 +168,51 @@ func appendCursor(out []byte, x, y uint16) []byte {
 	return append(out, 'H')
 }
 
-// appendStyle stildeki değişiklikleri analiz eder ve sadece değişen kısımlar için ANSI kodlarını ekler.
-// Performans: Sıfır tahsisat sağlamak için closure kullanılmadan tamamen düz inline olarak yazılmıştır.
+var (
+	styleBytesCache = make(map[cell.Style][]byte)
+	styleCacheMu    sync.RWMutex
+)
+
+func getStyleBytes(target cell.Style, trueColor, colors256 bool) []byte {
+	styleCacheMu.RLock()
+	bytes, ok := styleBytesCache[target]
+	styleCacheMu.RUnlock()
+	if ok {
+		return bytes
+	}
+
+	// Format style starting from default
+	var out []byte
+	var cur cell.Style
+	cur.Reset()
+	out, _ = appendStyleRaw(out, cur, target, trueColor, colors256)
+
+	styleCacheMu.Lock()
+	styleBytesCache[target] = out
+	styleCacheMu.Unlock()
+	return out
+}
+
 func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool) ([]byte, cell.Style) {
+	target = target.Downsample(trueColor, colors256)
+	if cur == target {
+		return out, cur
+	}
+
+	// If we are resetting anyway, we can use the cached target bytes directly!
+	if (cur.Modifier & ^target.Modifier) != 0 {
+		out = append(out, "\x1b[0m"...)
+		cached := getStyleBytes(target, trueColor, colors256)
+		out = append(out, cached...)
+		return out, target
+	}
+
+	// Otherwise, do standard incremental diff
+	return appendStyleRaw(out, cur, target, trueColor, colors256)
+}
+
+// appendStyleRaw stildeki değişiklikleri analiz eder ve sadece değişen kısımlar için ANSI kodlarını ekler.
+func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 bool) ([]byte, cell.Style) {
 	target = target.Downsample(trueColor, colors256)
 	if cur == target {
 		return out, cur
