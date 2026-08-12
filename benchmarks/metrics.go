@@ -13,10 +13,10 @@ import (
 // iteration. The optional output callback reports emitted bytes for that
 // iteration without imposing an output sink on the workload.
 func MeasureWorkload(iterations int, fn func() []byte) Metrics {
-	var metrics Metrics
 	if iterations < 0 {
 		iterations = 0
 	}
+	metrics := Metrics{DurationsNS: make([]int64, 0, iterations)}
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		var output []byte
@@ -54,7 +54,7 @@ func MeasureWorkloadWithWarmup(warmupIterations, timedIterations int, fn func() 
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	var metrics Metrics
+	metrics := Metrics{DurationsNS: make([]int64, 0, timedIterations)}
 	if timedIterations < 0 {
 		timedIterations = 0
 	}

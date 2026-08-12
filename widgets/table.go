@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/backend"
@@ -69,6 +70,19 @@ type TableState struct {
 	SortDescending   bool
 	SelectedRows     map[int]struct{} // Çoklu satır seçimi
 	selectionDirty   bool             // Seçim değiştiğinde görünürlük ayarı gerektiğini belirtir.
+}
+
+type tableDrawScratch struct {
+	widths    []uint16
+	owner     map[[2]int][2]int
+	cells     map[[2]int]TableCell
+	filtered  []TableRow
+}
+
+var tableDrawScratchPool = sync.Pool{
+	New: func() any {
+		return &tableDrawScratch{}
+	},
 }
 
 // NewTableState, yeni bir TableState nesnesi oluşturur.
@@ -292,7 +306,18 @@ func (t Table) columnX(area cell.Rect, widths []uint16, column int) uint16 {
 
 // SolveWidths, toplam kullanılabilir tablo genişliğini sütun kurallarına göre çözerek genişlikleri belirler.
 func SolveWidths(totalWidth uint16, constraints []TableConstraint) []uint16 {
-	widths := make([]uint16, len(constraints))
+	return solveWidthsInto(nil, totalWidth, constraints)
+}
+
+func solveWidthsInto(widths []uint16, totalWidth uint16, constraints []TableConstraint) []uint16 {
+	if cap(widths) < len(constraints) {
+		widths = make([]uint16, len(constraints))
+	} else {
+		widths = widths[:len(constraints)]
+		for i := range widths {
+			widths[i] = 0
+		}
+	}
 	var usedWidth uint16
 	var fillCount int
 
@@ -331,10 +356,25 @@ func SolveWidths(totalWidth uint16, constraints []TableConstraint) []uint16 {
 	return widths
 }
 
+func getOwnerCell(owner map[[2]int][2]int, r, c int) [2]int {
+	if val, exists := owner[[2]int{r, c}]; exists {
+		return val
+	}
+	return [2]int{r, c}
+}
+
 // Draw, tabloyu render eder, başlığı yazar, satırları kaydırma offsetine göre dizer ve ızgara çizgilerini çizer.
 func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if len(t.Constraints) == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
+	}
+	scratch := tableDrawScratchPool.Get().(*tableDrawScratch)
+	defer tableDrawScratchPool.Put(scratch)
+	if scratch.owner == nil {
+		scratch.owner = make(map[[2]int][2]int)
+	}
+	if scratch.cells == nil {
+		scratch.cells = make(map[[2]int]TableCell)
 	}
 	if t.State != nil && t.SortEnabled && t.State.SortColumn >= 0 && t.DataSource == nil {
 		sortTableRows(t.Rows, t.State.SortColumn, t.State.SortDescending)
@@ -348,22 +388,28 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// 1. SATIR SAYISININ VE FİLTRENİN HESAPLANMASI
 	rows := t.Rows
 	rowCount := len(rows)
-	rowAt := func(index int) TableRow { return rows[index] }
 	if t.DataSource != nil {
 		rowCount = t.DataSource.RowCount()
-		rowAt = t.DataSource.RowAt
 	}
 	if t.FilterQuery != "" {
-		filtered := make([]TableRow, 0, rowCount)
+		filtered := scratch.filtered[:0]
+		if cap(filtered) < rowCount {
+			filtered = make([]TableRow, 0, rowCount)
+		}
 		for i := 0; i < rowCount; i++ {
-			row := rowAt(i)
+			var row TableRow
+			if t.DataSource != nil {
+				row = t.DataSource.RowAt(i)
+			} else {
+				row = rows[i]
+			}
 			if _, matched := FuzzyMatch(t.FilterQuery, row.SearchText()); matched {
 				filtered = append(filtered, row)
 			}
 		}
+		scratch.filtered = filtered[:0]
 		rows = filtered
 		rowCount = len(rows)
-		rowAt = func(index int) TableRow { return rows[index] }
 	}
 
 	// 2. SCROLLBAR TALEBİNİN VE ALAN GENİŞLİĞİNİN HESAPLANMASI
@@ -404,11 +450,12 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			totalStoredWidth += w
 		}
 		if len(t.State.ColumnWidths) != colsCount || totalStoredWidth != netWidth {
-			t.State.ColumnWidths = SolveWidths(netWidth, t.Constraints)
+			t.State.ColumnWidths = solveWidthsInto(t.State.ColumnWidths, netWidth, t.Constraints)
 		}
 		widths = t.State.ColumnWidths
 	} else {
-		widths = SolveWidths(netWidth, t.Constraints)
+		widths = solveWidthsInto(scratch.widths, netWidth, t.Constraints)
+		scratch.widths = widths[:0]
 	}
 
 	sticky := t.StickyColumns
@@ -426,87 +473,19 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	// Scroll olayları tabloya yönlendirilir; click/resize bölgeleri aşağıda daha önceliklidir.
-	if t.State != nil && ctx.RegisterMouse != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp {
-				if ev.Shift {
-					t.State.ScrollHorizontal(-2)
-				} else {
-					t.State.Scroll(-3, rowCount, int(ctx.Area.Height))
-				}
-			}
-			if ev.Button == backend.MouseScrollDown {
-				if ev.Shift {
-					t.State.ScrollHorizontal(2)
-				} else {
-					t.State.Scroll(3, rowCount, int(ctx.Area.Height))
-				}
-			}
-		})
+	if ctx.RegisterMouse != nil {
+		t.registerScrollHandlers(ctx, rowCount)
+		t.registerResizeHandlers(ctx, widths, colsCount, sticky, stickyWidth)
 	}
-
-	// 2. İNTERAKTİF SÜTUN BOYUTLANDIRICI SÜRÜKLEME ALANLARI
-	if t.State != nil && ctx.RegisterMouse != nil {
-		for i := 0; i < colsCount-1; i++ {
-			sepX := t.columnX(ctx.Area, widths, i+1)
-			if t.DrawGrid {
-				sepX--
-			}
-
-			// Clip boundaries for separator drag area
-			clipLeftSep := ctx.Area.X
-			clipRightSep := ctx.Area.X + ctx.Area.Width
-			if sticky > 0 {
-				if i+1 < sticky {
-					clipRightSep = ctx.Area.X + stickyWidth
-				} else {
-					clipLeftSep = ctx.Area.X + stickyWidth
-				}
-			}
-
-			if sepX >= clipLeftSep && sepX < clipRightSep {
-				handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
-				colIdx := i
-
-				ctx.RegisterMouse(handleArea, func(ev backend.MouseEvent) {
-					if ev.Button == backend.MouseLeft && !ev.Drag {
-						// Sürükleme başlangıcı: Mevcut X koordinatı ve tüm sütun genişliklerini yakala
-						startMouseX := int(ev.X)
-						startColW := int(t.State.ColumnWidths[colIdx])
-
-						ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
-							if dragEv.Button == backend.MouseRelease {
-								return
-							}
-							// Fare hareketi farkına göre yeni genişliği hesapla
-							dx := int(dragEv.X) - startMouseX
-							requestedNewW := startColW + dx
-							if requestedNewW < 2 {
-								requestedNewW = 2
-							}
-
-							// ResizeColumn toplam genişliği koruyarak sağdaki sütunları
-							// gerektiğinde daraltır; drag döngüsünde tahsisat yapmaz.
-							delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
-							t.State.ResizeColumn(colIdx, delta)
-						})
-					}
-				})
-			}
-		}
+	if ctx.RegisterClick != nil {
+		t.registerSortHandlers(ctx, widths, colsCount)
 	}
 
 	// 3. SAHİPLİK MATRİSİNİN (COLSPAN / ROWSPAN) HESAPLANMASI
-	owner := make(map[[2]int][2]int)
-	cellsMap := make(map[[2]int]TableCell)
-
-	getOwner := func(r, c int) [2]int {
-		if val, exists := owner[[2]int{r, c}]; exists {
-			return val
-		}
-		return [2]int{r, c}
-	}
+	owner := scratch.owner
+	clear(owner)
+	cellsMap := scratch.cells
+	clear(cellsMap)
 
 	// Header satırını (row -1) matrise işle
 	if t.Header != nil {
@@ -597,38 +576,12 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	// Başlığa tıklama ile sütun sıralama kaydı.
-	if t.SortEnabled && t.Header != nil && ctx.RegisterClick != nil {
-		for colIdx, width := range widths {
-			currX := t.columnX(ctx.Area, widths, colIdx)
-			clickWidth := width
-			if t.DrawGrid && colIdx < colsCount-1 && clickWidth > 0 {
-				clickWidth--
-			}
-			if clickWidth > 0 {
-				column := colIdx
-				ctx.RegisterClick(cell.NewRect(currX, ctx.Area.Y, clickWidth, 1), func() {
-					if t.State == nil {
-						return
-					}
-					if t.State.SortColumn == column {
-						t.State.SortDescending = !t.State.SortDescending
-					} else {
-						t.State.SortColumn = column
-						t.State.SortDescending = false
-					}
-					sortTableRows(t.Rows, column, t.State.SortDescending)
-				})
-			}
-		}
-	}
-
 	// 4. BAŞLIK ÇİZİMİ
 	currY := ctx.Area.Y
 	gridStyle := ctx.Style.Merge(t.GridStyle)
 
 	if t.Header != nil {
-		t.drawSpanRow(ctx, buf, currY, -1, widths, false, getOwner, cellsMap, gridStyle, t.Header.Style)
+		t.drawSpanRow(ctx, buf, currY, -1, widths, false, owner, cellsMap, gridStyle, t.Header.Style)
 		currY++
 
 		// Başlık altı ayırıcı çizgi
@@ -640,7 +593,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 			for i, w := range widths {
 				// Yatay çizginin birleştirilmiş hücre tarafından örtülüp örtülmediğini denetle
-				sepCovered := getOwner(-1, i) == getOwner(targetBodyRow, i)
+				sepCovered := getOwnerCell(owner, -1, i) == getOwnerCell(owner, targetBodyRow, i)
 				startX := t.columnX(ctx.Area, widths, i)
 
 				// Clip boundaries for this column
@@ -663,10 +616,10 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 				if t.DrawGrid && i < colsCount-1 {
 					// Dikey ve yatay çizgilerin birleştiği kesişim karakterini seç
-					up := getOwner(-1, i) != getOwner(-1, i+1)
-					down := getOwner(targetBodyRow, i) != getOwner(targetBodyRow, i+1)
-					left := getOwner(-1, i) != getOwner(targetBodyRow, i)
-					right := getOwner(-1, i+1) != getOwner(targetBodyRow, i+1)
+					up := getOwnerCell(owner, -1, i) != getOwnerCell(owner, -1, i+1)
+					down := getOwnerCell(owner, targetBodyRow, i) != getOwnerCell(owner, targetBodyRow, i+1)
+					left := getOwnerCell(owner, -1, i) != getOwnerCell(owner, targetBodyRow, i)
+					right := getOwnerCell(owner, -1, i+1) != getOwnerCell(owner, targetBodyRow, i+1)
 
 					ch := getIntersectionChar(up, down, left, right)
 					separatorX := t.columnX(ctx.Area, widths, i+1) - 1
@@ -733,23 +686,19 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			break
 		}
 
-		row := rowAt(actualRowIdx)
+		var row TableRow
+		if t.DataSource != nil {
+			row = t.DataSource.RowAt(actualRowIdx)
+		} else {
+			row = rows[actualRowIdx]
+		}
 		isSelected := t.State != nil && (t.State.Selected == actualRowIdx || (t.MultiSelect && t.State.IsRowSelected(actualRowIdx)))
 
 		if ctx.RegisterClick != nil {
-			rowArea := cell.NewRect(ctx.Area.X, currY, ctx.Area.Width, 1)
-			targetIdx := actualRowIdx
-			ctx.RegisterClick(rowArea, func() {
-				if t.State != nil {
-					t.State.Select(targetIdx)
-				}
-				if t.ID != "" && ctx.SetFocus != nil {
-					ctx.SetFocus(t.ID)
-				}
-			})
+			t.registerRowClickHandler(ctx, cell.NewRect(ctx.Area.X, currY, ctx.Area.Width, 1), actualRowIdx)
 		}
 
-		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, getOwner, cellsMap, gridStyle, row.Style)
+		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, owner, cellsMap, gridStyle, row.Style)
 		currY++
 	}
 
@@ -789,6 +738,117 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
+func (t Table) registerScrollHandlers(ctx cell.Context, rowCount int) {
+	if t.State == nil || ctx.RegisterMouse == nil {
+		return
+	}
+	ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+		if ev.Button == backend.MouseScrollUp {
+			if ev.Shift {
+				t.State.ScrollHorizontal(-2)
+			} else {
+				t.State.Scroll(-3, rowCount, int(ctx.Area.Height))
+			}
+		}
+		if ev.Button == backend.MouseScrollDown {
+			if ev.Shift {
+				t.State.ScrollHorizontal(2)
+			} else {
+				t.State.Scroll(3, rowCount, int(ctx.Area.Height))
+			}
+		}
+	})
+}
+
+func (t Table) registerResizeHandlers(ctx cell.Context, widths []uint16, colsCount int, sticky int, stickyWidth uint16) {
+	if t.State == nil || ctx.RegisterMouse == nil {
+		return
+	}
+	for i := 0; i < colsCount-1; i++ {
+		sepX := t.columnX(ctx.Area, widths, i+1)
+		if t.DrawGrid {
+			sepX--
+		}
+
+		clipLeftSep := ctx.Area.X
+		clipRightSep := ctx.Area.X + ctx.Area.Width
+		if sticky > 0 {
+			if i+1 < sticky {
+				clipRightSep = ctx.Area.X + stickyWidth
+			} else {
+				clipLeftSep = ctx.Area.X + stickyWidth
+			}
+		}
+
+		if sepX >= clipLeftSep && sepX < clipRightSep {
+			handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
+			colIdx := i
+
+			ctx.RegisterMouse(handleArea, func(ev backend.MouseEvent) {
+				if ev.Button == backend.MouseLeft && !ev.Drag {
+					startMouseX := int(ev.X)
+					startColW := int(t.State.ColumnWidths[colIdx])
+
+					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							return
+						}
+						dx := int(dragEv.X) - startMouseX
+						requestedNewW := startColW + dx
+						if requestedNewW < 2 {
+							requestedNewW = 2
+						}
+						delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
+						t.State.ResizeColumn(colIdx, delta)
+					})
+				}
+			})
+		}
+	}
+}
+
+func (t Table) registerSortHandlers(ctx cell.Context, widths []uint16, colsCount int) {
+	if !t.SortEnabled || t.Header == nil || ctx.RegisterClick == nil {
+		return
+	}
+	for colIdx, width := range widths {
+		currX := t.columnX(ctx.Area, widths, colIdx)
+		clickWidth := width
+		if t.DrawGrid && colIdx < colsCount-1 && clickWidth > 0 {
+			clickWidth--
+		}
+		if clickWidth > 0 {
+			column := colIdx
+			ctx.RegisterClick(cell.NewRect(currX, ctx.Area.Y, clickWidth, 1), func() {
+				if t.State == nil {
+					return
+				}
+				if t.State.SortColumn == column {
+					t.State.SortDescending = !t.State.SortDescending
+				} else {
+					t.State.SortColumn = column
+					t.State.SortDescending = false
+				}
+				sortTableRows(t.Rows, column, t.State.SortDescending)
+			})
+		}
+	}
+}
+
+func (t Table) registerRowClickHandler(ctx cell.Context, rowArea cell.Rect, targetIdx int) {
+	if ctx.RegisterClick == nil {
+		return
+	}
+	ctx.RegisterClick(rowArea, func() {
+		if t.State != nil {
+			t.State.Select(targetIdx)
+		}
+		if t.ID != "" && ctx.SetFocus != nil {
+			ctx.SetFocus(t.ID)
+		}
+	})
+}
+
 // drawSpanRow, birleştirilmiş hücrelere duyarlı olarak tek bir tablo satırını çizdirir.
 func (t Table) drawSpanRow(
 	ctx cell.Context,
@@ -797,14 +857,13 @@ func (t Table) drawSpanRow(
 	r int,
 	widths []uint16,
 	isSelected bool,
-	getOwner func(r, c int) [2]int,
+	owner map[[2]int][2]int,
 	cellsMap map[[2]int]TableCell,
 	gridStyle cell.Style,
 	baseRowStyle cell.Style,
 ) {
 	rowStyle := ctx.Style.Merge(baseRowStyle)
 	colsCount := len(widths)
-	columnX := func(column int) uint16 { return t.columnX(ctx.Area, widths, column) }
 	currX := ctx.Area.X
 	if isSelected {
 		rowStyle = rowStyle.Merge(t.SelectedStyle)
@@ -826,8 +885,8 @@ func (t Table) drawSpanRow(
 	}
 
 	for colIdx := 0; colIdx < colsCount; colIdx++ {
-		currX = columnX(colIdx)
-		ownerCoords := getOwner(r, colIdx)
+		currX = t.columnX(ctx.Area, widths, colIdx)
+		ownerCoords := getOwnerCell(owner, r, colIdx)
 
 		// Determine horizontal clipping boundaries for this column
 		clipLeft := ctx.Area.X
@@ -843,9 +902,9 @@ func (t Table) drawSpanRow(
 		// Eğer bu hücre üstteki veya soldaki birleştirilmiş bir hücrenin alt parçasıysa çizimi atla
 		if ownerCoords != [2]int{r, colIdx} {
 			if t.DrawGrid && colIdx < colsCount-1 {
-				currX = columnX(colIdx + 1)
+				currX = t.columnX(ctx.Area, widths, colIdx+1)
 				// Sınır çizgisi hücre birleştirme alanı içinde kalmıyorsa çiz
-				if getOwner(r, colIdx) != getOwner(r, colIdx+1) {
+				if getOwnerCell(owner, r, colIdx) != getOwnerCell(owner, r, colIdx+1) {
 					separatorX := currX - 1
 					// Clip the vertical grid line separator
 					clipLeftSep := ctx.Area.X
@@ -910,7 +969,7 @@ func (t Table) drawSpanRow(
 
 		// Sütunlar arası dikey ızgara çizgisini çiz (birleştirilmiş alanın dışındaysa)
 		if t.DrawGrid && colIdx < colsCount-1 {
-			separatorX := columnX(colIdx+1) - 1
+			separatorX := t.columnX(ctx.Area, widths, colIdx+1) - 1
 			// Clip the separator
 			clipLeftSep := ctx.Area.X
 			clipRightSep := ctx.Area.X + ctx.Area.Width
@@ -921,7 +980,7 @@ func (t Table) drawSpanRow(
 					clipLeftSep = ctx.Area.X + stickyWidth
 				}
 			}
-			if getOwner(r, colIdx) != getOwner(r, colIdx+1) && separatorX >= clipLeftSep && separatorX < clipRightSep {
+			if getOwnerCell(owner, r, colIdx) != getOwnerCell(owner, r, colIdx+1) && separatorX >= clipLeftSep && separatorX < clipRightSep {
 				buf.SetCell(separatorX, y, cell.Cell{Content: '│', Style: gridStyle})
 			}
 		}
