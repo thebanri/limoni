@@ -543,7 +543,11 @@ func main() {
 		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'h', Ctrl: true, Label: "Yardım Panelini Aç", Category: "Görünüm",
+		Key: backend.KeyF1, Label: "Yardım Panelini Aç", Category: "Görünüm",
+		When: canHandleGlobalCommand, Handler: openHelp,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'h', Label: "Yardım Panelini Aç", Category: "Görünüm",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
@@ -770,8 +774,8 @@ func main() {
 				// Shift+/ üretiminin ham '/' rune'u olarak ulaşabilir. Metin
 				// alanlarında slash normal karakter olarak kalmalı; yalnızca
 				// global kısayol kullanılabilir durumdaysa yardım panelini aç.
-				if state.KeyManager != nil && canHandleGlobalCommand() && ev.Key.Type == backend.KeyRune &&
-					((ev.Key.Ch == 'h' && ev.Key.Ctrl) || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)) && !ev.Key.Alt {
+				if state.KeyManager != nil && canHandleGlobalCommand() && (ev.Key.Type == backend.KeyF1 ||
+					(ev.Key.Type == backend.KeyRune && (ev.Key.Ch == 'h' || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)))) && !ev.Key.Ctrl && !ev.Key.Alt {
 					openHelp()
 					break
 				}
