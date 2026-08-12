@@ -2,7 +2,6 @@ package buffer
 
 import (
 	"strconv"
-	"sync"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -16,6 +15,10 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 	// Sıfır-Döngü Hızlı Yol (Zero-Loop Fast-Path): Eğer tamponda hiç değişiklik yapılmadıysa doğrudan dön
 	if !front.IsDirty && front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
 		return out, nil
+	}
+
+	if front.StyleCache == nil {
+		front.StyleCache = make(map[cell.Style][]byte)
 	}
 
 	// Hızlı Yol (Fast-Path): Tamponlar tamamen aynıysa hiçbir işlem yapma
@@ -106,7 +109,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 						skipIdx := int(y)*int(width) + int(skipX)
 						skipCell := &front.Content[skipIdx]
 						if skipCell.Style != currentStyle {
-							out, currentStyle = appendStyle(out, currentStyle, skipCell.Style, trueColor, colors256)
+							out, currentStyle = appendStyle(out, currentStyle, skipCell.Style, trueColor, colors256, front.StyleCache)
 						}
 						if skipCell.Content == ' ' || skipCell.Content == 0 {
 							out = append(out, ' ')
@@ -125,7 +128,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 
 			// Stil güncellenmeli mi?
 			if frontCell.Style != currentStyle {
-				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256)
+				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
 			}
 
 			// Karakteri yaz
@@ -152,7 +155,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 	var defaultStyle cell.Style
 	defaultStyle.Reset()
 	if currentStyle != defaultStyle {
-		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256)
+		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256, front.StyleCache)
 	}
 
 	front.IsDirty = false
@@ -168,16 +171,15 @@ func appendCursor(out []byte, x, y uint16) []byte {
 	return append(out, 'H')
 }
 
-var (
-	styleBytesCache = make(map[cell.Style][]byte)
-	styleCacheMu    sync.RWMutex
-)
-
-func getStyleBytes(target cell.Style, trueColor, colors256 bool) []byte {
-	styleCacheMu.RLock()
-	bytes, ok := styleBytesCache[target]
-	styleCacheMu.RUnlock()
-	if ok {
+func getStyleBytes(target cell.Style, trueColor, colors256 bool, cache map[cell.Style][]byte) []byte {
+	if cache == nil {
+		var out []byte
+		var cur cell.Style
+		cur.Reset()
+		out, _ = appendStyleRaw(out, cur, target, trueColor, colors256)
+		return out
+	}
+	if bytes, ok := cache[target]; ok {
 		return bytes
 	}
 
@@ -187,13 +189,11 @@ func getStyleBytes(target cell.Style, trueColor, colors256 bool) []byte {
 	cur.Reset()
 	out, _ = appendStyleRaw(out, cur, target, trueColor, colors256)
 
-	styleCacheMu.Lock()
-	styleBytesCache[target] = out
-	styleCacheMu.Unlock()
+	cache[target] = out
 	return out
 }
 
-func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool) ([]byte, cell.Style) {
+func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool, cache map[cell.Style][]byte) ([]byte, cell.Style) {
 	target = target.Downsample(trueColor, colors256)
 	if cur == target {
 		return out, cur
@@ -202,7 +202,7 @@ func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool) 
 	// If we are resetting anyway, we can use the cached target bytes directly!
 	if (cur.Modifier & ^target.Modifier) != 0 {
 		out = append(out, "\x1b[0m"...)
-		cached := getStyleBytes(target, trueColor, colors256)
+		cached := getStyleBytes(target, trueColor, colors256, cache)
 		out = append(out, cached...)
 		return out, target
 	}

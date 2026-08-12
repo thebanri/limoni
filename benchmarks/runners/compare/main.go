@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/thebanri/limoni/benchmarks"
 )
@@ -54,6 +55,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize default regression thresholds
+	p50Threshold := 0.05
+	p95Threshold := 0.10
+	p99Threshold := 0.15
+	allocThreshold := 0.10
+
+	if env := os.Getenv("P50_REGRESSION_THRESHOLD"); env != "" {
+		if v, err := strconv.ParseFloat(env, 64); err == nil {
+			p50Threshold = v
+		}
+	}
+	if env := os.Getenv("P95_REGRESSION_THRESHOLD"); env != "" {
+		if v, err := strconv.ParseFloat(env, 64); err == nil {
+			p95Threshold = v
+		}
+	}
+	if env := os.Getenv("P99_REGRESSION_THRESHOLD"); env != "" {
+		if v, err := strconv.ParseFloat(env, 64); err == nil {
+			p99Threshold = v
+		}
+	}
+	if env := os.Getenv("ALLOC_REGRESSION_THRESHOLD"); env != "" {
+		if v, err := strconv.ParseFloat(env, 64); err == nil {
+			allocThreshold = v
+		}
+	}
+
 	hasFailure := false
 
 	for i := range currentReport.Workloads {
@@ -85,25 +113,25 @@ func main() {
 		fmt.Printf("  p99: %d ns vs %d ns (%.1f%%)\n", currW.Summary.P99NS, baseW.Summary.P99NS, p99Diff*100)
 		fmt.Printf("  allocs: %d vs %d (%.1f%%)\n", currW.Summary.Allocs, baseW.Summary.Allocs, allocsDiff*100)
 
-		// Warning: p50 regression > 5%
-		if p50Diff > 0.05 {
-			fmt.Printf("  [WARNING] p50 latency regressed by > 5%%\n")
+		// Warning: p50 regression
+		if p50Diff > p50Threshold {
+			fmt.Printf("  [WARNING] p50 latency regressed by > %.0f%% (%.1f%%)\n", p50Threshold*100, p50Diff*100)
 		}
 
-		// Warning: p99 regression > 15%
-		if p99Diff > 0.15 {
-			fmt.Printf("  [WARNING] p99 latency regressed by > 15%%\n")
+		// Warning: p99 regression
+		if p99Diff > p99Threshold {
+			fmt.Printf("  [WARNING] p99 latency regressed by > %.0f%% (%.1f%%)\n", p99Threshold*100, p99Diff*100)
 		}
 
-		// Failure: p95 regression > 10%
-		if p95Diff > 0.10 {
-			fmt.Printf("  [FAILURE] p95 latency regressed by > 10%% (%.1f%%)\n", p95Diff*100)
+		// Failure: p95 regression
+		if p95Diff > p95Threshold {
+			fmt.Printf("  [FAILURE] p95 latency regressed by > %.0f%% (%.1f%%)\n", p95Threshold*100, p95Diff*100)
 			hasFailure = true
 		}
 
-		// Failure: allocs regression > 10%
-		if allocsDiff > 0.10 {
-			fmt.Printf("  [FAILURE] allocations/frame regressed by > 10%% (%.1f%%)\n", allocsDiff*100)
+		// Failure: allocs regression
+		if allocsDiff > allocThreshold {
+			fmt.Printf("  [FAILURE] allocations/frame regressed by > %.0f%% (%.1f%%)\n", allocThreshold*100, allocsDiff*100)
 			hasFailure = true
 		}
 	}

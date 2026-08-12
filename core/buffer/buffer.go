@@ -9,9 +9,10 @@ import (
 // Buffer terminal ekranının hücresel ızgarasını temsil eder.
 // 2D slice yerine 1D flat slice (`[]cell.Cell`) kullanarak bellek lekelerini ve cache miss oranlarını minimize eder.
 type Buffer struct {
-	Area    cell.Rect   // Tamponun kapladığı alan koordinatları
-	Content []cell.Cell // Bellekte ardışık duran hücre dilimi
-	IsDirty bool        // Tamponda değişiklik yapılıp yapılmadığını gösterir
+	Area       cell.Rect             // Tamponun kapladığı alan koordinatları
+	Content    []cell.Cell           // Bellekte ardışık duran hücre dilimi
+	IsDirty    bool                  // Tamponda değişiklik yapılıp yapılmadığını gösterir
+	StyleCache map[cell.Style][]byte // Stil geçiş kodları için önbellek
 }
 
 // NewBuffer belirtilen alan boyutunda yeni bir Buffer oluşturur.
@@ -19,9 +20,10 @@ func NewBuffer(area cell.Rect) *Buffer {
 	needed := int(area.Width) * int(area.Height)
 	content := make([]cell.Cell, needed)
 	b := &Buffer{
-		Area:    area,
-		Content: content,
-		IsDirty: true,
+		Area:       area,
+		Content:    content,
+		IsDirty:    true,
+		StyleCache: make(map[cell.Style][]byte),
 	}
 	b.Clear()
 	return b
