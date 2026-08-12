@@ -71,11 +71,13 @@ func (b *Buffer) Get(x, y uint16) *cell.Cell {
 
 // SetCell belirtilen koordinattaki hücreyi doğrudan değiştirir.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
-	if idx := b.index(x, y); idx != -1 {
-		if b.Content[idx] != c {
-			b.Content[idx] = c
-			b.IsDirty = true
-		}
+	if x >= b.Area.Width || y >= b.Area.Height {
+		return
+	}
+	idx := int(y)*int(b.Area.Width) + int(x)
+	if b.Content[idx] != c {
+		b.Content[idx] = c
+		b.IsDirty = true
 	}
 }
 

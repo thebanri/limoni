@@ -1,7 +1,6 @@
 package buffer
 
 import (
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -161,9 +160,9 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 // appendCursor imleç konumlandırma ANSI escape kodunu ekler. (\x1b[row;colH)
 func appendCursor(out []byte, x, y uint16) []byte {
 	out = append(out, "\x1b["...)
-	out = strconv.AppendInt(out, int64(y+1), 10)
+	out = appendUint16(out, y+1)
 	out = append(out, ';')
-	out = strconv.AppendInt(out, int64(x+1), 10)
+	out = appendUint16(out, x+1)
 	return append(out, 'H')
 }
 
@@ -190,7 +189,9 @@ func getStyleBytes(target cell.Style, trueColor, colors256 bool, cache map[cell.
 }
 
 func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool, cache map[cell.Style][]byte) ([]byte, cell.Style) {
-	target = target.Downsample(trueColor, colors256)
+	if !trueColor {
+		target = target.Downsample(trueColor, colors256)
+	}
 	if cur == target {
 		return out, cur
 	}
@@ -228,16 +229,16 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 			out = append(out, "\x1b[39m"...)
 		case cell.ColorANSI:
 			out = append(out, "\x1b[38;5;"...)
-			out = strconv.AppendInt(out, int64(target.Fg.ANSI()), 10)
+			out = appendUint8(out, target.Fg.ANSI())
 			out = append(out, 'm')
 		case cell.ColorRGB:
 			r, g, b := target.Fg.RGB()
 			out = append(out, "\x1b[38;2;"...)
-			out = strconv.AppendInt(out, int64(r), 10)
+			out = appendUint8(out, r)
 			out = append(out, ';')
-			out = strconv.AppendInt(out, int64(g), 10)
+			out = appendUint8(out, g)
 			out = append(out, ';')
-			out = strconv.AppendInt(out, int64(b), 10)
+			out = appendUint8(out, b)
 			out = append(out, 'm')
 		}
 		cur.Fg = target.Fg
@@ -250,16 +251,16 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 			out = append(out, "\x1b[49m"...)
 		case cell.ColorANSI:
 			out = append(out, "\x1b[48;5;"...)
-			out = strconv.AppendInt(out, int64(target.Bg.ANSI()), 10)
+			out = appendUint8(out, target.Bg.ANSI())
 			out = append(out, 'm')
 		case cell.ColorRGB:
 			r, g, b := target.Bg.RGB()
 			out = append(out, "\x1b[48;2;"...)
-			out = strconv.AppendInt(out, int64(r), 10)
+			out = appendUint8(out, r)
 			out = append(out, ';')
-			out = strconv.AppendInt(out, int64(g), 10)
+			out = appendUint8(out, g)
 			out = append(out, ';')
-			out = strconv.AppendInt(out, int64(b), 10)
+			out = appendUint8(out, b)
 			out = append(out, 'm')
 		}
 		cur.Bg = target.Bg
@@ -275,63 +276,63 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 1, 10)
+			out = append(out, '1')
 			first = false
 		}
 		if (added & cell.ModifierDim) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 2, 10)
+			out = append(out, '2')
 			first = false
 		}
 		if (added & cell.ModifierItalic) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 3, 10)
+			out = append(out, '3')
 			first = false
 		}
 		if (added & cell.ModifierUnderline) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 4, 10)
+			out = append(out, '4')
 			first = false
 		}
 		if (added & cell.ModifierBlink) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 5, 10)
+			out = append(out, '5')
 			first = false
 		}
 		if (added & cell.ModifierReverse) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 7, 10)
+			out = append(out, '7')
 			first = false
 		}
 		if (added & cell.ModifierHidden) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 8, 10)
+			out = append(out, '8')
 			first = false
 		}
 		if (added & cell.ModifierStrikethrough) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 9, 10)
+			out = append(out, '9')
 			first = false
 		}
 		if (added & cell.ModifierDoubleUnderline) != 0 {
 			if !first {
 				out = append(out, ';')
 			}
-			out = strconv.AppendInt(out, 21, 10)
+			out = append(out, "21"...)
 			first = false
 		}
 		if (added & cell.ModifierUndercurl) != 0 {
@@ -347,4 +348,30 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 	}
 
 	return out, cur
+}
+
+func appendUint8(out []byte, v uint8) []byte {
+	if v >= 100 {
+		return append(out, '0'+v/100, '0'+(v/10)%10, '0'+v%10)
+	}
+	if v >= 10 {
+		return append(out, '0'+v/10, '0'+v%10)
+	}
+	return append(out, '0'+v)
+}
+
+func appendUint16(out []byte, v uint16) []byte {
+	if v >= 10000 {
+		return append(out, '0'+byte(v/10000), '0'+byte((v/1000)%10), '0'+byte((v/100)%10), '0'+byte((v/10)%10), '0'+byte(v%10))
+	}
+	if v >= 1000 {
+		return append(out, '0'+byte(v/1000), '0'+byte((v/100)%10), '0'+byte((v/10)%10), '0'+byte(v%10))
+	}
+	if v >= 100 {
+		return append(out, '0'+byte(v/100), '0'+byte((v/10)%10), '0'+byte(v%10))
+	}
+	if v >= 10 {
+		return append(out, '0'+byte(v/10), '0'+byte(v%10))
+	}
+	return append(out, '0'+byte(v))
 }
