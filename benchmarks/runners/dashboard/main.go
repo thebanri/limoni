@@ -48,6 +48,10 @@ func main() {
 		if err := json.Unmarshal(data, &report); err != nil {
 			panic(err)
 		}
+		if err := benchmarks.ValidateReport(report); err != nil {
+			fmt.Printf("Validation error for report %s: %v\n", path, err)
+			os.Exit(1)
+		}
 		reports = append(reports, report)
 	}
 	if len(reports) == 0 {
@@ -103,14 +107,72 @@ func main() {
 			combined.Workloads = append(combined.Workloads, workload)
 		}
 	}
+	var nativeRows []benchmarks.NativeGoRow
+	var goOS, goArch, goCPU string
+	if rows, osVal, archVal, cpuVal, err := parseGoBenchmark("benchmark-results/go-benchmark.txt"); err == nil {
+		nativeRows = rows
+		goOS = osVal
+		goArch = archVal
+		goCPU = cpuVal
+	}
 
 	f, err := os.Create(*output)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
-	if err := benchmarks.WriteHTML(f, combined); err != nil {
+	if err := benchmarks.WriteHTML(f, combined, nativeRows, goOS, goArch, goCPU); err != nil {
 		panic(err)
 	}
 	fmt.Println(*output)
+}
+
+func parseGoBenchmark(path string) ([]benchmarks.NativeGoRow, string, string, string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+	var rows []benchmarks.NativeGoRow
+	var goos, goarch, cpu string
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "goos:") {
+			goos = strings.TrimSpace(strings.TrimPrefix(line, "goos:"))
+		} else if strings.HasPrefix(line, "goarch:") {
+			goarch = strings.TrimSpace(strings.TrimPrefix(line, "goarch:"))
+		} else if strings.HasPrefix(line, "cpu:") {
+			cpu = strings.TrimSpace(strings.TrimPrefix(line, "cpu:"))
+		} else if strings.HasPrefix(line, "Benchmark") {
+			parts := strings.Fields(line)
+			if len(parts) >= 4 {
+				name := parts[0]
+				if idx := strings.LastIndex(name, "-"); idx != -1 {
+					name = name[:idx]
+				}
+				iters := parts[1]
+				speed := parts[2] + " " + parts[3]
+				bytes := "0 B/op"
+				allocs := "0 allocs/op"
+				for i := 4; i < len(parts)-1; i += 2 {
+					if parts[i+1] == "B/op" {
+						bytes = parts[i] + " B/op"
+					} else if parts[i+1] == "allocs/op" {
+						allocs = parts[i] + " allocs/op"
+					}
+				}
+				rows = append(rows, benchmarks.NativeGoRow{
+					Name:       name,
+					Iterations: iters,
+					Speed:      speed,
+					Bytes:      bytes,
+					Allocs:     allocs,
+				})
+			}
+		}
+	}
+	return rows, goos, goarch, cpu, nil
 }

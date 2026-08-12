@@ -44,6 +44,11 @@ func main() {
 	}
 
 	// Validate metadata & specs
+	if currentReport.Environment.ManifestHash != baselineReport.Environment.ManifestHash {
+		fmt.Printf("Error: manifest hash mismatch: got %q, want %q\n", currentReport.Environment.ManifestHash, baselineReport.Environment.ManifestHash)
+		os.Exit(1)
+	}
+
 	if len(currentReport.Workloads) != len(baselineReport.Workloads) {
 		fmt.Printf("Error: workload count mismatch: got %d, want %d\n", len(currentReport.Workloads), len(baselineReport.Workloads))
 		os.Exit(1)
@@ -64,6 +69,8 @@ func main() {
 		p50Diff := float64(currW.Summary.P50NS - baseW.Summary.P50NS) / float64(baseW.Summary.P50NS)
 		// Calculate p95 change
 		p95Diff := float64(currW.Summary.P95NS - baseW.Summary.P95NS) / float64(baseW.Summary.P95NS)
+		// Calculate p99 change
+		p99Diff := float64(currW.Summary.P99NS - baseW.Summary.P99NS) / float64(baseW.Summary.P99NS)
 		// Calculate allocs change
 		allocsDiff := 0.0
 		if baseW.Summary.Allocs > 0 {
@@ -75,11 +82,17 @@ func main() {
 		fmt.Printf("Workload %q:\n", currW.Spec.Name)
 		fmt.Printf("  p50: %d ns vs %d ns (%.1f%%)\n", currW.Summary.P50NS, baseW.Summary.P50NS, p50Diff*100)
 		fmt.Printf("  p95: %d ns vs %d ns (%.1f%%)\n", currW.Summary.P95NS, baseW.Summary.P95NS, p95Diff*100)
+		fmt.Printf("  p99: %d ns vs %d ns (%.1f%%)\n", currW.Summary.P99NS, baseW.Summary.P99NS, p99Diff*100)
 		fmt.Printf("  allocs: %d vs %d (%.1f%%)\n", currW.Summary.Allocs, baseW.Summary.Allocs, allocsDiff*100)
 
 		// Warning: p50 regression > 5%
 		if p50Diff > 0.05 {
 			fmt.Printf("  [WARNING] p50 latency regressed by > 5%%\n")
+		}
+
+		// Warning: p99 regression > 15%
+		if p99Diff > 0.15 {
+			fmt.Printf("  [WARNING] p99 latency regressed by > 15%%\n")
 		}
 
 		// Failure: p95 regression > 10%

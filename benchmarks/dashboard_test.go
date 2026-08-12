@@ -12,7 +12,7 @@ func TestDashboardWriters(t *testing.T) {
 	if err := WriteJSON(&jsonOut, report); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteHTML(&htmlOut, report); err != nil {
+	if err := WriteHTML(&htmlOut, report, nil, "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(jsonOut.String(), "limoni") || !strings.Contains(htmlOut.String(), "Benchmark Dashboard") {

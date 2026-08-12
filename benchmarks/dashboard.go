@@ -8,23 +8,48 @@ import (
 )
 
 type ComparisonRow struct {
-	WorkloadName   string
-	LimoniP50      string
-	BubbleTeaP50   string
-	RatatuiP50     string
-	LimoniAlloc    string
-	BubbleTeaAlloc string
-	RatatuiAlloc   string
+	WorkloadName     string
+	LimoniP50        string
+	BubbleTeaP50     string
+	RatatuiP50       string
+	LimoniAlloc      string
+	BubbleTeaAlloc   string
+	RatatuiAlloc     string
+	IsPlatformSpec   bool
+	StatusBadgeClass string
+	StatusBadgeText  string
+}
+
+type NativeGoRow struct {
+	Name       string
+	Iterations string
+	Speed      string
+	Bytes      string
+	Allocs     string
 }
 
 type TemplateData struct {
-	Report         DashboardReport
-	ComparisonRows []ComparisonRow
+	Report           DashboardReport
+	CoreRows         []ComparisonRow
+	PlatformRows     []ComparisonRow
+	HasNativeGoBench bool
+	NativeGoRows     []NativeGoRow
+	GoOS             string
+	GoArch           string
+	GoCPU            string
+}
+
+func isPlatformSpecific(name string) bool {
+	switch name {
+	case "mouse-hit-test", "resize", "async-update-burst", "native-image-capability":
+		return true
+	}
+	return false
 }
 
 func WriteJSON(w io.Writer, report DashboardReport) error { return json.NewEncoder(w).Encode(report) }
 
-func WriteHTML(w io.Writer, report DashboardReport) error {
+func WriteHTML(w io.Writer, report DashboardReport, nativeGoRows []NativeGoRow, goOS, goArch, goCPU string) error {
 	// Build unique workload list in order of appearance
 	var workloadNames []string
 	seen := make(map[string]bool)
@@ -62,7 +87,8 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 		return fmt.Sprintf("%d (%.1f MB)", allocs, float64(bytes)/(1024.0*1024.0))
 	}
 
-	var comparisonRows []ComparisonRow
+	var coreRows []ComparisonRow
+	var platformRows []ComparisonRow
 	for _, name := range workloadNames {
 		row := ComparisonRow{
 			WorkloadName:   name,
@@ -77,7 +103,12 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 			if w.Spec.Name == name {
 				impl := w.Implementation
 				p50Str := fmt.Sprintf("%s (±%s)", formatDuration(w.Summary.P50NS), formatDuration(w.Summary.StdDevNS))
-				allocStr := formatAlloc(w.Summary.Allocs, w.Summary.AllocBytes)
+				var allocStr string
+				if impl == "bubbletea" {
+					allocStr = "not_measured"
+				} else {
+					allocStr = formatAlloc(w.Summary.Allocs, w.Summary.AllocBytes)
+				}
 				switch impl {
 				case "limoni":
 					row.LimoniP50 = p50Str
@@ -91,7 +122,16 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 				}
 			}
 		}
-		comparisonRows = append(comparisonRows, row)
+		if isPlatformSpecific(name) {
+			row.IsPlatformSpec = true
+			row.StatusBadgeClass = "badge-warning"
+			row.StatusBadgeText = "PLATFORM SPECIFIC"
+			platformRows = append(platformRows, row)
+		} else {
+			row.StatusBadgeClass = "badge-success"
+			row.StatusBadgeText = "VALID"
+			coreRows = append(coreRows, row)
+		}
 	}
 
 	const page = `<!doctype html>
@@ -140,13 +180,18 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
         .badge {
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
-            font-size: 0.875rem;
+            font-size: 0.75rem;
             font-weight: 600;
             display: inline-block;
+            text-transform: uppercase;
         }
         .badge-success {
             background-color: #059669;
             color: #ecfdf5;
+        }
+        .badge-warning {
+            background-color: #d97706;
+            color: #fef3c7;
         }
         .badge-error {
             background-color: #dc2626;
@@ -161,6 +206,7 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
             padding: 0.75rem 1rem;
             text-align: left;
             border-bottom: 1px solid #334155;
+            font-size: 0.875rem;
         }
         th {
             background-color: #334155;
@@ -176,7 +222,7 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
         }
         .env-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 1rem;
         }
         .env-item {
@@ -191,8 +237,9 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
             margin-bottom: 0.25rem;
         }
         .env-val {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 500;
+            word-break: break-all;
         }
     </style>
 </head>
@@ -202,7 +249,7 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
         
         <!-- Environment & Validation Info -->
         <div class="card">
-            <div class="card-title">Test Environment & Validation Status</div>
+            <div class="card-title">Test Environment & Verification Metadata</div>
             <div class="env-grid">
                 <div class="env-item">
                     <div class="env-label">Validation Status</div>
@@ -226,6 +273,22 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
                     <div class="env-label">Output Mode</div>
                     <div class="env-val">{{.Report.Environment.Output}}</div>
                 </div>
+                <div class="env-item">
+                    <div class="env-label">Git Commit</div>
+                    <div class="env-val" style="font-family: monospace;">{{.Report.Environment.GitCommit}}</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Manifest Hash</div>
+                    <div class="env-val" style="font-family: monospace;">{{.Report.Environment.ManifestHash}}</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Warmup Count</div>
+                    <div class="env-val">{{.Report.Environment.WarmupCount}}</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Build Mode</div>
+                    <div class="env-val">{{.Report.Environment.BuildMode}}</div>
+                </div>
             </div>
             {{if .Report.Warnings}}
             <div style="margin-top: 1rem; color: #facc15; font-size: 0.875rem;">
@@ -239,25 +302,27 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
             {{end}}
         </div>
 
-        <!-- Comparison Matrix Card -->
+        <!-- Core Rendering Comparison Matrix Card -->
         <div class="card">
-            <div class="card-title">Side-by-Side p50 Latency & Allocation Comparison Matrix</div>
+            <div class="card-title">Core Rendering Workloads (Valid Equivalents)</div>
             <table>
                 <thead>
                     <tr>
                         <th>Workload</th>
+                        <th>Status</th>
                         <th>Limoni p50 (StdDev)</th>
-                        <th>Limoni Allocs (Bytes)</th>
+                        <th>Limoni Allocs</th>
                         <th>Bubble Tea p50 (StdDev)</th>
-                        <th>Bubble Tea Allocs (Bytes)</th>
+                        <th>Bubble Tea Allocs</th>
                         <th>Ratatui p50 (StdDev)</th>
-                        <th>Ratatui Allocs (Bytes)</th>
+                        <th>Ratatui Allocs</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {{range .ComparisonRows}}
+                    {{range .CoreRows}}
                     <tr>
                         <td><strong>{{.WorkloadName}}</strong></td>
+                        <td><span class="badge {{.StatusBadgeClass}}">{{.StatusBadgeText}}</span></td>
                         <td class="highlight-limoni">{{.LimoniP50}}</td>
                         <td class="highlight-limoni">{{.LimoniAlloc}}</td>
                         <td>{{.BubbleTeaP50}}</td>
@@ -270,9 +335,74 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
             </table>
         </div>
 
+        <!-- Platform-Specific Comparison Matrix Card -->
+        <div class="card">
+            <div class="card-title">Platform-Specific & Async Scheduling Workloads (For Reference)</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Workload</th>
+                        <th>Status</th>
+                        <th>Limoni p50 (StdDev)</th>
+                        <th>Limoni Allocs</th>
+                        <th>Bubble Tea p50 (StdDev)</th>
+                        <th>Bubble Tea Allocs</th>
+                        <th>Ratatui p50 (StdDev)</th>
+                        <th>Ratatui Allocs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .PlatformRows}}
+                    <tr>
+                        <td><strong>{{.WorkloadName}}</strong></td>
+                        <td><span class="badge {{.StatusBadgeClass}}">{{.StatusBadgeText}}</span></td>
+                        <td class="highlight-limoni">{{.LimoniP50}}</td>
+                        <td class="highlight-limoni">{{.LimoniAlloc}}</td>
+                        <td>{{.BubbleTeaP50}}</td>
+                        <td>{{.BubbleTeaAlloc}}</td>
+                        <td>{{.RatatuiP50}}</td>
+                        <td>{{.RatatuiAlloc}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Go Native Microbenchmarks Card -->
+        {{if .HasNativeGoBench}}
+        <div class="card">
+            <div class="card-title">Native Go Microbenchmarks (go-benchmark.txt)</div>
+            <div style="margin-bottom: 1rem; font-size: 0.85rem; color: #94a3b8;">
+                <strong>Native Host Info:</strong> OS: {{.GoOS}} | Arch: {{.GoArch}} | CPU: {{.GoCPU}}
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Benchmark Name</th>
+                        <th>Iterations</th>
+                        <th>Speed</th>
+                        <th>Allocated Bytes</th>
+                        <th>Allocs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .NativeGoRows}}
+                    <tr>
+                        <td><strong>{{.Name}}</strong></td>
+                        <td>{{.Iterations}}</td>
+                        <td class="highlight-limoni">{{.Speed}}</td>
+                        <td>{{.Bytes}}</td>
+                        <td>{{.Allocs}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{end}}
+
         <!-- Detailed Workload Raw Metrics -->
         <div class="card">
-            <div class="card-title">Detailed Execution Raw Metrics</div>
+            <div class="card-title">Detailed Execution Raw Metrics (All Runtimes)</div>
             <table>
                 <thead>
                     <tr>
@@ -321,8 +451,15 @@ func WriteHTML(w io.Writer, report DashboardReport) error {
 		return err
 	}
 
+	hasNativeGo := len(nativeGoRows) > 0
 	return tmpl.Execute(w, TemplateData{
-		Report:         report,
-		ComparisonRows: comparisonRows,
+		Report:           report,
+		CoreRows:         coreRows,
+		PlatformRows:     platformRows,
+		HasNativeGoBench: hasNativeGo,
+		NativeGoRows:     nativeGoRows,
+		GoOS:             goOS,
+		GoArch:           goArch,
+		GoCPU:            goCPU,
 	})
 }

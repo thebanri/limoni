@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -84,4 +85,51 @@ func CurrentEnvironment(manifestData []byte) Environment {
 		WarmupCount:   10,
 		BuildMode:     buildMode,
 	}
+}
+
+// ValidateReport enforces strict JSON schema correctness, environment metadata
+// completeness, and summary value consistency.
+func ValidateReport(report DashboardReport) error {
+	if report.Implementation == "" {
+		return fmt.Errorf("missing implementation field")
+	}
+	if report.Environment.OS == "" {
+		return fmt.Errorf("missing environment.os field")
+	}
+	if report.Environment.Arch == "" {
+		return fmt.Errorf("missing environment.arch field")
+	}
+	if report.Environment.ManifestHash == "" {
+		return fmt.Errorf("missing environment.manifest_hash field")
+	}
+	if report.Environment.GitCommit == "" {
+		return fmt.Errorf("missing environment.git_commit field")
+	}
+	if report.Environment.RunnerVersion == "" {
+		return fmt.Errorf("missing environment.runner_version field")
+	}
+	if len(report.Workloads) != 12 {
+		return fmt.Errorf("workload count mismatch: got %d, want 12", len(report.Workloads))
+	}
+	for i, w := range report.Workloads {
+		if w.Spec.Name == "" {
+			return fmt.Errorf("workload %d is missing spec.name", i)
+		}
+		if w.Spec.Iterations <= 0 {
+			return fmt.Errorf("workload %q has non-positive spec.iterations: %d", w.Spec.Name, w.Spec.Iterations)
+		}
+		if w.Summary.Frames < w.Spec.Iterations {
+			return fmt.Errorf("workload %q has summary.Frames (%d) < spec.iterations (%d)", w.Spec.Name, w.Summary.Frames, w.Spec.Iterations)
+		}
+		if w.Summary.P50NS < 0 || w.Summary.P95NS < 0 || w.Summary.P99NS < 0 || w.Summary.MinNS < 0 || w.Summary.MaxNS < 0 || w.Summary.MeanNS < 0 || w.Summary.StdDevNS < 0 {
+			return fmt.Errorf("workload %q has negative latency metrics", w.Spec.Name)
+		}
+		if w.Summary.P50NS > w.Summary.P95NS {
+			return fmt.Errorf("workload %q: P50NS (%d) > P95NS (%d)", w.Spec.Name, w.Summary.P50NS, w.Summary.P95NS)
+		}
+		if w.Summary.P95NS > w.Summary.P99NS {
+			return fmt.Errorf("workload %q: P95NS (%d) > P99NS (%d)", w.Spec.Name, w.Summary.P95NS, w.Summary.P99NS)
+		}
+	}
+	return nil
 }
