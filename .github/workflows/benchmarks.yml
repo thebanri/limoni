@@ -64,7 +64,7 @@ jobs:
 
           echo "=== Extracting baseline from main branch ==="
           git fetch origin main || true
-          git show origin/main:benchmark-results/limoni.json > benchmark-results/limoni-baseline.json 2>/dev/null || echo "No baseline file found on main branch"
+          git show origin/main:benchmark-results/limoni-baseline.json > benchmark-results/limoni-baseline.json 2>/dev/null || echo "No baseline file found on main branch"
 
           echo "=== Running regression checks ==="
           if [ -s benchmark-results/limoni-baseline.json ]; then
