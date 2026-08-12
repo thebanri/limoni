@@ -64,9 +64,26 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 
 			// İmleç doğru konumda değilse konumlandır
 			if cursorX != x || cursorY != y {
-				out = appendCursor(out, x, y)
-				cursorX = x
-				cursorY = y
+				if cursorY == y && x > cursorX && (x-cursorX) < 4 {
+					for skipX := cursorX; skipX < x; skipX++ {
+						skipIdx := int(y)*int(width) + int(skipX)
+						skipCell := &front.Content[skipIdx]
+						if skipCell.Style != currentStyle {
+							out, currentStyle = appendStyle(out, currentStyle, skipCell.Style, trueColor, colors256)
+						}
+						if skipCell.Content == ' ' || skipCell.Content == 0 {
+							out = append(out, ' ')
+						} else {
+							out = utf8.AppendRune(out, skipCell.Content)
+						}
+						back.Content[skipIdx] = *skipCell
+					}
+					cursorX = x
+				} else {
+					out = appendCursor(out, x, y)
+					cursorX = x
+					cursorY = y
+				}
 			}
 
 			// Stil güncellenmeli mi?

@@ -216,7 +216,7 @@ func main() {
 		case "native-image-capability":
 			term := testkit.NewTerminal(spec.Width, spec.Height)
 			img := image.NewRGBA(image.Rect(0, 0, 2, 2))
-			imgWidget := widgets.Image{Img: img, Transparent: true}
+			imgWidget := &widgets.Image{Img: img, Transparent: true}
 			rect := cell.NewRect(0, 0, spec.Width, spec.Height)
 			runFn = func() []byte {
 				term.Render(imgWidget, rect)

@@ -1733,7 +1733,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
 				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 0, 255)},
-				Child:          widgets.Image{Img: state.ActiveImg, ForceHalfBlock: true},
+				Child:          &widgets.Image{Img: state.ActiveImg, ForceHalfBlock: true},
 			}
 			f.RenderWidget(imageBlock, sağChunks[0])
 
@@ -2039,7 +2039,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				// Sağ Taraf: Profil resmi
 				avatarBlock := widgets.Block{
 					Borders: widgets.BorderNone,
-					Child:   widgets.Image{Img: state.ActiveImg, CircleMask: true},
+					Child:   &widgets.Image{Img: state.ActiveImg, CircleMask: true},
 				}
 				f.RenderWidget(avatarBlock, helpChunks[1])
 			}

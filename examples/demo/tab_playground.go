@@ -383,7 +383,7 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		borders = widgets.BorderNone
 	}
 	sym := widgets.SymbolsRounded
-	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
+	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
 	drawPlaygroundProfile(f, state, accentColor, parts[1], " PROFİL · VERTICAL ", true, borders, sym)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
@@ -417,7 +417,7 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 
 	// Önce tüm preview alanını sabit opak surface ile kapat; native iRender Modumage
 	// protocol'ünün önceki geniş placement'larından kalan kenarlar görünmesin.
-	f.RenderWidget(widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
+	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 
 	// Izgara checkbox kapalıysa hücre iç border'larını kaldır.
 	borders := widgets.BorderAll
@@ -518,7 +518,7 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 	if c := f.Buffer.Get(profileParts[0].X, profileParts[0].Y); c != nil {
 		profileBackground = c.Style.Bg
 	}
-	f.RenderWidget(widgets.Image{
+	f.RenderWidget(&widgets.Image{
 		Img:        profileImg,
 		CircleMask: circleMask,
 		// Keep the avatar native and below the modal's opaque backdrop and

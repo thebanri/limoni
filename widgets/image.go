@@ -31,13 +31,18 @@ type Image struct {
 	// OpacitySet, Opacity alanının bilinçli olarak ayarlandığını belirtir.
 	// Böylece 0.0 değeri ile varsayılan (belirtilmemiş) değer ayrıştırılır.
 	OpacitySet bool
+
+	// Cache fields
+	lastImg     image.Image
+	lastArea    cell.Rect
+	cachedCells []cell.Cell
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
 // ve resmi çizim çerçevesine (Frame) kaydeder.
 // Eğer hedef terminal görsel protokollerini desteklemiyorsa, Half-Block (U+2584)
 // yöntemiyle doğrudan hücre tamponu üzerine 1x2 çözünürlüklü resim çizer.
-func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
+func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if im.Img == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
 	}
@@ -98,12 +103,32 @@ func (im Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
-func (im Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.Image) {
+func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.Image) {
 	targetW := int(ctx.Area.Width)
 	targetH := int(ctx.Area.Height) * 2
 
+	if im.lastImg == img && im.lastArea == ctx.Area && len(im.cachedCells) == int(ctx.Area.Width)*int(ctx.Area.Height) {
+		idx := 0
+		for cy := uint16(0); cy < ctx.Area.Height; cy++ {
+			for cx := uint16(0); cx < ctx.Area.Width; cx++ {
+				cellX := ctx.Area.X + cx
+				cellY := ctx.Area.Y + cy
+				if c := buf.Get(cellX, cellY); c != nil {
+					*c = im.cachedCells[idx]
+				}
+				idx++
+			}
+		}
+		return
+	}
+
 	resized := graphics.ResizeImage(img, targetW, targetH)
 
+	im.lastImg = img
+	im.lastArea = ctx.Area
+	im.cachedCells = make([]cell.Cell, int(ctx.Area.Width)*int(ctx.Area.Height))
+
+	idx := 0
 	for cy := uint16(0); cy < ctx.Area.Height; cy++ {
 		for cx := uint16(0); cx < ctx.Area.Width; cx++ {
 			// Üst piksel (Background rengi olacak)
@@ -137,14 +162,16 @@ func (im Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.Im
 					c.Style.Fg = fgColor
 					c.Style.Bg = bgColor
 				}
+				im.cachedCells[idx] = *c
 			}
+			idx++
 		}
 	}
 }
 
 // SizeHint, resmin kaplayacağı alanı belirler. Varsayılan olarak kendisine tahsis
 // edilmek istenen maksimum alanı dolduracak şekilde maksimum satır ve sütun boyutunu döner.
-func (im Image) SizeHint(maxArea cell.Rect) (width, height uint16) {
+func (im *Image) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, maxArea.Height
 }
 

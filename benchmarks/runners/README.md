@@ -9,8 +9,8 @@ summary metrics:
   "workloads": [{ "spec": {...}, "summary": {...} }] }
 ```
 
-Every runner must emit the same three workload names (`empty-frame`,
-`text-heavy-120x40`, and `unicode-table`) with at least 20 measured frames.
+Every runner must emit the same 12-workload manifest with
+`output_mode=memory`, `color_mode=truecolor`, and at least 100 measured frames.
 The CI validation step rejects missing implementations, mismatched workload
 counts, or insufficient frame samples.
 

@@ -1,8 +1,32 @@
 package layout
 
 import (
+	"sync"
+
 	"github.com/thebanri/limoni/core/cell"
 )
+
+type ConstraintKey struct {
+	Type  ConstraintType
+	Value uint16
+}
+
+type layoutKey struct {
+	direction   Direction
+	gap         uint16
+	area        cell.Rect
+	constraints [16]ConstraintKey
+	fitSizes    [16]uint16
+	numC        int
+	numF        int
+}
+
+var splitCache = struct {
+	sync.RWMutex
+	m map[layoutKey][]cell.Rect
+}{
+	m: make(map[layoutKey][]cell.Rect),
+}
 
 // Direction, yerleşim elemanlarının dizilim yönünü belirten türdür.
 type Direction uint8
@@ -110,6 +134,36 @@ func (fl FlexLayout) Split(area cell.Rect, fitSizes ...uint16) []cell.Rect {
 	if len(fl.Constraints) == 0 {
 		return nil
 	}
+
+	// Build key
+	var key layoutKey
+	key.direction = fl.Direction
+	key.gap = fl.Gap
+	key.area = area
+	key.numC = len(fl.Constraints)
+	if key.numC > 16 {
+		key.numC = 16
+	}
+	for i := 0; i < key.numC; i++ {
+		key.constraints[i] = ConstraintKey{
+			Type:  fl.Constraints[i].Type,
+			Value: fl.Constraints[i].Value,
+		}
+	}
+	key.numF = len(fitSizes)
+	if key.numF > 16 {
+		key.numF = 16
+	}
+	for i := 0; i < key.numF; i++ {
+		key.fitSizes[i] = fitSizes[i]
+	}
+
+	splitCache.RLock()
+	if val, ok := splitCache.m[key]; ok {
+		splitCache.RUnlock()
+		return val
+	}
+	splitCache.RUnlock()
 
 	// Bölme yönündeki toplam boyutu belirle (Genişlik veya Yükseklik)
 	var totalSize uint16
@@ -302,6 +356,10 @@ func (fl FlexLayout) Split(area cell.Rect, fitSizes ...uint16) []cell.Rect {
 			currY += sz + fl.Gap
 		}
 	}
+
+	splitCache.Lock()
+	splitCache.m[key] = res
+	splitCache.Unlock()
 
 	return res
 }
