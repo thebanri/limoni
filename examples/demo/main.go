@@ -880,8 +880,8 @@ func main() {
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
 						consumesArrow = true
 					}
-				case "demo_slider", "showcase_slider", "avatar_opacity":
-					// Slider tüm yön tuşlarını yutar
+				case "demo_slider", "showcase_slider", "avatar_opacity", "process_table":
+					// Slider ve Tablo tüm yön tuşlarını yutar
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
 						consumesArrow = true
 					}

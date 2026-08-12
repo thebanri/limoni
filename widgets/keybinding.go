@@ -82,7 +82,7 @@ func (km *KeybindingManager) Handle(ev backend.KeyEvent, activeScopes ...string)
 			if kb.Ctrl != ev.Ctrl {
 				continue
 			}
-			if kb.Shift != ev.Shift {
+			if kb.Key != backend.KeyRune && kb.Shift != ev.Shift {
 				continue
 			}
 			if kb.Handler != nil {
