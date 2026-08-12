@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -70,6 +73,9 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if val, ok := msg.(int); ok {
+		m.idx = val
+	}
 	switch m.specName {
 	case "single-cell-update":
 		m.toggle = !m.toggle
@@ -77,10 +83,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if rmsg, ok := msg.(tea.WindowSizeMsg); ok {
 			m.width = rmsg.Width
 			m.height = rmsg.Height
-		}
-	case "async-update-burst":
-		if imsg, ok := msg.(int); ok {
-			m.idx = imsg
 		}
 	}
 	return m, nil
@@ -108,31 +110,55 @@ func (m model) View() string {
 		}
 		return "Y"
 	case "text-heavy-120x40":
-		return "Limoni benchmark ✓ 日本語. Heavy text rendering test for performance analysis."
+		style := lipgloss.NewStyle().
+			Width(120).
+			Height(40).
+			Border(lipgloss.DoubleBorder()).
+			Align(lipgloss.Center)
+		return style.Render("Limoni benchmark ✓ 日本語. Heavy text rendering test for performance analysis.")
 	case "unicode-emoji":
-		return "Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification."
+		style := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Width(80)
+		return style.Render("Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification.")
 	case "table-10000":
-		var b bytes.Buffer
+		offset := m.idx % 9900
+		t := table.New().
+			Border(lipgloss.NormalBorder()).
+			Headers("ID", "Name", "Status")
 		for i := 0; i < 40; i++ {
-			fmt.Fprintf(&b, "%d | process | running\n", i)
+			rowIdx := offset + i
+			t.Row(fmt.Sprintf("%d", rowIdx), "process", "running")
 		}
-		return b.String()
+		return t.Render()
 	case "virtual-1000000":
 		var b bytes.Buffer
+		offset := m.idx % 990000
 		for i := 0; i < 40; i++ {
-			fmt.Fprintf(&b, "#%06d | örnek kayıt %d | viewport cache\n", i, i)
+			rowIdx := offset + i
+			fmt.Fprintf(&b, "#%06d | örnek kayıt %d | viewport cache\n", rowIdx, rowIdx)
 		}
 		return b.String()
 	case "mouse-hit-test":
-		return "Mouse Area"
+		style := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2)
+		return style.Render("Mouse Target Area")
 	case "hundred-layers":
-		return "Layers View"
+		res := "Base Content"
+		for i := 0; i < 100; i++ {
+			res = fmt.Sprintf("Layer %d\n%s", i, res)
+		}
+		return res
 	case "resize":
 		return fmt.Sprintf("Size: %dx%d", m.width, m.height)
 	case "async-update-burst":
 		return fmt.Sprintf("Value: %d", m.idx)
 	case "native-image-capability":
-		return "Image Stub"
+		var b strings.Builder
+		for y := 0; y < 24; y++ {
+			for x := 0; x < 80; x++ {
+				b.WriteString("\x1b[38;2;100;150;200;48;2;50;100;150m▄")
+			}
+			b.WriteByte('\n')
+		}
+		return b.String()
 	default:
 		return m.text
 	}
