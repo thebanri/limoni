@@ -255,7 +255,7 @@ func WriteHTML(w io.Writer, report DashboardReport, nativeGoRows []NativeGoRow, 
                     <div class="env-label">Validation Status</div>
                     <div class="env-val">
                         {{if .Report.Valid}}
-                        <span class="badge badge-success">VALID COMPARISON</span>
+                        <span class="badge badge-success">VALID FOR CORE WORKLOADS</span>
                         {{else}}
                         <span class="badge badge-error">INVALID COMPARISON</span>
                         {{end}}

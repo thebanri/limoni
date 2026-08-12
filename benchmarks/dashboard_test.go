@@ -7,7 +7,7 @@ import (
 )
 
 func TestDashboardWriters(t *testing.T) {
-	report := DashboardReport{Implementation: "limoni", Workloads: []WorkloadReport{{Spec: WorkloadSpec{Name: "empty"}, Summary: Summary{Frames: 1}}}}
+	report := DashboardReport{Implementation: "limoni", Valid: true, Workloads: []WorkloadReport{{Spec: WorkloadSpec{Name: "empty"}, Summary: Summary{Frames: 1}}}}
 	var jsonOut, htmlOut bytes.Buffer
 	if err := WriteJSON(&jsonOut, report); err != nil {
 		t.Fatal(err)
@@ -20,5 +20,8 @@ func TestDashboardWriters(t *testing.T) {
 	}
 	if !strings.Contains(htmlOut.String(), "<th>Implementation</th>") || !strings.Contains(htmlOut.String(), "<th>Allocs</th>") {
 		t.Fatal("dashboard is missing implementation/alloc columns")
+	}
+	if !strings.Contains(htmlOut.String(), "VALID FOR CORE WORKLOADS") {
+		t.Fatal("dashboard is missing core-workload validation status")
 	}
 }

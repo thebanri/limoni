@@ -64,14 +64,16 @@ jobs:
 
           echo "=== Extracting baseline from main branch ==="
           git fetch origin main || true
-          git show origin/main:benchmark-results/limoni-baseline.json > benchmark-results/limoni-baseline.json 2>/dev/null || echo "No baseline file found on main branch"
+          if git cat-file -e origin/main:benchmark-results/limoni-baseline.json 2>/dev/null; then
+            git show origin/main:benchmark-results/limoni-baseline.json > benchmark-results/limoni-baseline.json
+          else
+            echo "No baseline file found on main branch"
+          fi
 
           echo "=== Running regression checks ==="
-          if [ -s benchmark-results/limoni-baseline.json ]; then
-            go run ./benchmarks/runners/compare -baseline benchmark-results/limoni-baseline.json -current benchmark-results/limoni.json
-          else
-            echo "Skipping regression comparison: baseline not available"
-          fi
+          test -s benchmark-results/limoni-baseline.json || (echo "limoni-baseline.json missing or empty" && exit 1)
+          jq empty benchmark-results/limoni-baseline.json || (echo "limoni-baseline.json is invalid JSON" && exit 1)
+          go run ./benchmarks/runners/compare -baseline benchmark-results/limoni-baseline.json -current benchmark-results/limoni.json
 
           echo "=== Validating JSON Implementation & Workloads with jq ==="
           jq -e '.implementation == "limoni" and (.workloads | length > 0)' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
@@ -83,14 +85,28 @@ jobs:
           jq -e 'all(.workloads[]; .spec.output_mode == "memory" and .spec.color_mode == "truecolor" and .spec.iterations >= 100 and .summary.Frames >= 100)' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
           jq -e 'all(.workloads[]; .spec.output_mode == "memory" and .spec.color_mode == "truecolor" and .spec.iterations >= 100 and .summary.Frames >= 100)' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
           jq -e 'all(.workloads[]; .spec.output_mode == "memory" and .spec.color_mode == "truecolor" and .spec.iterations >= 100 and .summary.Frames >= 100)' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
+          jq -e '.environment.manifest_hash != null and .environment.git_commit != null and .environment.runner_version != null' benchmark-results/limoni.json || (cat benchmark-results/limoni.json && exit 1)
+          jq -e '.environment.manifest_hash != null and .environment.git_commit != null and .environment.runner_version != null' benchmark-results/bubbletea.json || (cat benchmark-results/bubbletea.json && exit 1)
+          jq -e '.environment.manifest_hash != null and .environment.git_commit != null and .environment.runner_version != null' benchmark-results/ratatui.json || (cat benchmark-results/ratatui.json && exit 1)
 
       - name: Generate workload schema sample
         run: |
           cat > benchmark-results/README.txt <<'EOF'
           Benchmark artifacts use the workload schema from benchmarks.WorkloadSpec
-          and the summary schema from benchmarks.Summary. Compare implementations
-          only when dimensions, content, output sink, color mode, build and host
-          are equivalent.
+          and the summary schema from benchmarks.Summary.
+
+          Files:
+          - limoni.json, bubbletea.json, ratatui.json: cross-implementation reports
+          - limoni-baseline.json: Limoni regression baseline
+          - go-benchmark.txt: native Go testing.Benchmark output
+          - dashboard.html: generated comparison report
+
+          Reports include manifest_hash, git_commit, runner_version, warmup_count,
+          and build_mode metadata. Compare implementations only when dimensions,
+          content, output sink, color mode, measurement scope, build, host and
+          allocation methodology are equivalent. Platform-specific workloads are
+          reference data, not universal rendering comparisons. A zero-byte or invalid
+          baseline is not usable and must fail validation.
           EOF
 
       - name: Upload benchmark artifacts
