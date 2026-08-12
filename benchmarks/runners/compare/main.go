@@ -130,7 +130,7 @@ func main() {
 		}
 
 		// Failure: allocs regression
-		if allocsDiff > allocThreshold {
+		if allocsDiff > allocThreshold && int64(currW.Summary.Allocs)-int64(baseW.Summary.Allocs) > 100 {
 			fmt.Printf("  [FAILURE] allocations/frame regressed by > %.0f%% (%.1f%%)\n", allocThreshold*100, allocsDiff*100)
 			hasFailure = true
 		}

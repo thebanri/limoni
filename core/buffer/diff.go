@@ -17,10 +17,6 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 		return out, nil
 	}
 
-	if front.StyleCache == nil {
-		front.StyleCache = make(map[cell.Style][]byte)
-	}
-
 	// Hızlı Yol (Fast-Path): Tamponlar tamamen aynıysa hiçbir işlem yapma
 	if front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
 		identical := true
@@ -213,7 +209,6 @@ func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool, 
 
 // appendStyleRaw stildeki değişiklikleri analiz eder ve sadece değişen kısımlar için ANSI kodlarını ekler.
 func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 bool) ([]byte, cell.Style) {
-	target = target.Downsample(trueColor, colors256)
 	if cur == target {
 		return out, cur
 	}
