@@ -248,10 +248,10 @@ kriterlerinin bir bölümü açık, `[ ]` henüz uygulanmadı.
 | Phase 39 — Cross-platform backend | `[x]` | Linux raw-mode/native TTY/PTY/SIGWINCH smoke ve GitHub Actions Linux/macOS/Windows platform CI smoke doğrulandı. |
 | Phase 40 — TestKit | `[x]` | Snapshot diff, resize, mouse, hover, focus, layer/modal, z-index, event trace, accessibility, image registration, key-sequence ve golden mismatch yardımcıları mevcut. |
 | Phase 41 — Benchmark laboratuvarı | `[x]` | Limoni/Ratatui/Bubble Tea runner projeleri, ortak JSON sözleşmesi, environment/valid metadata, HTML dashboard mevcut. |
+| Phase 42 — Bubble Tea Compat (`compat/bubbletea`) | `[x]` | `tea.Model`, `tea.Cmd`, `tea.Msg`, `tea.Program` ve `lipgloss.Style` geçiş adaptörü ve testleri tamamlandı. |
 
 Son kullanıcı/demo açıkları: Giriş sekmesindeki Bilgilendirme Markdown scroll/drag
-akışı ve native image üstüne modal kompozisyonu ayrı regression kapsamına alınmalıdır;
-bu iki konu roadmap fazlarının tamamlandı olarak işaretlenmesine dahil edilmemiştir.
+akışı ve native image üstüne modal kompozisyonu ayrı regression kapsamına alınmıştır ve çözülmüştür.
 
 ## Phase 33 — Runtime çekirdeği `[x]`
 

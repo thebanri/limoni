@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run Tests
+        shell: bash
+        run: go test ./...
+
+      - name: Run Go Vet
+        shell: bash
+        run: go vet ./...
+
+      - name: Race Detection
+        if: runner.os != 'Windows'
+        shell: bash
+        run: go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend ./compat/bubbletea
+
+      - name: Verify Zero-Allocation Benchmarks
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          go test ./benchmarks -run '^$' -bench 'BenchmarkBufferDiff|BenchmarkMarkdownVisualRows' -benchmem
+
+      - name: Build Examples
+        shell: bash
+        run: |
+          go build ./examples/demo
+          go build ./examples/animation
+          go build ./examples/forms
+          go build ./examples/layer_demo

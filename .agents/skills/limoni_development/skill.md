@@ -279,9 +279,14 @@ The following technical decisions and performance requirements **MUST** be prese
    - Capture/target/bubble event propagation APIs (`RegisterEventHandler`, `EventContext`, `StopPropagation`, `PreventDefault`) and their tests were completed.
    - A deterministic text snapshot API (`Buffer.Snapshot`) and a visible-row table benchmark were added.
    - Horizontal grid/header intersections clipping, horizontal scroll offset column resize drag handle coordinates, and a zero-allocation responsive box model solver supporting `ConstraintMin` and `ConstraintMax` were completed.
-3. **Phase 29: Terminal Capabilities and Developer Tooling [ACTIVE]**
+3. **Phase 29: Terminal Capabilities and Developer Tooling [COMPLETED]**
    - Capability profiles for TrueColor, 256 colors, mouse, paste, and graphics.
    - A frame profiler, widget render-time measurements, allocation benchmarks, and a widget showcase.
+4. **Phase 30–41: Runtime Core, Interaction 2.0, Virtual Data, A11y, Benchmarks & Compatibility [COMPLETED]**
+   - `core/runtime`: Elm architecture (Model, Msg, Cmd, Program), message queue, cancellation, and redraw coalescing.
+   - `compat/bubbletea`: Bubble Tea & Lipgloss migration adapter (`Model`, `Cmd`, `Msg`, `Program`, `Style`).
+   - `testkit`: Deterministic testing harness with golden files, snapshots, and event traces.
+   - `benchmarks`: Cross-implementation benchmark suite comparing Limoni, Bubble Tea, and Ratatui.
 
 ## 6. Current File Structure
 
@@ -289,6 +294,8 @@ The following technical decisions and performance requirements **MUST** be prese
 limoni/
 ├── go.mod
 ├── .agents/skills/limoni_development/skill.md  # This handbook
+├── compat/
+│   └── bubbletea/        # Bubble Tea & Lipgloss compatibility adapter (Model, Cmd, Program, Style)
 ├── core/
 │   ├── cell/
 │   │   ├── cell.go       # Cell (16 bytes), Style (12 bytes), Color (uint32)
