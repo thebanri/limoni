@@ -131,6 +131,24 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 			s.SelectedID = flat[0].node.ID
 			return true
 		}
+	case backend.KeyPageDown:
+		next := curIdx + 10
+		if next >= len(flat) {
+			next = len(flat) - 1
+		}
+		if next >= 0 && next < len(flat) {
+			s.SelectedID = flat[next].node.ID
+			return true
+		}
+	case backend.KeyPageUp:
+		prev := curIdx - 10
+		if prev < 0 {
+			prev = 0
+		}
+		if prev < len(flat) {
+			s.SelectedID = flat[prev].node.ID
+			return true
+		}
 	case backend.KeyArrowRight:
 		if curIdx >= 0 && len(flat[curIdx].node.Children) > 0 {
 			if !s.IsExpanded(flat[curIdx].node.ID, flat[curIdx].node.Expanded) {
@@ -172,16 +190,50 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 			s.SelectedID = flat[len(flat)-1].node.ID
 			return true
 		}
+	case backend.KeyRune:
+		switch ev.Ch {
+		case 'j', 'J':
+			if curIdx < len(flat)-1 {
+				s.SelectedID = flat[curIdx+1].node.ID
+				return true
+			}
+		case 'k', 'K':
+			if curIdx > 0 {
+				s.SelectedID = flat[curIdx-1].node.ID
+				return true
+			}
+		case 'l', 'L':
+			if curIdx >= 0 && len(flat[curIdx].node.Children) > 0 {
+				if !s.IsExpanded(flat[curIdx].node.ID, flat[curIdx].node.Expanded) {
+					s.Expand(flat[curIdx].node.ID)
+					return true
+				} else if curIdx < len(flat)-1 {
+					s.SelectedID = flat[curIdx+1].node.ID
+					return true
+				}
+			}
+		case 'h', 'H':
+			if curIdx >= 0 {
+				if len(flat[curIdx].node.Children) > 0 && s.IsExpanded(flat[curIdx].node.ID, flat[curIdx].node.Expanded) {
+					s.Collapse(flat[curIdx].node.ID)
+					return true
+				} else if flat[curIdx].depth > 0 {
+					targetDepth := flat[curIdx].depth - 1
+					for i := curIdx - 1; i >= 0; i-- {
+						if flat[i].depth == targetDepth {
+							s.SelectedID = flat[i].node.ID
+							return true
+						}
+					}
+				}
+			}
+		}
 	}
 	return false
 }
 
 // Flatten produces a visible linear list of nodes based on current expansion state.
 func (s *TreeViewState) Flatten(roots []TreeNode) []flatTreeNode {
-	if s != nil && s.cacheValid && len(s.flatCache) > 0 {
-		return s.flatCache
-	}
-
 	var flat []flatTreeNode
 	var traverse func(nodes []TreeNode, depth int, parentEnd []bool)
 	traverse = func(nodes []TreeNode, depth int, parentEnd []bool) {
@@ -209,11 +261,6 @@ func (s *TreeViewState) Flatten(roots []TreeNode) []flatTreeNode {
 	}
 
 	traverse(roots, 0, nil)
-
-	if s != nil {
-		s.flatCache = flat
-		s.cacheValid = true
-	}
 	return flat
 }
 

@@ -126,10 +126,11 @@ func (tm *ToastManager) Update(now time.Time) {
 
 // Draw renders the active stack of toasts into the buffer.
 func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	if tm == nil || len(tm.Toasts) == 0 || ctx.Area.Width < 20 || ctx.Area.Height < 4 {
+	if tm == nil || len(tm.Toasts) == 0 || ctx.Area.Width < 24 || ctx.Area.Height < 6 {
 		return
 	}
 
+	now := time.Now()
 	maxVis := tm.MaxVisible
 	if maxVis <= 0 {
 		maxVis = 4
@@ -140,63 +141,70 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		active = active[len(active)-maxVis:]
 	}
 
-	toastWidth := uint16(34)
-	if toastWidth > ctx.Area.Width-4 {
-		toastWidth = ctx.Area.Width - 4
+	toastWidth := uint16(38)
+	if toastWidth > ctx.Area.Width-8 {
+		toastWidth = ctx.Area.Width - 8
 	}
 
-	toastHeight := uint16(3)
+	toastHeight := uint16(4)
+	gap := uint16(1)
 
 	for i, t := range active {
 		var startX, startY uint16
 
 		switch tm.Position {
 		case ToastTopRight:
-			startX = ctx.Area.X + ctx.Area.Width - toastWidth - 2
-			startY = ctx.Area.Y + 1 + uint16(i)*(toastHeight+1)
+			startX = ctx.Area.X + ctx.Area.Width - toastWidth - 4
+			startY = ctx.Area.Y + 2 + uint16(i)*(toastHeight+gap)
 		case ToastTopLeft:
-			startX = ctx.Area.X + 2
-			startY = ctx.Area.Y + 1 + uint16(i)*(toastHeight+1)
+			startX = ctx.Area.X + 3
+			startY = ctx.Area.Y + 2 + uint16(i)*(toastHeight+gap)
 		case ToastBottomRight:
-			startX = ctx.Area.X + ctx.Area.Width - toastWidth - 2
-			totalH := uint16(len(active)) * (toastHeight + 1)
-			startY = ctx.Area.Y + ctx.Area.Height - totalH + uint16(i)*(toastHeight+1)
+			startX = ctx.Area.X + ctx.Area.Width - toastWidth - 4
+			totalH := uint16(len(active)) * (toastHeight + gap)
+			startY = ctx.Area.Y + ctx.Area.Height - totalH - 2 + uint16(i)*(toastHeight+gap)
 		case ToastBottomLeft:
-			startX = ctx.Area.X + 2
-			totalH := uint16(len(active)) * (toastHeight + 1)
-			startY = ctx.Area.Y + ctx.Area.Height - totalH + uint16(i)*(toastHeight+1)
+			startX = ctx.Area.X + 3
+			totalH := uint16(len(active)) * (toastHeight + gap)
+			startY = ctx.Area.Y + ctx.Area.Height - totalH - 2 + uint16(i)*(toastHeight+gap)
 		}
 
-		if startY+toastHeight > ctx.Area.Y+ctx.Area.Height {
+		if startY+toastHeight > ctx.Area.Y+ctx.Area.Height-1 {
 			continue
 		}
 
 		borderColor := cell.NewColorRGB(52, 152, 219)
-		icon := "ℹ "
+		badgeBg := cell.NewColorRGB(20, 45, 70)
+		levelText := " ℹ INFO "
 		switch t.Level {
 		case ToastSuccess:
 			borderColor = cell.NewColorRGB(46, 204, 113)
-			icon = "✓ "
+			badgeBg = cell.NewColorRGB(15, 50, 30)
+			levelText = " ✓ SUCCESS "
 		case ToastWarning:
 			borderColor = cell.NewColorRGB(241, 196, 15)
-			icon = "⚠ "
+			badgeBg = cell.NewColorRGB(60, 50, 15)
+			levelText = " ⚠ WARNING "
 		case ToastError:
 			borderColor = cell.NewColorRGB(231, 76, 60)
-			icon = "✕ "
+			badgeBg = cell.NewColorRGB(65, 20, 20)
+			levelText = " ✕ ERROR "
 		}
 
 		toastArea := cell.NewRect(startX, startY, toastWidth, toastHeight)
 		bgStyle := cell.Style{
-			Bg: cell.NewColorRGB(24, 28, 38),
+			Bg: cell.NewColorRGB(18, 22, 32),
 			Fg: cell.NewColorRGB(240, 245, 255),
 		}
 		borderStyle := cell.Style{
 			Fg: borderColor,
-			Bg: cell.NewColorRGB(24, 28, 38),
+			Bg: cell.NewColorRGB(18, 22, 32),
 		}
 
-		// Draw Drop Shadow
-		DrawShadow(buf, toastArea, 2, 1)
+		// Draw Drop Shadow (ensure within buffer bounds)
+		if startX+toastWidth+2 <= ctx.Area.X+ctx.Area.Width {
+			DrawShadow(buf, toastArea, 2, 1)
+		}
 
 		// Draw Toast Block Box
 		block := Block{
@@ -207,22 +215,50 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 		block.Draw(cell.NewContext(toastArea, bgStyle), buf)
 
-		// Draw Icon + Title
-		titleStyle := cell.Style{Fg: borderColor, Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
-		buf.SetString(startX+1, startY+1, icon+t.Title, titleStyle)
+		// Header Badge on Top Border
+		buf.SetString(startX+2, startY, levelText, cell.Style{Fg: borderColor, Bg: badgeBg, Modifier: cell.ModifierBold})
 
-		// Draw Message (if space allows)
-		if t.Message != "" && toastHeight >= 3 {
-			msgX := startX + 1 + uint16(utf8.RuneCountInString(icon+t.Title)) + 1
-			if msgX < startX+toastWidth-2 {
-				msgStyle := cell.Style{Fg: cell.NewColorRGB(180, 190, 205), Bg: bgStyle.Bg}
-				buf.SetString(msgX, startY+1, "- "+t.Message, msgStyle)
+		// Close button "[✕]" on top-right
+		closeStyle := cell.Style{Fg: cell.NewColorRGB(160, 170, 185), Bg: bgStyle.Bg}
+		buf.SetString(startX+toastWidth-3, startY, "✕", closeStyle)
+
+		// Title Line
+		titleStyle := cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
+		titleText := t.Title
+		maxTextW := int(toastWidth) - 4
+		if utf8.RuneCountInString(titleText) > maxTextW {
+			runes := []rune(titleText)
+			titleText = string(runes[:maxTextW-1]) + "…"
+		}
+		buf.SetString(startX+2, startY+1, titleText, titleStyle)
+
+		// Message Line
+		msgStyle := cell.Style{Fg: cell.NewColorRGB(160, 175, 195), Bg: bgStyle.Bg}
+		msgText := t.Message
+		if utf8.RuneCountInString(msgText) > maxTextW {
+			runes := []rune(msgText)
+			msgText = string(runes[:maxTextW-1]) + "…"
+		}
+		buf.SetString(startX+2, startY+2, msgText, msgStyle)
+
+		// Progress / Remaining Time Indicator on Bottom Border
+		if t.Duration > 0 {
+			elapsed := now.Sub(t.CreatedAt)
+			remainRatio := 1.0 - (float64(elapsed) / float64(t.Duration))
+			if remainRatio < 0 {
+				remainRatio = 0
+			}
+			barWidth := int(float64(toastWidth-4) * remainRatio)
+			if barWidth > int(toastWidth-4) {
+				barWidth = int(toastWidth - 4)
+			}
+			for bx := 0; bx < barWidth; bx++ {
+				buf.SetCell(startX+2+uint16(bx), startY+toastHeight-1, cell.Cell{
+					Content: '━',
+					Style:   cell.Style{Fg: borderColor, Bg: bgStyle.Bg},
+				})
 			}
 		}
-
-		// Close button "[x]" on top-right
-		closeStyle := cell.Style{Fg: cell.NewColorRGB(120, 130, 145), Bg: bgStyle.Bg}
-		buf.SetString(startX+toastWidth-4, startY, "✕", closeStyle)
 
 		if ctx.RegisterClick != nil {
 			targetID := t.ID
