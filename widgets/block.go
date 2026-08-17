@@ -333,6 +333,42 @@ func insetRect(area cell.Rect, insets Insets) cell.Rect {
 	}
 }
 
+// Inner returns the usable content area inside the block (accounting for borders, padding, and margins).
+func (b Block) Inner(area cell.Rect) cell.Rect {
+	area = insetRect(area, b.Margin)
+	borders := b.Borders
+	if borders == 0 {
+		borders = BorderAll
+	}
+	var offsetL, offsetR, offsetT, offsetB uint16
+	if (borders & BorderLeft) != 0 {
+		offsetL = 1
+	}
+	if (borders & BorderRight) != 0 {
+		offsetR = 1
+	}
+	if (borders & BorderTop) != 0 {
+		offsetT = 1
+	}
+	if (borders & BorderBottom) != 0 {
+		offsetB = 1
+	}
+	left := offsetL + b.Padding.Left + b.PaddingLeft
+	right := offsetR + b.Padding.Right + b.PaddingRight
+	top := offsetT + b.Padding.Top + b.PaddingTop
+	bottom := offsetB + b.Padding.Bottom + b.PaddingBottom
+
+	if area.Width <= left+right || area.Height <= top+bottom {
+		return cell.Rect{}
+	}
+	return cell.Rect{
+		X:      area.X + left,
+		Y:      area.Y + top,
+		Width:  area.Width - left - right,
+		Height: area.Height - top - bottom,
+	}
+}
+
 // SizeHint, kenarlık, margin ve dolgu paylarını hesaba katarak bu bloğun kaplamak istediği en uygun alanı hesaplar.
 func (b Block) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	var offsetL, offsetR, offsetT, offsetB uint16

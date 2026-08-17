@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !unix && !windows && !js
 
 package backend
 

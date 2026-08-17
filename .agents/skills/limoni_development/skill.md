@@ -349,13 +349,13 @@ Cross-runner evaluation across 12 standard workloads reveals clear architectural
   - [x] `cmd/limoni` scaffold (`limoni init [module] / new <name> / version`, `-force`, `-module`) generating a `runtime.Model` app; generated project verified to `go build`/`go vet` clean.
   - [x] `docs/bubbletea-migration.md` migration guide + `bubbletea.Program.RunTerminal(ctx)` so adapted Bubble Tea models can actually drive a real TTY.
   - [x] `docs/widget-gallery.md` (21 widgets, field-level API tables) generated from source by `internal/tools/widgetdocs`.
-- **PATH 3: Cross-Platform Native Drivers & Remote PTY**
-  - [ ] Complete native macOS/Darwin `termios` ioctl bindings without CGO.
-  - [ ] Implement Windows ConPTY / VT100 backend adapter.
-  - [ ] Add `backend/ssh` for multi-session remote TUI applications.
-- **PATH 4: Advanced WebAssembly & Visual Engines**
-  - [ ] Support `GOOS=js GOARCH=wasm` to run the interactive demo in modern browsers.
-  - [ ] Implement Gouraud/Lambertian shading and depth-sorting optimizations on the Braille 3D Canvas.
+- **PATH 3: Cross-Platform Native Drivers & Remote PTY** — DONE
+  - [x] Complete native macOS/Darwin `termios` ioctl bindings without CGO (`core/backend/termios_darwin.go` & `backend.go`).
+  - [x] Implement Windows ConPTY / VT100 backend adapter (`core/backend/raw_windows.go` & `backend_windows.go`).
+  - [x] Add `backend/ssh` for multi-session remote TUI applications (`core/backend/ssh.go` & `core/backend/ssh_test.go`).
+- **PATH 4: Advanced WebAssembly & Visual Engines** — DONE
+  - [x] Support `GOOS=js GOARCH=wasm` to run the interactive demo in modern browsers (`core/backend/backend_wasm.go`, `examples/wasm`).
+  - [x] Implement Gouraud/Lambertian shading and depth-sorting optimizations on the Braille 3D Canvas (`graphics/shading.go`, `widgets/vector_depth.go`).
 
 ---
 

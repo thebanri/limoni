@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limoni TUI — WebAssembly Browser Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <script src="wasm_exec.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: rgba(22, 27, 34, 0.85);
+      --accent: #58a6ff;
+      --text: #c9d1d9;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: radial-gradient(circle at 50% 20%, #161b22, #0d1117 80%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    h1 span {
+      background: linear-gradient(135deg, #7ee787, #58a6ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.subtitle {
+      font-size: 14px;
+      color: #8b949e;
+    }
+    .terminal-container {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      padding: 12px;
+      width: 100%;
+      max-width: 900px;
+      overflow: hidden;
+    }
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot.red { background: #ff5f56; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #27c93f; }
+    .title-tag {
+      margin-left: auto;
+      font-size: 12px;
+      color: #8b949e;
+      font-family: monospace;
+    }
+    #terminal {
+      width: 100%;
+      height: 520px;
+    }
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #8b949e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #e3b341;
+    }
+    .badge.ready { background: #3fb950; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🍋 <span>Limoni</span> WebAssembly Runner</h1>
+    <p class="subtitle">High-performance Go TUI engine compiled to WebAssembly with zero-alloc diff rendering</p>
+  </header>
+
+  <div class="terminal-container">
+    <div class="terminal-header">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+      <div class="title-tag">xterm.js · 80x24 truecolor</div>
+    </div>
+    <div id="terminal"></div>
+  </div>
+
+  <div class="status">
+    <span class="badge" id="status-badge"></span>
+    <span id="status-text">Loading WebAssembly binary (limoni.wasm)...</span>
+  </div>
+
+  <script>
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontSize: 14,
+      theme: {
+        background: '#010409',
+        foreground: '#c9d1d9',
+      }
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal'));
+    fitAddon.fit();
+
+    window.addEventListener('resize', () => {
+      fitAddon.fit();
+      if (window.__limoni_resize) {
+        window.__limoni_resize(term.cols, term.rows);
+      }
+    });
+
+    // Bridge Go output to xterm
+    window.__limoni_output = function(str) {
+      term.write(str);
+    };
+
+    // Bridge xterm input to Go
+    term.onData(data => {
+      if (window.__limoni_input) {
+        window.__limoni_input(data);
+      }
+    });
+
+    // Initialize Go WebAssembly
+    const go = new Go();
+    const statusText = document.getElementById('status-text');
+    const statusBadge = document.getElementById('status-badge');
+
+    WebAssembly.instantiateStreaming(fetch('limoni.wasm'), go.importObject)
+      .then(result => {
+        statusText.textContent = 'WebAssembly Limoni Engine Running';
+        statusBadge.classList.add('ready');
+        setTimeout(() => {
+          if (window.__limoni_resize) {
+            window.__limoni_resize(term.cols, term.rows);
+          }
+        }, 100);
+        return go.run(result.instance);
+      })
+      .catch(err => {
+        statusText.textContent = 'WASM Load Error: ' + err.message;
+        statusBadge.style.background = '#ff5f56';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>

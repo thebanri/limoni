@@ -56,23 +56,40 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 	style := ctx.Style.Merge(v.Style)
-	// Register the viewport handler before row click regions. The router walks
-	// regions from top to bottom, so row clicks must win over the wheel area
-	// while wheel events still reach this handler.
-	if ctx.RegisterMouse != nil && v.Offset != nil {
+	perRowClick := ctx.RegisterMouse == nil && ctx.RegisterClick != nil
+
+	// Register single mouse handler for viewport scrolling and click routing
+	if ctx.RegisterMouse != nil {
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			max := v.State.Count() - int(ctx.Area.Height)
-			if max < 0 {
-				max = 0
-			}
-			if ev.Button == backend.MouseScrollUp && *v.Offset > 0 {
+			if ev.Button == backend.MouseScrollUp && v.Offset != nil && *v.Offset > 0 {
 				(*v.Offset)--
+				return
 			}
-			if ev.Button == backend.MouseScrollDown && *v.Offset < max {
-				(*v.Offset)++
+			if ev.Button == backend.MouseScrollDown && v.Offset != nil {
+				max := v.State.Count() - int(ctx.Area.Height)
+				if max < 0 {
+					max = 0
+				}
+				if *v.Offset < max {
+					(*v.Offset)++
+				}
+				return
+			}
+			if ev.Button == backend.MouseLeft {
+				relY := int(ev.Y - ctx.Area.Y)
+				if relY >= 0 && relY < visible {
+					targetIdx := first + relY
+					if item, ok := v.State.Row(targetIdx); ok {
+						v.State.Select(item.ID)
+						if v.OnSelect != nil {
+							v.OnSelect(targetIdx, item)
+						}
+					}
+				}
 			}
 		})
 	}
+
 	visualRow := 0
 	for index := first; visualRow < visible; index++ {
 		item, ok := v.State.Row(index)
@@ -94,7 +111,7 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for lineRow := uint16(0); lineRow < height; lineRow++ {
 			buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(visualRow)+lineRow, line, rowStyle)
 		}
-		if ctx.RegisterClick != nil {
+		if perRowClick {
 			id := item.ID
 			rowIndex := index
 			ctx.RegisterClick(cell.NewRect(ctx.Area.X, ctx.Area.Y+uint16(visualRow), ctx.Area.Width, height), func() {
@@ -121,13 +138,26 @@ func virtualRowText(row Row, offset, sticky int) string {
 	if sticky > len(row.Cells) {
 		sticky = len(row.Cells)
 	}
-	parts := make([]string, len(row.Cells))
-	for i, cell := range row.Cells {
-		parts[i] = cell.Text
-	}
+
 	separator := " | "
-	prefix := strings.Join(parts[:sticky], separator)
-	rest := strings.Join(parts[sticky:], separator)
+	var sb strings.Builder
+	for i := 0; i < sticky; i++ {
+		if i > 0 {
+			sb.WriteString(separator)
+		}
+		sb.WriteString(row.Cells[i].Text)
+	}
+	prefix := sb.String()
+
+	sb.Reset()
+	for i := sticky; i < len(row.Cells); i++ {
+		if i > sticky {
+			sb.WriteString(separator)
+		}
+		sb.WriteString(row.Cells[i].Text)
+	}
+	rest := sb.String()
+
 	if offset > 0 {
 		runes := []rune(rest)
 		if offset >= len(runes) {

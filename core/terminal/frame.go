@@ -840,3 +840,12 @@ func (f *Frame) EventTraceEntries() []TraceEntry {
 	copy(entries, f.lastTraceEntries)
 	return entries
 }
+
+// Area returns the total rectangular area of the frame buffer.
+func (f *Frame) Area() cell.Rect {
+	if f == nil || f.Buffer == nil {
+		return cell.Rect{}
+	}
+	return f.Buffer.Area
+}
+
