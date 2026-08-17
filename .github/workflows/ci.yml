@@ -72,8 +72,10 @@ jobs:
       - name: Build Examples
         shell: bash
         run: |
-          go build ./cmd/limoni
-          go build ./examples/demo
-          go build ./examples/animation
-          go build ./examples/forms
-          go build ./examples/layer_demo
+          mkdir -p bin
+          go build -o bin/limoni-cli ./cmd/limoni
+          go build -o bin/demo ./examples/demo
+          go build -o bin/anim ./examples/animation
+          go build -o bin/forms ./examples/forms
+          go build -o bin/layer_demo ./examples/layer_demo
+          GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm

@@ -70,6 +70,60 @@ type TableState struct {
 	SortDescending   bool
 	SelectedRows     map[int]struct{} // Çoklu satır seçimi
 	selectionDirty   bool             // Seçim değiştiğinde görünürlük ayarı gerektiğini belirtir.
+
+	rowsHandler    func(backend.MouseEvent)
+	scrollHandler  func(backend.MouseEvent)
+	lastStartY     uint16
+	lastDrawOffset int
+	lastTotalRows  int
+	lastRowCount   int
+	lastViewportH  int
+	lastTableID    string
+	lastFocusFn    func(string)
+}
+
+func (ts *TableState) initHandlers() {
+	if ts.rowsHandler == nil {
+		ts.rowsHandler = func(ev backend.MouseEvent) {
+			if ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown {
+				ts.handleScroll(ev, ts.lastRowCount, ts.lastViewportH)
+				return
+			}
+			if ev.Button != backend.MouseLeft || ev.Y < ts.lastStartY {
+				return
+			}
+			targetIdx := ts.lastDrawOffset + int(ev.Y-ts.lastStartY)
+			if targetIdx < 0 || targetIdx >= ts.lastTotalRows {
+				return
+			}
+			ts.Select(targetIdx)
+			if ts.lastTableID != "" && ts.lastFocusFn != nil {
+				ts.lastFocusFn(ts.lastTableID)
+			}
+		}
+	}
+	if ts.scrollHandler == nil {
+		ts.scrollHandler = func(ev backend.MouseEvent) {
+			ts.handleScroll(ev, ts.lastRowCount, ts.lastViewportH)
+		}
+	}
+}
+
+func (ts *TableState) handleScroll(ev backend.MouseEvent, rowCount, viewportHeight int) {
+	switch ev.Button {
+	case backend.MouseScrollUp:
+		if ev.Shift {
+			ts.ScrollHorizontal(-2)
+		} else {
+			ts.Scroll(-3, rowCount, viewportHeight)
+		}
+	case backend.MouseScrollDown:
+		if ev.Shift {
+			ts.ScrollHorizontal(2)
+		} else {
+			ts.Scroll(3, rowCount, viewportHeight)
+		}
+	}
 }
 
 type tableDrawScratch struct {
@@ -473,11 +527,11 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	if ctx.RegisterMouse != nil {
+	if ctx.RegisterMouse != nil && t.State != nil {
 		t.registerScrollHandlers(ctx, rowCount)
 		t.registerResizeHandlers(ctx, widths, colsCount, sticky, stickyWidth)
 	}
-	if ctx.RegisterClick != nil {
+	if ctx.RegisterClick != nil && t.SortEnabled && t.Header != nil && t.State != nil {
 		t.registerSortHandlers(ctx, widths, colsCount)
 	}
 
@@ -710,7 +764,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		drawnRows++
 	}
 
-	if !perRowClick && drawnRows > 0 && ctx.RegisterMouse != nil {
+	if !perRowClick && drawnRows > 0 && ctx.RegisterMouse != nil && (t.State != nil || (t.ID != "" && ctx.SetFocus != nil)) {
 		t.registerRowsBlockHandler(ctx, cell.NewRect(ctx.Area.X, rowsStartY, ctx.Area.Width, drawnRows), rowsStartY, drawOffset, totalRows, rowCount)
 	}
 
@@ -754,9 +808,10 @@ func (t Table) registerScrollHandlers(ctx cell.Context, rowCount int) {
 	if t.State == nil || ctx.RegisterMouse == nil {
 		return
 	}
-	ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-		t.applyScroll(ev, rowCount, int(ctx.Area.Height))
-	})
+	t.State.initHandlers()
+	t.State.lastRowCount = rowCount
+	t.State.lastViewportH = int(ctx.Area.Height)
+	ctx.RegisterMouse(ctx.Area, t.State.scrollHandler)
 }
 
 // applyScroll, fare tekerleği olaylarını dikey/yatay kaydırmaya çevirir.
@@ -764,20 +819,7 @@ func (t Table) applyScroll(ev backend.MouseEvent, rowCount, viewportHeight int) 
 	if t.State == nil {
 		return
 	}
-	switch ev.Button {
-	case backend.MouseScrollUp:
-		if ev.Shift {
-			t.State.ScrollHorizontal(-2)
-		} else {
-			t.State.Scroll(-3, rowCount, viewportHeight)
-		}
-	case backend.MouseScrollDown:
-		if ev.Shift {
-			t.State.ScrollHorizontal(2)
-		} else {
-			t.State.Scroll(3, rowCount, viewportHeight)
-		}
-	}
+	t.State.handleScroll(ev, rowCount, viewportHeight)
 }
 
 // registerRowsBlockHandler, görünür satırların tamamını tek bir fare bölgesi olarak kaydeder.
@@ -787,22 +829,23 @@ func (t Table) registerRowsBlockHandler(ctx cell.Context, rowsArea cell.Rect, ro
 	if ctx.RegisterMouse == nil {
 		return
 	}
+	if t.State == nil && (t.ID == "" || ctx.SetFocus == nil) {
+		return
+	}
+	if t.State != nil {
+		t.State.initHandlers()
+		t.State.lastStartY = rowsStartY
+		t.State.lastDrawOffset = drawOffset
+		t.State.lastTotalRows = totalRows
+		t.State.lastRowCount = rowCount
+		t.State.lastViewportH = int(ctx.Area.Height)
+		t.State.lastTableID = t.ID
+		t.State.lastFocusFn = ctx.SetFocus
+		ctx.RegisterMouse(rowsArea, t.State.rowsHandler)
+		return
+	}
 	ctx.RegisterMouse(rowsArea, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown {
-			t.applyScroll(ev, rowCount, int(ctx.Area.Height))
-			return
-		}
-		if ev.Button != backend.MouseLeft || ev.Y < rowsStartY {
-			return
-		}
-		targetIdx := drawOffset + int(ev.Y-rowsStartY)
-		if targetIdx < 0 || targetIdx >= totalRows {
-			return
-		}
-		if t.State != nil {
-			t.State.Select(targetIdx)
-		}
-		if t.ID != "" && ctx.SetFocus != nil {
+		if ev.Button == backend.MouseLeft && t.ID != "" && ctx.SetFocus != nil {
 			ctx.SetFocus(t.ID)
 		}
 	})

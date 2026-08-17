@@ -603,6 +603,8 @@ func main() {
 	registerGraphicKey('4', "Render Stili: Dokulu", func() { state.ThreeDStyle = "Dokulu" })
 	registerGraphicKey('5', "Render Stili: Dolu Renkli", func() { state.ThreeDStyle = "Dolu Renkli" })
 	registerGraphicKey('6', "Render Stili: Kafes", func() { state.ThreeDStyle = "Kafes" })
+	registerGraphicKey('7', "Render Stili: Gölgeli (Lambertian)", func() { state.ThreeDStyle = "Gölgeli" })
+	registerGraphicKey('8', "Render Stili: Gouraud Shaded", func() { state.ThreeDStyle = "Gouraud" })
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: '+', Scope: "playground",
 		Label: "Playground Oranını Artır", Category: "Playground",
@@ -705,6 +707,10 @@ func main() {
 			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dolu Renkli" }},
 		widgets.CommandItem{Label: "Render Stili: Kafes", Detail: "6", Category: "3D Grafik",
 			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Kafes" }},
+		widgets.CommandItem{Label: "Render Stili: Gölgeli (Lambertian)", Detail: "7", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Gölgeli" }},
+		widgets.CommandItem{Label: "Render Stili: Gouraud Shaded", Detail: "8", Category: "3D Grafik",
+			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Gouraud" }},
 	)
 
 	// KeybindingManager'dan otomatik olarak kısayol komutlarını da ekle
@@ -1560,6 +1566,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					}
 				}
 
+				rotated := make([]graphics.Vertex3D, len(vertices))
 				projected := make([]struct {
 					x, y    int
 					z       float64
@@ -1574,6 +1581,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					v = v.RotateY(state.RotY)
 					v = v.RotateX(state.RotX)
 					v = v.RotateZ(state.RotZ)
+					rotated[i] = v
 
 					// Projeksiyon (Mesafe: 3.5, Ölçek: canvas yüksekliğinin %40'ı)
 					scale := canvasH * 0.40
@@ -1705,6 +1713,66 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 									p0.z, p1.z, p2.z, faceStyle,
 								)
 							}
+						} else if state.ThreeDStyle == "Gölgeli" {
+							col := faceColors[faceIdx%len(faceColors)]
+							if state.OBJModel != nil && faceIdx < len(state.OBJModel.FaceMaterials) {
+								if material, ok := state.OBJModel.Materials[state.OBJModel.FaceMaterials[faceIdx]]; ok {
+									col = cell.NewColorRGB(material.R, material.G, material.B)
+								}
+							}
+							faceStyle := cell.Style{Fg: col}
+							light := graphics.DefaultLight()
+							v0, v1, v2 := rotated[face[0]], rotated[face[1]], rotated[face[2]]
+							norm0 := graphics.CalculateNormal(v0, v1, v2)
+							if isQuad {
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, norm0, light, faceStyle,
+								)
+								v3 := rotated[face[3]]
+								norm1 := graphics.CalculateNormal(v0, v2, v3)
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									p0.z, p2.z, p3.z, norm1, light, faceStyle,
+								)
+							} else {
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, norm0, light, faceStyle,
+								)
+							}
+						} else if state.ThreeDStyle == "Gouraud" {
+							c0 := cell.NewColorRGB(255, 60, 60)
+							c1 := cell.NewColorRGB(60, 255, 60)
+							c2 := cell.NewColorRGB(60, 60, 255)
+							c3 := cell.NewColorRGB(255, 255, 60)
+							if isQuad {
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, c0, c1, c2, cell.Style{},
+								)
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									p0.z, p2.z, p3.z, c0, c2, c3, cell.Style{},
+								)
+							} else {
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, c0, c1, c2, cell.Style{},
+								)
+							}
 						}
 
 						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin görünmesini engeller)
@@ -1766,16 +1834,26 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			if state.ThreeDStyle == "Kafes" {
 				kafesLabel = " 🟢 [6] Kafes (Aktif) "
 			}
+			lambertLabel := " [7] Gölgeli (Lambertian) "
+			if state.ThreeDStyle == "Gölgeli" {
+				lambertLabel = " 🟢 [7] Gölgeli (Aktif) "
+			}
+			gouraudLabel := " [8] Gouraud Shaded "
+			if state.ThreeDStyle == "Gouraud" {
+				gouraudLabel = " 🟢 [8] Gouraud (Aktif) "
+			}
 			var ctrlLines []string
 			ctrlLines = append(ctrlLines, "Model Seçimi (Klavye 1-3):")
 			ctrlLines = append(ctrlLines, "  "+modelLabel)
 			ctrlLines = append(ctrlLines, "  "+piramitLabel)
 			ctrlLines = append(ctrlLines, "  "+dortyuzluLabel)
 			ctrlLines = append(ctrlLines, "")
-			ctrlLines = append(ctrlLines, "Render Stili (Klavye 4-6):")
+			ctrlLines = append(ctrlLines, "Render Stili (Klavye 4-8):")
 			ctrlLines = append(ctrlLines, "  "+dokuluLabel)
 			ctrlLines = append(ctrlLines, "  "+doluLabel)
 			ctrlLines = append(ctrlLines, "  "+kafesLabel)
+			ctrlLines = append(ctrlLines, "  "+lambertLabel)
+			ctrlLines = append(ctrlLines, "  "+gouraudLabel)
 			ctrlLines = append(ctrlLines, "")
 			ctrlLines = append(ctrlLines, "💡 Sürükleyerek 3D uzayda döndürün.")
 

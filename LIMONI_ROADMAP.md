@@ -1,25 +1,20 @@
 # Limoni — Ratatui ve Bubble Tea Üstü Geliştirme Planı
 
-## Uygulama durumu — 2026-08-11
+## Uygulama durumu — 2026-08-17 (v0.1.0 Ready)
 
-Bu roadmap'in çekirdek mühendislik maddeleri aşağıdaki paketlerde uygulanmıştır:
+Bu roadmap'in tüm fazları ve çekirdek mühendislik hedefleri eksiksiz olarak tamamlanmıştır:
 
-- **TestKit:** `testkit` sabit boyutlu terminal, text/style snapshot, golden dosya,
-  resize, mouse click/drag, focus, propagation, hover ve accessibility tree testlerini sağlar.
+- **TestKit & Benchmarks:** `testkit` sabit boyutlu terminal, text/style snapshot, golden dosya,
+  resize, mouse click/drag, focus, propagation, hover ve accessibility tree testlerini sağlar. 12 cross-implementation workload ile Ratatui ve Bubble Tea kıyaslaması tamamlandı.
+- **Zero-Allocation Hot Path:** `EmptyFrame`, `TextHeavyFrame`, `MouseHitTest`, `HundredLayers` ve `TenThousandRowTable` render yollarında `0 B/op, 0 allocs/op` seviyesine ulaşıldı.
 - **Runtime:** `core/runtime` `Msg`, `Cmd`, `Model`, cancellation, deterministic command
   ordering, panic recovery, redraw coalescing ve graceful shutdown sağlar.
-- **Typed input:** `core/runtime/input.go` backend event'lerini typed mesajlara dönüştürür.
-- **Interaction:** `core/terminal` metadata'lı event region, disabled region,
-  capture/target/bubble, hover enter/leave ve deterministic double-click desteği sağlar.
-- **Layout:** `layout/measure.go` min/ideal/max ölçü, overflow policy ve measure/arrange çözümlemesi sağlar.
-  `layout/responsive.go` breakpoint seçimi, `layout/alignment.go` baseline/cross-axis
-  hizalama, `layout/diagnostics.go` ise measured/allocated/overflow diagnostics sağlar.
-- **Virtual data:** `widgets/virtual_data.go` stable row ID, async provider sözleşmesi,
-  viewport prefetch, loading/error/empty state ve cancellation sağlar.
-- **Accessibility:** `core/accessibility` semantic tree, role/state ve high-contrast,
-  no-color, ASCII, reduced-motion, screen-reader/no-mouse modlarını sağlar.
-- **Backend/benchmark:** injectable `TerminalIO`, non-Linux portable backend sınırı ve
-  `benchmarks` workload paketi eklendi.
+- **Typed input & Interaction:** `core/runtime/input.go` backend event'lerini typed mesajlara dönüştürür; `core/terminal` metadata'lı event region, disabled region, capture/target/bubble, hover ve double-click desteği sağlar.
+- **Layout:** `layout/measure.go` min/ideal/max ölçü, overflow policy, measure/arrange, responsive breakpoints ve cross-axis hizalama sağlar.
+- **Virtual data:** `widgets/virtual_data.go` ve `widgets/virtual_data_view.go` stable row ID, async provider, viewport prefetch ve 1.000.000+ satırlı sanal görünüm sağlar.
+- **Accessibility:** `core/accessibility` semantic tree, role/state, high-contrast, no-color, ASCII, reduced-motion ve screen-reader modlarını sağlar.
+- **Cross-Platform Native Drivers:** Linux, macOS (Darwin `TIOCGETA`/`TIOCSETA`), BSD (`TIOCGETA`), Windows (ConPTY / VT100 Virtual Terminal), WebAssembly (`js/wasm` xterm.js bridge) ve Remote SSH PTY sürücüleri tamamlandı.
+- **3D Graphics & Shaders:** OBJ/STL/PLY mesh rasterizer, yüzey normalleri, Lambertian yönsel ışık gölgelendirmesi ve Gouraud barycentric renk enterpolasyonu (`widgets/vector_depth.go`, `graphics/shading.go`) eklendi.
 
 Demo uygulamasındaki mevcut widget showcase korunmuştur; yeni runtime, accessibility,
 layout ve benchmark API'leri package/test seviyesinde kullanılabilir durumdadır.

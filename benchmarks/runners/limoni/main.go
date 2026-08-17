@@ -152,7 +152,7 @@ func main() {
 			for i := range rows {
 				rows[i] = widgets.NewRow(fmt.Sprintf("%d", i), "process", "running")
 			}
-			table := widgets.Table{
+			table := &widgets.Table{
 				Rows: rows,
 				Constraints: []widgets.TableConstraint{
 					{Type: widgets.ConstraintFixed, Value: 8},

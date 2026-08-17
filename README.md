@@ -85,7 +85,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/runtime"
 	"github.com/thebanri/limoni/core/terminal"
@@ -96,53 +95,51 @@ type AppModel struct {
 	count int
 }
 
-func (m *AppModel) Init() runtime.Cmd {
+func (m *AppModel) Init() []runtime.Cmd {
 	return nil
 }
 
-func (m *AppModel) Update(msg runtime.Msg) (runtime.Model, runtime.Cmd) {
+func (m *AppModel) Update(msg runtime.Msg) runtime.UpdateResult {
 	switch msg := msg.(type) {
-	case terminal.KeyEvent:
-		switch msg.Key {
-		case terminal.KeyRune:
-			if msg.Rune == '+' {
-				m.count++
-			} else if msg.Rune == '-' {
-				m.count--
-			}
-		case terminal.KeyEsc:
-			return m, runtime.Quit
+	case runtime.KeyPressMsg:
+		if msg.Key.Ch == '+' {
+			m.count++
+			return runtime.UpdateResult{Redraw: true}
+		} else if msg.Key.Ch == '-' {
+			m.count--
+			return runtime.UpdateResult{Redraw: true}
+		} else if msg.Key.Ch == 'q' {
+			return runtime.UpdateResult{Quit: true}
 		}
 	}
-	return m, nil
+	return runtime.UpdateResult{}
 }
 
-func (m *AppModel) View(ctx *cell.RenderContext) {
-	// Create stylized block container
-	block := widgets.NewBlock().
-		SetTitle(" 🍋 Limoni Quickstart ").
-		SetBorder(widgets.BorderRounded).
-		SetBorderColor(cell.NewColorRGB(255, 215, 0))
+func (m *AppModel) View(frame *terminal.Frame) {
+	area := frame.Area()
+	block := widgets.Block{
+		Title:       " 🍋 Limoni Quickstart ",
+		BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 215, 0)},
+		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
+	}
+	frame.RenderWidget(block, area)
 
-	block.Render(ctx, ctx.Area)
-
-	// Inner content area
-	inner := block.Inner(ctx.Area)
-	text := fmt.Sprintf("Counter: %d  (Press '+' / '-' to change, ESC to quit)", m.count)
-	
-	paragraph := widgets.NewParagraph().
-		SetText(text).
-		SetStyle(cell.Style{Fg: cell.NewColorRGB(200, 240, 255)})
-
-	paragraph.Render(ctx, inner)
+	inner := block.Inner(area)
+	text := fmt.Sprintf("Counter: %d  (Press '+' / '-' to change, 'q' to quit)", m.count)
+	p := &widgets.Paragraph{
+		Text:  text,
+		Style: cell.Style{Fg: cell.NewColorRGB(200, 240, 255)},
+	}
+	frame.RenderWidget(p, inner)
 }
 
 func main() {
-	term := terminal.NewTerminal(terminal.DefaultCapabilities())
-	b := backend.NewBackend()
-	prog := runtime.NewProgram(&AppModel{})
+	app := runtime.New(
+		runtime.WithModel(&AppModel{}),
+		runtime.WithFPS(60),
+	)
 
-	if err := prog.RunTerminal(context.Background(), term, b); err != nil {
+	if err := app.Run(context.Background()); err != nil {
 		panic(err)
 	}
 }
@@ -160,7 +157,7 @@ Limoni comes with an extensive suite of production-ready widgets:
 | **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `Sparkline`, `ProgressBar`, `RichText` |
 | **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider` |
 | **Navigation & Search**| `CommandPalette`, `FuzzySearch (FZF-style)`, `Tabs`, `KeybindingManager` |
-| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY)`, `Image (Chafa-style ANSI)` |
+| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
 | **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting` |
 
 ---
@@ -199,7 +196,7 @@ Limoni comes with an extensive suite of production-ready widgets:
                                           │ Direct Write
                                           ▼
                       ┌────────────────────────────────────────┐
-                      │              Terminal TTY              │
+                      │   Terminal TTY / Windows / macOS / SSH │
                       └────────────────────────────────────────┘
 ```
 
@@ -212,10 +209,10 @@ Limoni includes a standardized cross-implementation benchmark suite comparing na
 Run benchmarks locally:
 ```bash
 # Run Go Limoni Benchmark
-go run ./benchmarks/runners/limoni
+go test ./benchmarks -run '^$' -bench . -benchmem
 
 # Generate HTML Comparison Dashboard
-go run ./benchmarks/runners/dashboard
+go run ./benchmarks/runners/dashboard -output benchmark-results/dashboard.html benchmark-results/limoni.json benchmark-results/bubbletea.json benchmark-results/ratatui.json
 ```
 
 *Results from 120x40 standard viewport tests:*
@@ -229,7 +226,8 @@ go run ./benchmarks/runners/dashboard
 
 Explore runnable demo applications inside the [`examples/`](./examples) directory:
 
-- **[`examples/demo`](./examples/demo)**: Feature-rich interactive showcase featuring 3D mesh rendering, live system monitoring, matrix rain, and interactive tabs.
+- **[`examples/demo`](./examples/demo)**: Feature-rich interactive showcase featuring 3D mesh rendering (OBJ/STL/PLY with Lambertian/Gouraud shaders), live system monitoring, matrix rain, and interactive tabs.
+- **[`examples/wasm`](./examples/wasm)**: WebAssembly in-browser TUI running with xterm.js bridge and real-time 3D animation.
 - **[`examples/animation`](./examples/animation)**: Smooth 60 FPS transitions and easing demos.
 - **[`examples/forms`](./examples/forms)**: Complete input validation, text areas, radios, and sliders.
 - **[`examples/layer_demo`](./examples/layer_demo)**: Floating modals, popups, and layered depth buffers.

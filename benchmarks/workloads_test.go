@@ -35,7 +35,7 @@ func BenchmarkTenThousandRowTable(b *testing.B) {
 	for i := range rows {
 		rows[i] = widgets.NewRow(fmt.Sprintf("%d", i), "process", "running")
 	}
-	table := widgets.Table{Rows: rows, Constraints: []widgets.TableConstraint{{Type: widgets.ConstraintFixed, Value: 8}, {Type: widgets.ConstraintPercentage, Value: 40}, {Type: widgets.ConstraintFill}}, DrawGrid: true}
+	table := &widgets.Table{Rows: rows, Constraints: []widgets.TableConstraint{{Type: widgets.ConstraintFixed, Value: 8}, {Type: widgets.ConstraintPercentage, Value: 40}, {Type: widgets.ConstraintFill}}, DrawGrid: true}
 	term := testkit.NewTerminal(120, 40)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
