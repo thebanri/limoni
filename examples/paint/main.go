@@ -758,10 +758,10 @@ func main() {
 				Child:   text{value: footerText, style: cell.Style{Fg: cell.NewColorRGB(140, 145, 160), Modifier: cell.ModifierBold}},
 			}, chunks[3])
 
-			// 5. OFFICIAL LIMONI COLOR PICKER MODAL
+			// 5. OFFICIAL LIMONI 2D KDE-STYLE COLOR PICKER MODAL
 			if app.ShowModal {
 				modalW := uint16(54)
-				modalH := uint16(15)
+				modalH := uint16(14)
 				modalArea := terminal.CenterRect(area, modalW, modalH)
 
 				// Draw Drop Shadow
@@ -774,12 +774,12 @@ func main() {
 				f.BeginLayer("color_modal")
 
 				pickerBlock := widgets.Block{
-					Title:         " 🎨 COLOR PICKER (Tab: Palette/RGB/Hex | Enter: Apply) ",
+					Title:         " 🎨 KDE-STYLE 2D COLOR PICKER (Drag/Click to Select | Enter: OK) ",
 					Borders:       widgets.BorderAll,
 					BorderSymbols: widgets.SymbolsRounded,
 					BorderStyle:   cell.Style{Fg: accentCol, Modifier: cell.ModifierBold},
 					Style:         cell.Style{Bg: cell.NewColorRGB(18, 22, 32)},
-					PaddingLeft:   2,
+					PaddingLeft:   1,
 					PaddingTop:    1,
 				}
 				f.RenderWidget(pickerBlock, modalArea)
