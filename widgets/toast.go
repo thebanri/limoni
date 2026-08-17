@@ -5,6 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -42,10 +43,16 @@ type ToastItem struct {
 
 // ToastManager manages a stack of auto-dismissing toast notifications.
 type ToastManager struct {
-	Toasts     []*ToastItem
-	Position   ToastPosition
-	MaxVisible int
-	nextID     int
+	Toasts        []*ToastItem
+	Position      ToastPosition
+	MaxVisible    int
+	nextID        int
+	renderedRects []toastRect
+}
+
+type toastRect struct {
+	id   string
+	rect cell.Rect
 }
 
 // NewToastManager creates an initialized notification manager.
@@ -126,7 +133,11 @@ func (tm *ToastManager) Update(now time.Time) {
 
 // Draw renders the active stack of toasts into the buffer.
 func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	if tm == nil || len(tm.Toasts) == 0 || ctx.Area.Width < 24 || ctx.Area.Height < 6 {
+	if tm == nil {
+		return
+	}
+	tm.renderedRects = tm.renderedRects[:0]
+	if len(tm.Toasts) == 0 || ctx.Area.Width < 24 || ctx.Area.Height < 6 {
 		return
 	}
 
@@ -260,6 +271,11 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
+		tm.renderedRects = append(tm.renderedRects, toastRect{
+			id:   t.ID,
+			rect: toastArea,
+		})
+
 		if ctx.RegisterClick != nil {
 			targetID := t.ID
 			ctx.RegisterClick(toastArea, func() {
@@ -267,4 +283,26 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			})
 		}
 	}
+}
+
+// HandleMouse processes mouse clicks on toast notification cards and close buttons.
+func (tm *ToastManager) HandleMouse(m backend.MouseEvent) bool {
+	if tm == nil || len(tm.Toasts) == 0 {
+		return false
+	}
+	if m.Button == backend.MouseLeft {
+		for _, r := range tm.renderedRects {
+			if m.X >= r.rect.X && m.X < r.rect.X+r.rect.Width &&
+				m.Y >= r.rect.Y && m.Y < r.rect.Y+r.rect.Height {
+				tm.Dismiss(r.id)
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SizeHint returns the preferred dimensions for ToastManager.
+func (tm *ToastManager) SizeHint(maxArea cell.Rect) (uint16, uint16) {
+	return maxArea.Width, maxArea.Height
 }

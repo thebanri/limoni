@@ -88,7 +88,7 @@ func main() {
 
 			// Render active toasts with drop shadow
 			toastMgr.Update(time.Now())
-			toastMgr.Draw(cell.NewContext(area, cell.Style{}), f.Buffer)
+			f.RenderWidget(toastMgr, area)
 		})
 	}
 
@@ -131,8 +131,12 @@ func main() {
 					return
 				}
 			case backend.EventMouse:
-				t.RouteMouseEvent(ev.Mouse)
-				draw()
+				if toastMgr.HandleMouse(ev.Mouse) {
+					draw()
+				} else {
+					t.RouteMouseEvent(ev.Mouse)
+					draw()
+				}
 			case backend.EventResize:
 				draw()
 			}
