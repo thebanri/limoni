@@ -303,29 +303,61 @@ func main() {
 			}, chunks[0])
 
 			// 2. MAIN 3-PANEL BODY: Sidebar (20%) + File List (45%) + Code Preview (35%)
-			cols := layout.HBox(chunks[1], layout.Percentage(22), layout.Percentage(45), layout.Percentage(33))
+			colW0 := chunks[1].Width * 20 / 100
+			colW1 := chunks[1].Width * 45 / 100
+			colW2 := chunks[1].Width - colW0 - colW1
+			if colW0 < 16 {
+				colW0 = 16
+			}
+			if colW2 < 20 {
+				colW2 = 20
+			}
+			if colW0+colW1+colW2 > chunks[1].Width {
+				colW1 = chunks[1].Width - colW0 - colW2
+			}
+
+			cols := []cell.Rect{
+				cell.NewRect(chunks[1].X, chunks[1].Y, colW0, chunks[1].Height),
+				cell.NewRect(chunks[1].X+colW0, chunks[1].Y, colW1, chunks[1].Height),
+				cell.NewRect(chunks[1].X+colW0+colW1, chunks[1].Y, colW2, chunks[1].Height),
+			}
 			sideRect = cols[0]
 			listRect = cols[1]
 
 			// PANEL 1: SIDEBAR & PINNED BOOKMARKS
 			f.RenderWidget(widgets.Block{
-				Title:         " 📌 PINNED LOCATIONS ",
+				Title:         " 📌 PINNED ",
 				Borders:       widgets.BorderAll,
 				BorderSymbols: widgets.SymbolsRounded,
 				BorderStyle:   cell.Style{Fg: borderCard},
 				Style:         cell.Style{Bg: bgCard},
 			}, cols[0])
 
+			// Fill Sidebar background
+			for y := cols[0].Y + 1; y < cols[0].Y+cols[0].Height-1; y++ {
+				for x := cols[0].X + 1; x < cols[0].X+cols[0].Width-1; x++ {
+					if c := f.Buffer.Get(x, y); c != nil {
+						c.Content = ' '
+						c.Style = cell.Style{Bg: bgCard}
+					}
+				}
+			}
+
 			sideInnerY := cols[0].Y + 1
 			for _, bm := range state.Bookmarks {
 				if sideInnerY >= cols[0].Y+cols[0].Height-1 {
 					break
 				}
-				bmStyle := cell.Style{Fg: cell.NewColorRGB(170, 180, 200)}
+				bmStyle := cell.Style{Fg: cell.NewColorRGB(170, 180, 200), Bg: bgCard}
 				if state.CurrentDir == bm.Path {
-					bmStyle = cell.Style{Fg: cell.NewColorRGB(0, 255, 180), Modifier: cell.ModifierBold}
+					bmStyle = cell.Style{Fg: cell.NewColorRGB(0, 255, 180), Bg: bgCard, Modifier: cell.ModifierBold}
 				}
-				f.Buffer.SetString(cols[0].X+2, sideInnerY, fmt.Sprintf("[%c] %s %s", bm.Key, bm.Icon, bm.Name), bmStyle)
+				maxBmW := int(cols[0].Width) - 4
+				bmText := fmt.Sprintf("[%c] %s %s", bm.Key, bm.Icon, bm.Name)
+				if len([]rune(bmText)) > maxBmW && maxBmW > 0 {
+					bmText = string([]rune(bmText)[:maxBmW])
+				}
+				f.Buffer.SetString(cols[0].X+2, sideInnerY, bmText, bmStyle)
 				sideInnerY++
 			}
 
@@ -335,7 +367,7 @@ func main() {
 				fileListBorder = cell.NewColorRGB(0, 220, 255)
 			}
 			f.RenderWidget(widgets.Block{
-				Title:         fmt.Sprintf(" 📁 DIRECTORY CONTENTS (%d) ", len(state.Items)),
+				Title:         fmt.Sprintf(" 📁 CONTENTS (%d) ", len(state.Items)),
 				Borders:       widgets.BorderAll,
 				BorderSymbols: widgets.SymbolsRounded,
 				BorderStyle:   cell.Style{Fg: fileListBorder},
@@ -359,11 +391,19 @@ func main() {
 
 			for row := 0; row < listH; row++ {
 				idx := state.ScrollOffset + row
-				if idx >= len(state.Items) {
-					break
-				}
-				item := state.Items[idx]
 				rowY := cols[1].Y + 1 + uint16(row)
+
+				if idx >= len(state.Items) {
+					for x := cols[1].X + 1; x < cols[1].X+cols[1].Width-1; x++ {
+						if c := f.Buffer.Get(x, rowY); c != nil {
+							c.Content = ' '
+							c.Style = cell.Style{Bg: bgCard}
+						}
+					}
+					continue
+				}
+
+				item := state.Items[idx]
 				isSel := idx == state.SelectedIndex
 
 				rowBg := bgCard
@@ -420,9 +460,14 @@ func main() {
 				selItem = &state.Items[state.SelectedIndex]
 			}
 
-			previewTitle := " 👁️ FILE PREVIEW "
+			previewTitle := " 👁️ PREVIEW "
 			if selItem != nil {
-				previewTitle = fmt.Sprintf(" 👁️ PREVIEW: %s ", selItem.Name)
+				cleanName := selItem.Name
+				maxTitleW := int(cols[2].Width) - 16
+				if len([]rune(cleanName)) > maxTitleW && maxTitleW > 0 {
+					cleanName = string([]rune(cleanName)[:maxTitleW]) + "…"
+				}
+				previewTitle = fmt.Sprintf(" 👁️ PREVIEW: %s ", cleanName)
 			}
 			f.RenderWidget(widgets.Block{
 				Title:         previewTitle,
@@ -432,58 +477,69 @@ func main() {
 				Style:         cell.Style{Bg: bgCard},
 			}, cols[2])
 
+			// Fill Preview Panel background
+			for y := cols[2].Y + 1; y < cols[2].Y+cols[2].Height-1; y++ {
+				for x := cols[2].X + 1; x < cols[2].X+cols[2].Width-1; x++ {
+					if c := f.Buffer.Get(x, y); c != nil {
+						c.Content = ' '
+						c.Style = cell.Style{Bg: bgCard}
+					}
+				}
+			}
+
 			pInnerY := cols[2].Y + 1
 			if selItem != nil {
 				// Metadata header
-				metaStyle := cell.Style{Fg: cell.NewColorRGB(0, 255, 180), Modifier: cell.ModifierBold}
+				metaStyle := cell.Style{Fg: cell.NewColorRGB(0, 255, 180), Bg: bgCard, Modifier: cell.ModifierBold}
 				f.Buffer.SetString(cols[2].X+2, pInnerY, fmt.Sprintf("Type: %s │ Size: %s", selItem.Mode.String(), formatSize(selItem.Size)), metaStyle)
-				f.Buffer.SetString(cols[2].X+2, pInnerY+1, fmt.Sprintf("Modified: %s", selItem.ModTime.Format("2006-01-02 15:04:05")), cell.Style{Fg: cell.NewColorRGB(140, 150, 165)})
+				f.Buffer.SetString(cols[2].X+2, pInnerY+1, fmt.Sprintf("Modified: %s", selItem.ModTime.Format("2006-01-02 15:04:05")), cell.Style{Fg: cell.NewColorRGB(140, 150, 165), Bg: bgCard})
 				pInnerY += 3
 
 				// Divider
-				f.Buffer.SetString(cols[2].X+1, pInnerY-1, strings.Repeat("─", int(cols[2].Width)-2), cell.Style{Fg: borderCard})
+				divW := int(cols[2].Width) - 2
+				if divW > 0 {
+					f.Buffer.SetString(cols[2].X+1, pInnerY-1, strings.Repeat("─", divW), cell.Style{Fg: borderCard, Bg: bgCard})
+				}
 
 				// Code or Directory Lines Preview
 				maxLines := int(cols[2].Height) - 5
-				for i, line := range state.PreviewLines {
+				for i, rawLine := range state.PreviewLines {
 					if i >= maxLines {
 						break
 					}
 					currLineY := pInnerY + uint16(i)
-					lineNumStyle := cell.Style{Fg: cell.NewColorRGB(90, 100, 120)}
-					codeStyle := cell.Style{Fg: cell.NewColorRGB(215, 225, 240)}
+					lineNumStyle := cell.Style{Fg: cell.NewColorRGB(90, 100, 120), Bg: bgCard}
+					codeStyle := cell.Style{Fg: cell.NewColorRGB(215, 225, 240), Bg: bgCard}
 
-					// Format code line with line number
-					var lineStr string
+					// Expand tabs and remove \r
+					cleanLine := strings.ReplaceAll(rawLine, "\t", "    ")
+					cleanLine = strings.ReplaceAll(cleanLine, "\r", "")
+
 					if selItem.IsDir {
-						lineStr = line
-					} else {
-						lineStr = fmt.Sprintf("%2d │ %s", i+1, line)
-					}
-
-					maxCodeW := int(cols[2].Width) - 4
-					if len([]rune(lineStr)) > maxCodeW && maxCodeW > 0 {
-						lineStr = string([]rune(lineStr)[:maxCodeW])
-					}
-
-					// Basic syntax highlight tinting
-					if strings.Contains(lineStr, "func ") || strings.Contains(lineStr, "package ") || strings.Contains(lineStr, "import ") || strings.Contains(lineStr, "type ") {
-						codeStyle.Fg = cell.NewColorRGB(0, 220, 255)
-					} else if strings.Contains(lineStr, "//") || strings.Contains(lineStr, "/*") {
-						codeStyle.Fg = cell.NewColorRGB(100, 110, 130)
-					} else if strings.Contains(lineStr, "\"") {
-						codeStyle.Fg = cell.NewColorRGB(46, 204, 113)
-					}
-
-					if !selItem.IsDir {
-						f.Buffer.SetString(cols[2].X+2, currLineY, fmt.Sprintf("%2d │ ", i+1), lineNumStyle)
-						codeOnly := line
-						if len([]rune(codeOnly)) > maxCodeW-5 && maxCodeW-5 > 0 {
-							codeOnly = string([]rune(codeOnly)[:maxCodeW-5])
+						maxCodeW := int(cols[2].Width) - 4
+						if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
+							cleanLine = string([]rune(cleanLine)[:maxCodeW])
 						}
-						f.Buffer.SetString(cols[2].X+7, currLineY, codeOnly, codeStyle)
+						f.Buffer.SetString(cols[2].X+2, currLineY, cleanLine, codeStyle)
 					} else {
-						f.Buffer.SetString(cols[2].X+2, currLineY, lineStr, codeStyle)
+						lineNumStr := fmt.Sprintf("%2d │ ", i+1)
+						f.Buffer.SetString(cols[2].X+2, currLineY, lineNumStr, lineNumStyle)
+
+						maxCodeW := int(cols[2].Width) - 8
+						if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
+							cleanLine = string([]rune(cleanLine)[:maxCodeW])
+						}
+
+						// Basic syntax highlight tinting
+						if strings.Contains(cleanLine, "func ") || strings.Contains(cleanLine, "package ") || strings.Contains(cleanLine, "import ") || strings.Contains(cleanLine, "type ") {
+							codeStyle.Fg = cell.NewColorRGB(0, 220, 255)
+						} else if strings.Contains(cleanLine, "//") || strings.Contains(cleanLine, "/*") {
+							codeStyle.Fg = cell.NewColorRGB(100, 110, 130)
+						} else if strings.Contains(cleanLine, "\"") {
+							codeStyle.Fg = cell.NewColorRGB(46, 204, 113)
+						}
+
+						f.Buffer.SetString(cols[2].X+7, currLineY, cleanLine, codeStyle)
 					}
 				}
 			}
