@@ -2,7 +2,12 @@ package main
 
 import (
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,16 +39,21 @@ type PinnedBookmark struct {
 }
 
 type SuperfileState struct {
-	CurrentDir   string
-	Items        []FileItem
+	CurrentDir    string
+	Items         []FileItem
 	SelectedIndex int
 	ScrollOffset  int
-	ShowHidden   bool
-	Bookmarks    []PinnedBookmark
-	ActivePanel  int // 0: Sidebar, 1: FileList, 2: Preview
-	PreviewLines []string
-	PreviewTotal int
-	PreviewErr   string
+	ShowHidden    bool
+	Bookmarks     []PinnedBookmark
+	ActivePanel   int // 0: Sidebar, 1: FileList, 2: Preview
+	PreviewLines  []string
+	PreviewTotal  int
+	PreviewErr    string
+	IsImage       bool
+	ImageObj      image.Image
+	ImageFormat   string
+	ImageWidth    int
+	ImageHeight   int
 }
 
 func getFileIcon(name string, isDir bool) string {
@@ -161,10 +171,24 @@ func (s *SuperfileState) LoadDirectory(dir string) error {
 	return nil
 }
 
+func isImageFile(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp":
+		return true
+	}
+	return false
+}
+
 func (s *SuperfileState) UpdatePreview() {
 	s.PreviewLines = nil
 	s.PreviewErr = ""
 	s.PreviewTotal = 0
+	s.IsImage = false
+	s.ImageObj = nil
+	s.ImageFormat = ""
+	s.ImageWidth = 0
+	s.ImageHeight = 0
 
 	if len(s.Items) == 0 || s.SelectedIndex < 0 || s.SelectedIndex >= len(s.Items) {
 		return
@@ -207,7 +231,30 @@ func (s *SuperfileState) UpdatePreview() {
 		return
 	}
 
-	// File Preview: read first 200 lines
+	// 1. IMAGE FILE PREVIEW
+	if isImageFile(sel.Path) {
+		f, err := os.Open(sel.Path)
+		if err == nil {
+			defer f.Close()
+			img, fmtName, err := image.Decode(f)
+			if err == nil {
+				s.IsImage = true
+				s.ImageObj = img
+				s.ImageFormat = strings.ToUpper(fmtName)
+				b := img.Bounds()
+				s.ImageWidth = b.Dx()
+				s.ImageHeight = b.Dy()
+				s.PreviewLines = []string{
+					fmt.Sprintf("Format    : %s Image", s.ImageFormat),
+					fmt.Sprintf("Dimensions: %d × %d px", s.ImageWidth, s.ImageHeight),
+					fmt.Sprintf("File Size : %s", formatSize(sel.Size)),
+				}
+				return
+			}
+		}
+	}
+
+	// 2. TEXT & CODE FILE PREVIEW
 	f, err := os.Open(sel.Path)
 	if err != nil {
 		s.PreviewErr = fmt.Sprintf("Cannot open file: %v", err)
@@ -219,6 +266,25 @@ func (s *SuperfileState) UpdatePreview() {
 	n, err := f.Read(buf)
 	if err != nil && err != io.EOF {
 		s.PreviewErr = fmt.Sprintf("Read error: %v", err)
+		return
+	}
+
+	// Check if file is binary (contains null bytes)
+	isBinary := false
+	for i := 0; i < n; i++ {
+		if buf[i] == 0 {
+			isBinary = true
+			break
+		}
+	}
+
+	if isBinary {
+		s.PreviewLines = []string{
+			fmt.Sprintf("Binary File: %s", sel.Name),
+			fmt.Sprintf("File Size  : %s", formatSize(sel.Size)),
+			"────────────────────────────────────────",
+			" [Binary Data / Non-Text Executable]",
+		}
 		return
 	}
 
@@ -460,14 +526,14 @@ func main() {
 				selItem = &state.Items[state.SelectedIndex]
 			}
 
-			previewTitle := " 👁️ PREVIEW "
+			previewTitle := " PREVIEW "
 			if selItem != nil {
 				cleanName := selItem.Name
 				maxTitleW := int(cols[2].Width) - 16
 				if len([]rune(cleanName)) > maxTitleW && maxTitleW > 0 {
 					cleanName = string([]rune(cleanName)[:maxTitleW]) + "…"
 				}
-				previewTitle = fmt.Sprintf(" 👁️ PREVIEW: %s ", cleanName)
+				previewTitle = fmt.Sprintf(" PREVIEW: %s ", cleanName)
 			}
 			f.RenderWidget(widgets.Block{
 				Title:         previewTitle,
@@ -501,8 +567,99 @@ func main() {
 					f.Buffer.SetString(cols[2].X+1, pInnerY-1, strings.Repeat("─", divW), cell.Style{Fg: borderCard, Bg: bgCard})
 				}
 
-				// Code or Directory Lines Preview
-				maxLines := int(cols[2].Height) - 5
+				// 1. IMAGE THUMBNAIL PREVIEW
+				if state.IsImage && state.ImageObj != nil {
+					// Draw image info lines
+					for i, line := range state.PreviewLines {
+						f.Buffer.SetString(cols[2].X+2, pInnerY+uint16(i), line, cell.Style{Fg: cell.NewColorRGB(0, 220, 255), Bg: bgCard, Modifier: cell.ModifierBold})
+					}
+
+					img := state.ImageObj
+					b := img.Bounds()
+					imgW := b.Dx()
+					imgH := b.Dy()
+
+					availW := int(cols[2].Width) - 4
+					availH := int(cols[2].Height) - int(pInnerY-cols[2].Y) - 5
+					if availW > 2 && availH > 2 && imgW > 0 && imgH > 0 {
+						scaleX := float64(availW) / float64(imgW)
+						scaleY := float64(availH*2) / float64(imgH)
+						scale := math.Min(scaleX, scaleY)
+						if scale > 1.0 {
+							scale = 1.0
+						}
+
+						renderW := int(math.Round(float64(imgW) * scale))
+						renderH := int(math.Round(float64(imgH) * scale))
+						if renderW < 1 {
+							renderW = 1
+						}
+						if renderH < 2 {
+							renderH = 2
+						}
+						if renderH%2 != 0 {
+							renderH++
+						}
+
+						cellRows := renderH / 2
+						startDrawY := pInnerY + uint16(len(state.PreviewLines)) + 1
+
+						for cy := 0; cy < cellRows; cy++ {
+							currCellY := startDrawY + uint16(cy)
+							if currCellY >= cols[2].Y+cols[2].Height-1 {
+								break
+							}
+
+							topSrcY := int(float64(cy*2) / scale)
+							botSrcY := int(float64(cy*2+1) / scale)
+
+							for cx := 0; cx < renderW; cx++ {
+								currCellX := cols[2].X + 2 + uint16(cx)
+								if currCellX >= cols[2].X+cols[2].Width-1 {
+									break
+								}
+
+								srcX := int(float64(cx) / scale)
+								if srcX >= imgW {
+									srcX = imgW - 1
+								}
+
+								var topR, topG, topB, topA uint32
+								if topSrcY < imgH {
+									topR, topG, topB, topA = img.At(b.Min.X+srcX, b.Min.Y+topSrcY).RGBA()
+								}
+								var botR, botG, botB, botA uint32
+								if botSrcY < imgH {
+									botR, botG, botB, botA = img.At(b.Min.X+srcX, b.Min.Y+botSrcY).RGBA()
+								}
+
+								topCol := cell.NewColorRGB(uint8(topR>>8), uint8(topG>>8), uint8(topB>>8))
+								botCol := cell.NewColorRGB(uint8(botR>>8), uint8(botG>>8), uint8(botB>>8))
+
+								cellSymbol := '▀'
+								cellStyle := cell.Style{Fg: topCol, Bg: botCol}
+
+								if topA < 1000 && botA < 1000 {
+									cellSymbol = ' '
+									cellStyle = cell.Style{Bg: bgCard}
+								} else if topA < 1000 {
+									cellSymbol = '▄'
+									cellStyle = cell.Style{Fg: botCol, Bg: bgCard}
+								} else if botA < 1000 {
+									cellSymbol = '▀'
+									cellStyle = cell.Style{Fg: topCol, Bg: bgCard}
+								}
+
+								f.Buffer.SetCell(currCellX, currCellY, cell.Cell{
+									Content: cellSymbol,
+									Style:   cellStyle,
+								})
+							}
+						}
+					}
+				} else {
+					// 2. CODE & DIRECTORY LINES PREVIEW
+					maxLines := int(cols[2].Height) - 5
 				for i, rawLine := range state.PreviewLines {
 					if i >= maxLines {
 						break
@@ -543,6 +700,7 @@ func main() {
 					}
 				}
 			}
+		}
 
 			// 3. BOTTOM FOOTER SHORTCUTS
 			footerText := " [j/k/▲/▼] Move  [Enter/l] Open  [Backspace/h] Parent  [1-7] Pinned  [.] Hidden  [q] Quit"
