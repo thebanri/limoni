@@ -20,9 +20,12 @@ type Markdown struct {
 	ScrollOffset *int
 
 	// Caching fields to avoid heap allocation on draw loops
-	lastContent string
-	lastStyle   cell.Style
-	cachedLines []markdownLine
+	lastContent   string
+	lastStyle     cell.Style
+	lastWidth     uint16
+	lastBaseStyle cell.Style
+	cachedLines   []markdownLine
+	cachedRows    [][]cell.Cell
 }
 
 type markdownLine struct {
@@ -44,13 +47,15 @@ type rawSegment struct {
 }
 
 func (m *Markdown) parse(baseStyle cell.Style) {
-	if m.Content == m.lastContent && m.Style == m.lastStyle {
+	if m.Content == m.lastContent && m.Style == m.lastStyle && m.cachedLines != nil {
 		return
 	}
 
 	m.lastContent = m.Content
 	m.lastStyle = m.Style
+	m.lastWidth = 0
 	m.cachedLines = nil
+	m.cachedRows = nil
 
 	lines := strings.Split(m.Content, "\n")
 	for _, rawLine := range lines {
@@ -200,6 +205,12 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 	if width == 0 {
 		return nil
 	}
+	if width == m.lastWidth && baseStyle == m.lastBaseStyle && m.cachedRows != nil {
+		return m.cachedRows
+	}
+	m.lastWidth = width
+	m.lastBaseStyle = baseStyle
+
 	rows := make([][]cell.Cell, 0, len(m.cachedLines))
 	blank := func() []cell.Cell { return make([]cell.Cell, 0, int(width)) }
 	for _, line := range m.cachedLines {
@@ -253,6 +264,7 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 			rows = append(rows, blank(), blank())
 		}
 	}
+	m.cachedRows = rows
 	return rows
 }
 

@@ -120,31 +120,32 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	selStyle := listStyle.Merge(l.SelectedStyle)
 
-	// Eğer State tanımlanmadıysa geçici yerel bir durum kullan
-	state := l.State
-	if state == nil {
-		state = &ListState{Selected: -1, Offset: 0}
+	selected := -1
+	offset := 0
+	if l.State != nil {
+		l.State.ScrollTo(int(area.Height), totalItems)
+		selected = l.State.Selected
+		offset = l.State.Offset
 	}
 
-	// Kaydırma (Scroll) sınırlarını otomatik çöz
-	state.ScrollTo(int(area.Height), totalItems)
-
 	// Fare tekerleği olaylarını dinle ve kaydır
-	if ctx.RegisterMouse != nil {
+	if ctx.RegisterMouse != nil && l.State != nil {
+		st := l.State
+		viewHeight := int(ctx.Area.Height)
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
 			if ev.Button == backend.MouseScrollUp {
-				state.Offset--
-				if state.Offset < 0 {
-					state.Offset = 0
+				st.Offset--
+				if st.Offset < 0 {
+					st.Offset = 0
 				}
 			} else if ev.Button == backend.MouseScrollDown {
-				state.Offset++
-				maxOffset := totalItems - int(ctx.Area.Height)
+				st.Offset++
+				maxOffset := totalItems - viewHeight
 				if maxOffset < 0 {
 					maxOffset = 0
 				}
-				if state.Offset > maxOffset {
-					state.Offset = maxOffset
+				if st.Offset > maxOffset {
+					st.Offset = maxOffset
 				}
 			}
 		})
@@ -161,12 +162,12 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		maxOffset := totalItems - visibleHeight
 		thumbY := 0
 		if maxOffset > 0 {
-			thumbY = (state.Offset * (visibleHeight - thumbH)) / maxOffset
+			thumbY = (offset * (visibleHeight - thumbH)) / maxOffset
 		}
 
 		trackStyle := listStyle.Merge(l.ScrollbarTrackStyle)
 		if l.ScrollbarTrackStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
-			trackStyle = listStyle.Merge(ctx.ThemeStyle("border"))
+			trackStyle = listStyle.Merge(ctx.ThemeStyle("muted"))
 		}
 		thumbStyle := listStyle.Merge(l.ScrollbarThumbStyle)
 		if l.ScrollbarThumbStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
@@ -189,7 +190,7 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	for i := 0; i < int(area.Height); i++ {
-		itemIdx := state.Offset + i
+		itemIdx := offset + i
 		if itemIdx >= totalItems {
 			break
 		}
@@ -202,15 +203,11 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			itemText = l.Items[itemIdx]
 		}
 
-		isSel := itemIdx == state.Selected
+		isSel := itemIdx == selected
 		itemStyle := listStyle
-		displayText := itemText
 
 		if isSel {
 			itemStyle = selStyle
-			if l.HighlightSymbol != "" {
-				displayText = l.HighlightSymbol + itemText
-			}
 		}
 
 		// Satırın arka planını temizle ve doldur
@@ -221,11 +218,19 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		// Metni çiz
-		buf.SetString(area.X, currY, displayText, itemStyle)
+		// Metni çiz (allocation-free string rendering)
+		textX := area.X
+		if isSel && l.HighlightSymbol != "" {
+			buf.SetString(textX, currY, l.HighlightSymbol, itemStyle)
+			textX += uint16(utf8.RuneCountInString(l.HighlightSymbol))
+		}
+		buf.SetString(textX, currY, itemText, itemStyle)
 
 		// Otomatik fare yönlendirme köprüsünü bağla
-		if ctx.RegisterClick != nil {
+		if ctx.RegisterClick != nil && l.State != nil {
+			st := l.State
+			id := l.ID
+			setFocus := ctx.SetFocus
 			targetIdx := itemIdx
 			itemRect := cell.Rect{
 				X:      area.X,
@@ -235,9 +240,9 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			// Öğeye fareyle tıklandığında listedeki bu indeksi seç (Selected) ve odaklan
 			ctx.RegisterClick(itemRect, func() {
-				state.Selected = targetIdx
-				if l.ID != "" && ctx.SetFocus != nil {
-					ctx.SetFocus(l.ID)
+				st.Selected = targetIdx
+				if id != "" && setFocus != nil {
+					setFocus(id)
 				}
 			})
 		}

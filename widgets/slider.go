@@ -109,18 +109,18 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 		buf.SetCell(ctx.Area.X+uint16(x), ctx.Area.Y, cell.Cell{Content: content, Style: cellStyle})
 	}
-	setValue := func(x uint16) {
-		relative := int(x) - int(ctx.Area.X)
-		if relative < 0 {
-			relative = 0
-		}
-		if relative >= width {
-			relative = width - 1
-		}
-		value := s.Min + relative*(s.Max-s.Min)/(width-1)
-		s.State.Set(value, s.Min, s.Max)
-	}
 	if ctx.RegisterMouse != nil {
+		setValue := func(x uint16) {
+			relative := int(x) - int(ctx.Area.X)
+			if relative < 0 {
+				relative = 0
+			}
+			if relative >= width {
+				relative = width - 1
+			}
+			value := s.Min + relative*(s.Max-s.Min)/(width-1)
+			s.State.Set(value, s.Min, s.Max)
+		}
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
 			if !s.DisableScroll {
 				if ev.Button == backend.MouseScrollUp {
