@@ -65,7 +65,9 @@ type Slider struct {
 	TrackStyle   cell.Style
 	FilledStyle  cell.Style
 	ThumbStyle   cell.Style
-	FocusedStyle cell.Style
+	FocusedStyle  cell.Style
+	DisableScroll bool // Fare tekerleğiyle değer değiştirmeyi kapatır
+	DisableFocus  bool // Tıklamayla odak almayı kapatır
 }
 
 func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -77,7 +79,7 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		ctx.RegisterFocus(s.ID)
 	}
 	style := ctx.Style.Merge(s.Style)
-	if ctx.FocusedID == s.ID {
+	if ctx.IsFocused(s.ID) {
 		style = style.Merge(s.FocusedStyle)
 	}
 	track := ctx.Style.Merge(s.TrackStyle)
@@ -120,11 +122,27 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	if ctx.RegisterMouse != nil {
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			if !s.DisableScroll {
+				if ev.Button == backend.MouseScrollUp {
+					s.State.Set(s.State.Value+1, s.Min, s.Max)
+					if !s.DisableFocus && ctx.SetFocus != nil {
+						ctx.SetFocus(s.ID)
+					}
+					return
+				}
+				if ev.Button == backend.MouseScrollDown {
+					s.State.Set(s.State.Value-1, s.Min, s.Max)
+					if !s.DisableFocus && ctx.SetFocus != nil {
+						ctx.SetFocus(s.ID)
+					}
+					return
+				}
+			}
 			if ev.Button != backend.MouseLeft {
 				return
 			}
 			if !ev.Drag {
-				if ctx.SetFocus != nil {
+				if !s.DisableFocus && ctx.SetFocus != nil {
 					ctx.SetFocus(s.ID)
 				}
 				setValue(ev.X)

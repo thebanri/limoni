@@ -16,20 +16,20 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 	gisLay := layout.NewFlexLayout(
 		layout.Vertical,
 		1,
-		layout.Fixed(uint16(state.MarkdownHeight)), // Markdown dosya görüntüleme alanı
-		layout.Fixed(5), // Slider kontrol barı
+		layout.Fixed(uint16(state.MarkdownHeight)), // Markdown viewer
+		layout.Fixed(5), // Slider bar
 		layout.Fixed(1), // Progress bar
-		layout.Fill(),   // Süreç Tablosu
+		layout.Fill(),   // Process Table
 	)
 	gisChunks := gisLay.Split(bodyArea)
 
-	// 1. ÜST TARAF: Açıklama paragrafı
+	// 1. TOP: Markdown info block
 	mdBorderColor := accentColor
 	if t.FocusManager().Focused() == "demo_markdown" {
 		mdBorderColor = demoTheme.Colors.Primary
 	}
 	mdBlock := widgets.Block{
-		Title:          " BİLGİLENDİRME (↑/↓ kaydır, +/- yükseklik) ",
+		Title:          " INFORMATION (↑/↓ scroll, +/- resize) ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -45,7 +45,7 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 		},
 	}
 	f.RenderWidget(mdBlock, gisChunks[0])
-	// Markdown alanının sağ-alt köşesinden yüksekliği sürükleyerek değiştir.
+
 	if gisChunks[0].Width > 2 && gisChunks[0].Height > 2 {
 		cornerX := gisChunks[0].X + gisChunks[0].Width - 1
 		cornerY := gisChunks[0].Y + gisChunks[0].Height - 1
@@ -77,7 +77,7 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 		})
 	}
 
-	// Form/uygulama bileşenleri demonstrasyonu: canlı CPU ilerleme çubuğu.
+	// Live CPU Progress bar
 	cpuValue := 0.0
 	if state.FormProgress != nil {
 		cpuValue = state.FormProgress.Value()
@@ -101,7 +101,7 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 		Child: widgets.Slider{ID: "demo_slider", State: state.DemoSliderState, Min: 0, Max: 100, TrackStyle: cell.Style{Fg: demoTheme.Colors.Border}, FilledStyle: cell.Style{Fg: demoTheme.Colors.Success}, ThumbStyle: demoTheme.Focus},
 	}, gisChunks[1])
 
-	// 2. ALT TARAF: Sistem süreç tablosu
+	// 2. BOTTOM: System Process Table
 	tableRows := make([]widgets.TableRow, len(state.Processes)+2)
 	for i, p := range state.Processes {
 		tableRows[i] = widgets.TableRow{
@@ -113,36 +113,33 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 				{Text: p.Status, Style: cell.Style{Fg: demoTheme.Colors.Success}},
 			},
 		}
-		// Zebra desen (alternating background colors)
 		if i%2 == 1 {
 			tableRows[i].Style = cell.Style{Bg: cell.NewColorRGB(35, 35, 35)}
 		}
 	}
 
-	// Hücre birleştirme (RowSpan/ColSpan) demonstrasyonu için 2 özel rapor satırı ekle
+	// RowSpan demonstration rows
 	reportRowStyle := cell.Style{Bg: cell.NewColorRGB(25, 35, 45)}
 	tableRows[len(state.Processes)] = widgets.TableRow{
 		Cells: []widgets.TableCell{
-			{Text: "RAPOR", RowSpan: 2, Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
-			{Text: "Toplam CPU Yükü", Style: cell.Style{Modifier: cell.ModifierItalic}},
+			{Text: "REPORT", RowSpan: 2, Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+			{Text: "Total CPU Load", Style: cell.Style{Modifier: cell.ModifierItalic}},
 			{Text: "18.4%"},
 			{Text: "Normal"},
-			{Text: "Kararlı", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
+			{Text: "Stable", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
 		},
 		Style: reportRowStyle,
 	}
 	tableRows[len(state.Processes)+1] = widgets.TableRow{
-		// RAPOR hücresi rowSpan=2 olduğu için ilk sütun burada atlanacaktır
 		Cells: []widgets.TableCell{
-			{Text: "Toplam Bellek Yükü", Style: cell.Style{Modifier: cell.ModifierItalic}},
+			{Text: "Total Memory Load", Style: cell.Style{Modifier: cell.ModifierItalic}},
 			{Text: "4.8 GB"},
-			{Text: "Düşük"},
-			{Text: "Kararlı", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
+			{Text: "Low"},
+			{Text: "Stable", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
 		},
 		Style: reportRowStyle,
 	}
 
-	// Tablo odaklandığında çerçeve rengi parlasın
 	tableBorderCol := cell.NewColorRGB(100, 100, 100)
 	if t.FocusManager().Focused() == "process_table" {
 		tableBorderCol = accentColor
@@ -153,10 +150,10 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 		Header: &widgets.TableRow{
 			Cells: []widgets.TableCell{
 				{Text: "PID", Style: cell.Style{Modifier: cell.ModifierBold}},
-				{Text: "SÜREÇ ADI", Style: cell.Style{Modifier: cell.ModifierBold}},
+				{Text: "PROCESS NAME", Style: cell.Style{Modifier: cell.ModifierBold}},
 				{Text: "CPU", Style: cell.Style{Modifier: cell.ModifierBold}},
-				{Text: "BELLEK", Style: cell.Style{Modifier: cell.ModifierBold}},
-				{Text: "DURUM", Style: cell.Style{Modifier: cell.ModifierBold}},
+				{Text: "MEMORY", Style: cell.Style{Modifier: cell.ModifierBold}},
+				{Text: "STATUS", Style: cell.Style{Modifier: cell.ModifierBold}},
 			},
 			Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 45)},
 		},
@@ -194,7 +191,7 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 					}
 				}
 			}
-			if column == 4 && value.Text == "Beklemede" {
+			if column == 4 && (value.Text == "Sleeping" || value.Text == "Beklemede") {
 				return cell.Style{Fg: cell.NewColorRGB(255, 210, 80)}
 			}
 			return cell.Style{}
@@ -202,7 +199,7 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 	}
 
 	tableBlock := widgets.Block{
-		Title:          " SİSTEM SÜREÇLERİ (PROCESS TABLE) ",
+		Title:          " SYSTEM PROCESS TABLE ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -215,20 +212,20 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 	if t.FocusManager().Focused() == "table_filter" {
 		filterBorderCol = accentColor
 	}
-	sortLabel := "Başlığa tıkla"
+	sortLabel := "Click Header"
 	if state.TableState.SortColumn >= 0 && state.TableState.SortColumn < 5 {
-		columns := []string{"PID", "SÜREÇ", "CPU", "BELLEK", "DURUM"}
-		direction := "▲ artan"
+		columns := []string{"PID", "PROCESS", "CPU", "MEMORY", "STATUS"}
+		direction := "▲ asc"
 		if state.TableState.SortDescending {
-			direction = "▼ azalan"
+			direction = "▼ desc"
 		}
 		sortLabel = fmt.Sprintf("%s %s", columns[state.TableState.SortColumn], direction)
 	}
 	filterBlock := widgets.Block{
-		Title: fmt.Sprintf(" TABLO ARA | Sıralama: %s | ←/→ sütun ↑/↓ yön ", sortLabel), TitleAlignment: widgets.AlignLeft,
+		Title: fmt.Sprintf(" SEARCH TABLE | Sort: %s | ←/→ col ↑/↓ dir ", sortLabel), TitleAlignment: widgets.AlignLeft,
 		Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle: cell.Style{Fg: filterBorderCol}, PaddingLeft: 1, PaddingRight: 1,
-		Child: widgets.TextInput{ID: "table_filter", State: state.TableFilterState, Placeholder: "Fuzzy ara: process, cpu, status...", Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(35, 35, 45)}, FocusedStyle: cell.Style{Fg: accentColor}},
+		Child: widgets.TextInput{ID: "table_filter", State: state.TableFilterState, Placeholder: "Fuzzy filter: process, cpu, status...", Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(35, 35, 45)}, FocusedStyle: cell.Style{Fg: accentColor}},
 	}
 	f.RenderWidget(filterBlock, tableChunks[0])
 	f.RenderWidget(tableBlock, tableChunks[1])
@@ -236,5 +233,4 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 	if t.FocusManager().Focused() == "process_table" {
 		widgets.DrawFocusRing(f.Buffer, tableChunks[1], cell.Style{Fg: accentColor})
 	}
-
 }

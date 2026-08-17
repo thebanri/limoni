@@ -79,9 +79,9 @@ func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, the
 
 func referenceAccessibilityTree(state *AppState, area cell.Rect) accessibility.AccessibilityNode {
 	return accessibility.AccessibilityNode{
-		ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni referans ve geliştirici araçları", Bounds: area,
+		ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni developer reference and diagnostics tools", Bounds: area,
 		Children: []accessibility.AccessibilityNode{
-			{ID: "subtab-runtime", Role: accessibility.RoleGeneric, Label: "Runtime CMD-MSG", Value: fmt.Sprintf("%d mesaj", state.ReferenceRuntimeMessages), Bounds: area},
+			{ID: "subtab-runtime", Role: accessibility.RoleGeneric, Label: "Runtime CMD-MSG", Value: fmt.Sprintf("%d messages", state.ReferenceRuntimeMessages), Bounds: area},
 		},
 	}
 }
@@ -90,11 +90,11 @@ func referenceAccessibilityTree(state *AppState, area cell.Rect) accessibility.A
 func drawSubTabRuntime(f *terminal.Frame, state *AppState, theme widgets.Theme, area cell.Rect) {
 	message := fmt.Sprintf(
 		"RUNTIME & MESSAGE DISPATCH SHOWCASE\n\n"+
-			"• Mesaj Sayısı (Runtime messages): %d\n"+
+			"• Message Count (Runtime messages): %d\n"+
 			"• Cmd Scheduler: Active (asynchronous loops supported)\n"+
 			"• Cancellation: context.Context native propagation\n"+
 			"• Draw Updates: Coalesced screen updates\n\n"+
-			"--> TIKLA: Örnek Msg gönder (Mesaj sayısını artırır)",
+			"--> CLICK: Dispatch sample Msg (increments message count)",
 		state.ReferenceRuntimeMessages,
 	)
 	f.RenderWidget(widgets.Block{
@@ -125,10 +125,9 @@ func drawSubTabLayout(f *terminal.Frame, state *AppState, theme widgets.Theme, a
 	state.ReferenceLayoutAllocated = allocated
 
 	if state.ReferenceLayoutLastAction == "" {
-		state.ReferenceLayoutLastAction = "henüz ölçüm yapılmadı"
+		state.ReferenceLayoutLastAction = "no layout measurement yet"
 	}
 
-	// Calculate diagnostics using our newly implemented Diagnose API
 	diagnostics := layout.Diagnose([]layout.Measure{measure}, []cell.Rect{allocated})[0]
 
 	text := fmt.Sprintf(
@@ -141,7 +140,7 @@ func drawSubTabLayout(f *terminal.Frame, state *AppState, theme widgets.Theme, a
 			"  - Grown (Expanded): %t\n"+
 			"  - Baseline Offset: %d\n"+
 			"  - Active Policy: %v\n\n"+
-			"--> TIKLA: Ideal yükseklik, grow priority ve diagnostics'i değiştir",
+			"--> CLICK: Toggle ideal height, grow priority, and diagnostics",
 		measure.MinWidth, measure.MinHeight, measure.IdealWidth, measure.IdealHeight, measure.MaxWidth, measure.MaxHeight,
 		allocated.X, allocated.Y, allocated.Width, allocated.Height,
 		measure.GrowPriority, measure.Overflow,
@@ -171,11 +170,9 @@ func drawSubTabAccessibility(f *terminal.Frame, state *AppState, theme widgets.T
 		ASCIIOnly:     state.ReferenceAccessibilityASCII,
 	}
 
-	// Capture a line mode accessibility string
 	lineModeText := f.AccessibilityLineMode(mode)
 	nav := accessibility.NewLineNavigator(lineModeText)
 
-	// Traverse using LineNavigator
 	navOutput := ""
 	lineIndex := 0
 	for nav.Current() != "" {
@@ -194,7 +191,7 @@ func drawSubTabAccessibility(f *terminal.Frame, state *AppState, theme widgets.T
 			"• Mode: HighContrast=%t  |  ASCIIOnly=%t\n"+
 			"• Screen Reader Protocol: Active (Announcements serializing)\n\n"+
 			"LineNavigator Traversal Announcements:\n%s\n"+
-			"--> TIKLA: ASCII / Unicode çıkış formatını değiştir",
+			"--> CLICK: Toggle ASCII / Unicode serialization format",
 		mode.HighContrast, mode.ASCIIOnly, navOutput,
 	)
 
@@ -219,7 +216,6 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 	}
 	data := state.ReferenceDataState
 
-	// Select active queue policy display
 	policyText := "LatestOnly"
 	switch data.QueuePolicy() {
 	case widgets.VirtualDropOldest:
@@ -230,7 +226,6 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 		policyText = "Sequential"
 	}
 
-	// Stats
 	stats := data.QueueStats()
 	qStatsText := fmt.Sprintf(
 		"Started: %d | Completed: %d | Canceled: %d | Stale: %d | Dropped: %d | QueueLength: %d",
@@ -242,7 +237,6 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 		viewportHeight = 1
 	}
 
-	// Trigger async/sync viewport refresh
 	_ = data.Refresh(nil, provider, state.ReferenceDataOffset, viewportHeight, 2)
 	data.Select(provider.RowID(state.ReferenceSelectedRow))
 
@@ -251,7 +245,6 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 		lastVisible = data.Count() - 1
 	}
 
-	// QueryResult
 	qResult := data.QueryResult()
 	qResultText := fmt.Sprintf("QueryResult: loaded=%d rows, offset=%d (total=%d)", qResult.Filtered, qResult.Offset, qResult.Count)
 
@@ -259,11 +252,10 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 		"VIRTUAL DATA viewport scroll (wheel over list below)  |  Stable ID selected: %s\n"+
 			"• Queue Policy: %s  |  %s\n"+
 			"• %s\n"+
-			"--> TIKLA liste öğesi: Seçili satırı değiştir (seçili satır: #%d)",
+			"--> CLICK list item: Change selected row (selected row: #%d)",
 		data.Selected(), policyText, qResultText, qStatsText, state.ReferenceSelectedRow,
 	)
 
-	// Draw container block
 	inner := cell.NewRect(area.X+1, area.Y+1, area.Width-2, area.Height-2)
 	f.RenderWidget(widgets.Block{
 		Title: " VIRTUAL DATA RUNTIME ", Borders: widgets.BorderAll,
@@ -271,14 +263,12 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 		PaddingLeft: 2, PaddingTop: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")},
 	}, area)
 
-	// Draw Virtual Data View in the remaining lower area
 	if inner.Width > 2 && inner.Height > 7 {
 		f.RenderWidget(widgets.VirtualDataView{
 			State: data, Source: provider, First: 0, Prefetch: 2,
 			Offset: &state.ReferenceDataOffset,
 			OnSelect: func(index int, _ widgets.Row) {
 				state.ReferenceSelectedRow = index
-				// Toggle selected in our state's selected set
 				data.ToggleSelect(provider.RowID(index))
 			},
 			Style: theme.RoleStyle("muted"), SelectedStyle: cell.Style{Fg: accent, Modifier: cell.ModifierBold},
@@ -288,7 +278,6 @@ func drawSubTabVirtualData(f *terminal.Frame, state *AppState, theme widgets.The
 
 // 5. BENCHMARK SUB-TAB
 func drawSubTabBenchmark(f *terminal.Frame, state *AppState, theme widgets.Theme, accent cell.Color, area cell.Rect) {
-	// Simulator for benchmarks
 	p50 := 12.4 + float64(state.ReferenceBenchmarkRuns)*0.15
 	p95 := 24.8 + float64(state.ReferenceBenchmarkRuns)*0.32
 	p99 := 38.1 + float64(state.ReferenceBenchmarkRuns)*0.45
@@ -304,7 +293,7 @@ func drawSubTabBenchmark(f *terminal.Frame, state *AppState, theme widgets.Theme
 			"  [✓] runner specs matched\n"+
 			"  [✓] iterations count correct (100+)\n"+
 			"  [✓] warmups active (10 sample frames)\n\n"+
-			"--> TIKLA: Benchmark simülasyonunu çalıştır (latencyleri günceller)",
+			"--> CLICK: Run benchmark simulation (updates latencies)",
 		state.ReferenceBenchmarkRuns, p50, p95, p99,
 	)
 
@@ -340,7 +329,7 @@ type referenceProvider struct{}
 
 func (referenceProvider) RowCount(context.Context) (int, error) { return 1000000, nil }
 func (referenceProvider) RowAt(_ context.Context, index int) (widgets.Row, error) {
-	return widgets.Row{ID: widgets.RowID(fmt.Sprintf("row-%d", index)), Text: fmt.Sprintf("#%06d  |  örnek kayıt %d  |  viewport cache", index, index)}, nil
+	return widgets.Row{ID: widgets.RowID(fmt.Sprintf("row-%d", index)), Text: fmt.Sprintf("#%06d  |  sample record %d  |  viewport cache", index, index)}, nil
 }
 func (referenceProvider) RowID(index int) widgets.RowID {
 	return widgets.RowID(fmt.Sprintf("row-%d", index))

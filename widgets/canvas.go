@@ -29,42 +29,44 @@ type Canvas struct {
 // NewCanvas, belirtilen hücre genişlik ve yüksekliğinde yeni bir Canvas oluşturur.
 // Sanal çizim alanı çözünürlüğü: (width * 2) x (height * 4) piksel olacaktır.
 func NewCanvas(width, height uint16) *Canvas {
+	virtPixels := int(width) * 2 * int(height) * 4
 	return &Canvas{
 		width:  width,
 		height: height,
 		grid:   make([]byte, int(width)*int(height)),
 		styles: make([]cell.Style, int(width)*int(height)),
-		depth:  makeDepthBuffer(int(width) * int(height)),
+		depth:  makeDepthBuffer(virtPixels),
 	}
 }
 
 // Reset, canvas boyutunu günceller ve iç tamponları bellek tahsisatı yapmadan sıfırlar (kapasite yeterliyse).
 func (c *Canvas) Reset(width, height uint16) {
-	needed := int(width) * int(height)
+	neededCells := int(width) * int(height)
+	neededPixels := int(width) * 2 * int(height) * 4
 	c.width = width
 	c.height = height
 
-	if cap(c.grid) >= needed {
-		c.grid = c.grid[:needed]
+	if cap(c.grid) >= neededCells {
+		c.grid = c.grid[:neededCells]
 		for i := range c.grid {
 			c.grid[i] = 0
 		}
 	} else {
-		c.grid = make([]byte, needed)
+		c.grid = make([]byte, neededCells)
 	}
 
-	if cap(c.styles) >= needed {
-		c.styles = c.styles[:needed]
+	if cap(c.styles) >= neededCells {
+		c.styles = c.styles[:neededCells]
 		for i := range c.styles {
 			c.styles[i].Reset()
 		}
 	} else {
-		c.styles = make([]cell.Style, needed)
+		c.styles = make([]cell.Style, neededCells)
 	}
-	if cap(c.depth) >= needed {
-		c.depth = c.depth[:needed]
+	if cap(c.depth) >= neededPixels {
+		c.depth = c.depth[:neededPixels]
 	} else {
-		c.depth = makeDepthBuffer(needed)
+		c.depth = makeDepthBuffer(neededPixels)
 	}
 	for i := range c.depth {
 		c.depth[i] = math.Inf(1)
@@ -117,11 +119,12 @@ func (c *Canvas) Set(px, py int, style cell.Style) {
 
 // SetDepth writes a pixel only when it is closer than the current depth.
 func (c *Canvas) SetDepth(px, py int, depth float64, style cell.Style) bool {
-	if px < 0 || py < 0 || px >= int(c.width)*2 || py >= int(c.height)*4 {
+	virtW := int(c.width) * 2
+	virtH := int(c.height) * 4
+	if px < 0 || py < 0 || px >= virtW || py >= virtH {
 		return false
 	}
-	cx, cy := px/2, py/4
-	idx := cy*int(c.width) + cx
+	idx := py*virtW + px
 	if depth >= c.depth[idx] {
 		return false
 	}

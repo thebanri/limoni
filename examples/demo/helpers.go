@@ -28,7 +28,7 @@ func loadProfileImage() image.Image {
 }
 
 func navigateDemoTab(state *AppState, focus *terminal.FocusManager, delta int) {
-	tabs := []string{"Giriş", "Ayarlar", "Grafik", "Playground", "Referans"}
+	tabs := []string{"Home", "Settings", "Graphics", "Playground", "Reference"}
 	current := 0
 	for i, tab := range tabs {
 		if tab == state.ActiveTab {
@@ -45,16 +45,16 @@ func navigateDemoTab(state *AppState, focus *terminal.FocusManager, delta int) {
 func themeForSelection(selection string) widgets.Theme {
 	theme := widgets.DarkTheme()
 	switch selection {
-	case "Açık":
+	case "Light":
 		theme = widgets.LightTheme()
-	case "Renkli":
+	case "Colorful":
 		theme.Colors.Primary = cell.NewColorRGB(255, 165, 0)
 		theme.Colors.Secondary = cell.NewColorRGB(255, 0, 255)
 		theme.Colors.Success = cell.NewColorRGB(255, 0, 255)
 		theme.Colors.Surface = cell.NewColorRGB(35, 25, 45)
 		theme.Base = cell.Style{Fg: theme.Colors.Text, Bg: theme.Colors.Background}
 		theme.Focus = cell.Style{Fg: theme.Colors.Secondary, Modifier: cell.ModifierBold}
-	case "Yüksek Kontrast":
+	case "High Contrast":
 		theme = widgets.HighContrastTheme()
 	}
 	return theme

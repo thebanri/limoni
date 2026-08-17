@@ -1,8 +1,8 @@
-// layer_demo, Limoni Faz 10'un yeni özelliklerini gösterir:
-// - Katmanlı Render (Layered Rendering) ile z-index bazlı çizim
-// - Modal Pencere ile odak kilitlenmesi (Focus Trapping)
-// - Açılır Menü (Popup) widget'ı
-// - Click-outside close mekanizması
+// layer_demo demonstrates Limoni layered rendering capabilities:
+// - Layered Rendering with z-index based compositing
+// - Modal Dialog with Focus Trapping
+// - Popup / Dropdown menus
+// - Click-outside dismissal mechanism
 package main
 
 import (
@@ -17,13 +17,10 @@ import (
 	"github.com/thebanri/limoni/widgets"
 )
 
-// AppState, demo uygulamasının durumunu temsil eder.
+// AppState represents the interactive layer demo state.
 type AppState struct {
-	// Modal durumu
-	ShowDialog bool
-	DialogMsg  string
-
-	// Popup durumu
+	ShowDialog    bool
+	DialogMsg     string
 	FileMenuState *widgets.PopupState
 	EditMenuState *widgets.PopupState
 	HelpMenuState *widgets.PopupState
@@ -34,31 +31,30 @@ type AppState struct {
 func main() {
 	b := backend.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
 	}
 	defer b.Close()
 
 	t, err := terminal.New(b)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error initializing terminal: %v\n", err)
 		os.Exit(1)
 	}
 
 	b.StartEventLoop()
 
 	state := &AppState{
-		DialogMsg:     "Bu bir modal pencere örneğidir. Dışarı tıklayarak kapatın.",
+		DialogMsg:     "This is a modal dialog demonstration. Click outside to dismiss.",
 		FileMenuState: widgets.NewPopupState(),
 		EditMenuState: widgets.NewPopupState(),
 		HelpMenuState: widgets.NewPopupState(),
-		StatusBar:     "Hazır — F10 menü, Ctrl+N modal, Esc kapat",
+		StatusBar:     "Ready — F10 File menu, Ctrl+N Modal, Esc Close",
 	}
 
 	ticker := time.NewTicker(33 * time.Millisecond)
 	defer ticker.Stop()
 
-	// İlk kareyi çiz
 	drawApp(t, state)
 
 	for {
@@ -69,19 +65,16 @@ func main() {
 			}
 			switch ev.Type {
 			case backend.EventKey:
-				// Modal açıksa klavye girdisini ona yönlendir
 				if state.ShowDialog {
 					if ev.Key.Type == backend.KeyEsc {
 						state.ShowDialog = false
-						state.StatusBar = "Modal kapatıldı"
+						state.StatusBar = "Modal dismissed"
 					}
 					break
 				}
 
-				// Genel kısayollar
 				switch {
 				case ev.Key.Type == backend.KeyEsc:
-					// Açık menü varsa kapat, yoksa çıkış
 					if state.FileMenuState.IsOpen {
 						state.FileMenuState.Close()
 					} else if state.EditMenuState.IsOpen {
@@ -89,49 +82,45 @@ func main() {
 					} else if state.HelpMenuState.IsOpen {
 						state.HelpMenuState.Close()
 					}
-					state.StatusBar = "Menüler kapatıldı"
+					state.StatusBar = "Menus closed"
 
 				case ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'n' && ev.Key.Ctrl:
-					// Ctrl+N: Modal aç
 					state.ShowDialog = true
-					state.StatusBar = "Modal pencere açıldı — Esc ile kapatın"
+					state.StatusBar = "Modal dialog opened — Press Esc to close"
 
 				case ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q':
 					b.Close()
-					fmt.Println("\nLimoni Faz 10 Demo'dan çıkış yapıldı. Görüşmek üzere!")
+					fmt.Println("\nExited Limoni Layer Demo.")
 					os.Exit(0)
 
 				case ev.Key.Type == backend.KeyF10:
-					// Dosya menüsünü aç/kapat
 					state.FileMenuState.Toggle()
 					if state.FileMenuState.IsOpen {
 						state.EditMenuState.Close()
 						state.HelpMenuState.Close()
-						state.StatusBar = "Dosya menüsü açıldı"
+						state.StatusBar = "File menu opened"
 					} else {
-						state.StatusBar = "Dosya menüsü kapatıldı"
+						state.StatusBar = "File menu closed"
 					}
 
 				case ev.Key.Type == backend.KeyF11:
-					// Düzenleme menüsünü aç/kapat
 					state.EditMenuState.Toggle()
 					if state.EditMenuState.IsOpen {
 						state.FileMenuState.Close()
 						state.HelpMenuState.Close()
-						state.StatusBar = "Düzenleme menüsü açıldı"
+						state.StatusBar = "Edit menu opened"
 					} else {
-						state.StatusBar = "Düzenleme menüsü kapatıldı"
+						state.StatusBar = "Edit menu closed"
 					}
 
 				case ev.Key.Type == backend.KeyF12:
-					// Yardım menüsünü aç/kapat
 					state.HelpMenuState.Toggle()
 					if state.HelpMenuState.IsOpen {
 						state.FileMenuState.Close()
 						state.EditMenuState.Close()
-						state.StatusBar = "Yardım menüsü açıldı"
+						state.StatusBar = "Help menu opened"
 					} else {
-						state.StatusBar = "Yardım menüsü kapatıldı"
+						state.StatusBar = "Help menu closed"
 					}
 				}
 
@@ -139,7 +128,7 @@ func main() {
 				t.RouteMouseEvent(ev.Mouse)
 
 			case backend.EventResize:
-				// Otomatik yeniden çizilecek
+				// Automatically redrawn on next tick
 			}
 
 		case <-ticker.C:
@@ -152,7 +141,6 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 	t.Draw(func(f *terminal.Frame) {
 		area := f.Buffer.Area
 
-		// Ana yerleşim: Header + Body + Footer
 		rootLay := layout.NewFlexLayout(
 			layout.Vertical, 0,
 			layout.Fixed(1), // Header
@@ -165,7 +153,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		bodyArea := chunks[1]
 		footerArea := chunks[2]
 
-		// ── HEADER: Menü Butonları ──
+		// ── HEADER: Menu Bar ──
 		headerBlock := widgets.Block{
 			Borders:       widgets.BorderBottom,
 			BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
@@ -173,7 +161,6 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(headerBlock, headerArea)
 
-		// Menü butonları (Popup widget'ları)
 		menuLay := layout.NewFlexLayout(
 			layout.Horizontal, 0,
 			layout.Fixed(16),
@@ -183,26 +170,26 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		)
 		menuChunks := menuLay.Split(cell.NewRect(headerArea.X, headerArea.Y, headerArea.Width, 1))
 
-		// Dosya Menüsü (F10)
+		// File Menu (F10)
 		filePopup := widgets.Popup{
 			ID:    "file_menu",
-			Label: "Dosya (F10)",
+			Label: "File (F10)",
 			Items: []widgets.PopupItem{
-				{Text: "Yeni", Handler: func() {
-					state.LastAction = "Yeni dosya oluşturuldu"
+				{Text: "New", Handler: func() {
+					state.LastAction = "New file created"
 					state.StatusBar = state.LastAction
 				}},
-				{Text: "Aç...", Handler: func() {
-					state.LastAction = "Dosya açma dialogu"
+				{Text: "Open...", Handler: func() {
+					state.LastAction = "Open file dialog"
 					state.StatusBar = state.LastAction
 				}},
-				{Text: "Kaydet", Handler: func() {
-					state.LastAction = "Dosya kaydedildi"
+				{Text: "Save", Handler: func() {
+					state.LastAction = "File saved"
 					state.StatusBar = state.LastAction
 				}},
-				{Text: "", Disabled: true}, // Ayırıcı
-				{Text: "Çıkış", Handler: func() {
-					state.StatusBar = "Çıkış isteği alındı (Ctrl+Q)"
+				{Text: "", Disabled: true}, // Separator
+				{Text: "Quit", Handler: func() {
+					state.StatusBar = "Quit requested (Ctrl+Q)"
 				}},
 			},
 			State:         state.FileMenuState,
@@ -214,26 +201,26 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(filePopup, menuChunks[0])
 
-		// Düzenleme Menüsü (F11)
+		// Edit Menu (F11)
 		editPopup := widgets.Popup{
 			ID:    "edit_menu",
-			Label: "Düzenle (F11)",
+			Label: "Edit (F11)",
 			Items: []widgets.PopupItem{
-				{Text: "Geri Al", Handler: func() {
-					state.LastAction = "Son işlem geri alındı"
+				{Text: "Undo", Handler: func() {
+					state.LastAction = "Action undone"
 					state.StatusBar = state.LastAction
 				}},
-				{Text: "Yinele", Handler: func() {
-					state.LastAction = "Son işlem yinelendi"
+				{Text: "Redo", Handler: func() {
+					state.LastAction = "Action redone"
 					state.StatusBar = state.LastAction
 				}},
 				{Text: "", Disabled: true},
-				{Text: "Kopyala", Handler: func() {
-					state.LastAction = "Panoya kopyalandı"
+				{Text: "Copy", Handler: func() {
+					state.LastAction = "Copied to clipboard"
 					state.StatusBar = state.LastAction
 				}},
-				{Text: "Yapıştır", Handler: func() {
-					state.LastAction = "Panodan yapıştırıldı"
+				{Text: "Paste", Handler: func() {
+					state.LastAction = "Pasted from clipboard"
 					state.StatusBar = state.LastAction
 				}},
 			},
@@ -246,20 +233,20 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(editPopup, menuChunks[1])
 
-		// Yardım Menüsü (F12)
+		// Help Menu (F12)
 		helpPopup := widgets.Popup{
 			ID:    "help_menu",
-			Label: "Yardım (F12)",
+			Label: "Help (F12)",
 			Items: []widgets.PopupItem{
-				{Text: "Hakkında", Handler: func() {
+				{Text: "About", Handler: func() {
 					state.ShowDialog = true
-					state.DialogMsg = "Limoni TUI Motoru — Faz 10: Katmanlı Render Demo"
-					state.StatusBar = "Hakkında dialogu açıldı"
+					state.DialogMsg = "Limoni TUI Engine — Layered Rendering Demo"
+					state.StatusBar = "About dialog opened"
 				}},
-				{Text: "Kısayollar", Handler: func() {
+				{Text: "Shortcuts", Handler: func() {
 					state.ShowDialog = true
-					state.DialogMsg = "F10: Dosya | F11: Düzenle | F12: Yardım | Ctrl+N: Modal | Esc: Kapat"
-					state.StatusBar = "Kısayollar dialogu açıldı"
+					state.DialogMsg = "F10: File | F11: Edit | F12: Help | Ctrl+N: Modal | Esc: Close"
+					state.StatusBar = "Shortcuts dialog opened"
 				}},
 			},
 			State:         state.HelpMenuState,
@@ -271,29 +258,29 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(helpPopup, menuChunks[2])
 
-		// ── BODY: İçerik Alanı ──
+		// ── BODY: Content Area ──
 		contentBlock := widgets.Block{
-			Title:          " Limoni Faz 10 — Katmanlı Render Demo ",
+			Title:          " Limoni — Layered Rendering Demo ",
 			TitleAlignment: widgets.AlignCenter,
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
 			BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
 			Style:          cell.Style{Bg: cell.NewColorRGB(18, 18, 24)},
 			Child: &widgets.Paragraph{
-				Text: "Hoş geldiniz!\n\n" +
-					"Faz 10 Yenilikleri:\n" +
-					"  • Katmanlı Render: z-index ile üst üste binen katmanlar\n" +
-					"  • Modal Pencere: Odak kilitleme ve click-outside close\n" +
-					"  • Açılır Menü (Popup): Dropdown menü desteği\n" +
-					"  • Multi-layer olay yönlendirme\n\n" +
-					"Menü butonlarına tıklayın veya kısayolları kullanın:\n" +
-					"  F10: Dosya | F11: Düzenle | F12: Yardım | Ctrl+N: Modal",
+				Text: "Welcome!\n\n" +
+					"Layered Engine Features:\n" +
+					"  • Layered Rendering: z-index based compositing\n" +
+					"  • Modal Windows: Focus trapping and click-outside dismissal\n" +
+					"  • Popup Menus: Fast dropdown support with animations\n" +
+					"  • Multi-layer event routing\n\n" +
+					"Click menu buttons or use keyboard shortcuts:\n" +
+					"  F10: File | F11: Edit | F12: Help | Ctrl+N: Modal",
 				Style: cell.Style{Fg: cell.NewColorRGB(180, 200, 220)},
 			},
 		}
 		f.RenderWidget(contentBlock, bodyArea)
 
-		// ── FOOTER: Durum Çubuğu ──
+		// ── FOOTER: Status Bar ──
 		footerBlock := widgets.Block{
 			Borders:      widgets.BorderTop,
 			BorderStyle:  cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
@@ -308,31 +295,29 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(footerBlock, footerArea)
 
-		// ── MODAL KATMAN (Ctrl+N ile açılır) ──
+		// ── MODAL LAYER (Ctrl+N) ──
 		if state.ShowDialog {
 			dialogW := uint16(50)
 			dialogH := uint16(7)
 			dialogArea := terminal.CenterRect(area, dialogW, dialogH)
 
-			// Modal katmanını kaydet: z-index=2000 (menülerden üstün)
 			f.RegisterLayer("main_dialog", terminal.LayerModal, dialogArea, 2000, func() {
 				state.ShowDialog = false
-				state.StatusBar = "Modal dışarı tıklama ile kapatıldı"
+				state.StatusBar = "Modal dismissed by outside click"
 			})
 
-			// Modal içindeki çizimi BeginLayer ile yap
 			f.BeginLayer("main_dialog")
 
 			dialog := widgets.Dialog{
 				ID:      "info_dialog",
-				Title:   "Bilgi",
+				Title:   "Information",
 				Message: state.DialogMsg,
 				Buttons: []widgets.DialogButton{
 					{
-						Text: "Tamam",
+						Text: "OK",
 						Handler: func() {
 							state.ShowDialog = false
-							state.StatusBar = "Modal Tamam ile kapatıldı"
+							state.StatusBar = "Modal closed with OK"
 						},
 					},
 				},

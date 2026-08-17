@@ -6,7 +6,8 @@ import (
 )
 
 // DrawShadow draws a clean, dark drop shadow relative to a given bounding area.
-// It clears any background characters in the shadow area and blends it to a very dark shade.
+// It alpha-darkens existing background and foreground colors in the shadow area
+// so the underlying content is preserved in a smooth, dimmed shadow tone.
 // offsetX (typically 2) determines the right shadow width.
 // offsetY (typically 1) determines the bottom shadow height.
 func DrawShadow(buf *buffer.Buffer, area cell.Rect, offsetX, offsetY uint16) {
@@ -14,7 +15,26 @@ func DrawShadow(buf *buffer.Buffer, area cell.Rect, offsetX, offsetY uint16) {
 		return
 	}
 
-	shadowBg := cell.NewColorRGB(6, 7, 9)
+	dimCell := func(c *cell.Cell) {
+		if c == nil {
+			return
+		}
+		// Darken background color (35% brightness or deep shadow tone)
+		if c.Style.Bg.Type() == cell.ColorRGB {
+			r, g, b := c.Style.Bg.RGB()
+			c.Style.Bg = cell.NewColorRGB(uint8(float64(r)*0.35), uint8(float64(g)*0.35), uint8(float64(b)*0.35))
+		} else {
+			c.Style.Bg = cell.NewColorRGB(8, 10, 14)
+		}
+
+		// Darken foreground text so background characters stay subtly visible
+		if c.Style.Fg.Type() == cell.ColorRGB {
+			r, g, b := c.Style.Fg.RGB()
+			c.Style.Fg = cell.NewColorRGB(uint8(float64(r)*0.35), uint8(float64(g)*0.35), uint8(float64(b)*0.35))
+		} else {
+			c.Style.Fg = cell.NewColorRGB(45, 50, 60)
+		}
+	}
 
 	// 1. Right Shadow Column
 	if offsetX > 0 {
@@ -23,9 +43,7 @@ func DrawShadow(buf *buffer.Buffer, area cell.Rect, offsetX, offsetY uint16) {
 			for dx := uint16(0); dx < offsetX; dx++ {
 				sx := area.X + area.Width + dx
 				if c := buf.Get(sx, sy); c != nil {
-					c.Content = ' '
-					c.Style.Bg = shadowBg
-					c.Style.Fg = shadowBg
+					dimCell(c)
 				}
 			}
 		}
@@ -38,9 +56,7 @@ func DrawShadow(buf *buffer.Buffer, area cell.Rect, offsetX, offsetY uint16) {
 			for dy := uint16(0); dy < offsetY; dy++ {
 				sy := area.Y + area.Height + dy
 				if c := buf.Get(sx, sy); c != nil {
-					c.Content = ' '
-					c.Style.Bg = shadowBg
-					c.Style.Fg = shadowBg
+					dimCell(c)
 				}
 			}
 		}

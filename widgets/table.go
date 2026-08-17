@@ -306,6 +306,7 @@ type Table struct {
 	State         *TableState
 	GridStyle     cell.Style
 	SelectedStyle cell.Style
+	FocusedStyle  cell.Style
 	DrawGrid      bool
 	SortEnabled   bool                                              // Başlık hücrelerine tıklayarak satır sıralamayı etkinleştirir.
 	MultiSelect   bool                                              // Space ile birden fazla satırın seçilmesini etkinleştirir.
@@ -958,6 +959,9 @@ func (t Table) drawSpanRow(
 	currX := ctx.Area.X
 	if isSelected {
 		rowStyle = rowStyle.Merge(t.SelectedStyle)
+		if ctx.IsFocused(t.ID) {
+			rowStyle = rowStyle.Merge(t.FocusedStyle)
+		}
 	}
 
 	sticky := t.StickyColumns

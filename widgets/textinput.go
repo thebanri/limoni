@@ -40,6 +40,10 @@ func (state *TextInputState) HandleKey(key backend.KeyEvent) bool {
 		state.insert(key.Ch)
 		return true
 
+	case backend.KeySpace:
+		state.insert(' ')
+		return true
+
 	case backend.KeyBackspace:
 		return state.backspace()
 

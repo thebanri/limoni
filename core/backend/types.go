@@ -1,6 +1,6 @@
 package backend
 
-// EventType olay türünü temsil eder.
+// EventType represents the category of a terminal event.
 type EventType uint8
 
 const (
@@ -11,7 +11,7 @@ const (
 	EventPaste
 )
 
-// KeyType özel klavye tuşlarını temsil eder.
+// KeyType represents special keyboard keys.
 type KeyType uint16
 
 const (
@@ -48,16 +48,16 @@ const (
 	KeyF12
 )
 
-// KeyEvent klavye tuş basımını ve modifier durumlarını temsil eder.
+// KeyEvent represents a key press event along with active modifier keys.
 type KeyEvent struct {
-	Type  KeyType // Tuşun türü (Rune veya Özel Tuş)
-	Ch    rune    // Eğer Type == KeyRune ise basılan karakter
-	Alt   bool    // Alt tuşu basılı mı?
-	Ctrl  bool    // Ctrl tuşu basılı mı?
-	Shift bool    // Shift tuşu basılı mı?
+	Type  KeyType // Key type (Rune or Special Key)
+	Ch    rune    // Character rune when Type == KeyRune
+	Alt   bool    // Alt key active
+	Ctrl  bool    // Ctrl key active
+	Shift bool    // Shift key active
 }
 
-// MouseButton fare butonlarını temsil eder.
+// MouseButton represents a mouse button action.
 type MouseButton uint8
 
 const (
@@ -70,32 +70,32 @@ const (
 	MouseScrollDown
 )
 
-// MouseEvent fare hareketlerini, tıklamalarını ve koordinatlarını temsil eder.
+// MouseEvent represents mouse movements, clicks, and coordinate positions.
 type MouseEvent struct {
-	Button MouseButton // Tıklanan buton
-	X      uint16      // Terminal koordinat sisteminde X konumu (0-tabanlı)
-	Y      uint16      // Terminal koordinat sisteminde Y konumu (0-tabanlı)
-	Drag   bool        // Sürükleme hareketi mi?
-	Alt    bool        // Alt tuşu basılı mı?
-	Ctrl   bool        // Ctrl tuşu basılı mı?
-	Shift  bool        // Shift tuşu basılı mı?
+	Button MouseButton // Mouse button clicked or released
+	X      uint16      // 0-indexed terminal column
+	Y      uint16      // 0-indexed terminal row
+	Drag   bool        // Whether this is a mouse drag movement
+	Alt    bool        // Alt key held
+	Ctrl   bool        // Ctrl key held
+	Shift  bool        // Shift key held
 }
 
-// ResizeEvent terminal penceresi boyut değişimini temsil eder.
+// ResizeEvent represents a terminal window resize event.
 type ResizeEvent struct {
 	Width  uint16
 	Height uint16
 }
 
-// FocusEvent pencere odaklanma durumunu temsil eder (Focus Gained / Focus Lost).
+// FocusEvent represents terminal focus gain or loss.
 type FocusEvent struct {
 	Gained bool
 }
 
 type PasteEvent struct{ Text string }
 
-// Event tüm TUI olaylarını tek bir düz yapıda birleştiren kapsayıcıdır.
-// Interface'ler yerine bu yapıyı kullanmak bellek tahsisatını (heap allocation) sıfıra indirir.
+// Event is a flat, zero-allocation container unifying all TUI event types.
+// Using a value type instead of interfaces prevents heap allocations in high-frequency event loops.
 type Event struct {
 	Type   EventType
 	Key    KeyEvent

@@ -3,8 +3,8 @@ package widgets
 import (
 	"image"
 	"image/color"
+	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -254,13 +254,24 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if b.Title != "" && hasT && area.Width > 4 {
 		titleStyle := blockStyle.Merge(b.TitleStyle)
 		formattedTitle := " " + b.Title + " "
-		titleLen := uint16(utf8.RuneCountInString(formattedTitle))
+		titleWidth := uint16(cell.StringWidth(formattedTitle))
 
 		// Başlığın sığabileceği maksimum genişlik
-		maxTitleLen := area.Width - 4
-		if titleLen > maxTitleLen {
-			formattedTitle = formattedTitle[:maxTitleLen]
-			titleLen = uint16(utf8.RuneCountInString(formattedTitle))
+		maxTitleWidth := area.Width - 4
+		if titleWidth > maxTitleWidth {
+			// Güvenli UTF-8 kırpma
+			var truncated strings.Builder
+			curW := uint16(0)
+			for _, r := range formattedTitle {
+				rw := uint16(cell.RuneWidth(r))
+				if curW+rw > maxTitleWidth {
+					break
+				}
+				truncated.WriteRune(r)
+				curW += rw
+			}
+			formattedTitle = truncated.String()
+			titleWidth = curW
 		}
 
 		var titleX uint16
@@ -268,9 +279,17 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		case AlignLeft:
 			titleX = area.X + 2
 		case AlignCenter:
-			titleX = area.X + (area.Width-titleLen)/2
+			if area.Width > titleWidth {
+				titleX = area.X + (area.Width-titleWidth)/2
+			} else {
+				titleX = area.X + 2
+			}
 		case AlignRight:
-			titleX = area.X + area.Width - 2 - titleLen
+			if area.Width >= 2+titleWidth {
+				titleX = area.X + area.Width - 2 - titleWidth
+			} else {
+				titleX = area.X + 2
+			}
 		}
 
 		buf.SetString(titleX, area.Y, formattedTitle, titleStyle)

@@ -17,6 +17,7 @@ type VirtualDataView struct {
 	Prefetch      int
 	Style         cell.Style
 	SelectedStyle cell.Style
+	FocusedStyle  cell.Style
 	EmptyText     string
 	LoadingText   string
 	ErrorText     string
@@ -32,6 +33,16 @@ type VirtualDataView struct {
 }
 
 func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if v.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(v.ID)
+	}
+	if v.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(v.ID)
+			}
+		})
+	}
 	if v.State == nil || v.Source == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
 	}
@@ -100,6 +111,9 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		rowStyle := style
 		if item.ID == v.State.Selected() {
 			rowStyle = rowStyle.Merge(v.SelectedStyle)
+			if ctx.IsFocused(v.ID) {
+				rowStyle = rowStyle.Merge(v.FocusedStyle)
+			}
 		}
 		height := item.Height
 		if height == 0 {

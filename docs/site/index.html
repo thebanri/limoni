@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limoni — Ultra-High-Performance TUI Library for Go</title>
+    <meta name="description" content="Limoni is a modern, zero-allocation, 60+ FPS Terminal User Interface (TUI) library for Go with 3D graphics, TEA runtime, and rich widgets.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Glass Navigation Bar -->
+    <header class="navbar" id="top-navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-logo">🍋</span>
+                <span class="brand-name">LIMONI</span>
+                <span class="brand-badge">v1.0.0</span>
+            </div>
+
+            <div class="nav-search-trigger" id="search-trigger" onclick="openSearchModal()">
+                <span class="search-icon">🔍</span>
+                <span class="search-placeholder">Dokümantasyonda ara...</span>
+                <span class="search-shortcut">⌘K / Ctrl+K</span>
+            </div>
+
+            <nav class="nav-links">
+                <a href="#quickstart" class="nav-link active" onclick="switchSection('quickstart')">Hızlı Başlangıç</a>
+                <a href="#architecture" class="nav-link" onclick="switchSection('architecture')">Mimari</a>
+                <a href="#widgets" class="nav-link" onclick="switchSection('widgets')">Widget'lar</a>
+                <a href="#graphics" class="nav-link" onclick="switchSection('graphics')">3D & Grafik</a>
+                <a href="#examples" class="nav-link" onclick="switchSection('examples')">Örnekler</a>
+                <a href="https://github.com/thebanri/limoni" target="_blank" rel="noopener noreferrer" class="nav-btn-github">
+                    <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+                    <span>GitHub</span>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="docs-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="docs-sidebar" id="docs-sidebar">
+            <div class="sidebar-group">
+                <div class="sidebar-title">GİRİŞ</div>
+                <ul class="sidebar-list">
+                    <li><a href="#quickstart" class="sidebar-link active" onclick="switchSection('quickstart')">⚡ Hızlı Başlangıç</a></li>
+                    <li><a href="#architecture" class="sidebar-link" onclick="switchSection('architecture')">🏛️ Mimari & Sıfır-Tahsisat</a></li>
+                    <li><a href="#benchmarks" class="sidebar-link" onclick="switchSection('benchmarks')">📊 Performans Raporu</a></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-group">
+                <div class="sidebar-title">ÇEKİRDEK APILER</div>
+                <ul class="sidebar-list">
+                    <li><a href="#core-cell" class="sidebar-link" onclick="switchSection('core-cell')">🟩 cell (Hücre & Stil)</a></li>
+                    <li><a href="#core-buffer" class="sidebar-link" onclick="switchSection('core-buffer')">🟨 buffer (1D Izgara & Diff)</a></li>
+                    <li><a href="#core-terminal" class="sidebar-link" onclick="switchSection('core-terminal')">🟦 terminal & frame</a></li>
+                    <li><a href="#core-runtime" class="sidebar-link" onclick="switchSection('core-runtime')">🔄 runtime (TEA Engine)</a></li>
+                    <li><a href="#layout" class="sidebar-link" onclick="switchSection('layout')">📐 layout (Flexbox)</a></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-group">
+                <div class="sidebar-title">WIDGET EKOSİSTEMİ</div>
+                <ul class="sidebar-list">
+                    <li><a href="#widgets-display" class="sidebar-link" onclick="switchSection('widgets-display')">📦 Block, Paragraph, Table</a></li>
+                    <li><a href="#widgets-inputs" class="sidebar-link" onclick="switchSection('widgets-inputs')">✍️ Formlar & Girdi Kutuları</a></li>
+                    <li><a href="#widgets-modals" class="sidebar-link" onclick="switchSection('widgets-modals')">🪟 Modallar & Katmanlar</a></li>
+                    <li><a href="#widgets-custom" class="sidebar-link" onclick="switchSection('widgets-custom')">🛠️ Özel Widget Geliştirme</a></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-group">
+                <div class="sidebar-title">GRAFİK & SÜRÜCÜLER</div>
+                <ul class="sidebar-list">
+                    <li><a href="#graphics-3d" class="sidebar-link" onclick="switchSection('graphics-3d')">🧊 3D Mesh & Shader Motoru</a></li>
+                    <li><a href="#graphics-canvas" class="sidebar-link" onclick="switchSection('graphics-canvas')">🎨 2D Braille Canvas</a></li>
+                    <li><a href="#animation" class="sidebar-link" onclick="switchSection('animation')">🎬 Animasyon & Fizik</a></li>
+                    <li><a href="#platforms" class="sidebar-link" onclick="switchSection('platforms')">🌐 WASM & SSH Sürücüleri</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="docs-content" id="docs-content">
+            <!-- Dynamic Markdown Content Loaded Here -->
+            <div id="content-container">
+                <!-- Content will be rendered dynamically by app.js -->
+            </div>
+        </main>
+
+        <!-- Right On-Page Navigation (TOC) -->
+        <aside class="docs-toc" id="docs-toc">
+            <div class="toc-title">BU SAYFADA</div>
+            <ul class="toc-list" id="toc-list">
+                <!-- Populated dynamically -->
+            </ul>
+        </aside>
+    </div>
+
+    <!-- Search Modal (Cmd+K) -->
+    <div class="search-modal-backdrop" id="search-modal" onclick="closeSearchModal(event)">
+        <div class="search-modal-box" onclick="event.stopPropagation()">
+            <div class="search-input-wrapper">
+                <span class="search-modal-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="API, Widget veya Rehber ara... (Örn: Table, 3D, FlexLayout)" oninput="handleSearch(this.value)">
+                <span class="search-modal-close" onclick="closeSearchModal()">ESC</span>
+            </div>
+            <div class="search-results" id="search-results">
+                <div class="search-hint">Aramak için yazmaya başlayın...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

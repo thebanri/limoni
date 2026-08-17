@@ -9,10 +9,14 @@ import (
 // Paragraph, çok satırlı metinleri gösteren görsel bileşendir.
 // Metinlerin alan sınırlarına göre otomatik kelime kelime aşağı kaydırılmasını (Word Wrap) destekler.
 type Paragraph struct {
+	// ID, widget odak kimliğidir.
+	ID string
 	// Text, gösterilecek olan metin içeriğidir. Yeni satır (\n) karakterlerini destekler.
 	Text string
 	// Style, metnin yazı rengi, arka planı ve modifikatör stillerini belirler.
 	Style cell.Style
+	// FocusedStyle, paragraf odaklandığında uygulanacak stildir.
+	FocusedStyle cell.Style
 	// Wrap, metnin sınır genişliğine göre otomatik olarak alt satıra kaydırılıp kaydırılmayacağını belirler.
 	Wrap bool
 
@@ -30,7 +34,21 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
+	if p.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(p.ID)
+	}
+	if p.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(p.ID)
+			}
+		})
+	}
+
 	mergedStyle := ctx.Style.Merge(p.Style)
+	if ctx.IsFocused(p.ID) {
+		mergedStyle = mergedStyle.Merge(p.FocusedStyle)
+	}
 
 	// Metni satırlara ayır ve önbelleğe al
 	if p.Text != p.lastText || area.Width != p.lastWidth || p.Wrap != p.lastWrap || p.cachedLines == nil {

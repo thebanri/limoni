@@ -16,18 +16,18 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	}
 	formLay := layout.NewFlexLayout(
 		layout.Vertical,
-		1,               // Elemanlar arasında 1 satır boşluk bırak
-		layout.Fixed(1), // Kılavuz / Açıklama satırı
-		layout.Fixed(3), // Kullanıcı adı kutusu (Bordered Block height 3)
-		layout.Fixed(1), // Checkbox (Mouse modu)
-		layout.Fixed(6), // Tema grubu kutusu (Bordered Block height 6)
-		layout.Fixed(3), // Bildirim modu açılır kutusu (Bordered Block height 3)
+		1,               // 1-line gap between items
+		layout.Fixed(1), // Guide line
+		layout.Fixed(3), // Username block
+		layout.Fixed(1), // Checkbox
+		layout.Fixed(6), // Theme group block
+		layout.Fixed(3), // Notification dropdown block
 	)
 	formChunks := formLay.Split(innerArea)
 
-	// 1. Dış Çerçeveyi Çiz
+	// 1. Settings Outer Block
 	settingsBlock := widgets.Block{
-		Title:          " LİMONİ SİSTEM AYARLARI ",
+		Title:          " LIMONI SYSTEM SETTINGS ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -35,10 +35,10 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	}
 	f.RenderWidget(settingsBlock, bodyArea)
 
-	// 2. İç form elemanlarını çiz
-	f.RenderWidget(label{text: "Tab / Shift+Tab veya Ok tuşları ile odaklanıp Space ile seçin.", style: cell.Style{Fg: cell.NewColorRGB(160, 160, 160), Modifier: cell.ModifierItalic}}, formChunks[0])
+	// 2. Inner Form Elements
+	f.RenderWidget(label{text: "Focus with Tab / Shift+Tab or Arrow keys, select with Space.", style: cell.Style{Fg: cell.NewColorRGB(160, 160, 160), Modifier: cell.ModifierItalic}}, formChunks[0])
 
-	// Kullanıcı adı kutusu
+	// Username Input
 	inputBorderCol := cell.NewColorRGB(100, 100, 100)
 	if t.FocusManager().Focused() == "username_input" {
 		inputBorderCol = accentColor
@@ -47,12 +47,12 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	usernameInput := widgets.TextInput{
 		ID:           "username_input",
 		State:        state.UsernameInputState,
-		Placeholder:  "Kullanıcı adınızı girin...",
+		Placeholder:  "Enter your username...",
 		Style:        cell.Style{Fg: cell.NewColorRGB(255, 255, 255)},
 		FocusedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)},
 	}
 	usernameBlock := widgets.Block{
-		Title:          " KULLANICI ADI ",
+		Title:          " USERNAME ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -65,16 +65,16 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 		widgets.DrawFocusRing(f.Buffer, formChunks[1], cell.Style{Fg: accentColor})
 	}
 
-	// Mouse Modu Checkbox
+	// Mouse Mode Checkbox
 	mouseModeCb := widgets.Checkbox{
 		ID:           "mouse_mode_cb",
 		Checked:      &state.MouseModeChecked,
-		Label:        "Mouse Modunu Aktif Et (SGR)",
+		Label:        "Enable Mouse Mode (SGR)",
 		FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}
 	f.RenderWidget(mouseModeCb, formChunks[2])
 
-	// Tema Seçim Paneli (Bordered Block + Radio buttons)
+	// Theme Selection Block
 	themeBorderCol := cell.NewColorRGB(100, 100, 100)
 	focused := t.FocusManager().Focused()
 	if focused == "theme_dark_rb" || focused == "theme_light_rb" || focused == "theme_colored_rb" || focused == "theme_contrast_rb" {
@@ -100,31 +100,31 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	darkRb := widgets.RadioButton{
 		ID:           "theme_dark_rb",
 		Selected:     &state.ThemeSelected,
-		Value:        "Koyu",
-		Label:        "Koyu Tema (Cyan/Yeşil)",
+		Value:        "Dark",
+		Label:        "Dark Theme (Cyan/Green)",
 		FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}
 	lightRb := widgets.RadioButton{
 		ID:           "theme_light_rb",
 		Selected:     &state.ThemeSelected,
-		Value:        "Açık",
-		Label:        "Açık Tema (Mavi/Gri)",
+		Value:        "Light",
+		Label:        "Light Theme (Blue/Gray)",
 		FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}
 	coloredRb := widgets.RadioButton{
 		ID:           "theme_colored_rb",
 		Selected:     &state.ThemeSelected,
-		Value:        "Renkli",
-		Label:        "Renkli Tema (Turuncu/Mor)",
+		Value:        "Colorful",
+		Label:        "Colorful Theme (Orange/Purple)",
 		FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}
 	contrastRb := widgets.RadioButton{
-		ID: "theme_contrast_rb", Selected: &state.ThemeSelected, Value: "Yüksek Kontrast",
-		Label: "Yüksek Kontrast Tema", FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
+		ID: "theme_contrast_rb", Selected: &state.ThemeSelected, Value: "High Contrast",
+		Label: "High Contrast Theme", FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}
 
 	themeBlock := widgets.Block{
-		Title:          " ARAYÜZ RENK TEMASI ",
+		Title:          " INTERFACE COLOR THEME ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -141,7 +141,7 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	f.RenderWidget(coloredRb, themeChunks[2])
 	f.RenderWidget(contrastRb, themeChunks[3])
 
-	// 3. Bildirim Modu Açılır Menü (Popup) Çizimi
+	// 3. Notification Dropdown (Popup)
 	notifBorderCol := cell.NewColorRGB(100, 100, 100)
 	if t.FocusManager().Focused() == "notif_popup" {
 		notifBorderCol = accentColor
@@ -158,10 +158,10 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 		ID:    "notif_popup",
 		Label: state.NotificationMode,
 		Items: []widgets.PopupItem{
-			{Text: "Sessiz Mod", Handler: func() { state.NotificationMode = "Sessiz Mod" }},
-			{Text: "Normal Mod", Handler: func() { state.NotificationMode = "Normal Mod" }},
-			{Text: "Tümünü Bildir", Handler: func() { state.NotificationMode = "Tümünü Bildir" }},
-			{Text: "Devre Dışı", Disabled: true, Handler: func() {}},
+			{Text: "Silent Mode", Handler: func() { state.NotificationMode = "Silent Mode" }},
+			{Text: "Normal Mode", Handler: func() { state.NotificationMode = "Normal Mode" }},
+			{Text: "Notify All", Handler: func() { state.NotificationMode = "Notify All" }},
+			{Text: "Disabled", Disabled: true, Handler: func() {}},
 		},
 		State:         state.NotifPopupState,
 		Style:         cell.Style{Fg: cell.NewColorRGB(200, 200, 200), Bg: cell.NewColorRGB(50, 50, 50)},
@@ -172,7 +172,7 @@ func drawSettings(t *terminal.Terminal, f *terminal.Frame, state *AppState, demo
 	}
 
 	notifBlock := widgets.Block{
-		Title:          " BİLDİRİM MODU (AÇILIR MENÜ) ",
+		Title:          " NOTIFICATION MODE (DROPDOWN MENU) ",
 		TitleAlignment: widgets.AlignLeft,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,

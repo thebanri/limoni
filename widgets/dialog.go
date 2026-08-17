@@ -156,7 +156,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// 4. HEADER TITLE
 	if di.Title != "" {
-		titleLen := uint16(utf8.RuneCountInString(di.Title))
+		titleLen := uint16(cell.StringWidth(di.Title))
 		if titleLen < boxW {
 			titleX := x + (boxW-titleLen)/2
 			// Draw title with bold, bright white style
@@ -178,8 +178,10 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if di.Message != "" {
 		lines := splitMessage(di.Message, int(boxW)-4)
 		for i, line := range lines {
-			lineW := uint16(utf8.RuneCountInString(line))
-			buf.SetString(x+(boxW-lineW)/2, msgY+uint16(i), line, bodyStyle.AddModifier(cell.ModifierBold))
+			lineW := uint16(cell.StringWidth(line))
+			if lineW < boxW {
+				buf.SetString(x+(boxW-lineW)/2, msgY+uint16(i), line, bodyStyle.AddModifier(cell.ModifierBold))
+			}
 		}
 		msgY += uint16(len(lines)) - 1
 	}
@@ -194,7 +196,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			Bg:       buf.Get(x+2, subY).Style.Bg,
 			Modifier: cell.ModifierItalic,
 		}
-		subLen := uint16(utf8.RuneCountInString(di.SubMessage))
+		subLen := uint16(cell.StringWidth(di.SubMessage))
 		if subLen < boxW-4 {
 			buf.SetString(x+(boxW-subLen)/2, subY, di.SubMessage, subStyle)
 		}
@@ -324,7 +326,7 @@ func splitMessage(msg string, maxW int) []string {
 	for _, word := range words {
 		if currentLine == "" {
 			currentLine = word
-		} else if utf8.RuneCountInString(currentLine)+1+utf8.RuneCountInString(word) <= maxW {
+		} else if cell.StringWidth(currentLine)+1+cell.StringWidth(word) <= maxW {
 			currentLine += " " + word
 		} else {
 			lines = append(lines, currentLine)

@@ -31,43 +31,38 @@ type AppState struct {
 }
 
 func main() {
-	// Standard I/O kullanarak terminal backend'ini oluştur
 	b := backend.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
 	}
 	defer b.Close()
 
-	// Terminal yöneticisini oluştur
 	t, err := terminal.New(b)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error initializing terminal: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Olay dinleme döngüsünü asenkron olarak başlat
 	b.StartEventLoop()
 
 	state := &AppState{
 		SidebarWidth: animation.NewFloat(6),
 		SidebarOpen:  false,
-		ButtonColor:  animation.NewColor(cell.NewColorRGB(0, 100, 255)), // Başlangıçta mavi
+		ButtonColor:  animation.NewColor(cell.NewColorRGB(0, 100, 255)), // Start with blue
 		ColorIndex:   0,
 		BounceVal:    animation.NewFloat(0),
 		Bouncing:     false,
-		LastKey:      "Yok",
-		LastMouse:    "Yok",
+		LastKey:      "None",
+		LastMouse:    "None",
 	}
 
-	// 30 FPS zamanlayıcısı (~33ms)
 	ticker := time.NewTicker(33 * time.Millisecond)
 	defer ticker.Stop()
 
 	frameCount := 0
 	lastFpsCalc := time.Now()
 
-	// İlk kareyi çiz
 	drawApp(t, state)
 
 	for {
@@ -83,7 +78,6 @@ func main() {
 				}
 
 				if ev.Key.Type == backend.KeySpace {
-					// Sidebar genişliğini anime et (Slide-in / Slide-out)
 					state.SidebarOpen = !state.SidebarOpen
 					target := 6.0
 					if state.SidebarOpen {
@@ -93,49 +87,44 @@ func main() {
 				}
 
 				if ev.Key.Type == backend.KeyEnter {
-					// Buton rengini anime et (Color Blend/Fade)
 					state.ColorIndex = (state.ColorIndex + 1) % 4
 					var targetColor cell.Color
 					switch state.ColorIndex {
 					case 0:
-						targetColor = cell.NewColorRGB(0, 100, 255) // Mavi
+						targetColor = cell.NewColorRGB(0, 100, 255) // Blue
 					case 1:
-						targetColor = cell.NewColorRGB(255, 0, 100) // Pembe
+						targetColor = cell.NewColorRGB(255, 0, 100) // Pink
 					case 2:
-						targetColor = cell.NewColorRGB(0, 255, 100) // Yeşil
+						targetColor = cell.NewColorRGB(0, 255, 100) // Green
 					case 3:
-						targetColor = cell.NewColorRGB(255, 180, 0) // Turuncu
+						targetColor = cell.NewColorRGB(255, 180, 0) // Orange
 					}
 					state.ButtonColor.AnimateTo(targetColor, 500*time.Millisecond, animation.EaseInOutQuad)
 				}
 
 				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'b' {
-					// Zıplama animasyonunu başlat
 					state.BounceVal.SetValue(0)
 					state.BounceVal.AnimateTo(10, 1000*time.Millisecond, animation.EaseOutBounce)
 				}
 
-				state.LastKey = fmt.Sprintf("Kod: %d, Karakter: %q", ev.Key.Type, string(ev.Key.Ch))
+				state.LastKey = fmt.Sprintf("Code: %d, Char: %q", ev.Key.Type, string(ev.Key.Ch))
 
 			case backend.EventMouse:
 				t.RouteMouseEvent(ev.Mouse)
-				state.LastMouse = fmt.Sprintf("Buton: %d, Pozisyon: (%d, %d)", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y)
+				state.LastMouse = fmt.Sprintf("Btn: %d, Pos: (%d, %d)", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y)
 
 			case backend.EventResize:
-				// Boyut değişiminde çizimi tetikle
+				// Automatically redrawn on next frame
 			}
 
 		case <-ticker.C:
-			// Zaman tabanlı animasyon nesnelerini güncelle
 			now := time.Now()
 			state.SidebarWidth.Update(now)
 			state.ButtonColor.Update(now)
 			state.BounceVal.Update(now)
 
-			// Ekranı yeniden çiz
 			drawApp(t, state)
 
-			// FPS hesaplama
 			frameCount++
 			if time.Since(lastFpsCalc) >= 1*time.Second {
 				state.FPS = float64(frameCount) / time.Since(lastFpsCalc).Seconds()
@@ -148,7 +137,6 @@ func main() {
 
 func drawApp(t *terminal.Terminal, state *AppState) {
 	t.Draw(func(f *terminal.Frame) {
-		// Dikey bölümlendirme
 		rootLay := layout.NewFlexLayout(
 			layout.Vertical,
 			0,
@@ -160,12 +148,12 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 
 		// 1. Header
 		f.RenderWidget(widgets.Block{
-			Title:          " LİMONİ TUI - FAZ 8: ANİMASYON MOTORU DEMOSU ",
+			Title:          " LIMONI TUI - ANIMATION ENGINE SHOWCASE ",
 			TitleAlignment: widgets.AlignCenter,
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
 			BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 255, 255)},
-			Child:          label{text: " Zaman tabanlı interpolasyon, yumuşak geçişler ve easing efektleri ", style: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}},
+			Child:          label{text: " Time-based interpolation, fluid transitions, and easing curves ", style: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}},
 		}, chunks[0])
 
 		// 2. Body
@@ -178,14 +166,14 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		)
 		bodyChunks := bodyLay.Split(chunks[1])
 
-		// Sol Panel (Sidebar)
-		sidebarTitle := "MENÜ"
+		// Left Panel (Sidebar)
+		sidebarTitle := "MENU"
 		if sidebarW >= 10 {
-			sidebarTitle = " HIZLI ERİŞİM "
+			sidebarTitle = " QUICK ACCESS "
 		}
 		sidebarText := "...\n...\n..."
 		if sidebarW >= 15 {
-			sidebarText = "🟢 Sistem Aktif\n⏱️ FPS Kararlı\n🎨 RGB Renkler\n🚀 Faz 8 Başarılı"
+			sidebarText = "System Active\nSolid 60 FPS\nRGB Interpolation\nFluid Animations"
 		}
 
 		sidebarBlock := widgets.Block{
@@ -199,7 +187,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(sidebarBlock, bodyChunks[0])
 
-		// Sağ Panel (İçerik Alanı)
+		// Right Panel
 		rightLay := layout.NewFlexLayout(
 			layout.Vertical,
 			1,
@@ -208,10 +196,10 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		)
 		rightChunks := rightLay.Split(bodyChunks[1])
 
-		// Üst Bölüm: Renk Animasyonu
+		// Top: Color Animation
 		btnCol := state.ButtonColor.Value()
 		colorBox := widgets.Block{
-			Title:          " RENK GEÇİŞİ (Blend / Fade) ",
+			Title:          " COLOR TRANSITION (Blend / Fade) ",
 			TitleAlignment: widgets.AlignLeft,
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
@@ -219,23 +207,23 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			PaddingLeft:    2,
 			PaddingTop:     1,
 			Child: &widgets.Paragraph{
-				Text:  fmt.Sprintf("Kutunun çerçeve rengi yumuşak bir şekilde değişmektedir.\n\n[Enter] tuşuna basarak veya bu kutuya tıklayarak renk geçişini tetikleyin.\nAktif Renk (RGB): %+v\nSon Olaylar - Tuş: %s | Fare: %s", btnCol, state.LastKey, state.LastMouse),
+				Text:  fmt.Sprintf("The border color dynamically transitions using quadratic easing.\n\nPress [Enter] or click this card to trigger color change.\nActive Color (RGB): %+v\nLast Events - Key: %s | Mouse: %s", btnCol, state.LastKey, state.LastMouse),
 				Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
 				Wrap:  true,
 			},
 		}
 		f.RenderWidget(colorBox, rightChunks[0])
 
-		// Alt Bölüm: Bouncing Animasyonu
+		// Bottom: Bounce Animation
 		bounceOffset := int(math.Round(state.BounceVal.Value()))
 		bounceText := ""
 		for i := 0; i < bounceOffset; i++ {
 			bounceText += "\n"
 		}
-		bounceText += "⚽ ZIPLAYAN KUTU (Zıplatmak için 'b' tuşuna basın veya bu kutuya tıklayın)"
+		bounceText += "  BOUNCING BOX (Press 'b' or click this card to trigger bounce)"
 
 		bounceBox := widgets.Block{
-			Title:          " ZIPLAMA EFEKTİ (EaseOutBounce) ",
+			Title:          " BOUNCE EFFECT (EaseOutBounce) ",
 			TitleAlignment: widgets.AlignLeft,
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
@@ -245,9 +233,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		}
 		f.RenderWidget(bounceBox, rightChunks[1])
 
-		// Tıklama Olay Köprülerinin Kaydı
-		
-		// 1. Sol Panel (Sidebar) Tıklama: Sidebar'ı aç/kapat
+		// Click Handlers
 		f.RegisterClickHandler(bodyChunks[0], func(ev backend.MouseEvent) {
 			state.SidebarOpen = !state.SidebarOpen
 			target := 6.0
@@ -257,7 +243,6 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			state.SidebarWidth.AnimateTo(target, 400*time.Millisecond, animation.EaseInOutCubic)
 		})
 
-		// 2. Renk Kutusu Tıklama: Rengi değiştir
 		f.RegisterClickHandler(rightChunks[0], func(ev backend.MouseEvent) {
 			state.ColorIndex = (state.ColorIndex + 1) % 4
 			var targetColor cell.Color
@@ -274,14 +259,13 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			state.ButtonColor.AnimateTo(targetColor, 500*time.Millisecond, animation.EaseInOutQuad)
 		})
 
-		// 3. Zıplama Kutusu Tıklama: Topu zıplat
 		f.RegisterClickHandler(rightChunks[1], func(ev backend.MouseEvent) {
 			state.BounceVal.SetValue(0)
 			state.BounceVal.AnimateTo(10, 1000*time.Millisecond, animation.EaseOutBounce)
 		})
 
 		// 3. Footer
-		footerText := fmt.Sprintf(" [Boşluk] Menü Aç/Kapa | [Enter] Renk Değiştir | [b] Zıplat | [q] Çıkış | FPS: %.1f", state.FPS)
+		footerText := fmt.Sprintf(" [Space] Toggle Sidebar | [Enter] Cycle Color | [b] Bounce | [q] Quit | FPS: %.1f", state.FPS)
 		footerBlock := widgets.Block{
 			Borders: widgets.BorderNone,
 			Style:   cell.Style{Fg: cell.NewColorRGB(140, 140, 140), Bg: cell.NewColorRGB(30, 30, 30)},

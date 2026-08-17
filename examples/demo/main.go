@@ -281,16 +281,16 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 	}
 	state.CPUHistory[len(state.CPUHistory)-1] = newVal
 
-	// Temaya göre vurgu rengini (accent color) belirle
+	// Determine accent color according to selected theme
 	var accentColor cell.Color
 	switch state.ThemeSelected {
-	case "Koyu":
-		accentColor = cell.NewColorRGB(0, 255, 0) // Yeşil
-	case "Açık":
-		accentColor = cell.NewColorRGB(0, 100, 255) // Mavi
-	case "Renkli":
-		accentColor = cell.NewColorRGB(255, 165, 0) // Turuncu
-	case "Yüksek Kontrast":
+	case "Dark", "Koyu":
+		accentColor = cell.NewColorRGB(0, 255, 0) // Green
+	case "Light", "Açık":
+		accentColor = cell.NewColorRGB(0, 100, 255) // Blue
+	case "Colorful", "Renkli":
+		accentColor = cell.NewColorRGB(255, 165, 0) // Orange
+	case "High Contrast", "Yüksek Kontrast":
 		accentColor = cell.NewColorRGB(255, 255, 0)
 	}
 
@@ -345,43 +345,39 @@ func main() {
 	// Standard I/O kullanarak terminal backend'ini oluştur
 	b := backend.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	// Program bittiğinde terminal ayarlarını (Raw mode, ekran temizleme vb.) restore et
 	defer b.Close()
 
-	// Terminal yöneticisini (Double-buffer ve çizim motoru) oluştur
 	t, err := terminal.New(b)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Asenkron olay okuyucu Event Loop'u başlat
 	b.StartEventLoop()
 
-	// Başlangıç uygulama durumunu ata
 	state := &AppState{
-		ActiveTab:         "Giriş",
+		ActiveTab:         "Home",
 		ScreenReaderMode:  screenReaderMode,
-		LastKey:           "Yok",
-		LastMouse:         "Yok",
+		LastKey:           "None",
+		LastMouse:         "None",
 		SettingsListState: widgets.NewListState(),
 		PulseVal:          animation.NewFloat(0),
 		FormProgress:      animation.NewFloat(0),
 		TabColors: map[string]*animation.Color{
-			"Giriş":      animation.NewColor(cell.NewColorRGB(0, 255, 0)),
-			"Ayarlar":    animation.NewColor(cell.NewColorRGB(120, 120, 120)),
-			"Grafik":     animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Home":       animation.NewColor(cell.NewColorRGB(0, 255, 0)),
+			"Settings":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Graphics":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 			"Playground": animation.NewColor(cell.NewColorRGB(120, 120, 120)),
-			"Referans":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
-			"Çıkış":      animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Reference":  animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Exit":       animation.NewColor(cell.NewColorRGB(120, 120, 120)),
 		},
 		UsernameInputState:  widgets.NewTextInputState(),
 		ExitDialogAnim:      animation.NewFloat(0.0),
 		HelpDialogAnim:      animation.NewFloat(0.0),
-		NotificationMode:    "Normal Mod",
+		NotificationMode:    "Normal Mode",
 		NotifPopupState:     widgets.NewPopupState(),
 		PlaygroundDir:       layout.Horizontal,
 		PlaygroundRatio:     50,
@@ -389,7 +385,7 @@ func main() {
 		PlaygroundMode:      "Vector",
 		VirtualListState:    widgets.NewListState(),
 		MouseModeChecked:    true,
-		ThemeSelected:       "Koyu",
+		ThemeSelected:       "Dark",
 		ProfileFrame:        "Rounded",
 		DebugMode:           false,
 		RotX:                30.0,
@@ -412,10 +408,10 @@ func main() {
 		MarkdownHeight:      6,
 		ProcessSamples:      make(map[string]processSample),
 	}
-	state.UsernameInputState.SetValue("LimoniGelistirici")
+	state.UsernameInputState.SetValue("LimoniDeveloper")
 	state.DemoMarkdown = loadDemoMarkdown()
 	state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, time.Now())
-	state.TableState.Select(0) // Tabloda ilk satırı seçili başlat
+	state.TableState.Select(0)
 	state.ReferenceDataState = widgets.NewVirtualDataState()
 
 	// 1. Resmi oluştur (Merkez kırmızı, dışı mavi daire)
@@ -469,14 +465,14 @@ func main() {
 	}
 
 	state.ProfileImg = loadProfileImage()
-	state.ThreeDModel = "Küp"
-	state.ThreeDStyle = "Dokulu"
+	state.ThreeDModel = "Cube"
+	state.ThreeDStyle = "Textured"
 
-	// İsteğe bağlı 3D modeli: LIMONI_MODEL=/path/model.stl go run ./examples/demo
+	// Optional 3D model: LIMONI_MODEL=/path/model.stl go run ./examples/demo
 	modelPath := os.Getenv("LIMONI_MODEL")
 	if modelPath == "" {
 		modelPath = os.Getenv("LIMONI_OBJ")
-	} // geriye dönük uyumluluk
+	}
 	if modelPath != "" {
 		var model graphics.Model3D
 		var modelErr error
@@ -488,7 +484,7 @@ func main() {
 			model, modelErr = graphics.LoadOBJ(modelPath)
 		}
 		if modelErr != nil {
-			fmt.Fprintf(os.Stderr, "3D modeli yüklenemedi: %v\n", modelErr)
+			fmt.Fprintf(os.Stderr, "Failed to load 3D model: %v\n", modelErr)
 		} else {
 			model.Normalize(2.4)
 			state.OBJModel = &model
@@ -497,14 +493,14 @@ func main() {
 		}
 	}
 
-	// Komut Paleti ve Kısayol Yöneticisi başlat
+	// Initialize Command Palette and Keybinding Manager
 	state.CmdPalette = widgets.NewCommandPaletteState()
 	state.KeyManager = widgets.NewKeybindingManager()
 
-	// Navigasyon kısayolları kaydet
+	// Register navigation keybindings
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
-		Label: "Komut Paletini Aç/Kapa", Category: "Genel",
+		Label: "Toggle Command Palette", Category: "General",
 		Handler: func() {
 			state.CmdPalette.Toggle()
 			if state.CmdPalette.IsOpen {
@@ -516,7 +512,7 @@ func main() {
 	})
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
-		Label: "Hata Ayıklama Modunu Aç/Kapa", Category: "Görünüm",
+		Label: "Toggle Debug Mode", Category: "View",
 		Handler: func() { state.DebugMode = !state.DebugMode },
 	})
 	canHandleGlobalCommand := func() bool {
@@ -531,7 +527,7 @@ func main() {
 		state.HelpDialogW = 66
 		state.HelpDialogH = 12
 		state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
-		state.LastKey = "Yardım Paneli Açıldı"
+		state.LastKey = "Help Panel Opened"
 	}
 	openExitConfirmation := func() {
 		state.ShowExitDialog = true
@@ -539,23 +535,23 @@ func main() {
 		state.ModalOffsetY = 0
 		state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
 		t.FocusManager().SetFocused("exit_dialog_btn_1")
-		state.LastKey = "Çıkış Onay Modali Açıldı"
+		state.LastKey = "Exit Confirmation Modal Opened"
 		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyF1, Label: "Yardım Panelini Aç", Category: "Görünüm",
+		Key: backend.KeyF1, Label: "Open Help Panel", Category: "View",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'h', Label: "Yardım Panelini Aç", Category: "Görünüm",
+		Key: backend.KeyRune, Ch: 'h', Label: "Open Help Panel", Category: "View",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'q', Label: "Çıkış Onayını Aç", Category: "Genel",
+		Key: backend.KeyRune, Ch: 'q', Label: "Quit Confirmation", Category: "General",
 		When: canHandleGlobalCommand, Handler: openExitConfirmation,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Çıkış Onayını Aç", Category: "Genel",
+		Key: backend.KeyEsc, Label: "Quit Confirmation", Category: "General",
 		When: canHandleGlobalCommand, Handler: openExitConfirmation,
 	})
 	closeExitDialog := func() {
@@ -564,23 +560,23 @@ func main() {
 		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Scope: "exit_dialog", Label: "Çıkış Diyaloğunu Kapat", Category: "Modal",
+		Key: backend.KeyEsc, Scope: "exit_dialog", Label: "Close Exit Dialog", Category: "Modal",
 		Handler: closeExitDialog,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Scope: "help_dialog", Label: "Yardım Panelini Kapat", Category: "Modal",
+		Key: backend.KeyEsc, Scope: "help_dialog", Label: "Close Help Panel", Category: "Modal",
 		Handler: func() {
 			state.ShowHelpDialog = false
 			t.FocusManager().SetFocused("")
 		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Açılır Menüyü Kapat", Category: "Modal",
+		Key: backend.KeyEsc, Label: "Close Dropdown", Category: "Modal",
 		When:    func() bool { return state.NotifPopupState.IsOpen },
 		Handler: func() { state.NotifPopupState.Close() },
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Aktif Kontrolden Çık", Category: "Navigasyon",
+		Key: backend.KeyEsc, Label: "Blur Control", Category: "Navigation",
 		When: func() bool {
 			switch t.FocusManager().Focused() {
 			case "username_input", "showcase_input", "demo_markdown", "table_filter":
@@ -593,21 +589,21 @@ func main() {
 	})
 	registerGraphicKey := func(ch rune, label string, handler func()) {
 		state.KeyManager.Register(widgets.Keybinding{
-			Key: backend.KeyRune, Ch: ch, Label: label, Category: "3D Grafik",
-			When: func() bool { return state.ActiveTab == "Grafik" }, Handler: handler,
+			Key: backend.KeyRune, Ch: ch, Label: label, Category: "3D Graphics",
+			When: func() bool { return state.ActiveTab == "Graphics" }, Handler: handler,
 		})
 	}
-	registerGraphicKey('1', "3D Model: Küp", func() { state.ThreeDModel = "Küp" })
-	registerGraphicKey('2', "3D Model: Piramit", func() { state.ThreeDModel = "Piramit" })
-	registerGraphicKey('3', "3D Model: Dörtyüzlü", func() { state.ThreeDModel = "Dörtyüzlü" })
-	registerGraphicKey('4', "Render Stili: Dokulu", func() { state.ThreeDStyle = "Dokulu" })
-	registerGraphicKey('5', "Render Stili: Dolu Renkli", func() { state.ThreeDStyle = "Dolu Renkli" })
-	registerGraphicKey('6', "Render Stili: Kafes", func() { state.ThreeDStyle = "Kafes" })
-	registerGraphicKey('7', "Render Stili: Gölgeli (Lambertian)", func() { state.ThreeDStyle = "Gölgeli" })
-	registerGraphicKey('8', "Render Stili: Gouraud Shaded", func() { state.ThreeDStyle = "Gouraud" })
+	registerGraphicKey('1', "3D Model: Cube", func() { state.ThreeDModel = "Cube" })
+	registerGraphicKey('2', "3D Model: Pyramid", func() { state.ThreeDModel = "Pyramid" })
+	registerGraphicKey('3', "3D Model: Tetrahedron", func() { state.ThreeDModel = "Tetrahedron" })
+	registerGraphicKey('4', "Render Style: Textured", func() { state.ThreeDStyle = "Textured" })
+	registerGraphicKey('5', "Render Style: Solid", func() { state.ThreeDStyle = "Solid" })
+	registerGraphicKey('6', "Render Style: Wireframe", func() { state.ThreeDStyle = "Wireframe" })
+	registerGraphicKey('7', "Render Style: Lambert Shading", func() { state.ThreeDStyle = "Lambert" })
+	registerGraphicKey('8', "Render Style: Gouraud Shaded", func() { state.ThreeDStyle = "Gouraud" })
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: '+', Scope: "playground",
-		Label: "Playground Oranını Artır", Category: "Playground",
+		Label: "Increase Playground Ratio", Category: "Playground",
 		When: func() bool {
 			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
 		},
@@ -621,7 +617,7 @@ func main() {
 	})
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: '-', Scope: "playground",
-		Label: "Playground Oranını Azalt", Category: "Playground",
+		Label: "Decrease Playground Ratio", Category: "Playground",
 		When: func() bool {
 			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
 		},
@@ -635,7 +631,7 @@ func main() {
 	})
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'j', Scope: "playground_virtual_list",
-		Label: "Sanal Listede Aşağı Git", Category: "Playground",
+		Label: "Move Down in Virtual List", Category: "Playground",
 		When: func() bool {
 			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
 		},
@@ -643,43 +639,43 @@ func main() {
 	})
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyRune, Ch: 'k', Scope: "playground_virtual_list",
-		Label: "Sanal Listede Yukarı Git", Category: "Playground",
+		Label: "Move Up in Virtual List", Category: "Playground",
 		When: func() bool {
 			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
 		},
 		Handler: func() { moveVirtualListSelection(state, -1) },
 	})
 
-	// Sekme navigasyon komutlarını Command Palette'e kaydet
+	// Command Palette Items
 	cmdItems := []widgets.CommandItem{
-		{Label: "Giriş Sekmesine Git", Detail: "", Category: "Navigasyon",
+		{Label: "Go to Home Tab", Detail: "", Category: "Navigation",
 			Handler: func() {
-				if state.ActiveTab != "Giriş" {
-					state.ActiveTab = "Giriş"
+				if state.ActiveTab != "Home" {
+					state.ActiveTab = "Home"
 					t.FocusManager().SetFocused("")
 					state.TransitionStartTime = time.Now()
 					state.IsTransitioning = true
 				}
 			}},
-		{Label: "Ayarlar Sekmesine Git", Detail: "", Category: "Navigasyon",
+		{Label: "Go to Settings Tab", Detail: "", Category: "Navigation",
 			Handler: func() {
-				if state.ActiveTab != "Ayarlar" {
-					state.ActiveTab = "Ayarlar"
+				if state.ActiveTab != "Settings" {
+					state.ActiveTab = "Settings"
 					t.FocusManager().SetFocused("")
 					state.TransitionStartTime = time.Now()
 					state.IsTransitioning = true
 				}
 			}},
-		{Label: "Grafik Sekmesine Git", Detail: "", Category: "Navigasyon",
+		{Label: "Go to Graphics Tab", Detail: "", Category: "Navigation",
 			Handler: func() {
-				if state.ActiveTab != "Grafik" {
-					state.ActiveTab = "Grafik"
+				if state.ActiveTab != "Graphics" {
+					state.ActiveTab = "Graphics"
 					t.FocusManager().SetFocused("")
 					state.TransitionStartTime = time.Now()
 					state.IsTransitioning = true
 				}
 			}},
-		{Label: "Playground Sekmesine Git", Detail: "", Category: "Navigasyon",
+		{Label: "Go to Playground Tab", Detail: "", Category: "Navigation",
 			Handler: func() {
 				if state.ActiveTab != "Playground" {
 					state.ActiveTab = "Playground"
@@ -688,32 +684,40 @@ func main() {
 					state.IsTransitioning = true
 				}
 			}},
+		{Label: "Go to Reference Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Reference" {
+					state.ActiveTab = "Reference"
+					t.FocusManager().SetFocused("")
+					state.TransitionStartTime = time.Now()
+					state.IsTransitioning = true
+				}
+			}},
 
-		{Label: "3D Model: Küp", Detail: "1", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Küp" }},
-		{Label: "3D Model: Piramit", Detail: "2", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Piramit" }},
-		{Label: "3D Model: Dörtyüzlü", Detail: "3", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "Dörtyüzlü" }},
+		{Label: "3D Model: Cube", Detail: "1", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Cube" }},
+		{Label: "3D Model: Pyramid", Detail: "2", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Pyramid" }},
+		{Label: "3D Model: Tetrahedron", Detail: "3", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Tetrahedron" }},
 	}
 	if state.OBJModel != nil {
-		cmdItems = append(cmdItems, widgets.CommandItem{Label: "3D Model: OBJ Dosyası", Detail: "7", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDModel = "OBJ" }})
+		cmdItems = append(cmdItems, widgets.CommandItem{Label: "3D Model: OBJ File", Detail: "7", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "OBJ" }})
 	}
 	cmdItems = append(cmdItems,
-		widgets.CommandItem{Label: "Render Stili: Dokulu", Detail: "4", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dokulu" }},
-		widgets.CommandItem{Label: "Render Stili: Dolu Renkli", Detail: "5", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Dolu Renkli" }},
-		widgets.CommandItem{Label: "Render Stili: Kafes", Detail: "6", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Kafes" }},
-		widgets.CommandItem{Label: "Render Stili: Gölgeli (Lambertian)", Detail: "7", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Gölgeli" }},
-		widgets.CommandItem{Label: "Render Stili: Gouraud Shaded", Detail: "8", Category: "3D Grafik",
-			Handler: func() { state.ActiveTab = "Grafik"; state.ThreeDStyle = "Gouraud" }},
+		widgets.CommandItem{Label: "Render Style: Textured", Detail: "4", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Textured" }},
+		widgets.CommandItem{Label: "Render Style: Solid", Detail: "5", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Solid" }},
+		widgets.CommandItem{Label: "Render Style: Wireframe", Detail: "6", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Wireframe" }},
+		widgets.CommandItem{Label: "Render Style: Lambert Shading", Detail: "7", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Lambert" }},
+		widgets.CommandItem{Label: "Render Style: Gouraud Shaded", Detail: "8", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Gouraud" }},
 	)
 
-	// KeybindingManager'dan otomatik olarak kısayol komutlarını da ekle
 	cmdItems = append(cmdItems, state.KeyManager.ToCommandItems()...)
 	state.CmdPalette.AllItems = cmdItems
 	state.CmdPalette.Filtered = widgets.FuzzyFilter("", cmdItems)
@@ -750,20 +754,14 @@ func main() {
 					}
 					break
 				}
-				if state.ActiveTab == "Referans" && ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'a' &&
+				if (state.ActiveTab == "Reference" || state.ActiveTab == "Referans") && ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'a' &&
 					!state.ShowExitDialog && !state.ShowHelpDialog {
 					state.ReferenceAccessibilityASCII = !state.ReferenceAccessibilityASCII
-					state.LastKey = "Accessibility ASCII modu değişti"
+					state.LastKey = "Accessibility ASCII mode toggled"
 					break
 				}
-				// Markdown alanı odaktayken ok tuşları global focus kısayollarına
-				// gitmemeli; doğrudan içeriği kaydırmalıdır.
-				// Giriş sekmesinde Bilgilendirme alanı bir metin editörü değildir;
-				// odak başka bir widget'a geçmiş olsa bile ok tuşları scroll'u
-				// doğrudan bu viewport'a yönlendirilir. Aksi halde bir redraw
-				// sonrasında focus değişince alan "çalışmıyor" gibi görünür.
 				markdownKey := ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))
-				if state.ActiveTab == "Giriş" && markdownKey && (focused == "demo_markdown" || focused == "" || focused[:minInt(len(focused), len("tab_"))] == "tab_") {
+				if (state.ActiveTab == "Home" || state.ActiveTab == "Giriş") && markdownKey && (focused == "demo_markdown" || focused == "" || focused[:minInt(len(focused), len("tab_"))] == "tab_") {
 					switch {
 					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
 						state.MarkdownOffset--
@@ -776,21 +774,15 @@ func main() {
 					}
 					break
 				}
-				// Bazı klavye düzenlerinde soru işareti terminale '?' yerine
-				// Shift+/ üretiminin ham '/' rune'u olarak ulaşabilir. Metin
-				// alanlarında slash normal karakter olarak kalmalı; yalnızca
-				// global kısayol kullanılabilir durumdaysa yardım panelini aç.
 				if state.KeyManager != nil && canHandleGlobalCommand() && (ev.Key.Type == backend.KeyF1 ||
 					(ev.Key.Type == backend.KeyRune && (ev.Key.Ch == 'h' || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)))) && !ev.Key.Ctrl && !ev.Key.Alt {
 					openHelp()
 					break
 				}
-				// Declarative kısayolların merkezi yönlendiricisi.
 				if state.KeyManager.Handle(ev.Key, t.FocusManager().ActiveScopes()...) {
 					break
 				}
 
-				// Playground yönü, bir kontrol widget'ı odakta değilken ok tuşlarıyla değişir.
 				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb" || focused == "avatar_opacity"
 				if state.ActiveTab == "Playground" && !playgroundControlFocused && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen {
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
@@ -799,12 +791,11 @@ func main() {
 						} else {
 							state.PlaygroundDir = layout.Horizontal
 						}
-						state.LastKey = "Playground Yön Değiştir"
+						state.LastKey = "Playground Direction Changed"
 						break
 					}
 				}
 
-				// Eğer Çıkış Onay Modali açıksa, klavye girdilerini sadece onun butonlarına yönlendir
 				if state.ShowExitDialog {
 					if ev.Key.Type == backend.KeyTab {
 						if ev.Key.Shift {
@@ -819,12 +810,10 @@ func main() {
 					}
 					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
 						if focused == "exit_dialog_btn_0" {
-							// Evet - Çıkış yap
 							b.Close()
-							fmt.Println("\nLimoni TUI uygulamasından çıkış yapıldı. Görüşmek üzere!")
+							fmt.Println("\nExited Limoni TUI application. Goodbye!")
 							os.Exit(0)
 						} else if focused == "exit_dialog_btn_1" {
-							// Hayır - Kapat
 							state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
 							t.FocusManager().SetFocused("")
 							t.ForceFullRedraw()
@@ -835,21 +824,19 @@ func main() {
 						t.FocusManager().SetFocused("")
 						t.ForceFullRedraw()
 					}
-					state.LastKey = fmt.Sprintf("Çıkış Diyalog Tuşu: %d", ev.Key.Type)
-					break // Diğer klavye olaylarını yut!
+					state.LastKey = fmt.Sprintf("Exit Dialog Key: %d", ev.Key.Type)
+					break
 				}
 
-				// Eğer Yardım Modali açıksa, sadece Esc ile kapat
 				if state.ShowHelpDialog {
 					if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?') {
 						state.ShowHelpDialog = false
 						t.FocusManager().SetFocused("")
 					}
-					state.LastKey = "Yardım Paneli Kapatıldı"
+					state.LastKey = "Help Panel Closed"
 					break
 				}
 
-				// Eğer Açılır Menü (Popup) açıksa, klavye girdilerini ona yönlendir
 				if state.NotifPopupState.IsOpen {
 					if ev.Key.Type == backend.KeyArrowDown {
 						state.NotifPopupState.Next(4)
@@ -860,50 +847,42 @@ func main() {
 						if idx >= 0 && idx < 3 {
 							switch idx {
 							case 0:
-								state.NotificationMode = "Sessiz Mod"
+								state.NotificationMode = "Silent Mode"
 							case 1:
-								state.NotificationMode = "Normal Mod"
+								state.NotificationMode = "Normal Mode"
 							case 2:
-								state.NotificationMode = "Tümünü Bildir"
+								state.NotificationMode = "Notify All"
 							}
 							state.NotifPopupState.Close()
 						}
 					} else if ev.Key.Type == backend.KeyEsc {
 						state.NotifPopupState.Close()
 					}
-					state.LastKey = "Açılır Menü Klavye Navigasyonu"
+					state.LastKey = "Dropdown Keyboard Navigation"
 					break
 				}
 
-				// Yön tuşları veya Vim tuşları (h/j/k/l) ile 2B spatial odak navigasyonu
 				var spatialDir terminal.FocusDirection
 				isSpatialKey := false
 
-				// Hangi widget'ların yön tuşlarını yutacağını kontrol et
 				consumesArrow := false
 				consumesVim := false
 
 				switch focused {
 				case "username_input", "showcase_input":
-					// Text inputlar sol/sağ yön tuşlarını ve tüm karakter tuşlarını (Vim harfleri) yutar
 					consumesVim = true
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
 						consumesArrow = true
 					}
 				case "demo_slider", "showcase_slider", "avatar_opacity", "process_table":
-					// Slider ve Tablo tüm yön tuşlarını yutar
 					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
 						consumesArrow = true
 					}
 				case "play_direction", "play_mode", "play_border", "play_showcase_select":
-					// Select bileşeni yukarı/aşağı yön tuşlarını yutar
 					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
 						consumesArrow = true
 					}
 				case "table_filter":
-					// Tablo arama alanında yön tuşları sıralama kontrolüne
-					// aittir; spatial focus navigasyonuna kaçmamalıdır.
-					// Ctrl+Sol/Sağ aşağıda TextInput cursor hareketine aktarılır.
 					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown ||
 						ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
 						consumesArrow = true
@@ -952,27 +931,25 @@ func main() {
 
 				if isSpatialKey {
 					if t.FocusManager().MoveFocus2D(spatialDir) {
-						state.LastKey = fmt.Sprintf("Yön Odaklanma (%v)", ev.Key.Type)
+						state.LastKey = fmt.Sprintf("Direction Focus (%v)", ev.Key.Type)
 						break
 					}
 				}
 
-				// Tab ve Shift+Tab tuşlarıyla form elemanları arası odak geçişi
 				if ev.Key.Type == backend.KeyTab {
 					if ev.Key.Shift {
 						navigateDemoTab(state, t.FocusManager(), -1)
-						state.LastKey = "Shift+Tab (Sekme Önceki)"
+						state.LastKey = "Shift+Tab (Prev Tab)"
 					} else {
 						t.FocusManager().NextExcluding("tab_")
-						state.LastKey = "Tab (Aktif Widget)"
+						state.LastKey = "Tab (Next Widget)"
 					}
 					break
 				}
 
-				// Sekme menüsü focus'taysa Enter/Space ile sekmeyi aç.
 				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace) {
 					tabName := strings.TrimPrefix(focused, "tab_")
-					if tabName != "Çıkış" {
+					if tabName != "Exit" && tabName != "Çıkış" {
 						state.ActiveTab = tabName
 						state.IsTransitioning = false
 						t.SetTransitionActive(false)
@@ -1073,13 +1050,13 @@ func main() {
 							break
 						}
 						state.TableState.MoveSortColumn(1, 5)
-						state.LastKey = "Sıralama sütunu sonraki"
+						state.LastKey = "Next sort column"
 					case backend.KeyArrowUp, backend.KeyArrowDown:
 						if state.TableState.SortColumn < 0 {
 							state.TableState.SortColumn = 2
-						} // Varsayılan: CPU
+						} // Default: CPU
 						state.TableState.SortDescending = ev.Key.Type == backend.KeyArrowDown
-						state.LastKey = "Tablo sıralama yönü değişti"
+						state.LastKey = "Table sort direction changed"
 					default:
 						state.TableFilterState.HandleKey(ev.Key)
 					}
@@ -1087,41 +1064,41 @@ func main() {
 				} else if focused == "process_table" {
 					if ev.Key.Type == backend.KeyArrowDown {
 						state.TableState.Next(len(state.Processes))
-						state.LastKey = "Tablo Aşağı (Ok Tuşu)"
+						state.LastKey = "Table Down (Arrow Key)"
 					} else if ev.Key.Type == backend.KeyArrowUp {
 						state.TableState.Prev()
-						state.LastKey = "Tablo Yukarı (Ok Tuşu)"
+						state.LastKey = "Table Up (Arrow Key)"
 					} else if ev.Key.Type == backend.KeyArrowLeft {
 						state.TableState.ScrollHorizontal(-2)
-						state.LastKey = "Tablo Sola Kaydır (Sol Ok)"
+						state.LastKey = "Table Scroll Left"
 					} else if ev.Key.Type == backend.KeyArrowRight {
 						state.TableState.ScrollHorizontal(2)
-						state.LastKey = "Tablo Sağa Kaydır (Sağ Ok)"
+						state.LastKey = "Table Scroll Right"
 					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
 						state.TableState.ToggleRow(state.TableState.Selected)
-						state.LastKey = "Tablo satır seçimi değişti"
+						state.LastKey = "Table row selection toggled"
 					}
 				}
 
-				// Checkbox, RadioButton veya Popup odaklıyken Space/Enter ile seçim yapılması
+				// Checkbox, RadioButton or Popup space/enter selection
 				if focused != "" && focused != "username_input" && (ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter) {
 					switch focused {
 					case "mouse_mode_cb":
 						state.MouseModeChecked = !state.MouseModeChecked
 					case "theme_dark_rb":
-						state.ThemeSelected = "Koyu"
+						state.ThemeSelected = "Dark"
 					case "theme_light_rb":
-						state.ThemeSelected = "Açık"
+						state.ThemeSelected = "Light"
 					case "theme_colored_rb":
-						state.ThemeSelected = "Renkli"
+						state.ThemeSelected = "Colorful"
 					case "theme_contrast_rb":
-						state.ThemeSelected = "Yüksek Kontrast"
+						state.ThemeSelected = "High Contrast"
 					case "notif_popup":
 						state.NotifPopupState.Toggle()
 					}
 				}
 
-				state.LastKey = fmt.Sprintf("Kod: %d, Karakter: %q, Ctrl: %v", ev.Key.Type, string(ev.Key.Ch), ev.Key.Ctrl)
+				state.LastKey = fmt.Sprintf("Code: %d, Char: %q, Ctrl: %v", ev.Key.Type, string(ev.Key.Ch), ev.Key.Ctrl)
 
 			case backend.EventMouse:
 				handled := t.RouteMouseEvent(ev.Mouse)
@@ -1172,7 +1149,7 @@ func main() {
 						state.IsResizingModal = false
 						state.IsDragging3D = false
 					}
-					state.LastMouse = fmt.Sprintf("Buton: %d, Pozisyon: (%d, %d), Sürükleme: %v", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag)
+					state.LastMouse = fmt.Sprintf("Button: %d, Pos: (%d, %d), Drag: %v", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag)
 				} else {
 					if ev.Mouse.Button == backend.MouseRelease {
 						state.IsDraggingModal = false
@@ -1301,42 +1278,40 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		)
 		chunks := rootLay.Split(f.Buffer.Area)
 
-		// 2. Header (Başlık Paneli) Çizimi
+		// 2. Header
 		headerBlock := widgets.Block{
-			Title:          " LİMONİ TUI MOTORU DEMO ",
+			Title:          " LIMONI TUI ENGINE DEMO ",
 			TitleAlignment: widgets.AlignCenter,
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
 			BorderStyle:    cell.Style{Fg: mainColor},
-			Child:          label{text: " Ratatui'den esinlenilmiş, daha modern ve esnek! ", style: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}},
+			Child:          label{text: " Inspired by modern TUI frameworks, flexible & performant! ", style: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}},
 		}
 		f.RenderWidget(headerBlock, chunks[0])
 
-		// 3. Body (Gövde) Çizimi
-		// Yatayda Sol Panel (Sabit 22 sütun menü) ve Sağ Panel (Kalan esnek içerik alanı) olarak böl
+		// 3. Body
 		bodyLay := layout.NewFlexLayout(
 			layout.Horizontal,
-			1, // Aralarında 1 hücre boşluk bırak
+			1,
 			layout.Fixed(22),
 			layout.Fill(),
 		)
 		bodyChunks := bodyLay.Split(chunks[1])
 
-		// Sol Panel (Menü Bölmesi) - Dikeyde 6 adet buton ve esnek boşluk içerir
+		// Sidebar Navigation Menu
 		menuLay := layout.NewFlexLayout(
 			layout.Vertical,
-			1,               // Butonlar arasında 1 satır boşluk
-			layout.Fixed(3), // Giriş Butonu
-			layout.Fixed(3), // Ayarlar Butonu
-			layout.Fixed(3), // Grafik Butonu
-			layout.Fixed(3), // Playground Butonu
-			layout.Fixed(3), // Referans Butonu
-			layout.Fixed(3), // Çıkış Butonu
+			1,
+			layout.Fixed(3), // Home
+			layout.Fixed(3), // Settings
+			layout.Fixed(3), // Graphics
+			layout.Fixed(3), // Playground
+			layout.Fixed(3), // Reference
+			layout.Fixed(3), // Exit
 			layout.Fill(),
 		)
 		menuChunks := menuLay.Split(bodyChunks[0])
 
-		// drawButton, sol menüdeki tıklanabilir butonları ve focus callback'lerini çizer
 		drawButton := func(area cell.Rect, title string, tabName string) {
 			focusID := "tab_" + tabName
 			t.FocusManager().Register(focusID)
@@ -1346,7 +1321,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			titleStyle := cell.Style{Fg: borderCol}
 
-			// Eğer buton aktif sekmeye aitse kalın yazı yap
 			if state.ActiveTab == tabName {
 				titleStyle.Modifier = cell.ModifierBold
 			}
@@ -1361,9 +1335,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(btn, area)
 
-			// Fare tıklamasını bu bölgeye kaydet (RegisterClickHandler)
 			registerTargetClick(f, area, func(ev backend.MouseEvent) {
-				if tabName == "Çıkış" {
+				if tabName == "Exit" || tabName == "Çıkış" {
 					state.ShowExitDialog = true
 					state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
 					t.FocusManager().SetFocused("exit_dialog_btn_1")
@@ -1372,9 +1345,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					t.FocusManager().SetFocused(focusID)
 					if state.ActiveTab != tabName {
 						state.ActiveTab = tabName
-						// Sekme geçişinde eski frame'i hücre hücre harmanlamak,
-						// özellikle metin ve canvas alanlarında eski panel parçaları
-						// bırakabiliyor. Yeni sekmeyi temiz frame olarak çiz.
 						state.IsTransitioning = false
 						t.SetTransitionActive(false)
 					}
@@ -1382,23 +1352,22 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			})
 		}
 
-		drawButton(menuChunks[0], "1. Giris", "Giriş")
-		drawButton(menuChunks[1], "2. Ayarlar", "Ayarlar")
-		drawButton(menuChunks[2], "3. Grafik", "Grafik")
-		drawButton(menuChunks[3], "4. OyunAlani", "Playground")
-		drawButton(menuChunks[4], "5. Referans", "Referans")
-		drawButton(menuChunks[5], "6. Cikis", "Çıkış")
+		drawButton(menuChunks[0], "1. Home", "Home")
+		drawButton(menuChunks[1], "2. Settings", "Settings")
+		drawButton(menuChunks[2], "3. Graphics", "Graphics")
+		drawButton(menuChunks[3], "4. Playground", "Playground")
+		drawButton(menuChunks[4], "5. Reference", "Reference")
+		drawButton(menuChunks[5], "6. Exit", "Exit")
 
-		// Çıkış buton alanı koordinatını kaydet
 		state.ExitButtonArea = menuChunks[5]
 
-		// Profiler & Capabilities HUD (Çizim if Height >= 6)
+		// Profiler & Capabilities HUD
 		if menuChunks[6].Height >= 6 {
 			caps := terminal.DetectCapabilities()
 			lastFrameTime := t.LastFrameDuration()
 
 			var lines []string
-			lines = append(lines, fmt.Sprintf("Kare: %5.2f ms", float64(lastFrameTime.Microseconds())/1000.0))
+			lines = append(lines, fmt.Sprintf("Frame: %5.2f ms", float64(lastFrameTime.Microseconds())/1000.0))
 
 			trueColorText := "TrueColor: [✕]"
 			if caps.TrueColor {
@@ -1417,7 +1386,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			default:
 				protoName = "HalfBlock"
 			}
-			lines = append(lines, "Grafik: "+protoName)
+			lines = append(lines, "Graphics: "+protoName)
 
 			if menuChunks[6].Height >= 8 && len(t.LastWidgetStats()) > 0 {
 				var slowestType string
@@ -1428,7 +1397,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						slowestType = stat.Type
 					}
 				}
-				lines = append(lines, fmt.Sprintf("Yavas: %s", slowestType))
+				lines = append(lines, fmt.Sprintf("Slowest: %s", slowestType))
 				lines = append(lines, fmt.Sprintf("  %5.2f ms", float64(slowestDur.Microseconds())/1000.0))
 			}
 
@@ -1444,20 +1413,16 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}, menuChunks[6])
 		}
 
-		// Sekme geçişi Terminal seviyesindeki dither motoru tarafından uygulanır.
-		// Böylece eski frame ile yeni frame tüm hücrelerde doğru şekilde harmanlanır;
-		// gövdeyi ayrı bir geçici buffer'a çizip gösterilmeyen hücreleri temiz bırakmayız.
-
-		// Sağ Panel (İçerik Paneli) Çizimi
+		// Content Panel Rendering
 		switch state.ActiveTab {
-		case "Giriş":
+		case "Home", "Giriş":
 			drawHome(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
-		case "Ayarlar":
+		case "Settings", "Ayarlar":
 			drawSettings(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
-		case "Referans":
+		case "Reference", "Referans":
 			drawReference(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
 
-		case "Grafik":
+		case "Graphics", "Grafik":
 			// Grafik sekmesini yatayda iki eşit bölüme ayır: Sol tarafta Canvas, Sağ tarafta Resim ve Kontroller
 			grafikLay := layout.NewFlexLayout(
 				layout.Horizontal,
@@ -1509,21 +1474,20 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				var faces [][]int
 
 				switch state.ThreeDModel {
-				case "Piramit":
-					// Kare tabanlı Piramit (Apex tepe noktası)
+				case "Piramit", "Pyramid":
 					vertices = []graphics.Vertex3D{
-						{X: -1.0, Y: 0.6, Z: -1.0}, // 0: sol-ön
-						{X: 1.0, Y: 0.6, Z: -1.0},  // 1: sağ-ön
-						{X: 1.0, Y: 0.6, Z: 1.0},   // 2: sağ-arka
-						{X: -1.0, Y: 0.6, Z: 1.0},  // 3: sol-arka
+						{X: -1.0, Y: 0.6, Z: -1.0}, // 0: sol-arka (BL)
+						{X: 1.0, Y: 0.6, Z: -1.0},  // 1: sağ-arka (BR)
+						{X: 1.0, Y: 0.6, Z: 1.0},   // 2: sağ-ön (FR)
+						{X: -1.0, Y: 0.6, Z: 1.0},  // 3: sol-ön (FL)
 						{X: 0.0, Y: -1.2, Z: 0.0},  // 4: tepe (apex)
 					}
 					faces = [][]int{
-						{3, 2, 1, 0}, // Taban
-						{0, 1, 4},    // Ön yüz
-						{1, 2, 4},    // Sağ yüz
-						{2, 3, 4},    // Arka yüz
-						{3, 0, 4},    // Sol yüz
+						{3, 2, 1, 0}, // Taban (Base Quad)
+						{0, 1, 4},    // Arka yüz (Edge 0->1 to 4)
+						{1, 2, 4},    // Sağ yüz (Edge 1->2 to 4)
+						{2, 3, 4},    // Ön yüz (Edge 2->3 to 4)
+						{3, 0, 4},    // Sol yüz (Edge 3->0 to 4)
 					}
 
 				case "Dörtyüzlü":
@@ -1647,9 +1611,14 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 						}
 					}
 
-					// 2D Winding / Back-face Culling Testi
-					cross := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
-					if cross < 0 {
+					// 2D Winding / Back-face Culling Test (Only render front-facing polygons)
+					cross1 := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
+					isFrontFacing := cross1 < 0
+					if isQuad {
+						cross2 := (float64(p2.x-p0.x) * float64(p3.y-p0.y)) - (float64(p2.y-p0.y) * float64(p3.x-p0.x))
+						isFrontFacing = isFrontFacing || cross2 < 0
+					}
+					if isFrontFacing {
 						if state.ThreeDStyle == "Dokulu" && textureImg != nil {
 							if isQuad {
 								// Default UV coordinates (Full image mapping)
@@ -1809,56 +1778,56 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(imageBlock, sağChunks[0])
 
-			// 3. SAĞ ALT TARAF: 3D Model Kontrol Paneli
-			modelLabel := " [1] Küp (PNG Görsel) "
-			if state.ThreeDModel == "Küp" {
-				modelLabel = " 🔴 [1] Küp (Aktif) "
+			// 3. Right Bottom: 3D Model Control Panel
+			modelLabel := " [1] Cube (PNG Texture) "
+			if state.ThreeDModel == "Cube" || state.ThreeDModel == "Küp" {
+				modelLabel = " 🔴 [1] Cube (Active) "
 			}
-			piramitLabel := " [2] Piramit "
-			if state.ThreeDModel == "Piramit" {
-				piramitLabel = " 🔴 [2] Piramit (Aktif) "
+			piramitLabel := " [2] Pyramid "
+			if state.ThreeDModel == "Pyramid" || state.ThreeDModel == "Piramit" {
+				piramitLabel = " 🔴 [2] Pyramid (Active) "
 			}
-			dortyuzluLabel := " [3] Dörtyüzlü "
-			if state.ThreeDModel == "Dörtyüzlü" {
-				dortyuzluLabel = " 🔴 [3] Dörtyüzlü (Aktif) "
+			dortyuzluLabel := " [3] Tetrahedron "
+			if state.ThreeDModel == "Tetrahedron" || state.ThreeDModel == "Dörtyüzlü" {
+				dortyuzluLabel = " 🔴 [3] Tetrahedron (Active) "
 			}
-			dokuluLabel := " [4] Dokulu (PNG Texture) "
-			if state.ThreeDStyle == "Dokulu" {
-				dokuluLabel = " 🟢 [4] Dokulu (Aktif) "
+			dokuluLabel := " [4] Textured (PNG Texture) "
+			if state.ThreeDStyle == "Textured" || state.ThreeDStyle == "Dokulu" {
+				dokuluLabel = " 🟢 [4] Textured (Active) "
 			}
-			doluLabel := " [5] Dolu Renkli (Prizmatik) "
-			if state.ThreeDStyle == "Dolu Renkli" {
-				doluLabel = " 🟢 [5] Dolu Renkli (Aktif) "
+			doluLabel := " [5] Solid (Prismatic) "
+			if state.ThreeDStyle == "Solid" || state.ThreeDStyle == "Dolu Renkli" {
+				doluLabel = " 🟢 [5] Solid (Active) "
 			}
-			kafesLabel := " [6] Kafes (Tel Kafes) "
-			if state.ThreeDStyle == "Kafes" {
-				kafesLabel = " 🟢 [6] Kafes (Aktif) "
+			kafesLabel := " [6] Wireframe "
+			if state.ThreeDStyle == "Wireframe" || state.ThreeDStyle == "Kafes" {
+				kafesLabel = " 🟢 [6] Wireframe (Active) "
 			}
-			lambertLabel := " [7] Gölgeli (Lambertian) "
-			if state.ThreeDStyle == "Gölgeli" {
-				lambertLabel = " 🟢 [7] Gölgeli (Aktif) "
+			lambertLabel := " [7] Lambert Shading "
+			if state.ThreeDStyle == "Lambert" || state.ThreeDStyle == "Gölgeli" {
+				lambertLabel = " 🟢 [7] Lambert (Active) "
 			}
 			gouraudLabel := " [8] Gouraud Shaded "
 			if state.ThreeDStyle == "Gouraud" {
-				gouraudLabel = " 🟢 [8] Gouraud (Aktif) "
+				gouraudLabel = " 🟢 [8] Gouraud (Active) "
 			}
 			var ctrlLines []string
-			ctrlLines = append(ctrlLines, "Model Seçimi (Klavye 1-3):")
+			ctrlLines = append(ctrlLines, "Model Selection (Keys 1-3):")
 			ctrlLines = append(ctrlLines, "  "+modelLabel)
 			ctrlLines = append(ctrlLines, "  "+piramitLabel)
 			ctrlLines = append(ctrlLines, "  "+dortyuzluLabel)
 			ctrlLines = append(ctrlLines, "")
-			ctrlLines = append(ctrlLines, "Render Stili (Klavye 4-8):")
+			ctrlLines = append(ctrlLines, "Render Style (Keys 4-8):")
 			ctrlLines = append(ctrlLines, "  "+dokuluLabel)
 			ctrlLines = append(ctrlLines, "  "+doluLabel)
 			ctrlLines = append(ctrlLines, "  "+kafesLabel)
 			ctrlLines = append(ctrlLines, "  "+lambertLabel)
 			ctrlLines = append(ctrlLines, "  "+gouraudLabel)
 			ctrlLines = append(ctrlLines, "")
-			ctrlLines = append(ctrlLines, "💡 Sürükleyerek 3D uzayda döndürün.")
+			ctrlLines = append(ctrlLines, "💡 Drag to rotate in 3D space.")
 
 			ctrlBlock := widgets.Block{
-				Title:          " 3D MODEL KONTROLLERİ ",
+				Title:          " 3D MODEL CONTROLS ",
 				TitleAlignment: widgets.AlignLeft,
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
@@ -1871,9 +1840,9 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			drawPlayground(t, b, f, state, mainColor, accentColor, bodyChunks[1])
 		}
 
-		// 4. Footer (Alt Bilgi Satırı) Çizimi
+		// 4. Footer
 		footerStyle := cell.Style{Fg: cell.NewColorRGB(140, 140, 140), Bg: cell.NewColorRGB(30, 30, 30)}
-		footerText := fmt.Sprintf(" Boyut: %d x %d | FPS: %.1f | Kısayollar: ? | Sekmeler: Tab / Shift+Tab | Çıkış: 'q' / ESC", f.Buffer.Area.Width, f.Buffer.Area.Height, fps)
+		footerText := fmt.Sprintf(" Size: %d x %d | FPS: %.1f | Shortcuts: ? | Tabs: Tab / Shift+Tab | Quit: 'q' / ESC", f.Buffer.Area.Width, f.Buffer.Area.Height, fps)
 
 		footerBlock := widgets.Block{
 			Borders: widgets.BorderNone,
@@ -1882,21 +1851,17 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 		}
 		f.RenderWidget(footerBlock, chunks[2])
 
-		// 5. ÇIKIŞ ONAY MODAL DIALOG ÇİZİMİ
+		// 5. Exit Confirmation Modal Dialog
 		if state.ShowExitDialog {
 			dialogW, dialogH := uint16(46), uint16(9)
 			dialogArea := terminal.CenterRect(f.Buffer.Area, dialogW, dialogH)
 
-			// Sürükleme offsetlerini uygula
 			dialogArea.X = uint16(int(dialogArea.X) + state.ModalOffsetX)
 			dialogArea.Y = uint16(int(dialogArea.Y) + state.ModalOffsetY)
 
-			// Dialog sabit boyutlu bir overlay'dir. Açılış/kapanış animasyonu
-			// görsel alanı küçültür/büyütür; modal ve resim alanına dokunmaz.
 			progress := state.ExitDialogAnim.Value()
 			animatedArea := terminal.ScaleRect(dialogArea, progress)
 
-			// Animasyonun bitip bitmediğini denetle
 			if progress <= 0.001 && !state.ExitDialogAnim.IsAnimating() {
 				state.ShowExitDialog = false
 				t.FocusManager().SetFocused("")
@@ -1908,7 +1873,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				} else if progress < 0.999 {
 					state.ExitDialogFinished = false
 				}
-				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
 				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
@@ -1932,25 +1896,18 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					})
 				})
 
-				// Native profil resmi hücre tamponundan bağımsız çizildiği için
-				// yalnızca Dialog.Draw içindeki hücre arka planı resmi örtemez.
-				// Sabit opak katman resmi değiştirmeden dialogun arkasını kapatır;
-				// Dialog'un ASCII içeriği bunun üstünde çizilir.
-				// Native kaplama da dialogla aynı animasyonlu alanı takip eder.
-				// Böylece açılışta arka plan/gölge dialogdan önce görünmez.
 				if animatedArea.Width > 0 && animatedArea.Height > 0 {
-					shadowBackdrop := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width+2, animatedArea.Height+1)
 					f.RenderWidget(widgets.Block{
 						Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
 						Opaque: true,
-					}, shadowBackdrop)
+					}, animatedArea)
 				}
 
 				exitDialog := widgets.Dialog{
 					ID:          "exit_dialog",
-					Title:       " ⚠️ SİSTEMDEN ÇIKIŞ ",
-					Message:     "Uygulamadan çıkmak istediğinize emin misiniz?",
-					SubMessage:  "Oturum ve kaydedilmemiş tüm veriler sonlandırılacaktır.",
+					Title:       " ⚠️ SYSTEM EXIT ",
+					Message:     "Are you sure you want to exit the application?",
+					SubMessage:  "The session and all unsaved state will be terminated.",
 					Style:       cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
 					HeaderStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(220, 60, 60)},
 					BorderStyle: cell.Style{Fg: cell.NewColorRGB(220, 60, 60)},
@@ -1963,15 +1920,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					Shadow: true,
 					Buttons: []widgets.DialogButton{
 						{
-							Text: "Evet",
+							Text: "Yes",
 							Handler: func() {
 								b.Close()
-								fmt.Println("\nLimoni TUI uygulamasından çıkış yapıldı. Görüşmek üzere!")
+								fmt.Println("\nExited Limoni TUI application. Goodbye!")
 								os.Exit(0)
 							},
 						},
 						{
-							Text: "Hayır",
+							Text: "No",
 							Handler: func() {
 								state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
 								t.ForceFullRedraw()
@@ -1982,17 +1939,16 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 				f.BeginFocusScope("exit_dialog")
 				f.RenderWidget(exitDialog, animatedArea)
-			} // else
-		} // if state.ShowExitDialog
+			}
+		}
 
-		// 6. KISAYOL YARDIM MODAL DIALOG ÇİZİMİ
+		// 6. Help Dialog
 		if state.ShowHelpDialog {
 			helpW := uint16(state.HelpDialogW)
 			helpH := uint16(state.HelpDialogH)
 			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
 			state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, helpW, helpH, state.ModalOffsetX, state.ModalOffsetY)
 
-			// Sürükleme offsetlerini uygula
 			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
 			helpArea.Y = uint16(int(helpArea.Y) + state.ModalOffsetY)
 
@@ -2001,12 +1957,10 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				state.ShowHelpDialog = false
 				t.FocusManager().SetFocused("")
 			} else {
-				// Animasyonlu Y koordinat kaydırmasını hesapla (SlideDown)
 				offsetY := int(float64(f.Buffer.Area.Height) * (1.0 - progress))
 				animatedHelpArea := helpArea
 				animatedHelpArea.Y = uint16(int(animatedHelpArea.Y) + offsetY)
 
-				// Başlık çubuğu sürükleme tıklama alanını tanımla
 				titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
 				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
@@ -2030,9 +1984,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					})
 				})
 
-				// Diyalog kutusu arka plan bloğu
 				helpBlock := widgets.Block{
-					Title:          " ⌨ KISAYOL YARDIMI (Sürükle / Köşeden Boyutlandır) ",
+					Title:          " ⌨ SHORTCUTS & HELP (Drag / Resize from corner) ",
 					TitleAlignment: widgets.AlignLeft,
 					Borders:        widgets.BorderAll,
 					BorderSymbols:  widgets.SymbolsRounded,
@@ -2043,7 +1996,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				f.BeginFocusScope("help_dialog")
 				f.RenderWidget(helpBlock, animatedHelpArea)
 
-				// Sağ alt köşe yeniden boyutlandırma tutamacı çizimi
 				cornerX := animatedHelpArea.X + animatedHelpArea.Width - 1
 				cornerY := animatedHelpArea.Y + animatedHelpArea.Height - 1
 				if c := f.Buffer.Get(cornerX, cornerY); c != nil {
@@ -2051,7 +2003,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					c.Style = cell.Style{Fg: accentColor, Modifier: cell.ModifierBold}
 				}
 
-				// Sağ alt köşe yeniden boyutlandırma tıklama alanını tanımla
 				resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
 				registerTargetClick(f, resizeHandleArea, func(ev backend.MouseEvent) {
 					if ev.Button != backend.MouseLeft {
@@ -2097,7 +2048,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					Height: animatedHelpArea.Height - 2,
 				}
 
-				// İçeriği yatay olarak iki kolona böl (Sol: Markdown, Sağ: Avatar Profil)
 				helpLay := layout.NewFlexLayout(
 					layout.Horizontal,
 					1,
@@ -2106,19 +2056,17 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				)
 				helpChunks := helpLay.Split(helpInner)
 
-				// Sol Taraf: Markdown Metni
 				mdHelp := &widgets.Markdown{
-					Content: `# Limoni Kısayolları
-- **Tab / Shift+Tab:** Menüler arası geçiş.
-- **Yön Tuşları:** Playground Düzen Yönü.
-- **+ / - Tuşları:** Playground Oran kontrolü.
-- **? :** Yardım Paneli aç / kapat.
-- **q / Esc:** Çıkış onay diyaloğu.`,
+					Content: `# Limoni Shortcuts
+- **Tab / Shift+Tab:** Switch navigation tabs.
+- **Arrow Keys:** Playground Layout Direction.
+- **+ / - Keys:** Playground Ratio adjustment.
+- **? :** Toggle Help Panel.
+- **q / Esc:** Quit confirmation dialog.`,
 					Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
 				}
 				f.RenderWidget(mdHelp, helpChunks[0])
 
-				// Sağ Taraf: Profil resmi
 				avatarBlock := widgets.Block{
 					Borders: widgets.BorderNone,
 					Child:   &widgets.Image{Img: state.ActiveImg, CircleMask: true},
@@ -2127,12 +2075,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 		}
 
-		// 7. KOMUT PALETİ OVERLAY ÇİZİMİ (En üst katman)
+		// 7. Command Palette Overlay
 		if state.CmdPalette.IsOpen {
 			palette := widgets.CommandPalette{
-				ID:    "command_palette",
-				State: state.CmdPalette,
-				// CSS benzeri konumlandırma: panel ekranın altından 2 satır yukarıda açılır.
+				ID:       "command_palette",
+				State:    state.CmdPalette,
 				Position: &widgets.CommandPalettePosition{Bottom: 2},
 			}
 			f.RenderWidget(palette, f.Buffer.Area)
@@ -2147,13 +2094,11 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 	}
 }
 
-// label, çok satırlı metinleri (\n) çizim sınırlarına uygun olarak alt alta çizen basit bir metin widget'ıdır.
 type label struct {
 	text  string
 	style cell.Style
 }
 
-// Draw, metni satır satır bölerek çizim sınırları (Area) içine yazar.
 func (l label) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	mergedStyle := ctx.Style.Merge(l.style)
 
@@ -2173,7 +2118,6 @@ func (l label) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 }
 
-// SizeHint, metnin satır sayısını ve en uzun satırının uzunluğunu bularak ideal boyutları hesaplar.
 func (l label) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	lines := 1
 	maxW := 0
@@ -2272,13 +2216,13 @@ func readProcessMemoryMB(pid string) float64 {
 func processState(state string) string {
 	switch state {
 	case "R":
-		return "Çalışıyor"
+		return "Running"
 	case "S", "D", "I":
-		return "Beklemede"
+		return "Sleeping"
 	case "Z":
-		return "Zombi"
+		return "Zombie"
 	case "T", "t":
-		return "Durduruldu"
+		return "Stopped"
 	default:
 		return state
 	}
@@ -2291,5 +2235,5 @@ func loadDemoMarkdown() string {
 			return string(data)
 		}
 	}
-	return "# Limoni Demo\nMarkdown dosyası okunamadı.\n\n- `skill.md` bulunamadı.\n- Demo fallback içeriği gösteriliyor."
+	return "# Limoni Demo\nFailed to read markdown file.\n\n- `skill.md` was not found.\n- Showing fallback demo content."
 }

@@ -31,13 +31,26 @@ const (
 
 // Text renders multiple rich-text lines with optional cell-aware wrapping.
 type Text struct {
-	Lines     []Line
-	Style     cell.Style
-	Wrap      bool
-	Alignment TextAlignment
+	ID           string
+	Lines        []Line
+	Style        cell.Style
+	FocusedStyle cell.Style
+	Wrap         bool
+	Alignment    TextAlignment
 }
 
 func (t Text) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if t.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(t.ID)
+	}
+	if t.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(t.ID)
+			}
+		})
+	}
+
 	lines := t.Lines
 	if t.Wrap {
 		lines = wrapTextLines(lines, int(ctx.Area.Width))
@@ -62,6 +75,9 @@ func (t Text) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				break
 			}
 			style := ctx.Style.Merge(t.Style)
+			if ctx.IsFocused(t.ID) {
+				style = style.Merge(t.FocusedStyle)
+			}
 			if span.Role != "" && ctx.ThemeStyle != nil {
 				style = style.Merge(ctx.ThemeStyle(span.Role))
 			}

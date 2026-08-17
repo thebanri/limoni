@@ -3,6 +3,9 @@ package graphics
 import (
 	"bufio"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,7 +13,7 @@ import (
 	"strings"
 )
 
-// Model3D is the geometry consumed by the wireframe/solid renderer.
+// Model3D is the geometry consumed by the wireframe/solid/textured renderer.
 type Model3D struct {
 	Name          string
 	Vertices      []Vertex3D
@@ -19,6 +22,29 @@ type Model3D struct {
 	UVs           []UV
 	FaceMaterials []string
 	Materials     map[string]Material3D
+	Texture       image.Image
+	TexturePath   string
+}
+
+// LoadTexture loads an image from disk and sets it as the model's texture.
+func (m *Model3D) LoadTexture(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return err
+	}
+	m.Texture = img
+	m.TexturePath = path
+	return nil
+}
+
+// SetTexture sets an in-memory image as the model's texture.
+func (m *Model3D) SetTexture(img image.Image) {
+	m.Texture = img
 }
 
 // LoadOBJ loads a Wavefront OBJ file without external dependencies.

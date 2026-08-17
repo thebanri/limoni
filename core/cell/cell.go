@@ -2,48 +2,48 @@ package cell
 
 import "unicode/utf8"
 
-// ColorType temsilcisi, terminal renk türünü tanımlar.
+// ColorType represents the terminal color mode.
 type ColorType uint8
 
 const (
-	// ColorDefault terminalin varsayılan rengine sıfırlar.
+	// ColorDefault resets to the terminal's default color.
 	ColorDefault ColorType = iota
-	// ColorANSI 8-bitlik standart ANSI renk kodunu temsil eder (0-255).
+	// ColorANSI represents an 8-bit standard ANSI color code (0-255).
 	ColorANSI
-	// ColorRGB 24-bitlik gerçek renk (TrueColor) değerini temsil eder.
+	// ColorRGB represents a 24-bit TrueColor RGB value.
 	ColorRGB
 )
 
-// Color terminal rengini temsil eden, bellek dostu bir uint32 yapısıdır.
-// İlk byte (bit 24-31) ColorType'ı, kalan 3 byte ise rengin değerini (RGB veya ANSI) tutar.
+// Color represents a terminal color packed into a memory-efficient uint32.
+// The first byte (bits 24-31) stores the ColorType, and the remaining 3 bytes store RGB or ANSI values.
 type Color uint32
 
-// NewColorDefault varsayılan terminal rengini döndürür.
+// NewColorDefault returns the default terminal color.
 func NewColorDefault() Color {
 	return Color(ColorDefault) << 24
 }
 
-// NewColorANSI 8-bit ANSI rengi (0-255) oluşturur.
+// NewColorANSI creates an 8-bit ANSI color (0-255).
 func NewColorANSI(code uint8) Color {
 	return (Color(ColorANSI) << 24) | Color(code)
 }
 
-// NewColorRGB 24-bit TrueColor RGB rengi oluşturur.
+// NewColorRGB creates a 24-bit TrueColor RGB color.
 func NewColorRGB(r, g, b uint8) Color {
 	return (Color(ColorRGB) << 24) | (Color(r) << 16) | (Color(g) << 8) | Color(b)
 }
 
-// Type rengin türünü (Default, ANSI, RGB) döndürür.
+// Type returns the color type (Default, ANSI, RGB).
 func (c Color) Type() ColorType {
 	return ColorType(c >> 24)
 }
 
-// ANSI rengin ANSI kodunu döndürür. Sadece Type() == ColorANSI durumunda geçerlidir.
+// ANSI returns the ANSI color code. Valid only when Type() == ColorANSI.
 func (c Color) ANSI() uint8 {
 	return uint8(c & 0xFF)
 }
 
-// RGB rengin R, G, B değerlerini döndürür. Sadece Type() == ColorRGB durumunda geçerlidir.
+// RGB returns the red, green, and blue color channels. Valid only when Type() == ColorRGB.
 func (c Color) RGB() (r, g, b uint8) {
 	r = uint8((c >> 16) & 0xFF)
 	g = uint8((c >> 8) & 0xFF)
@@ -51,7 +51,7 @@ func (c Color) RGB() (r, g, b uint8) {
 	return
 }
 
-// Modifier terminal stili modifikatörlerini temsil eden bit maskesidir.
+// Modifier represents bit-flags for text formatting modifiers.
 type Modifier uint16
 
 const (
@@ -90,38 +90,38 @@ func (s Style) AddModifier(m Modifier) Style {
 	return s
 }
 
-// RemoveModifier stilden bir özelliği kaldırır.
+// RemoveModifier removes a modifier from the style.
 func (s Style) RemoveModifier(m Modifier) Style {
 	s.Modifier &= ^m
 	return s
 }
 
-// HasModifier stilde ilgili özelliğin olup olmadığını kontrol eder.
+// HasModifier checks whether the modifier flag is set on the style.
 func (s Style) HasModifier(m Modifier) bool {
 	return (s.Modifier & m) != 0
 }
 
-// Cell terminal ızgarasındaki tek bir hücreyi temsil eder.
-// Bellek Hizalaması: 4 (Content) + 12 (Style) = 16 byte.
-// 64-bit mimaride tam bir kelime sınırına (word boundary) hizalandığı için L2 cache dostudur.
+// Cell represents a single cell in the terminal grid.
+// Memory Alignment: 4 (Content) + 12 (Style) = 16 bytes.
+// Perfectly aligned to word boundaries on 64-bit architectures for optimal cache locality.
 type Cell struct {
-	Content rune  // 4 byte (UTF-8 karakterler için)
-	Style   Style // 12 byte (Go hizalaması dahil)
+	Content rune  // 4 bytes for UTF-8 character
+	Style   Style // 12 bytes
 }
 
-// Reset hücreyi varsayılan durumuna getirir (boşluk karakteri, varsayılan stil).
+// Reset resets the cell to its default state (space character, default style).
 func (c *Cell) Reset() {
 	c.Content = ' '
 	c.Style.Reset()
 }
 
-// RuneContinuation, 2 sütun genişliğindeki karakterlerin ikinci yarısını işaretlemek için kullanılan özel Unicode değeridir.
+// RuneContinuation marks the second column of a double-width character.
 const RuneContinuation rune = 0xFFFE
 
-// RuneImage, yerel Sixel/Kitty resimleri tarafından kaplanan hücreleri işaretlemek için kullanılan özel Unicode değeridir.
+// RuneImage marks cells covered by native Sixel/Kitty image graphics.
 const RuneImage rune = 0xFFFF
 
-// RuneWidth, verilen karakterin terminalde kaç sütun genişliğinde çizileceğini hesaplar.
+// RuneWidth calculates the terminal display column width of a rune.
 func RuneWidth(r rune) int {
 	// Zero-width / combining characters
 	if (r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
@@ -136,7 +136,7 @@ func RuneWidth(r rune) int {
 	if r >= 0x1F000 && r <= 0x1FFFF {
 		return 2
 	}
-	// Yaygın emojiler ve CJK (Uzak Doğu) karakter grupları
+	// Common emojis and CJK character ranges
 	if (r >= 0x2E80 && r <= 0x9FFF) ||
 		(r >= 0xF900 && r <= 0xFAFF) ||
 		(r >= 0xFF00 && r <= 0xFFEF) {

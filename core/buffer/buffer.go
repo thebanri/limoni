@@ -6,21 +6,20 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-// Buffer terminal ekranının hücresel ızgarasını temsil eder.
-// 2D slice yerine 1D flat slice (`[]cell.Cell`) kullanarak bellek lekelerini ve cache miss oranlarını minimize eder.
+// Buffer represents the cellular grid of the terminal screen.
+// Using a 1D flat slice (`[]cell.Cell`) instead of a 2D slice minimizes memory fragmentation and cache misses.
 type Buffer struct {
-	Area       cell.Rect             // Tamponun kapladığı alan koordinatları
-	Content    []cell.Cell           // Bellekte ardışık duran hücre dilimi
-	IsDirty    bool                  // Tamponda değişiklik yapılıp yapılmadığını gösterir
-	StyleCache map[cell.Style][]byte // Stil geçiş kodları için önbellek
+	Area       cell.Rect             // Bounding box dimensions of the buffer
+	Content    []cell.Cell           // Contiguous slice of cells in memory
+	IsDirty    bool                  // Indicates whether the buffer has modified content
+	StyleCache map[cell.Style][]byte // Cache for ANSI style transition escape sequences
 
-	// clean, tamponun tüm hücrelerinin varsayılan (boşluk + sıfır stil) durumda
-	// olduğunun bilindiğini belirtir. Bu bayrak sayesinde hiçbir widget çizilmeyen
-	// karelerde Clear() tüm hücre dizisini taramak zorunda kalmaz.
+	// clean indicates whether all cells are in the default (space + zero style) state.
+	// This flag lets Clear() avoid scanning the entire cell array during empty frame passes.
 	clean bool
 }
 
-// NewBuffer belirtilen alan boyutunda yeni bir Buffer oluşturur.
+// NewBuffer creates a new Buffer with the specified dimensions.
 func NewBuffer(area cell.Rect) *Buffer {
 	needed := int(area.Width) * int(area.Height)
 	content := make([]cell.Cell, needed)
@@ -34,12 +33,12 @@ func NewBuffer(area cell.Rect) *Buffer {
 	return b
 }
 
-// NewEmptyBuffer boş (0x0 boyutunda) bir Buffer oluşturur.
+// NewEmptyBuffer creates an empty (0x0) Buffer.
 func NewEmptyBuffer() *Buffer {
 	return NewBuffer(cell.Rect{})
 }
 
-// Clear tüm tamponu temizler ve varsayılan hücre değerlerine (boşluk, default style) sıfırlar.
+// Clear resets all cells in the buffer to the default state (space character, default style).
 func (b *Buffer) Clear() {
 	if b.clean {
 		return
@@ -53,24 +52,22 @@ func (b *Buffer) Clear() {
 	b.clean = true
 }
 
-// Invalidate, tampon içeriğinin Content dilimi üzerinden doğrudan değiştirildiğini bildirir.
-// Content'i SetCell/SetString dışında değiştiren çağrıcılar bu metodu kullanmalıdır;
-// aksi halde Clear() hızlı yolu güncel olmayan hücreleri temizlemeyi atlar.
+// Invalidate marks the buffer content as modified externally.
+// Callers directly manipulating the Content slice should call Invalidate to ensure proper buffer diffing.
 func (b *Buffer) Invalidate() {
 	b.clean = false
 	b.IsDirty = true
 }
 
-// Resize tampon alanını yeniden boyutlandırır.
-// Sıfır-Tahsisat (Zero-Allocation) Optimizasyonu: Eğer mevcut kapasite (capacity) yeni boyut için yeterliyse,
-// yeni bellek tahsisatı yapmadan dilimi (slice) yeniden dilimler (re-slice).
+// Resize resizes the buffer area.
+// Zero-Allocation Optimization: If the existing slice capacity is sufficient,
+// re-slices without allocating new heap memory.
 func (b *Buffer) Resize(area cell.Rect) {
 	b.Area = area
 	needed := int(area.Width) * int(area.Height)
 	if cap(b.Content) >= needed {
 		b.Content = b.Content[:needed]
 	} else {
-		// Yetersiz kapasite durumunda yeni alan tahsis edilir
 		b.Content = make([]cell.Cell, needed)
 	}
 	b.IsDirty = true
@@ -78,19 +75,17 @@ func (b *Buffer) Resize(area cell.Rect) {
 	b.Clear()
 }
 
-// Get koordinattaki hücreye doğrudan işaretçi (pointer) döner.
-// Dönen işaretçi üzerinden doğrudan hücre değerleri değiştirilebilir. Geçersiz koordinatta `nil` döner.
+// Get returns a direct pointer to the cell at the specified coordinates.
+// Returns nil if coordinates are out of bounds.
 func (b *Buffer) Get(x, y uint16) *cell.Cell {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return nil
 	}
-	// Dönen işaretçi üzerinden hücre doğrudan değiştirilebileceği için tampon
-	// artık "temiz" kabul edilemez.
 	b.clean = false
 	return &b.Content[y*b.Area.Width+x]
 }
 
-// SetCell belirtilen koordinattaki hücreyi doğrudan değiştirir.
+// SetCell writes a cell at the specified coordinate.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return
@@ -103,8 +98,7 @@ func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	}
 }
 
-// SetString belirtilen koordinattan başlayarak bir metni (string) yazdırır.
-// Satır sonuna gelindiğinde yazma işlemi otomatik olarak kesilir (wrap yapılmaz, widget seviyesinde çözülür).
+// SetString writes a string starting at the specified coordinate with the given style.
 func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 	if y >= b.Area.Height || x >= b.Area.Width {
 		return
@@ -121,10 +115,10 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 		w := cell.RuneWidth(r)
 		if w == 0 {
 			input = input[size:]
-			continue // Sıfır genişlikli birleştirici karakterleri atla, önceki hücreyi ezme
+			continue // Skip zero-width combining characters
 		}
 		if currX+uint16(w) > b.Area.Width {
-			break // Sınır dışına taşmayı engelle
+			break // Prevent clipping overflow
 		}
 
 		idx := y*b.Area.Width + currX
@@ -148,7 +142,7 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 	}
 }
 
-// index koordinatı flat slice indeksine dönüştürür. Sınır dışı ise -1 döner.
+// index maps 2D coordinates to the 1D flat slice index. Returns -1 if out of bounds.
 func (b *Buffer) index(x, y uint16) int {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return -1

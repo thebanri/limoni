@@ -6,10 +6,14 @@ import (
 )
 
 type Sparkline struct {
+	// ID, widget odak kimliğidir.
+	ID string
 	// Data, çizilecek veri geçmişini temsil eden sayılar dizisidir.
 	Data []float64
 	// Style, varsayılan hücre stilini tanımlar.
 	Style cell.Style
+	// FocusedStyle, odaklandığında uygulanacak stildir.
+	FocusedStyle cell.Style
 	// Color, barların rengini belirler. Default ise stilin ön plan rengi kullanılır.
 	Color cell.Color
 }
@@ -19,6 +23,17 @@ var sparklineBlocks = []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█
 func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if len(s.Data) == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
+	}
+
+	if s.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(s.ID)
+	}
+	if s.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(s.ID)
+			}
+		})
 	}
 
 	// En son N adet veriyi sütun genişliğine sığdır
@@ -37,7 +52,9 @@ func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	barColor := s.Color
-	if barColor.Type() == cell.ColorDefault {
+	if ctx.IsFocused(s.ID) && s.FocusedStyle.Fg.Type() != cell.ColorDefault {
+		barColor = s.FocusedStyle.Fg
+	} else if barColor.Type() == cell.ColorDefault {
 		barColor = ctx.Style.Fg
 	}
 

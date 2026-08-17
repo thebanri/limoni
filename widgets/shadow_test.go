@@ -18,14 +18,15 @@ func TestDrawShadow(t *testing.T) {
 
 	DrawShadow(buf, area, 2, 1)
 
-	shadow := cell.NewColorRGB(6, 7, 9)
+	expectedBg := cell.NewColorRGB(10, 10, 10)
+	expectedFg := cell.NewColorRGB(70, 70, 70)
 	for _, point := range []struct{ x, y uint16 }{
 		{6, 2}, {7, 2}, {6, 3}, {7, 3},
 		{4, 4}, {5, 4}, {6, 4}, {7, 4},
 	} {
 		got := buf.Get(point.x, point.y)
-		if got.Content != ' ' || got.Style.Fg != shadow || got.Style.Bg != shadow {
-			t.Errorf("shadow at (%d,%d) = %+v, want blank cell with shadow color", point.x, point.y, *got)
+		if got.Content != 'x' || got.Style.Fg != expectedFg || got.Style.Bg != expectedBg {
+			t.Errorf("shadow at (%d,%d) = %+v, want content 'x' with darkened colors Fg:%v Bg:%v", point.x, point.y, *got, expectedFg, expectedBg)
 		}
 	}
 

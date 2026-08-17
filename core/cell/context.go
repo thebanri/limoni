@@ -6,43 +6,40 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 )
 
-// Context, alt bileşenlerin (widget) çizim yaparken kullandığı stack-allocated bağlam yapısıdır.
-// Değer kopyalaması (pass-by-value) ile aktarıldığı için heap allocation oluşturmaz ve bellek dostudur.
-// Bu sayede alt bileşenler, üst bileşenlerinin çizim sınırlarını ve stil kararlarını otomatik olarak devralır.
+// Context represents the stack-allocated drawing context passed down to widgets.
+// Because it is passed by value, it generates zero heap allocations and keeps memory footprint minimal.
+// Child widgets automatically inherit clipping boundaries and cascading style properties from parents.
 type Context struct {
-	// Area, ilgili widget'ın çizim yapabileceği sınırlandırılmış alanı (koordinat ve boyut) belirtir.
-	// Alt bileşenler bu alanın dışına çizim yapmamalıdır.
+	// Area specifies the bounding box within which the widget should draw.
+	// Sub-components must not draw outside of this rect.
 	Area Rect
 
-	// Style, üst bileşenlerden devralınan (miras kalan) stil özelliklerini (renkler, kalınlık, eğiklik vb.) taşır.
+	// Style carries cascading styles (colors, modifiers) inherited from parent containers.
 	Style Style
 
-	// RegisterClick, widget'ların çizim sırasında tıklanabilir bölgeler (click areas)
-	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
+	// RegisterClick is a callback bridge populated by the terminal layer
+	// allowing widgets to register clickable regions during rendering.
 	RegisterClick func(area Rect, handler func())
 
-	// RegisterMouse, widget'ların sürükleme ve diğer gelişmiş fare olaylarını yakalamasını sağlar.
+	// RegisterMouse allows widgets to capture drag and advanced mouse events.
 	RegisterMouse func(area Rect, handler func(ev backend.MouseEvent))
 
 	// RegisterEvent registers a capture/target/bubble propagation handler.
 	RegisterEvent func(area Rect, phase backend.EventPhase, handler func(*backend.EventContext))
 
-	// CaptureMouse, widget'ların fareyi geçici olarak kendi üzerlerine yakalamasını sağlar (drag işlemleri için).
+	// CaptureMouse allows widgets to temporarily lock mouse input exclusively.
 	CaptureMouse func(handler func(ev backend.MouseEvent))
 
-	// RegisterImage, widget'ların çizim sırasında resim çizdirme taleplerini
-	// kaydetmesini sağlayan, terminal katmanı tarafından doldurulan callback köprüsüdür.
+	// RegisterImage allows widgets to register image rendering requests during the draw pass.
 	RegisterImage func(area Rect, img image.Image, zIndex int, transparent bool) bool
 
-	// RegisterFocus, widget'ların çizim sırasında odaklanabilir (focusable) olduklarını
-	// bildirmesini sağlayan, terminal odak yöneticisi tarafından doldurulan callback köprüsüdür.
+	// RegisterFocus registers the widget ID with the focus manager during rendering.
 	RegisterFocus func(id string)
 
-	// SetFocus, widget'ların tıklandıklarında veya bir olay anında odağı kendi üzerlerine
-	// almalarını sağlayan, odak yöneticisi tarafından doldurulan callback köprüsüdür.
+	// SetFocus programmatically shifts focus to the target widget ID.
 	SetFocus func(id string)
 
-	// FocusedID, aktif olarak odaklanmış olan widget'ın ID'sini taşır.
+	// FocusedID holds the ID of the currently focused widget.
 	FocusedID string
 
 	// ThemeStyle resolves a semantic theme role into a style inherited from the frame.
@@ -52,7 +49,7 @@ type Context struct {
 // IsFocused reports whether the requested widget ID owns the current focus.
 func (c Context) IsFocused(id string) bool { return id != "" && c.FocusedID == id }
 
-// NewContext yeni bir Context örneği oluşturup döndürür.
+// NewContext creates and returns a new Context instance.
 func NewContext(area Rect, style Style) Context {
 	return Context{
 		Area:  area,
@@ -60,24 +57,20 @@ func NewContext(area Rect, style Style) Context {
 	}
 }
 
-// Merge, iki stili cascading (stil mirası) kurallarına göre birleştirir ve yeni bir Style yapısı döndürür.
-// 'other' stildeki tanımlı renkler, mevcut (üst) stilin renklerini ezer.
-// Eğer 'other' stildeki renkler varsayılan (ColorDefault) ise, üst stilden miras kalan renkler korunur.
-// Modifikatörler (Bold, Italic vb.) bit düzeyinde OR (veya) işlemine tabi tutularak birleştirilir.
+// Merge combines two styles according to cascading rules and returns a new Style.
+// Non-default properties in 'other' override the base style.
+// Modifiers (Bold, Italic, etc.) are combined using a bitwise OR operation.
 func (s Style) Merge(other Style) Style {
 	merged := s
 
-	// Eğer hedef stilde ön plan rengi belirtilmişse (varsayılan değilse), miras kalan rengi ez
 	if other.Fg.Type() != ColorDefault {
 		merged.Fg = other.Fg
 	}
 
-	// Eğer hedef stilde arka plan rengi belirtilmişse (varsayılan değilse), miras kalan rengi ez
 	if other.Bg.Type() != ColorDefault {
 		merged.Bg = other.Bg
 	}
 
-	// Modifikatörleri birleştir
 	merged.Modifier |= other.Modifier
 
 	return merged

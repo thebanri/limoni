@@ -21,14 +21,18 @@ func (s *SelectState) HandleKey(ev backend.KeyEvent, optionCount int) bool {
 		return false
 	}
 	switch ev.Type {
-	case backend.KeyArrowUp:
-		if s.Open && s.Selected > 0 {
+	case backend.KeyArrowUp, backend.KeyArrowLeft:
+		if s.Selected > 0 {
 			s.Selected--
+		} else {
+			s.Selected = optionCount - 1
 		}
 		return true
-	case backend.KeyArrowDown:
-		if s.Open && s.Selected < optionCount-1 {
+	case backend.KeyArrowDown, backend.KeyArrowRight:
+		if s.Selected < optionCount-1 {
 			s.Selected++
+		} else {
+			s.Selected = 0
 		}
 		return true
 	case backend.KeyEnter, backend.KeySpace:
@@ -54,6 +58,8 @@ type Select struct {
 	SelectedStyle cell.Style
 	HoverStyle    cell.Style
 	BorderStyle   cell.Style
+	DisableScroll bool // Fare tekerleğiyle seçenek değiştirmeyi kapatır
+	DisableFocus  bool // Tıklamayla odak almayı kapatır
 	OnChange      func(index int, option string)
 }
 
@@ -69,24 +75,61 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	fieldStyle := ctx.Style.Merge(s.Style)
-	if ctx.FocusedID == s.ID {
+	if ctx.IsFocused(s.ID) {
 		fieldStyle = fieldStyle.Merge(s.FocusedStyle)
 	}
 	for x := uint16(0); x < ctx.Area.Width; x++ {
 		buf.SetCell(ctx.Area.X+x, ctx.Area.Y, cell.Cell{Content: ' ', Style: fieldStyle})
 	}
 	label := s.Options[s.State.Selected]
-	if ctx.Area.Width > 2 {
-		buf.SetString(ctx.Area.X+1, ctx.Area.Y, clipString(label+" ▾", int(ctx.Area.Width)-2), fieldStyle)
+	indicator := " ▾"
+	if s.State.Open {
+		indicator = " ▴"
 	}
-	if ctx.RegisterClick != nil {
-		ctx.RegisterClick(ctx.Area, func() {
-			if ctx.SetFocus != nil {
-				ctx.SetFocus(s.ID)
+	if ctx.Area.Width > 2 {
+		buf.SetString(ctx.Area.X+1, ctx.Area.Y, clipString(label+indicator, int(ctx.Area.Width)-2), fieldStyle)
+	}
+
+	// Fare tıklama ve tekerlek işleyicisi
+	if ctx.RegisterMouse != nil {
+		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+			if ev.Button == backend.MouseLeft && !ev.Drag {
+				if !s.DisableFocus && ctx.SetFocus != nil {
+					ctx.SetFocus(s.ID)
+				}
+				s.State.Open = !s.State.Open
+				return
 			}
-			s.State.Open = !s.State.Open
+			if !s.DisableScroll {
+				if ev.Button == backend.MouseScrollUp {
+					if s.State.Selected > 0 {
+						s.State.Selected--
+					} else {
+						s.State.Selected = len(s.Options) - 1
+					}
+					if s.OnChange != nil {
+						s.OnChange(s.State.Selected, s.Options[s.State.Selected])
+					}
+					if !s.DisableFocus && ctx.SetFocus != nil {
+						ctx.SetFocus(s.ID)
+					}
+				} else if ev.Button == backend.MouseScrollDown {
+					if s.State.Selected < len(s.Options)-1 {
+						s.State.Selected++
+					} else {
+						s.State.Selected = 0
+					}
+					if s.OnChange != nil {
+						s.OnChange(s.State.Selected, s.Options[s.State.Selected])
+					}
+					if !s.DisableFocus && ctx.SetFocus != nil {
+						ctx.SetFocus(s.ID)
+					}
+				}
+			}
 		})
 	}
+
 	if !s.State.Open || ctx.Area.Height < 2 {
 		return
 	}

@@ -2,7 +2,9 @@ package widgets
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/thebanri/limoni/animation"
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -10,20 +12,33 @@ import (
 
 // ProgressBar renders a bounded horizontal progress indicator.
 type ProgressBar struct {
-	ID          string
-	Value       float64
-	Min         float64
-	Max         float64
-	Style       cell.Style
-	FilledStyle cell.Style
-	EmptyStyle  cell.Style
-	ShowPercent bool
+	ID           string
+	Value        float64
+	Min          float64
+	Max          float64
+	Style        cell.Style
+	FilledStyle  cell.Style
+	EmptyStyle   cell.Style
+	FocusedStyle cell.Style
+	ShowPercent  bool
 }
 
 func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.Area.Width == 0 || ctx.Area.Height == 0 || p.Max <= p.Min {
 		return
 	}
+
+	if p.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(p.ID)
+	}
+	if p.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(p.ID)
+			}
+		})
+	}
+
 	value := p.Value
 	if value < p.Min {
 		value = p.Min
@@ -38,10 +53,16 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		content := '░'
 		if int(x) < filled {
 			style = ctx.Style.Merge(p.FilledStyle)
+			if ctx.IsFocused(p.ID) {
+				style = style.Merge(p.FocusedStyle)
+			}
 			content = '█'
 		}
 		if style == (cell.Style{}) {
 			style = ctx.Style.Merge(p.Style)
+			if ctx.IsFocused(p.ID) {
+				style = style.Merge(p.FocusedStyle)
+			}
 		}
 		buf.SetCell(ctx.Area.X+x, ctx.Area.Y, cell.Cell{Content: content, Style: style})
 	}
@@ -79,4 +100,35 @@ func (p ProgressBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibi
 		State:  state,
 		Bounds: bounds,
 	}
+}
+
+// AnimatableProgressBar is a decorator for ProgressBar that handles time-based easing transitions.
+type AnimatableProgressBar struct {
+	ProgressBar
+	Anim *animation.Float
+}
+
+// NewAnimatableProgressBar creates a new AnimatableProgressBar with initial value and default boundaries.
+func NewAnimatableProgressBar(id string, initial float64) *AnimatableProgressBar {
+	return &AnimatableProgressBar{
+		ProgressBar: ProgressBar{
+			ID:    id,
+			Value: initial,
+			Min:   0,
+			Max:   100,
+		},
+		Anim: animation.NewFloat(initial),
+	}
+}
+
+// AnimateTo initiates a smooth animation towards a target value.
+func (ap *AnimatableProgressBar) AnimateTo(target float64, duration time.Duration, easing animation.EasingFunc) {
+	ap.Anim.AnimateTo(target, duration, easing)
+}
+
+// Update increments the animation progress and returns true if the animation is still running.
+func (ap *AnimatableProgressBar) Update(now time.Time) bool {
+	animating := ap.Anim.Update(now)
+	ap.Value = ap.Anim.Value()
+	return animating
 }

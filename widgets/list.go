@@ -72,6 +72,8 @@ func (s *ListState) ScrollTo(height int, total int) {
 
 // List, terminal ekranında liste şeklinde dikey öğeler çizen interaktif widget'tır.
 type List struct {
+	// ID, listenin odaklanma ve kimlik belirleme kimliğidir.
+	ID string
 	// Items, listede gösterilecek olan metin dizilimleridir.
 	Items []string
 	// Provider, sanal liste (virtual scrolling) için veri sağlayıcıdır.
@@ -85,6 +87,8 @@ type List struct {
 	ScrollbarThumbStyle cell.Style
 	// Style, listenin genel rengini ve yazı stilini belirtir.
 	Style cell.Style
+	// FocusedStyle, liste odağa sahip olduğunda uygulanacak stildir.
+	FocusedStyle cell.Style
 	// SelectedStyle, seçili olan öğenin vurgulanacağı stildir.
 	SelectedStyle cell.Style
 	// HighlightSymbol, seçili olan öğenin soluna yerleştirilecek semboldür (örn: "> ").
@@ -106,7 +110,14 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
+	if l.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(l.ID)
+	}
+
 	listStyle := ctx.Style.Merge(l.Style)
+	if ctx.IsFocused(l.ID) {
+		listStyle = listStyle.Merge(l.FocusedStyle)
+	}
 	selStyle := listStyle.Merge(l.SelectedStyle)
 
 	// Eğer State tanımlanmadıysa geçici yerel bir durum kullan
@@ -222,9 +233,12 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				Width:  area.Width,
 				Height: 1,
 			}
-			// Öğeye fareyle tıklandığında listedeki bu indeksi seç (Selected)
+			// Öğeye fareyle tıklandığında listedeki bu indeksi seç (Selected) ve odaklan
 			ctx.RegisterClick(itemRect, func() {
 				state.Selected = targetIdx
+				if l.ID != "" && ctx.SetFocus != nil {
+					ctx.SetFocus(l.ID)
+				}
 			})
 		}
 	}

@@ -15,13 +15,11 @@ import (
 )
 
 func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, bodyArea cell.Rect) {
-	// Playground'a ait + / - kısayolları yalnızca bu sekme çizilirken aktiftir.
 	f.BeginFocusScope("playground")
 	if state.PlaygroundMode == "VirtualList" {
 		f.BeginFocusScope("playground_virtual_list")
 	}
 
-	// ─── ANA İKİ SÜTUN: Sol Kontroller (34 sütun) | Sağ Önizleme (Fill) ───
 	mainLay := layout.NewFlexLayout(
 		layout.Horizontal,
 		1,
@@ -30,14 +28,7 @@ func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame,
 	)
 	mainChunks := mainLay.Split(bodyArea)
 
-	// ═══════════════════════════════════════════════
-	//  SOL PANEL: KONTROL PANELİ
-	// ═══════════════════════════════════════════════
 	drawPlaygroundControls(t, f, state, mainColor, accentColor, mainChunks[0])
-
-	// ═══════════════════════════════════════════════
-	//  SAĞ PANEL: CANLI ÖNİZLEME
-	// ═══════════════════════════════════════════════
 	drawPlaygroundPreview(t, f, state, mainColor, accentColor, mainChunks[1])
 }
 
@@ -46,7 +37,7 @@ type playgroundVirtualListProvider struct{}
 func (playgroundVirtualListProvider) Len() int { return 1000 }
 
 func (playgroundVirtualListProvider) ItemAt(index int) string {
-	return fmt.Sprintf("Kayıt %04d · lazy provider", index+1)
+	return fmt.Sprintf("Record %04d · lazy provider", index+1)
 }
 
 func moveVirtualListSelection(state *AppState, delta int) {
@@ -66,13 +57,11 @@ func moveVirtualListSelection(state *AppState, delta int) {
 	}
 }
 
-// ── Sol Panel: Gruplandırılmış Kontroller ──────────────────────────────────
 func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, area cell.Rect) {
 	focused := t.FocusManager().Focused()
 
-	// Dış çerçeve
 	ctrlBlock := widgets.Block{
-		Title:          " ⚙ KONTROL PANELİ ",
+		Title:          " CONTROL PANEL ",
 		TitleAlignment: widgets.AlignCenter,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -87,33 +76,30 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		Height: area.Height - 2,
 	}
 
-	// Kontrol elemanlarını dikey olarak grupla
 	ctrlLay := layout.NewFlexLayout(
 		layout.Vertical,
 		1,
-		layout.Fixed(1), // 0: Açıklama
-		layout.Fixed(5), // 1: Yön Select + açılır seçenekler
-		layout.Fixed(5), // 2: Oran Slider
-		layout.Fixed(5), // 3: Kenarlık Stili (3 RadioButton)
-		layout.Fixed(6), // 4: Render Mode + açılır seçenekler
+		layout.Fixed(1), // 0: Guide
+		layout.Fixed(5), // 1: Direction Select
+		layout.Fixed(5), // 2: Ratio Slider
+		layout.Fixed(5), // 3: Border Radio buttons
+		layout.Fixed(6), // 4: Render Mode Select
 		layout.Fixed(1), // 5: Checkbox
-		layout.Fill(),   // 6: Bilgi kutusu
+		layout.Fill(),   // 6: Info Box
 	)
 	ctrlRows := ctrlLay.Split(innerArea)
 
-	// ── 0. Kılavuz satırı ──
+	// 0. Guide Line
 	f.RenderWidget(label{
-		text:  "Fare ve klavye ile kontrol edin",
+		text:  "Control with mouse and keyboard",
 		style: cell.Style{Fg: cell.NewColorRGB(130, 140, 160), Modifier: cell.ModifierItalic},
 	}, ctrlRows[0])
 
-	// ── 1. Yön Seçimi ──
-	// tab_home.go pattern'i: fokusta border rengi değişir, DrawFocusRing kullanılmaz
+	// 1. Direction Select
 	dirBorderCol := cell.NewColorRGB(60, 65, 80)
 	if focused == "play_direction" {
 		dirBorderCol = accentColor
 	}
-	// State sync: state -> widget (readonly, her karede güncel tutulur)
 	if state.PlaygroundDir == layout.Vertical {
 		state.PlayDirectionState.Selected = 1
 	} else {
@@ -130,7 +116,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		}
 	})
 	f.RenderWidget(widgets.Block{
-		Title: " YÖN ", TitleAlignment: widgets.AlignLeft,
+		Title: " DIRECTION ", TitleAlignment: widgets.AlignLeft,
 		Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle: cell.Style{Fg: dirBorderCol},
 		Child: widgets.Select{
@@ -150,16 +136,13 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		},
 	}, ctrlRows[1])
 
-	// ── 2. Oran Slider ──
-	// tab_home.go pattern'i takip ediliyor: Block + Child = Slider, padding ile slider'a alan verilir.
-	// ÖNEMLİ: state.PlayRatioState.Set() HER KAREDE çağrılMAMALI! Slider kendi state'ini yönetir.
-	// Sadece PlaygroundRatio'yu Slider state'inden güncelle.
+	// 2. Ratio Slider
 	sliderBorderCol := cell.NewColorRGB(60, 65, 80)
 	if focused == "play_ratio" {
 		sliderBorderCol = accentColor
 	}
 	f.RenderWidget(widgets.Block{
-		Title: fmt.Sprintf(" ORAN: %%%d ", state.PlayRatioState.Value), TitleAlignment: widgets.AlignLeft,
+		Title: fmt.Sprintf(" RATIO: %%%d ", state.PlayRatioState.Value), TitleAlignment: widgets.AlignLeft,
 		Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle: cell.Style{Fg: sliderBorderCol},
 		PaddingLeft: 1, PaddingRight: 1,
@@ -171,19 +154,16 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 			ThumbStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
 		},
 	}, ctrlRows[2])
-	// Slider state'den ana state'i güncelle (tek yönlü akış: widget -> app state)
 	state.PlaygroundRatio = state.PlayRatioState.Value
 
-	// ── 3. Kenarlık Stili (RadioButton grubu) ──
+	// 3. Border Style Radio Buttons
 	borderBorderCol := cell.NewColorRGB(60, 65, 80)
 	if focused == "border_rounded" || focused == "border_double" || focused == "border_thick" {
 		borderBorderCol = accentColor
 	}
 
-	// RadioButton'ları Block'un child'ı olarak değil, elle iç alana çizeceğiz
-	// (Block Child'ı tek widget alır, 3 radio button var)
 	borderBlock := widgets.Block{
-		Title: " KENARLIK ", TitleAlignment: widgets.AlignLeft,
+		Title: " BORDER ", TitleAlignment: widgets.AlignLeft,
 		Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle: cell.Style{Fg: borderBorderCol},
 	}
@@ -206,15 +186,15 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 
 		f.RenderWidget(widgets.RadioButton{
 			ID: "border_rounded", Selected: &state.PlaygroundBorder, Value: "Rounded",
-			Label: "╭─╮ Oval", Style: rbStyle, FocusedStyle: rbFocus,
+			Label: "╭─╮ Rounded", Style: rbStyle, FocusedStyle: rbFocus,
 		}, borderChunks[0])
 		f.RenderWidget(widgets.RadioButton{
 			ID: "border_double", Selected: &state.PlaygroundBorder, Value: "Double",
-			Label: "╔═╗ Çift", Style: rbStyle, FocusedStyle: rbFocus,
+			Label: "╔═╗ Double", Style: rbStyle, FocusedStyle: rbFocus,
 		}, borderChunks[1])
 		f.RenderWidget(widgets.RadioButton{
 			ID: "border_thick", Selected: &state.PlaygroundBorder, Value: "Thick",
-			Label: "┏━┓ Kalın", Style: rbStyle, FocusedStyle: rbFocus,
+			Label: "┏━┓ Thick", Style: rbStyle, FocusedStyle: rbFocus,
 		}, borderChunks[2])
 	}
 
@@ -223,7 +203,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		state.PlayModeState.Open = !state.PlayModeState.Open
 	})
 
-	// ── 4. Render Modu ──
+	// 4. Render Mode Select
 	modeBorderCol := cell.NewColorRGB(60, 65, 80)
 	if focused == "play_mode" {
 		modeBorderCol = accentColor
@@ -247,7 +227,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	}
 	state.PlayModeState.Selected = modeIndex
 	f.RenderWidget(widgets.Block{
-		Title: " RENDER MODU ", TitleAlignment: widgets.AlignLeft,
+		Title: " RENDER MODE ", TitleAlignment: widgets.AlignLeft,
 		Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle: cell.Style{Fg: modeBorderCol},
 		Child: widgets.Select{
@@ -280,23 +260,23 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		},
 	}, ctrlRows[4])
 
-	// ── 5. Checkbox ──
+	// 5. Grid Lines Checkbox
 	f.RenderWidget(widgets.Checkbox{
 		ID: "play_grid_cb", Checked: &state.PlayShowGrid,
-		Label:        "Izgara çizgileri",
+		Label:        "Grid lines",
 		Style:        cell.Style{Fg: cell.NewColorRGB(190, 195, 210)},
 		FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 	}, ctrlRows[5])
 
-	// ── 6. Bilgi kutusu (Fill alanı) ──
+	// 6. Info Box
 	if ctrlRows[6].Height >= 3 {
 		infoLines := []widgets.Line{
 			widgets.NewLine(
-				widgets.Span{Text: "Mod: ", Style: cell.Style{Fg: cell.NewColorRGB(120, 125, 140)}},
+				widgets.Span{Text: "Mode: ", Style: cell.Style{Fg: cell.NewColorRGB(120, 125, 140)}},
 				widgets.Span{Text: state.PlaygroundMode, Style: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold}},
 			),
 			widgets.NewLine(
-				widgets.Span{Text: "Oran: ", Style: cell.Style{Fg: cell.NewColorRGB(120, 125, 140)}},
+				widgets.Span{Text: "Ratio: ", Style: cell.Style{Fg: cell.NewColorRGB(120, 125, 140)}},
 				widgets.Span{Text: fmt.Sprintf("%d / %d", state.PlaygroundRatio, 100-state.PlaygroundRatio), Style: cell.Style{Fg: cell.NewColorRGB(255, 200, 80)}},
 			),
 			widgets.NewLine(
@@ -308,15 +288,13 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	}
 }
 
-// ── Sağ Panel: Canlı Önizleme ──────────────────────────────────────────────
 func drawPlaygroundPreview(t *terminal.Terminal, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, area cell.Rect) {
-	// Dış çerçeve
 	directionLabel := "HORIZONTAL"
 	if state.PlaygroundDir == layout.Vertical {
 		directionLabel = "VERTICAL"
 	}
 	previewBlock := widgets.Block{
-		Title:          fmt.Sprintf(" CANLI ÖNİZLEME · %s ", directionLabel),
+		Title:          fmt.Sprintf(" LIVE PREVIEW · %s ", directionLabel),
 		TitleAlignment: widgets.AlignCenter,
 		Borders:        widgets.BorderAll,
 		BorderSymbols:  widgets.SymbolsRounded,
@@ -334,19 +312,16 @@ func drawPlaygroundPreview(t *terminal.Terminal, f *terminal.Frame, state *AppSt
 		return
 	}
 
-	// Üst durum çubuğu (3 satır) + Alt grid önizleme alanı
 	prevLay := layout.NewFlexLayout(
 		layout.Vertical,
 		1,
-		layout.Fixed(3), // Durum çubuğu
-		layout.Fill(),   // Grid / Canvas alanı
+		layout.Fixed(3), // Status bar
+		layout.Fill(),   // Grid / Canvas area
 	)
 	prevChunks := prevLay.Split(previewInner)
 
-	// ─── ÜST: Durum Çubuğu ───
 	drawPlaygroundStatusBar(f, state, accentColor, prevChunks[0])
 
-	// ─── ALT: Direction-aware preview ───
 	if state.PlaygroundDir == layout.Vertical {
 		drawPlaygroundVertical(t, f, state, accentColor, prevChunks[1])
 	} else {
@@ -354,17 +329,15 @@ func drawPlaygroundPreview(t *terminal.Terminal, f *terminal.Frame, state *AppSt
 	}
 }
 
-// ── Durum çubuğu: ProgressBar + aktif mod göstergesi ────────────────────────
 func drawPlaygroundStatusBar(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
 	statusBlock := widgets.Block{
-		Title:         " DURUM ",
+		Title:         " STATUS ",
 		Borders:       widgets.BorderAll,
 		BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle:   cell.Style{Fg: cell.NewColorRGB(60, 65, 80)},
 	}
 	f.RenderWidget(statusBlock, area)
 
-	// İç alan: oran progress bar
 	if area.Width > 4 && area.Height > 2 {
 		barArea := cell.NewRect(area.X+2, area.Y+1, area.Width-4, 1)
 		f.RenderWidget(widgets.ProgressBar{
@@ -384,12 +357,11 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	}
 	sym := widgets.SymbolsRounded
 	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
-	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout aktif.\n- Markdown paneli\n- Profil maskesi\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
-	drawPlaygroundProfile(f, state, accentColor, parts[1], " PROFİL · VERTICAL ", true, borders, sym)
+	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout active.\n- Markdown panel\n- Profile avatar mask\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
+	drawPlaygroundProfile(f, state, accentColor, parts[1], " PROFILE · VERTICAL ", true, borders, sym)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
 }
 
-// ── CSS Grid önizleme alanı ─────────────────────────────────────────────────
 var playgroundSurfaceImage = image.NewUniform(color.RGBA{R: 25, G: 28, B: 36, A: 255})
 
 func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect) {
@@ -397,7 +369,6 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 		return
 	}
 
-	// Grid: Oran bazlı sütunlar + 2 satır
 	ratio := state.PlaygroundRatio
 	if ratio < 10 {
 		ratio = 10
@@ -415,17 +386,13 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 	gridLayout := layout.NewGridLayout(columns, rows, 1)
 	gridAreas := gridLayout.Split(area)
 
-	// Önce tüm preview alanını sabit opak surface ile kapat; native iRender Modumage
-	// protocol'ünün önceki geniş placement'larından kalan kenarlar görünmesin.
 	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
 
-	// Izgara checkbox kapalıysa hücre iç border'larını kaldır.
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
 		borders = widgets.BorderNone
 	}
 
-	// Kenarlık sembollerini seç
 	var sym widgets.BorderSymbols
 	switch state.PlaygroundBorder {
 	case "Rounded":
@@ -438,7 +405,7 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 		sym = widgets.SymbolsRounded
 	}
 
-	// ── Hücre (0,0): Markdown ──
+	// Cell (0,0): Markdown
 	mdBlock := widgets.Block{
 		Title:          " MARKDOWN ",
 		TitleAlignment: widgets.AlignLeft,
@@ -448,13 +415,13 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 		PaddingLeft:    1,
 		PaddingRight:   1,
 		Child: &widgets.Markdown{
-			Content: "# Limoni TUI\nRatatui'den *daha esnek* ve **performanslı**.\n- CSS Grid yerleşimi\n- Bayer dither geçişleri\n- Dairesel `avatar` maskeleme\n- **Sıfır tahsisatlı** çizim",
+			Content: "# Limoni TUI\nMore flexible and **performant**.\n- CSS Grid layout\n- Bayer dither transitions\n- Circular `avatar` masking\n- **Zero-allocation** rendering",
 			Style:   cell.Style{Fg: cell.NewColorRGB(210, 215, 225)},
 		},
 	}
 	f.RenderWidget(mdBlock, gridAreas.Cell(0, 0).Area)
 
-	// ── Hücre (0,1): Profil Resmi ──
+	// Cell (0,1): Profile Picture
 	profileSymbols := widgets.SymbolsRounded
 	if state.ProfileFrame == "Full" {
 		profileSymbols = widgets.SymbolsSingle
@@ -480,14 +447,13 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 			state.ProfileFrame = "Rounded"
 		}
 	})
-	drawPlaygroundProfile(f, state, accentColor, profileArea, fmt.Sprintf(" PROFİL · %s ", state.ProfileFrame), state.ProfileFrame == "Rounded", borders, profileSymbols)
+	drawPlaygroundProfile(f, state, accentColor, profileArea, fmt.Sprintf(" PROFILE · %s ", state.ProfileFrame), state.ProfileFrame == "Rounded", borders, profileSymbols)
 
-	// ── Hücre (1,0) span 1 row, 2 cols: Canvas / Sparkline ──
+	// Cell (1,0) span 1 row, 2 cols: Canvas / Sparkline
 	canvasArea := gridAreas.Cell(1, 0).Span(1, 2)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, canvasArea)
 }
 
-// drawPlaygroundProfile renders the avatar and its opacity control in one profile card.
 func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect, title string, circleMask bool, borders uint8, symbols widgets.BorderSymbols) {
 	profileBlock := widgets.Block{
 		Title:          title,
@@ -511,18 +477,13 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 	if profileImg == nil {
 		profileImg = state.ActiveImg
 	}
-	// Native image protocols may use the terminal default (black) behind alpha
-	// pixels. Read the already-rendered theme background from the target cell and
-	// flatten against that color so the avatar follows the active theme.
 	profileBackground := cell.NewColorDefault()
 	if c := f.Buffer.Get(profileParts[0].X, profileParts[0].Y); c != nil {
 		profileBackground = c.Style.Bg
 	}
 	f.RenderWidget(&widgets.Image{
-		Img:        profileImg,
-		CircleMask: circleMask,
-		// Keep the avatar native and below the modal's opaque backdrop and
-		// the cell/text layer. Negative z-index is preserved by Frame.RegisterImage.
+		Img:              profileImg,
+		CircleMask:       circleMask,
 		ZIndex:           -3,
 		OpaqueBackground: profileBackground.Type() != cell.ColorDefault,
 		Background:       profileBackground,
@@ -535,7 +496,7 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 		opacityBorder = accentColor
 	}
 	f.RenderWidget(widgets.Block{
-		Title:         fmt.Sprintf(" OPAKLIK: %%%d ", state.AvatarOpacityState.Value),
+		Title:         fmt.Sprintf(" OPACITY: %%%d ", state.AvatarOpacityState.Value),
 		Borders:       widgets.BorderAll,
 		BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle:   cell.Style{Fg: opacityBorder},
@@ -551,7 +512,6 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 	}, profileParts[1])
 }
 
-// ── Canvas / Sparkline render alanı ─────────────────────────────────────────
 func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppState, accentColor cell.Color, sym widgets.BorderSymbols, canvasArea cell.Rect) {
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
@@ -596,8 +556,8 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 
 		tableRows := []widgets.TableRow{
 			{Cells: []widgets.TableCell{
-				{Text: "Terminal Yeteneği", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
-				{Text: "Durum", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Terminal Capability", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Status", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
 			}},
 			{Cells: []widgets.TableCell{
 				{Text: "TrueColor (24-bit RGB)"},
@@ -609,7 +569,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				}()}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "256 Renk Desteği"},
+				{Text: "256 Colors Support"},
 				{Text: strconv.FormatBool(caps.Colors256), Style: cell.Style{Fg: func() cell.Color {
 					if caps.Colors256 {
 						return cell.NewColorRGB(0, 255, 0)
@@ -618,7 +578,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				}()}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Mouse Raporlama"},
+				{Text: "Mouse Reporting"},
 				{Text: strconv.FormatBool(caps.MouseSupport), Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
 			}},
 			{Cells: []widgets.TableCell{
@@ -626,7 +586,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				{Text: strconv.FormatBool(caps.BracketedPaste), Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Grafik Protokolü"},
+				{Text: "Graphics Protocol"},
 				{Text: func() string {
 					switch caps.GraphicsProto {
 					case graphics.ProtocolKitty:
@@ -641,11 +601,11 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				}()},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Performans Ölçümleri", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
-				{Text: "Süre", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Performance Profiling", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
+				{Text: "Duration", Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold}},
 			}},
 			{Cells: []widgets.TableCell{
-				{Text: "Son Kare Çizim Süresi"},
+				{Text: "Last Frame Render Duration"},
 				{Text: fmt.Sprintf("%5.2f ms", float64(lastFrameTime.Microseconds())/1000.0), Style: cell.Style{Fg: cell.NewColorRGB(255, 200, 50)}},
 			}},
 		}
@@ -663,8 +623,8 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			ID: "profiler_showcase_table",
 			Header: &widgets.TableRow{
 				Cells: []widgets.TableCell{
-					{Text: "BİLEŞEN / YETENEK", Style: cell.Style{Modifier: cell.ModifierBold}},
-					{Text: "ÖLÇÜM / DEĞER", Style: cell.Style{Modifier: cell.ModifierBold}},
+					{Text: "COMPONENT / CAPABILITY", Style: cell.Style{Modifier: cell.ModifierBold}},
+					{Text: "MEASUREMENT / VALUE", Style: cell.Style{Modifier: cell.ModifierBold}},
 				},
 				Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 45)},
 			},
@@ -708,7 +668,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		state.ShowcaseSelectState.Selected = showcaseIdx
 
 		f.RenderWidget(widgets.Block{
-			Title:         " SHOWCASE SEÇİN ",
+			Title:         " SELECT SHOWCASE ",
 			Borders:       widgets.BorderAll,
 			BorderSymbols: widgets.SymbolsRounded,
 			BorderStyle:   cell.Style{Fg: cell.NewColorRGB(180, 180, 180)},
@@ -738,25 +698,25 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		switch state.ShowcaseSelected {
 		case "Paragraph":
 			showcaseWidget = &widgets.Paragraph{
-				Text: "Limoni TUI Kütüphanesi ile yazılmış olan bu paragraf bileşeni, otomatik sözcük sarma (word wrapping) desteğine sahiptir. " +
-					"Farklı pencere boyutlarına göre kendini yeniden hesaplar ve düzgün şekilde konumlandırır.\n\n" +
-					"Ayrıca **kalın**, *italik*, `kod` ve diğer biçimlendirmeleri de başarıyla işleyebilir.",
+				Text: "Built with the Limoni TUI library, this paragraph widget supports automatic word wrapping. " +
+					"It dynamically reflows and positions content across window resizes.\n\n" +
+					"It also renders **bold**, *italic*, `code`, and custom styles seamlessly.",
 			}
 		case "Table":
 			showcaseWidget = &widgets.Table{
 				ID: "showcase_table",
 				Header: &widgets.TableRow{
 					Cells: []widgets.TableCell{
-						{Text: "Sınıf", Style: cell.Style{Modifier: cell.ModifierBold}},
-						{Text: "Değer", Style: cell.Style{Modifier: cell.ModifierBold}},
-						{Text: "Oran", Style: cell.Style{Modifier: cell.ModifierBold}},
+						{Text: "Class", Style: cell.Style{Modifier: cell.ModifierBold}},
+						{Text: "Value", Style: cell.Style{Modifier: cell.ModifierBold}},
+						{Text: "Ratio", Style: cell.Style{Modifier: cell.ModifierBold}},
 					},
 					Style: cell.Style{Bg: cell.NewColorRGB(60, 60, 70)},
 				},
 				Rows: []widgets.TableRow{
-					{Cells: []widgets.TableCell{{Text: "Hafıza"}, {Text: "12.4 MB"}, {Text: "25%"}}},
+					{Cells: []widgets.TableCell{{Text: "Memory"}, {Text: "12.4 MB"}, {Text: "25%"}}},
 					{Cells: []widgets.TableCell{{Text: "CPU"}, {Text: "1.2%"}, {Text: "10%"}}},
-					{Cells: []widgets.TableCell{{Text: "İş parçacığı"}, {Text: "8 adet"}, {Text: "60%"}}},
+					{Cells: []widgets.TableCell{{Text: "Threads"}, {Text: "8 units"}, {Text: "60%"}}},
 				},
 				Constraints: []widgets.TableConstraint{
 					{Type: widgets.ConstraintPercentage, Value: 35},
@@ -781,14 +741,14 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			f.RenderWidget(widgets.Block{
 				Borders: widgets.BorderNone,
 				Child: &widgets.Paragraph{
-					Text: "İnteraktif Form Bileşenleri:",
+					Text: "Interactive Form Components:",
 				},
 			}, formChunks[0])
 
 			f.RenderWidget(widgets.TextInput{
 				ID:           "showcase_input",
 				State:        state.UsernameInputState,
-				Placeholder:  "Kullanıcı adı...",
+				Placeholder:  "Username...",
 				Style:        cell.Style{Fg: cell.NewColorRGB(200, 200, 200), Bg: cell.NewColorRGB(45, 45, 55)},
 				FocusedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(65, 65, 80)},
 			}, formChunks[1])
@@ -796,7 +756,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			f.RenderWidget(widgets.Checkbox{
 				ID:           "showcase_checkbox",
 				Checked:      &state.MouseModeChecked,
-				Label:        "Mouse Etkinleştir",
+				Label:        "Enable Mouse",
 				Style:        cell.Style{Fg: cell.NewColorRGB(200, 200, 200)},
 				FocusedStyle: cell.Style{Fg: accentColor, Modifier: cell.ModifierBold},
 			}, formChunks[2])
@@ -838,7 +798,7 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 
 		if showcaseWidget != nil {
 			f.RenderWidget(widgets.Block{
-				Title:         fmt.Sprintf(" BİLEŞEN GÖSTERİMİ: %s ", state.ShowcaseSelected),
+				Title:         fmt.Sprintf(" COMPONENT SHOWCASE: %s ", state.ShowcaseSelected),
 				Borders:       borders,
 				BorderSymbols: sym,
 				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 220, 220)},
@@ -848,10 +808,8 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		return
 	}
 
-	// Render moduna göre içerik üret
 	switch state.PlaygroundMode {
 	case "Profiler":
-		// Handled early
 	case "VirtualList":
 		if state.VirtualListState == nil {
 			state.VirtualListState = widgets.NewListState()
@@ -875,7 +833,6 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			Color: accentColor,
 		}
 	case "Matrix":
-		// Matrix parçacık yağmuru
 		for _, stream := range state.MatrixStreams {
 			if stream.X >= virtualW {
 				continue
@@ -901,19 +858,18 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		}
 		childWidget = canvas
 	case "ChartTable":
-		// Canlı parametreleri içeren küçük bir önizleme tablosu
 		childWidget = widgets.Table{
 			Header: &widgets.TableRow{
 				Cells: []widgets.TableCell{
-					{Text: "Parametre"}, {Text: "Değer"},
+					{Text: "Parameter"}, {Text: "Value"},
 				},
 				Style: cell.Style{Bg: cell.NewColorRGB(45, 45, 55), Fg: cell.NewColorRGB(255, 255, 255)},
 			},
 			Rows: []widgets.TableRow{
-				{Cells: []widgets.TableCell{{Text: "Yön / Layout"}, {Text: string(state.PlaygroundDir)}}},
-				{Cells: []widgets.TableCell{{Text: "Oran / Ratio"}, {Text: fmt.Sprintf("%%%d", state.PlaygroundRatio)}}},
-				{Cells: []widgets.TableCell{{Text: "Kenarlık Stili"}, {Text: state.PlaygroundBorder}}},
-				{Cells: []widgets.TableCell{{Text: "Izgara Çizgileri"}, {Text: fmt.Sprintf("%v", state.PlayShowGrid)}}},
+				{Cells: []widgets.TableCell{{Text: "Direction / Layout"}, {Text: string(state.PlaygroundDir)}}},
+				{Cells: []widgets.TableCell{{Text: "Ratio"}, {Text: fmt.Sprintf("%%%d", state.PlaygroundRatio)}}},
+				{Cells: []widgets.TableCell{{Text: "Border Style"}, {Text: state.PlaygroundBorder}}},
+				{Cells: []widgets.TableCell{{Text: "Grid Lines"}, {Text: fmt.Sprintf("%v", state.PlayShowGrid)}}},
 			},
 			Constraints: []widgets.TableConstraint{
 				{Type: widgets.ConstraintPercentage, Value: 50},
@@ -921,7 +877,6 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 			},
 		}
 	case "Particle":
-		// Turkuaz renkli parçacık yağmuru
 		for _, stream := range state.MatrixStreams {
 			if stream.X >= virtualW {
 				continue
@@ -947,7 +902,6 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		}
 		childWidget = canvas
 	case "Dither":
-		// Bayer 4x4 dither gradyan görselleştirmesi (Animasyonlu)
 		bayer4x4 := [4][4]float64{
 			{0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0},
 			{12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0},
@@ -957,12 +911,11 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		pulse := state.PulseVal.Value()
 		for y := 0; y < virtualH; y++ {
 			rowThresh := float64(y) / float64(virtualH)
-			// Pulse değerine göre eşik değerini kaydırarak dalgalanma efekti yapıyoruz
 			thresh := rowThresh + (pulse-0.5)*1.5
 			for x := 0; x < virtualW; x++ {
 				bayerVal := bayer4x4[y%4][x%4]
 				if thresh > bayerVal {
-					canvas.Set(x, y, cell.Style{Fg: cell.NewColorRGB(255, 100, 180)}) // Neon Pembe
+					canvas.Set(x, y, cell.Style{Fg: cell.NewColorRGB(255, 100, 180)})
 				}
 			}
 		}
@@ -991,7 +944,6 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		childWidget = canvas
 	}
 
-	// Mod etiketleri
 	modeLabel := "CANVAS"
 	switch state.PlaygroundMode {
 	case "Matrix":

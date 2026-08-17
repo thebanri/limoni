@@ -12,6 +12,8 @@ import (
 // Image, terminalde yerel görsel protokolleri (Kitty, Sixel, iTerm2) kullanarak
 // PNG/JPG gibi gerçek resimleri çizebilen TUI bileşenidir.
 type Image struct {
+	// ID, widget odak kimliğidir.
+	ID string
 	// Img, gösterilecek olan ham resim nesnesidir.
 	Img image.Image
 	// ZIndex, resmin dikey katman yerleşim sırasıdır. Negatif değerler (örneğin -1)
@@ -31,6 +33,8 @@ type Image struct {
 	// OpacitySet, Opacity alanının bilinçli olarak ayarlandığını belirtir.
 	// Böylece 0.0 değeri ile varsayılan (belirtilmemiş) değer ayrıştırılır.
 	OpacitySet bool
+	// FocusedStyle, odaklandığında uygulanacak kenar/vurgu stilidir.
+	FocusedStyle cell.Style
 
 	// Cache fields
 	lastImg     image.Image
@@ -43,6 +47,16 @@ type Image struct {
 // Eğer hedef terminal görsel protokollerini desteklemiyorsa, Half-Block (U+2584)
 // yöntemiyle doğrudan hücre tamponu üzerine 1x2 çözünürlüklü resim çizer.
 func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if im.ID != "" && ctx.RegisterFocus != nil {
+		ctx.RegisterFocus(im.ID)
+	}
+	if im.ID != "" && ctx.RegisterClick != nil {
+		ctx.RegisterClick(ctx.Area, func() {
+			if ctx.SetFocus != nil {
+				ctx.SetFocus(im.ID)
+			}
+		})
+	}
 	if im.Img == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
 	}
