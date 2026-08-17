@@ -13,6 +13,11 @@ type Buffer struct {
 	Content    []cell.Cell           // Bellekte ardışık duran hücre dilimi
 	IsDirty    bool                  // Tamponda değişiklik yapılıp yapılmadığını gösterir
 	StyleCache map[cell.Style][]byte // Stil geçiş kodları için önbellek
+
+	// clean, tamponun tüm hücrelerinin varsayılan (boşluk + sıfır stil) durumda
+	// olduğunun bilindiğini belirtir. Bu bayrak sayesinde hiçbir widget çizilmeyen
+	// karelerde Clear() tüm hücre dizisini taramak zorunda kalmaz.
+	clean bool
 }
 
 // NewBuffer belirtilen alan boyutunda yeni bir Buffer oluşturur.
@@ -36,12 +41,24 @@ func NewEmptyBuffer() *Buffer {
 
 // Clear tüm tamponu temizler ve varsayılan hücre değerlerine (boşluk, default style) sıfırlar.
 func (b *Buffer) Clear() {
+	if b.clean {
+		return
+	}
 	for i := range b.Content {
 		if b.Content[i].Content != ' ' || b.Content[i].Style != (cell.Style{}) {
 			b.Content[i].Reset()
 			b.IsDirty = true
 		}
 	}
+	b.clean = true
+}
+
+// Invalidate, tampon içeriğinin Content dilimi üzerinden doğrudan değiştirildiğini bildirir.
+// Content'i SetCell/SetString dışında değiştiren çağrıcılar bu metodu kullanmalıdır;
+// aksi halde Clear() hızlı yolu güncel olmayan hücreleri temizlemeyi atlar.
+func (b *Buffer) Invalidate() {
+	b.clean = false
+	b.IsDirty = true
 }
 
 // Resize tampon alanını yeniden boyutlandırır.
@@ -57,6 +74,7 @@ func (b *Buffer) Resize(area cell.Rect) {
 		b.Content = make([]cell.Cell, needed)
 	}
 	b.IsDirty = true
+	b.clean = false
 	b.Clear()
 }
 
@@ -66,6 +84,9 @@ func (b *Buffer) Get(x, y uint16) *cell.Cell {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return nil
 	}
+	// Dönen işaretçi üzerinden hücre doğrudan değiştirilebileceği için tampon
+	// artık "temiz" kabul edilemez.
+	b.clean = false
 	return &b.Content[y*b.Area.Width+x]
 }
 
@@ -78,6 +99,7 @@ func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	if b.Content[idx] != c {
 		b.Content[idx] = c
 		b.IsDirty = true
+		b.clean = false
 	}
 }
 
@@ -110,12 +132,14 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 			b.Content[idx].Content = r
 			b.Content[idx].Style = style
 			b.IsDirty = true
+			b.clean = false
 		}
 
 		if w == 2 {
 			if b.Content[idx+1].Content != cell.RuneContinuation {
 				b.Content[idx+1].Content = cell.RuneContinuation
 				b.IsDirty = true
+				b.clean = false
 			}
 		}
 

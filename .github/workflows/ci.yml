@@ -37,15 +37,42 @@ jobs:
         shell: bash
         run: go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend ./compat/bubbletea
 
-      - name: Verify Zero-Allocation Benchmarks
+      - name: Verify Zero-Allocation Hot Paths
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          go test ./benchmarks -run '^$' -bench 'BenchmarkBufferDiff|BenchmarkMarkdownVisualRows' -benchmem
+          set -euo pipefail
+          go test ./core/buffer -run '^$' -bench 'BenchmarkDiff_' -benchmem | tee bench.txt
+          go test ./widgets -run '^$' -bench 'BenchmarkBlockDraw|BenchmarkParagraphDraw|BenchmarkTableDraw|BenchmarkTableVisibleRows' -benchmem | tee -a bench.txt
+          go test ./benchmarks -run '^$' -bench 'BenchmarkEmptyFrame|BenchmarkMouseHitTest|BenchmarkHundredLayers|BenchmarkTenThousandRowTable' -benchmem | tee -a bench.txt
+          awk '
+            function budget(name) {
+              if (name ~ /^BenchmarkTenThousandRowTable/) return 16
+              return 0
+            }
+            /allocs\/op/ {
+              name = $1
+              for (i = 1; i <= NF; i++) {
+                if ($i == "allocs/op") allocs = $(i-1)
+                if ($i == "ns/op") ns = $(i-1)
+              }
+              max = budget(name)
+              if (allocs + 0 > max) {
+                printf "FAIL %s: %s allocs/op exceeds budget %d\n", name, allocs, max
+                failed = 1
+              }
+              if (name ~ /^BenchmarkEmptyFrame/ && ns + 0 > 100) {
+                printf "FAIL %s: %s ns/op exceeds 100ns empty-frame budget\n", name, ns
+                failed = 1
+              }
+            }
+            END { exit failed }
+          ' bench.txt
 
       - name: Build Examples
         shell: bash
         run: |
+          go build ./cmd/limoni
           go build ./examples/demo
           go build ./examples/animation
           go build ./examples/forms

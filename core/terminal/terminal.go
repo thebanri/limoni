@@ -151,6 +151,16 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	layersChanged := currentLayersHash != t.lastLayersHash
 	t.lastLayersHash = currentLayersHash
 
+	// Hiçbir hücre değişmediyse ve native resim/geçiş/debug katmanı yoksa
+	// senkron güncelleme, resim geçişi ve diff turunu tamamen atla.
+	sizeChanged := t.front.Area.Width != t.back.Area.Width || t.front.Area.Height != t.back.Area.Height
+	if !sizeChanged && !t.front.IsDirty && !t.transitionActive && !t.debugMode &&
+		len(t.frame.ImageRegions) == 0 && t.lastImageCount == 0 {
+		t.lastFrameDuration = time.Since(t0)
+		t.copyWidgetStats()
+		return nil
+	}
+
 	// Resim ve metin çıktısını aynı senkron güncelleme içinde üret. Böylece
 	// tam ekran temizleme ile native resim arasında görünür bir ara kare oluşmaz.
 	t.backend.StartSyncUpdate()
@@ -158,7 +168,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// Tam yeniden çizimde buffer.Diff'in sonradan göndereceği ESC[2J,
 	// daha önce gönderilmiş native resimleri silmemelidir. Boyutları burada
 	// eşitleyip temizleme sırasını image pass'inden önceye alıyoruz.
-	needsFullClear := t.front.Area.Width != t.back.Area.Width || t.front.Area.Height != t.back.Area.Height
+	needsFullClear := sizeChanged
 	if needsFullClear {
 		t.back.Resize(t.front.Area)
 		t.backend.Write([]byte("\x1b[2J"))
@@ -200,6 +210,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 			// aktif sekmenin tüm metin/border hücrelerini Diff'e sokuyoruz.
 			if proto == graphics.ProtocolKitty {
 				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+				t.back.Invalidate()
 				for i := range t.back.Content {
 					t.back.Content[i].Content = cell.RuneImage
 					t.back.Content[i].Style.Reset()
@@ -222,6 +233,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		if t.lastImageCount > 0 {
 			if proto == graphics.ProtocolKitty {
 				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+				t.back.Invalidate()
 				for i := range t.back.Content {
 					t.back.Content[i].Content = cell.RuneImage
 					t.back.Content[i].Style.Reset()
@@ -252,17 +264,20 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 	dur := time.Since(t0)
 	t.lastFrameDuration = dur
+	t.copyWidgetStats()
 
-	// Copy widget stats
+	return nil
+}
+
+// copyWidgetStats, kare profilleme istatistiklerini yeniden kullanılan dilime kopyalar.
+func (t *Terminal) copyWidgetStats() {
 	if cap(t.lastWidgetStats) >= len(t.frame.WidgetStats) {
 		t.lastWidgetStats = t.lastWidgetStats[:len(t.frame.WidgetStats)]
 		copy(t.lastWidgetStats, t.frame.WidgetStats)
-	} else {
-		t.lastWidgetStats = make([]WidgetStat, len(t.frame.WidgetStats))
-		copy(t.lastWidgetStats, t.frame.WidgetStats)
+		return
 	}
-
-	return nil
+	t.lastWidgetStats = make([]WidgetStat, len(t.frame.WidgetStats))
+	copy(t.lastWidgetStats, t.frame.WidgetStats)
 }
 
 // clippedImageRegions intentionally preserves native image placements.

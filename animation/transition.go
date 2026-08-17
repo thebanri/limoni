@@ -20,6 +20,7 @@ func ApplyDitherFade(newBuf *buffer.Buffer, oldBuf *buffer.Buffer, progress floa
 	if progress <= 0.0 {
 		// oldBuf'ı newBuf üzerine tamamen kopyala
 		if len(newBuf.Content) == len(oldBuf.Content) {
+			newBuf.Invalidate()
 			copy(newBuf.Content, oldBuf.Content)
 		}
 		return

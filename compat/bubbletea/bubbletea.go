@@ -2,6 +2,7 @@ package bubbletea
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/thebanri/limoni/core/backend"
@@ -269,10 +270,30 @@ func NewProgram(m Model) *Program {
 	}
 }
 
-// Run executes the Program.
+// Run executes the Program loop without attaching a terminal.
+// It is useful for headless tests; use RunTerminal to render to a real TTY.
 func (p *Program) Run(ctx context.Context) error {
 	if p.prog == nil {
 		return nil
 	}
 	return p.prog.Run(ctx)
+}
+
+// RunTerminal, modeli gerçek terminale (stdin/stdout) bağlayarak çalıştırır.
+// Backend kurulumu, olay döngüsü ve kare çizimi Limoni runtime'ı tarafından yönetilir.
+func (p *Program) RunTerminal(ctx context.Context) error {
+	if p.prog == nil {
+		return nil
+	}
+	if p.backend == nil {
+		p.backend = backend.NewBackend(os.Stdin, os.Stdout)
+	}
+	if p.term == nil {
+		term, err := terminal.New(p.backend)
+		if err != nil {
+			return err
+		}
+		p.term = term
+	}
+	return p.prog.RunTerminal(ctx, p.term, p.backend)
 }

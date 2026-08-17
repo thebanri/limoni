@@ -98,6 +98,7 @@ type Frame struct {
 	currentArea           cell.Rect
 	currentIsOutsideModal bool
 	currentLayerID        string
+	eventCtx              backend.EventContext
 
 	clickClosure    func(cell.Rect, func())
 	mouseClosure    func(cell.Rect, func(backend.MouseEvent))
@@ -132,12 +133,12 @@ func (f *Frame) DispatchClick(ev backend.MouseEvent, at time.Time) bool {
 	}
 	f.lastClickID = target.ID
 	f.lastClickAt = at
-	ctx := &backend.EventContext{
+	f.eventCtx = backend.EventContext{
 		Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
 		LayerID: target.LayerID, ZIndex: target.ZIndex,
 		ClickCount: clickCount, EventTime: at,
 	}
-	target.Handler(ctx)
+	target.Handler(&f.eventCtx)
 	return true
 }
 
@@ -158,14 +159,18 @@ type DebugRegion struct {
 // NewFrame, belirtilen buffer ve odak yöneticisi üzerinde çizim yapacak yeni bir Frame örneği oluşturur.
 func NewFrame(buf *buffer.Buffer, focusMgr *FocusManager) *Frame {
 	f := &Frame{
-		Buffer:       buf,
-		ClickRegions: make([]ClickRegion, 0, 32),
-		EventRegions: make([]eventRegion, 0, 16),
-		ImageRegions: make([]ImageRegion, 0, 8),
-		FocusManager: focusMgr,
-		ActiveModal:  nil,
-		Layers:       make([]Layer, 0, 4),
-		DebugRegions: make([]DebugRegion, 0, 32),
+		Buffer:           buf,
+		ClickRegions:     make([]ClickRegion, 0, 128),
+		EventRegions:     make([]eventRegion, 0, 128),
+		ImageRegions:     make([]ImageRegion, 0, 16),
+		FocusManager:     focusMgr,
+		ActiveModal:      nil,
+		Layers:           make([]Layer, 0, 128),
+		DebugRegions:     make([]DebugRegion, 0, 64),
+		lastEventTrace:   make([]string, 0, 32),
+		lastTraceEntries: make([]TraceEntry, 0, 32),
+		WidgetStats:      make([]WidgetStat, 0, 32),
+		Accessibility:    make([]accessibility.AccessibilityNode, 0, 32),
 	}
 	f.initClosures()
 	return f
@@ -559,12 +564,12 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 					ZIndex:   region.ZIndex,
 					Phase:    TargetPhase,
 				})
-				ctx := &backend.EventContext{
+				f.eventCtx = backend.EventContext{
 					Mouse: ev, Phase: TargetPhase, RegionID: region.ID,
 					LayerID: region.LayerID, ZIndex: region.ZIndex,
 					PointerKind: backend.PointerLeave,
 				}
-				region.OnLeave(ctx)
+				region.OnLeave(&f.eventCtx)
 			}
 		}
 	}
@@ -576,12 +581,12 @@ func (f *Frame) DispatchPointerMove(ev backend.MouseEvent) bool {
 			ZIndex:   target.ZIndex,
 			Phase:    TargetPhase,
 		})
-		ctx := &backend.EventContext{
+		f.eventCtx = backend.EventContext{
 			Mouse: ev, Phase: TargetPhase, RegionID: target.ID,
 			LayerID: target.LayerID, ZIndex: target.ZIndex,
 			PointerKind: backend.PointerEnter,
 		}
-		target.OnEnter(ctx)
+		target.OnEnter(&f.eventCtx)
 	}
 	f.hoveredRegionID = newID
 	return target != nil
@@ -594,10 +599,10 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 	if f == nil {
 		return false
 	}
-	ctx := &backend.EventContext{Mouse: ev}
+	f.eventCtx = backend.EventContext{Mouse: ev}
 	handled := false
 	for _, phase := range []backend.EventPhase{backend.CapturePhase, backend.TargetPhase, backend.BubblePhase} {
-		ctx.Phase = phase
+		f.eventCtx.Phase = phase
 		if phase == backend.TargetPhase {
 			for i := len(f.EventRegions) - 1; i >= 0; i-- {
 				region := f.EventRegions[i]
@@ -613,8 +618,8 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 						Phase:    phase,
 					})
 					handled = true
-					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
-					region.Handler(ctx)
+					f.eventCtx.RegionID, f.eventCtx.LayerID, f.eventCtx.ZIndex = region.ID, region.LayerID, region.ZIndex
+					region.Handler(&f.eventCtx)
 					break
 				}
 			}
@@ -633,19 +638,19 @@ func (f *Frame) DispatchEventRegions(ev backend.MouseEvent) bool {
 						Phase:    phase,
 					})
 					handled = true
-					ctx.RegionID, ctx.LayerID, ctx.ZIndex = region.ID, region.LayerID, region.ZIndex
-					region.Handler(ctx)
-					if ctx.IsPropagationStopped() {
+					f.eventCtx.RegionID, f.eventCtx.LayerID, f.eventCtx.ZIndex = region.ID, region.LayerID, region.ZIndex
+					region.Handler(&f.eventCtx)
+					if f.eventCtx.IsPropagationStopped() {
 						return true
 					}
 				}
 			}
 		}
-		if ctx.IsPropagationStopped() {
+		if f.eventCtx.IsPropagationStopped() {
 			return true
 		}
 	}
-	return handled || ctx.IsDefaultPrevented()
+	return handled || f.eventCtx.IsDefaultPrevented()
 }
 
 func phaseName(phase backend.EventPhase) string {

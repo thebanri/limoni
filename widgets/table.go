@@ -676,11 +676,18 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// 6. SATIRLARIN ÇİZİLMESİ
+	drawOffset := 0
+	if t.State != nil {
+		drawOffset = t.State.Offset
+	}
+	rowsStartY := currY
+	drawnRows := uint16(0)
+	// Satır başına closure kaydı yapmak, görünür her satır için heap tahsisatı
+	// yaratır. Bunun yerine tüm satır bloğu tek bir fare bölgesiyle kaydedilir ve
+	// hedef satır indeksi olay koordinatından hesaplanır.
+	perRowClick := ctx.RegisterMouse == nil && ctx.RegisterClick != nil
 	for rIdx := 0; rIdx < visibleRows; rIdx++ {
-		offset := 0
-		if t.State != nil {
-			offset = t.State.Offset
-		}
+		offset := drawOffset
 		actualRowIdx := rIdx + offset
 		if actualRowIdx < 0 || actualRowIdx >= totalRows {
 			break
@@ -694,12 +701,17 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 		isSelected := t.State != nil && (t.State.Selected == actualRowIdx || (t.MultiSelect && t.State.IsRowSelected(actualRowIdx)))
 
-		if ctx.RegisterClick != nil {
+		if perRowClick {
 			t.registerRowClickHandler(ctx, cell.NewRect(ctx.Area.X, currY, ctx.Area.Width, 1), actualRowIdx)
 		}
 
 		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, owner, cellsMap, gridStyle, row.Style)
 		currY++
+		drawnRows++
+	}
+
+	if !perRowClick && drawnRows > 0 && ctx.RegisterMouse != nil {
+		t.registerRowsBlockHandler(ctx, cell.NewRect(ctx.Area.X, rowsStartY, ctx.Area.Width, drawnRows), rowsStartY, drawOffset, totalRows, rowCount)
 	}
 
 	// Scrollbar Çizimi
@@ -743,19 +755,55 @@ func (t Table) registerScrollHandlers(ctx cell.Context, rowCount int) {
 		return
 	}
 	ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseScrollUp {
-			if ev.Shift {
-				t.State.ScrollHorizontal(-2)
-			} else {
-				t.State.Scroll(-3, rowCount, int(ctx.Area.Height))
-			}
+		t.applyScroll(ev, rowCount, int(ctx.Area.Height))
+	})
+}
+
+// applyScroll, fare tekerleği olaylarını dikey/yatay kaydırmaya çevirir.
+func (t Table) applyScroll(ev backend.MouseEvent, rowCount, viewportHeight int) {
+	if t.State == nil {
+		return
+	}
+	switch ev.Button {
+	case backend.MouseScrollUp:
+		if ev.Shift {
+			t.State.ScrollHorizontal(-2)
+		} else {
+			t.State.Scroll(-3, rowCount, viewportHeight)
 		}
-		if ev.Button == backend.MouseScrollDown {
-			if ev.Shift {
-				t.State.ScrollHorizontal(2)
-			} else {
-				t.State.Scroll(3, rowCount, int(ctx.Area.Height))
-			}
+	case backend.MouseScrollDown:
+		if ev.Shift {
+			t.State.ScrollHorizontal(2)
+		} else {
+			t.State.Scroll(3, rowCount, viewportHeight)
+		}
+	}
+}
+
+// registerRowsBlockHandler, görünür satırların tamamını tek bir fare bölgesi olarak kaydeder.
+// Hedef satır, olayın Y koordinatı ile çizim anındaki kaydırma konumundan hesaplanır;
+// böylece satır sayısıyla ölçeklenen closure tahsisatı ortadan kalkar.
+func (t Table) registerRowsBlockHandler(ctx cell.Context, rowsArea cell.Rect, rowsStartY uint16, drawOffset, totalRows, rowCount int) {
+	if ctx.RegisterMouse == nil {
+		return
+	}
+	ctx.RegisterMouse(rowsArea, func(ev backend.MouseEvent) {
+		if ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown {
+			t.applyScroll(ev, rowCount, int(ctx.Area.Height))
+			return
+		}
+		if ev.Button != backend.MouseLeft || ev.Y < rowsStartY {
+			return
+		}
+		targetIdx := drawOffset + int(ev.Y-rowsStartY)
+		if targetIdx < 0 || targetIdx >= totalRows {
+			return
+		}
+		if t.State != nil {
+			t.State.Select(targetIdx)
+		}
+		if t.ID != "" && ctx.SetFocus != nil {
+			ctx.SetFocus(t.ID)
 		}
 	})
 }
@@ -1013,6 +1061,7 @@ func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.
 		// Only write to buffer if it is within the horizontal clipping range
 		if currX >= clipLeft {
 			idx := y*buf.Area.Width + currX
+			buf.Invalidate()
 			buf.Content[idx].Content = r
 			buf.Content[idx].Style = style
 

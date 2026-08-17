@@ -288,7 +288,78 @@ The following technical decisions and performance requirements **MUST** be prese
    - `testkit`: Deterministic testing harness with golden files, snapshots, and event traces.
    - `benchmarks`: Cross-implementation benchmark suite comparing Limoni, Bubble Tea, and Ratatui.
 
-## 6. Current File Structure
+---
+
+## 6. Benchmark Analysis & Performance Gap Insights (Limoni vs. Ratatui vs. Bubble Tea)
+
+Cross-runner evaluation across 12 standard workloads reveals clear architectural strengths and specific optimisation targets:
+
+### Strengths Demonstrated
+- **Low-Latency Full Redraw**: Limoni achieves **22.5 µs** P50 latency on `full-redraw-120x40` vs. Ratatui's **108.0 µs** (~4.8x faster) and avoids Bubble Tea's high string allocations.
+- **Single-Cell & Dirty Diff**: `single-cell-update` completes in **5.7 µs** (P50) emitting optimal ANSI bytes vs. Ratatui's **36.3 µs**.
+- **Large Virtual Data (1,000,000 Rows)**: `virtual-1000000` renders in **22.3 µs** (P50) vs. Ratatui's **195.7 µs** (~8.7x faster) with zero full-dataset traversal.
+- **Native Image Capability**: Frame dispatch in **6.3 µs** vs. Ratatui's **38.0 µs** and Bubble Tea's **30.5 µs** (284 MB allocs).
+
+### Identified Gaps & Deficiencies
+1. **Non-Virtual Table Allocation Overhead (`table-10000`)**:
+   - `table-10000` spends **13.5 MB** across **124k allocs** (52.2 µs P50). While faster than Ratatui (3,435 µs) and Bubble Tea (551 µs / 160 MB), non-virtual table row slice allocations should be reduced with pooled rows or inline chunk iterators.
+2. **Layer Tree Memory Footprint (`hundred-layers`)**:
+   - `hundred-layers` performs in **6.9 µs** P50 (Ratatui: 43.2 µs), but incurs **922 KB** (101k allocs) due to layer slice expansion and click region registration per layer. Reusing frame region slices will achieve `0 allocs/op`.
+3. **Empty Frame Fast-Path Overhead (`empty-frame`)**:
+   - Bubble Tea does nothing on empty frames (50 ns), whereas Limoni spends **1.7 µs** for frame lifecycle traversal. Adding an immediate dirty-flag check will drop empty-frame latency to < 100 ns.
+4. **Mouse Hit-Test Allocation Optimization (`mouse-hit-test`)**:
+   - Incurs **120 KB** (1,001 allocs) during rapid mouse event hit-testing. The event context and hit slice can be stack-allocated / pooled.
+
+---
+
+## 7. Actionable Execution Plan (PATH Milestones)
+
+```text
+┌──────────────────────────────────────────────┐
+│ PATH 1: Production Polish & Zero-Alloc Gates │
+│ (Table/Layer pooling, Hot-path zero alloc)   │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│ PATH 2: DevEx, Ecosystem & CLI Tooling       │
+│ (CLI app scaffold, Bubbletea bridge docs)    │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│ PATH 3: Cross-Platform Native Termios/PTY     │
+│ (macOS/Darwin, Windows ConPTY, SSH backend)  │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│ PATH 4: Advanced Engine (WASM & 3D Shaders)  │
+│ (WebAssembly browser demo, Gouraud shading)  │
+└──────────────────────────────────────────────┘
+```
+
+### Milestone Details
+- **PATH 1: Hot-Path Zero-Allocation & Optimization** — DONE
+  - [x] `EventRegion` & `Layer` reuse in `core/terminal/frame.go` (`Frame.Reset` capacity retention + shared `EventContext`): `hundred-layers` 40.2 ns/op **0 allocs/op**, `mouse-hit-test` 98 ns/op **0 allocs/op** (measured on linux/amd64, Ryzen 5 5600).
+  - [x] `Buffer.clean` fast path in `core/buffer/buffer.go` + no-op frame short-circuit in `Terminal.Draw` (skips sync-update/diff when nothing changed): `empty-frame` 1759 ns/op → **11.4 ns/op**.
+  - [x] `widgets/table.go` registers the whole visible row block as a single mouse region instead of one closure per row (`registerRowsBlockHandler`): `table-10000` 13560 B / 124 allocs → **1052 B / 6 allocs**, 46.8 µs → 41.2 µs.
+  - [x] Automated allocation budget gate in `.github/workflows/ci.yml` (`Verify Zero-Allocation Hot Paths`, awk-parsed `allocs/op` + 100 ns `empty-frame` ceiling).
+- **PATH 2: Developer Experience, Ecosystem & CLI** — DONE
+  - [x] `cmd/limoni` scaffold (`limoni init [module] / new <name> / version`, `-force`, `-module`) generating a `runtime.Model` app; generated project verified to `go build`/`go vet` clean.
+  - [x] `docs/bubbletea-migration.md` migration guide + `bubbletea.Program.RunTerminal(ctx)` so adapted Bubble Tea models can actually drive a real TTY.
+  - [x] `docs/widget-gallery.md` (21 widgets, field-level API tables) generated from source by `internal/tools/widgetdocs`.
+- **PATH 3: Cross-Platform Native Drivers & Remote PTY**
+  - [ ] Complete native macOS/Darwin `termios` ioctl bindings without CGO.
+  - [ ] Implement Windows ConPTY / VT100 backend adapter.
+  - [ ] Add `backend/ssh` for multi-session remote TUI applications.
+- **PATH 4: Advanced WebAssembly & Visual Engines**
+  - [ ] Support `GOOS=js GOARCH=wasm` to run the interactive demo in modern browsers.
+  - [ ] Implement Gouraud/Lambertian shading and depth-sorting optimizations on the Braille 3D Canvas.
+
+---
+
+## 8. Current File Structure
 
 ```
 limoni/
