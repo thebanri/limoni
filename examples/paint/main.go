@@ -391,21 +391,19 @@ type PaintApp struct {
 	ActiveColor   cell.Color
 	SelectedIdx   int
 	CustomColor   cell.Color
-	BrushSize     int
-	ShowModal     bool
-	ModalHexState *widgets.TextInputState
-	CursorX       int
-	CursorY       int
-	IsMouseDown   bool
-	IsDragging    bool
-	DragStartX    int
-	DragStartY    int
-	DragCurrentX  int
-	DragCurrentY  int
-	CanvasRect    cell.Rect
-	PaletteRect   cell.Rect
-	ModalGridRow  int
-	ModalGridCol  int
+	BrushSize        int
+	ShowModal        bool
+	ColorPickerState *widgets.ColorPickerState
+	CursorX          int
+	CursorY          int
+	IsMouseDown      bool
+	IsDragging       bool
+	DragStartX       int
+	DragStartY       int
+	DragCurrentX     int
+	DragCurrentY     int
+	CanvasRect       cell.Rect
+	PaletteRect      cell.Rect
 }
 
 func (app *PaintApp) computePreviewDots() map[int]byte {
@@ -537,17 +535,16 @@ func main() {
 	}
 
 	app := &PaintApp{
-		Canvas:        NewBraillePointCanvas(canvasW, canvasH),
-		ActiveTool:    ToolBrush,
-		ActiveColor:   defaultSwatches[1].Color, // Red default
-		SelectedIdx:   1,
-		CustomColor:   cell.NewColorRGB(0, 255, 200),
-		BrushSize:     1,
-		ModalHexState: widgets.NewTextInputState(),
-		CursorX:       canvasW,
-		CursorY:       canvasH * 2,
+		Canvas:           NewBraillePointCanvas(canvasW, canvasH),
+		ActiveTool:       ToolBrush,
+		ActiveColor:      defaultSwatches[1].Color, // Red default
+		SelectedIdx:      1,
+		CustomColor:      cell.NewColorRGB(0, 255, 200),
+		BrushSize:        1,
+		ColorPickerState: widgets.NewColorPickerState(255, 59, 48),
+		CursorX:          canvasW,
+		CursorY:          canvasH * 2,
 	}
-	app.ModalHexState.SetValue("#FF3B30")
 
 	draw := func() {
 		t.Draw(func(f *terminal.Frame) {
@@ -761,11 +758,14 @@ func main() {
 				Child:   text{value: footerText, style: cell.Style{Fg: cell.NewColorRGB(140, 145, 160), Modifier: cell.ModifierBold}},
 			}, chunks[3])
 
-			// 5. CUSTOM COLOR MODAL DIALOG
+			// 5. OFFICIAL LIMONI COLOR PICKER MODAL
 			if app.ShowModal {
 				modalW := uint16(54)
-				modalH := uint16(17)
+				modalH := uint16(15)
 				modalArea := terminal.CenterRect(area, modalW, modalH)
+
+				// Draw Drop Shadow
+				widgets.DrawShadow(f.Buffer, modalArea, 2, 1)
 
 				f.RegisterLayer("color_modal", terminal.LayerModal, modalArea, 3000, func() {
 					app.ShowModal = false
@@ -773,59 +773,23 @@ func main() {
 
 				f.BeginLayer("color_modal")
 
-				f.RenderWidget(widgets.Block{
-					Title:         " CUSTOM COLOR PALETTE & HEX PICKER ",
+				pickerBlock := widgets.Block{
+					Title:         " 🎨 COLOR PICKER (Tab: Palette/RGB/Hex | Enter: Apply) ",
 					Borders:       widgets.BorderAll,
-					BorderSymbols: widgets.SymbolsDouble,
+					BorderSymbols: widgets.SymbolsRounded,
 					BorderStyle:   cell.Style{Fg: accentCol, Modifier: cell.ModifierBold},
-					Style:         cell.Style{Bg: cell.NewColorRGB(20, 24, 35)},
+					Style:         cell.Style{Bg: cell.NewColorRGB(18, 22, 32)},
 					PaddingLeft:   2,
 					PaddingTop:    1,
-				}, modalArea)
-
-				mInnerX := modalArea.X + 2
-				mInnerY := modalArea.Y + 2
-
-				f.Buffer.SetString(mInnerX, mInnerY, "1. Enter Hex Color Code (#RRGGBB):", cell.Style{Fg: cell.NewColorRGB(220, 225, 240), Modifier: cell.ModifierBold})
-
-				hexInputArea := cell.NewRect(mInnerX, mInnerY+1, 20, 1)
-				f.RenderWidget(widgets.TextInput{
-					ID:           "hex_input",
-					State:        app.ModalHexState,
-					Placeholder:  "#FF0055",
-					Style:        cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(35, 40, 55)},
-					FocusedStyle: cell.Style{Fg: cell.NewColorRGB(0, 255, 200), Bg: cell.NewColorRGB(35, 45, 65), Modifier: cell.ModifierBold | cell.ModifierUnderline},
-				}, hexInputArea)
-
-				parsedCol, valid := parseHexColor(app.ModalHexState.Value())
-				if valid {
-					f.Buffer.SetString(mInnerX+22, mInnerY+1, " [Valid Color] ", cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: parsedCol, Modifier: cell.ModifierBold})
-				} else {
-					f.Buffer.SetString(mInnerX+22, mInnerY+1, " [Invalid Hex] ", cell.Style{Fg: cell.NewColorRGB(255, 80, 80), Modifier: cell.ModifierItalic})
 				}
+				f.RenderWidget(pickerBlock, modalArea)
 
-				f.Buffer.SetString(mInnerX, mInnerY+3, "2. Quick Color Matrix (Click or Arrow Keys):", cell.Style{Fg: cell.NewColorRGB(220, 225, 240), Modifier: cell.ModifierBold})
-
-				gridStartY := mInnerY + 4
-				for r, row := range modalPaletteGrid {
-					for c, col := range row {
-						swX := mInnerX + uint16(c*6)
-						swY := gridStartY + uint16(r)
-						isGridSel := (r == app.ModalGridRow && c == app.ModalGridCol)
-
-						swChar := " ███ "
-						swStyle := cell.Style{Fg: col}
-						if isGridSel {
-							swChar = "[███]"
-							swStyle = cell.Style{Fg: col, Modifier: cell.ModifierBold}
-						}
-						f.Buffer.SetString(swX, swY, swChar, swStyle)
-					}
-				}
-
-				btnY := modalArea.Y + modalH - 3
-				f.Buffer.SetString(mInnerX+4, btnY, " [ Enter: Apply Color ] ", cell.Style{Fg: cell.NewColorRGB(0, 255, 160), Bg: cell.NewColorRGB(15, 50, 30), Modifier: cell.ModifierBold})
-				f.Buffer.SetString(mInnerX+30, btnY, " [ Esc: Cancel ] ", cell.Style{Fg: cell.NewColorRGB(255, 100, 100), Bg: cell.NewColorRGB(50, 20, 20), Modifier: cell.ModifierBold})
+				inner := pickerBlock.Inner(modalArea)
+				f.RenderWidget(widgets.ColorPicker{
+					ID:          "paint_color_picker",
+					State:       app.ColorPickerState,
+					ShowPreview: true,
+				}, inner)
 
 				f.EndLayer()
 			}
@@ -844,41 +808,16 @@ func main() {
 					break
 				}
 				if ev.Key.Type == backend.KeyEnter {
-					if parsed, ok := parseHexColor(app.ModalHexState.Value()); ok {
-						app.CustomColor = parsed
-						app.ActiveColor = parsed
-						app.SelectedIdx = 10
-					} else {
-						gridCol := modalPaletteGrid[app.ModalGridRow][app.ModalGridCol]
-						app.CustomColor = gridCol
-						app.ActiveColor = gridCol
-						app.SelectedIdx = 10
-					}
+					chosen := app.ColorPickerState.Color()
+					app.CustomColor = chosen
+					app.ActiveColor = chosen
+					app.SelectedIdx = 10
 					app.ShowModal = false
 					draw()
 					break
 				}
 
-				if ev.Key.Type == backend.KeyArrowUp && app.ModalGridRow > 0 {
-					app.ModalGridRow--
-					gridCol := modalPaletteGrid[app.ModalGridRow][app.ModalGridCol]
-					app.ModalHexState.SetValue(colorToHex(gridCol))
-				} else if ev.Key.Type == backend.KeyArrowDown && app.ModalGridRow < len(modalPaletteGrid)-1 {
-					app.ModalGridRow++
-					gridCol := modalPaletteGrid[app.ModalGridRow][app.ModalGridCol]
-					app.ModalHexState.SetValue(colorToHex(gridCol))
-				} else if ev.Key.Type == backend.KeyArrowLeft && app.ModalGridCol > 0 {
-					app.ModalGridCol--
-					gridCol := modalPaletteGrid[app.ModalGridRow][app.ModalGridCol]
-					app.ModalHexState.SetValue(colorToHex(gridCol))
-				} else if ev.Key.Type == backend.KeyArrowRight && app.ModalGridCol < len(modalPaletteGrid[0])-1 {
-					app.ModalGridCol++
-					gridCol := modalPaletteGrid[app.ModalGridRow][app.ModalGridCol]
-					app.ModalHexState.SetValue(colorToHex(gridCol))
-				} else {
-					app.ModalHexState.HandleKey(ev.Key)
-				}
-
+				app.ColorPickerState.HandleKey(ev.Key, nil)
 				draw()
 				break
 			}
@@ -944,7 +883,8 @@ func main() {
 					app.IsDragging = false
 				case 'c', 'C':
 					app.ShowModal = true
-					app.ModalHexState.SetValue(colorToHex(app.ActiveColor))
+					r, g, b := app.ActiveColor.RGB()
+					app.ColorPickerState.SetRGB(r, g, b)
 				case 'z', 'Z':
 					app.Canvas.Undo()
 				case 'k', 'K':
@@ -1045,7 +985,8 @@ func main() {
 				// Check Custom Button
 				if mx >= curX+2 && mx < curX+28 {
 					app.ShowModal = true
-					app.ModalHexState.SetValue(colorToHex(app.ActiveColor))
+					r, g, b := app.ActiveColor.RGB()
+					app.ColorPickerState.SetRGB(r, g, b)
 					draw()
 				}
 			}

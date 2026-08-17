@@ -64,7 +64,7 @@ type AppState struct {
 	Metrics     SystemMetrics
 	Processes   []Process
 	Collector   *SysCollector
-	Chart       *SystemChart
+	ChartMode   int // 0: LineChart, 1: BarChart, 2: PieChart
 }
 
 func main() {
@@ -103,18 +103,6 @@ func main() {
 		netHist = append(netHist, initialMetrics.NetRxRateMB*10)
 	}
 
-	chart := &SystemChart{
-		Mode:        ChartModeLine,
-		CPUHistory:  cpuHist,
-		RAMHistory:  ramHist,
-		DiskHistory: diskHist,
-		NetHistory:  netHist,
-		CurrentCPU:  initialMetrics.CPUPercent,
-		CurrentRAM:  initialMetrics.RAMPercent,
-		UsedRAMGB:   initialMetrics.RAMUsedMB / 1024.0,
-		TotalRAMGB:  initialMetrics.RAMTotalMB / 1024.0,
-	}
-
 	state := &AppState{
 		SearchState: searchState,
 		TableState:  tableState,
@@ -126,12 +114,12 @@ func main() {
 		Metrics:     initialMetrics,
 		Processes:   initialProcesses,
 		Collector:   collector,
-		Chart:       chart,
+		ChartMode:   0,
 		Logs: []string{
 			fmt.Sprintf(" [%s] [SYS] Limoni telemetry engine attached (%s)", time.Now().Format("15:04:05"), initialMetrics.PlatformInfo),
 			fmt.Sprintf(" [%s] [HOST] Host: %s (%d CPU Cores)", time.Now().Format("15:04:05"), initialMetrics.Hostname, initialMetrics.CoreCount),
 			fmt.Sprintf(" [%s] [MEM] Total RAM: %.1f GB | Disk: %.1f GB", time.Now().Format("15:04:05"), initialMetrics.RAMTotalMB/1024.0, initialMetrics.DiskTotalGB),
-			fmt.Sprintf(" [%s] [NET] Real-time telemetry stream active", time.Now().Format("15:04:05")),
+			fmt.Sprintf(" [%s] [CHARTS] LineChart / BarChart / PieChart active", time.Now().Format("15:04:05")),
 		},
 	}
 
@@ -236,7 +224,7 @@ func main() {
 				if ev.Key.Type == backend.KeyRune {
 					switch ev.Key.Ch {
 					case 'm', 'M':
-						state.Chart.NextMode()
+						state.ChartMode = (state.ChartMode + 1) % 3
 					case '1':
 						state.ThemeName = "Dark"
 					case '2':
@@ -701,18 +689,76 @@ func drawStatsColumn(f *terminal.Frame, state *AppState, area cell.Rect, theme w
 	)
 	statChunks := statLay.Split(area)
 
-	state.Chart.CPUHistory = state.CPUHistory
-	state.Chart.RAMHistory = state.RAMHistory
-	state.Chart.DiskHistory = state.DiskHistory
-	state.Chart.NetHistory = state.NetHistory
-	state.Chart.TextColor = theme.Colors.Text
-	state.Chart.CurrentCPU = state.Metrics.CPUPercent
-	state.Chart.CurrentRAM = state.Metrics.RAMPercent
-	state.Chart.UsedRAMGB = state.Metrics.RAMUsedMB / 1024.0
-	state.Chart.TotalRAMGB = state.Metrics.RAMTotalMB / 1024.0
+	var chartWidget widgets.Widget
+	chartTitle := ""
+
+	switch state.ChartMode % 3 {
+	case 0:
+		chartTitle = " LIVE SYSTEM TELEMETRY — LineChart (Braille Subpixels) "
+		chartWidget = widgets.LineChart{
+			ID: "dash_linechart",
+			Datasets: []widgets.LineDataset{
+				{
+					Name:  fmt.Sprintf("CPU (%.1f%%)", state.Metrics.CPUPercent),
+					Data:  state.CPUHistory,
+					Color: cell.NewColorRGB(0, 255, 180),
+				},
+				{
+					Name:  fmt.Sprintf("RAM (%.1f%%)", state.Metrics.RAMPercent),
+					Data:  state.RAMHistory,
+					Color: cell.NewColorRGB(0, 200, 255),
+				},
+				{
+					Name:  fmt.Sprintf("Disk (%.1f%%)", state.Metrics.DiskPercent),
+					Data:  state.DiskHistory,
+					Color: cell.NewColorRGB(255, 140, 0),
+				},
+			},
+			ShowAxes:   true,
+			ShowLegend: true,
+			XLabels:    []string{"-60s", "-45s", "-30s", "-15s", "now"},
+		}
+
+	case 1:
+		chartTitle = " LIVE RESOURCE SPECTRUM — BarChart (Vertical Bars) "
+		chartWidget = widgets.BarChart{
+			ID: "dash_barchart",
+			Data: []widgets.BarData{
+				{Label: "CPU Total", Value: state.Metrics.CPUPercent, Color: cell.NewColorRGB(0, 255, 180)},
+				{Label: "Core 0", Value: math.Min(100, state.Metrics.CPUPercent*1.1), Color: cell.NewColorRGB(46, 204, 113)},
+				{Label: "Core 1", Value: math.Max(0, state.Metrics.CPUPercent*0.9), Color: cell.NewColorRGB(46, 204, 113)},
+				{Label: "RAM Util", Value: state.Metrics.RAMPercent, Color: cell.NewColorRGB(0, 200, 255)},
+				{Label: "Disk Used", Value: state.Metrics.DiskPercent, Color: cell.NewColorRGB(255, 140, 0)},
+				{Label: "Net Rx", Value: math.Min(100, state.Metrics.NetRxRateMB*15), Color: cell.NewColorRGB(233, 30, 99)},
+			},
+			Direction:  widgets.BarVertical,
+			BarWidth:   5,
+			BarGap:     2,
+			ShowValues: true,
+		}
+
+	case 2:
+		chartTitle = " MEMORY & DISK DISTRIBUTION — PieChart (Donut) "
+		usedRAM := state.Metrics.RAMUsedMB
+		freeRAM := state.Metrics.RAMTotalMB - usedRAM
+		if freeRAM < 0 {
+			freeRAM = 0
+		}
+		chartWidget = widgets.PieChart{
+			ID: "dash_piechart",
+			Data: []widgets.PieSlice{
+				{Label: "RAM Used", Value: usedRAM, Color: cell.NewColorRGB(0, 200, 255)},
+				{Label: "RAM Free", Value: freeRAM, Color: cell.NewColorRGB(46, 204, 113)},
+				{Label: "Disk Used", Value: state.Metrics.DiskUsedGB * 1024, Color: cell.NewColorRGB(255, 140, 0)},
+			},
+			DonutHoleRatio:  0.45,
+			ShowLegend:      true,
+			ShowPercentages: true,
+		}
+	}
 
 	f.RenderWidget(widgets.Block{
-		Title:         fmt.Sprintf(" LIVE SYSTEM CHARTS - %s ", chartModeNames[state.Chart.Mode]),
+		Title:         chartTitle,
 		Borders:       widgets.BorderAll,
 		BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle:   cell.Style{Fg: accentColor},
@@ -720,7 +766,7 @@ func drawStatsColumn(f *terminal.Frame, state *AppState, area cell.Rect, theme w
 		PaddingBottom: 0,
 		PaddingLeft:   1,
 		PaddingRight:  1,
-		Child:         state.Chart,
+		Child:         chartWidget,
 	}, statChunks[0])
 
 	logItems := make([]string, len(state.Logs))

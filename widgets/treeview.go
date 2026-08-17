@@ -217,6 +217,21 @@ func (s *TreeViewState) Flatten(roots []TreeNode) []flatTreeNode {
 	return flat
 }
 
+// FindNode searches for a node with the matching ID in the tree hierarchy.
+func FindNode(roots []TreeNode, id string) *TreeNode {
+	for i := range roots {
+		if roots[i].ID == id {
+			return &roots[i]
+		}
+		if len(roots[i].Children) > 0 {
+			if found := FindNode(roots[i].Children, id); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
 // TreeView renders a hierarchical collapsible tree with guide lines and selection.
 type TreeView struct {
 	ID            string
