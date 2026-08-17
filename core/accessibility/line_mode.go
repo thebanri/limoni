@@ -32,6 +32,10 @@ func (r Role) String() string {
 		return "radio-button"
 	case RoleSlider:
 		return "slider"
+	case RoleTree:
+		return "tree"
+	case RoleTreeItem:
+		return "tree-item"
 	default:
 		return "generic"
 	}

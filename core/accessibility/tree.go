@@ -18,6 +18,8 @@ const (
 	RoleImage
 	RoleRadioButton
 	RoleSlider
+	RoleTree
+	RoleTreeItem
 )
 
 type NodeState uint32

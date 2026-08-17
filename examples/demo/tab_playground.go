@@ -653,17 +653,13 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 		)
 		rightChunks := rightLay.Split(chunks[1])
 
-		showcaseOptions := []string{"Paragraph", "Table", "Forms", "Vector"}
+		showcaseOptions := []string{"Paragraph", "Table", "TreeView", "BarChart", "LineChart", "PieChart", "ColorPicker", "Forms", "Vector"}
 		showcaseIdx := 0
-		switch state.ShowcaseSelected {
-		case "Paragraph":
-			showcaseIdx = 0
-		case "Table":
-			showcaseIdx = 1
-		case "Forms":
-			showcaseIdx = 2
-		case "Vector":
-			showcaseIdx = 3
+		for i, opt := range showcaseOptions {
+			if opt == state.ShowcaseSelected {
+				showcaseIdx = i
+				break
+			}
 		}
 		state.ShowcaseSelectState.Selected = showcaseIdx
 
@@ -676,16 +672,9 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				ID:      "play_showcase_select",
 				Options: showcaseOptions,
 				State:   state.ShowcaseSelectState,
-				OnChange: func(index int, _ string) {
-					switch index {
-					case 0:
-						state.ShowcaseSelected = "Paragraph"
-					case 1:
-						state.ShowcaseSelected = "Table"
-					case 2:
-						state.ShowcaseSelected = "Forms"
-					case 3:
-						state.ShowcaseSelected = "Vector"
+				OnChange: func(index int, val string) {
+					if index >= 0 && index < len(showcaseOptions) {
+						state.ShowcaseSelected = showcaseOptions[index]
 					}
 				},
 				Style:         cell.Style{Fg: cell.NewColorRGB(200, 200, 210), Bg: cell.NewColorRGB(30, 33, 42)},
@@ -725,6 +714,102 @@ func drawPlaygroundCanvas(t *terminal.Terminal, f *terminal.Frame, state *AppSta
 				},
 				GridStyle: cell.Style{Fg: cell.NewColorRGB(90, 90, 100)},
 				DrawGrid:  true,
+			}
+
+		case "TreeView":
+			roots := []widgets.TreeNode{
+				{
+					ID:       "proj_root",
+					Label:    "limoni-app",
+					Icon:     "📁",
+					Expanded: true,
+					Children: []widgets.TreeNode{
+						{
+							ID:       "src_dir",
+							Label:    "src",
+							Icon:     "📁",
+							Expanded: true,
+							Children: []widgets.TreeNode{
+								{ID: "main_file", Label: "main.go", Icon: "📄"},
+								{ID: "ui_file", Label: "ui.go", Icon: "📄"},
+								{ID: "config_file", Label: "config.yaml", Icon: "⚙️"},
+							},
+						},
+						{
+							ID:       "docs_dir",
+							Label:    "docs",
+							Icon:     "📁",
+							Expanded: false,
+							Children: []widgets.TreeNode{
+								{ID: "readme", Label: "README.md", Icon: "📖"},
+								{ID: "guide", Label: "guide.md", Icon: "📖"},
+							},
+						},
+						{ID: "gomod", Label: "go.mod", Icon: "📦"},
+					},
+				},
+			}
+			showcaseWidget = &widgets.TreeView{
+				ID:         "demo_treeview",
+				Roots:      roots,
+				State:      state.DemoTreeState,
+				ShowGuides: true,
+			}
+
+		case "BarChart":
+			showcaseWidget = &widgets.BarChart{
+				ID: "demo_barchart",
+				Data: []widgets.BarData{
+					{Label: "Mon", Value: 35, Color: cell.NewColorRGB(0, 255, 128)},
+					{Label: "Tue", Value: 68, Color: cell.NewColorRGB(0, 200, 255)},
+					{Label: "Wed", Value: 84, Color: cell.NewColorRGB(255, 128, 0)},
+					{Label: "Thu", Value: 52, Color: cell.NewColorRGB(255, 200, 0)},
+					{Label: "Fri", Value: 95, Color: cell.NewColorRGB(255, 60, 60)},
+				},
+				Direction:  widgets.BarVertical,
+				BarWidth:   4,
+				BarGap:     2,
+				ShowValues: true,
+			}
+
+		case "LineChart":
+			showcaseWidget = &widgets.LineChart{
+				ID: "demo_linechart",
+				Datasets: []widgets.LineDataset{
+					{
+						Name:  "Network In",
+						Data:  []float64{15, 30, 25, 65, 80, 70, 95, 120},
+						Color: cell.NewColorRGB(46, 204, 113),
+					},
+					{
+						Name:  "Network Out",
+						Data:  []float64{8, 15, 12, 40, 55, 45, 65, 85},
+						Color: cell.NewColorRGB(52, 152, 219),
+					},
+				},
+				ShowAxes:   true,
+				ShowLegend: true,
+				XLabels:    []string{"00:00", "04:00", "08:00", "12:00", "16:00", "20:00"},
+			}
+
+		case "PieChart":
+			showcaseWidget = &widgets.PieChart{
+				ID: "demo_piechart",
+				Data: []widgets.PieSlice{
+					{Label: "Go", Value: 50, Color: cell.NewColorRGB(0, 200, 255)},
+					{Label: "Rust", Value: 30, Color: cell.NewColorRGB(255, 100, 50)},
+					{Label: "TypeScript", Value: 20, Color: cell.NewColorRGB(50, 150, 255)},
+				},
+				DonutHoleRatio:  0.4,
+				ShowLegend:      true,
+				ShowPercentages: true,
+			}
+
+		case "ColorPicker":
+			showcaseWidget = &widgets.ColorPicker{
+				ID:          "demo_colorpicker",
+				State:       state.DemoColorState,
+				ShowPreview: true,
 			}
 		case "Forms":
 			formLay := layout.NewFlexLayout(

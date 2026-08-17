@@ -204,6 +204,12 @@ type AppState struct {
 	ScreenReaderMode              bool
 	LastScreenReaderTree          string
 	ReferenceActiveSubTab         string
+
+	// Next-Gen Widgets & DevTools
+	DevToolsState  *widgets.DevToolsState
+	ToastManager   *widgets.ToastManager
+	DemoTreeState  *widgets.TreeViewState
+	DemoColorState *widgets.ColorPickerState
 }
 
 func recordReferenceInteraction(state *AppState, event string) {
@@ -407,6 +413,10 @@ func main() {
 		ShowcaseSelectState: widgets.NewSelectState(),
 		MarkdownHeight:      6,
 		ProcessSamples:      make(map[string]processSample),
+		DevToolsState:       widgets.NewDevToolsState(),
+		ToastManager:        widgets.NewToastManager(widgets.ToastTopRight),
+		DemoTreeState:       widgets.NewTreeViewState(),
+		DemoColorState:      widgets.NewColorPickerState(0, 200, 255),
 	}
 	state.UsernameInputState.SetValue("LimoniDeveloper")
 	state.DemoMarkdown = loadDemoMarkdown()
@@ -514,6 +524,18 @@ func main() {
 		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
 		Label: "Toggle Debug Mode", Category: "View",
 		Handler: func() { state.DebugMode = !state.DebugMode },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyF12,
+		Label: "Toggle DevTools Inspector", Category: "Developer",
+		Handler: func() {
+			state.DevToolsState.Toggle()
+			if state.DevToolsState.Enabled {
+				state.ToastManager.Info("DevTools Enabled", "In-App Inspector HUD Active")
+			} else {
+				state.ToastManager.Info("DevTools Hidden", "Press F12 to re-open")
+			}
+		},
 	})
 	canHandleGlobalCommand := func() bool {
 		focused := t.FocusManager().Focused()
@@ -1214,6 +1236,7 @@ func minInt(a, b int) int {
 
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
 func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
+	frameStart := time.Now()
 	t.SetDebugMode(state.DebugMode)
 	// Modal açılışı, sekme dither'ından bağımsız bir animasyondur. Önceki
 	// sekme geçişinin old-frame'i modalın üzerine taşınırsa aynı panel iki
@@ -2084,7 +2107,21 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(palette, f.Buffer.Area)
 		}
+
+		// 8. Toast Notifications
+		if state.ToastManager != nil {
+			state.ToastManager.Update(time.Now())
+			state.ToastManager.Draw(cell.NewContext(f.Buffer.Area, cell.Style{}), f.Buffer)
+		}
+
+		// 9. DevTools In-App HUD (F12)
+		if state.DevToolsState != nil && state.DevToolsState.Enabled {
+			widgets.DevTools{State: state.DevToolsState}.Draw(cell.NewContext(f.Buffer.Area, cell.Style{}), f.Buffer)
+		}
 	})
+	if state.DevToolsState != nil {
+		state.DevToolsState.RecordFrame(time.Since(frameStart))
+	}
 	if state.ScreenReaderMode {
 		lineMode := accessibilityFrame.AccessibilityLineMode(accessibility.Mode{ScreenReader: true})
 		if lineMode != "" && lineMode != state.LastScreenReaderTree {
