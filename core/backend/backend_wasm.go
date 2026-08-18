@@ -25,6 +25,26 @@ func NewBackend(in, out *os.File) *Backend {
 	}
 }
 
+// NewPortableBackend creates a portable WASM Backend instance.
+func NewPortableBackend(io TerminalIO) *Backend {
+	w, h, _ := io.Size()
+	if w == 0 || h == 0 {
+		w, h = 80, 24
+	}
+	return &Backend{
+		events: make(chan Event, 128),
+		done:   make(chan struct{}),
+		width:  w,
+		height: h,
+	}
+}
+
+// SetSize updates the dimensions in WASM.
+func (b *Backend) SetSize(w, h uint16) {
+	b.width = w
+	b.height = h
+}
+
 // Setup initializes WASM JS callbacks and screen setup.
 func (b *Backend) Setup() error {
 	global := js.Global()

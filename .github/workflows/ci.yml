@@ -76,13 +76,17 @@ jobs:
           go build -o bin/limoni-cli ./cmd/limoni
           go build -o bin/demo ./examples/demo
           go build -o bin/anim ./examples/animation
+          go build -o bin/ascii3d ./examples/ascii3d
+          go build -o bin/charts ./examples/charts
           go build -o bin/forms ./examples/forms
           go build -o bin/layer_demo ./examples/layer_demo
           go build -o bin/3d_viewer ./examples/3d_viewer
+          go build -o bin/paint ./examples/paint
+          go build -o bin/toast ./examples/toast
           go build -o bin/todo ./examples/todo
+          go build -o bin/treeview ./examples/treeview
           go build -o bin/dashboard ./examples/dashboard
           go build -o bin/table_virtual ./examples/table_virtual
-          go build -o bin/colors ./examples/colors_and_styles
           go build -o bin/ssh_server ./examples/ssh_server
           go build -o bin/custom_widget ./examples/custom_widget
           GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm

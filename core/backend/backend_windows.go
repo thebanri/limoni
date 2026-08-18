@@ -12,11 +12,14 @@ import (
 
 // Backend Windows platformunda konsol I/O, Raw mode ve event döngüsünü yönetir.
 type Backend struct {
-	in     *os.File
-	out    *os.File
-	state  *WindowsConsoleState
-	events chan Event
-	done   chan struct{}
+	in         *os.File
+	out        *os.File
+	portableIO TerminalIO
+	state      *WindowsConsoleState
+	events     chan Event
+	done       chan struct{}
+	width      uint16
+	height     uint16
 }
 
 // NewBackend yeni bir Windows Backend örneği oluşturur.
@@ -29,8 +32,46 @@ func NewBackend(in, out *os.File) *Backend {
 	}
 }
 
+// NewPortableBackend yeni bir taşınabilir/uzaktan bağlantı Backend örneği oluşturur.
+func NewPortableBackend(io TerminalIO) *Backend {
+	w, h, _ := io.Size()
+	if w == 0 || h == 0 {
+		w, h = 80, 24
+	}
+	return &Backend{
+		portableIO: io,
+		events:     make(chan Event, 128),
+		done:       make(chan struct{}),
+		width:      w,
+		height:     h,
+	}
+}
+
+// SetSize updates the dimensions (e.g. from remote SSH resize).
+func (b *Backend) SetSize(w, h uint16) {
+	if b.portableIO != nil {
+		b.width, b.height = w, h
+		select {
+		case b.events <- Event{
+			Type: EventResize,
+			Resize: ResizeEvent{
+				Width:  w,
+				Height: h,
+			},
+		}:
+		default:
+		}
+	}
+}
+
 // Setup terminali Raw / VT100 moduna geçirir ve ekran hazırlık kodlarını gönderir.
 func (b *Backend) Setup() error {
+	if b.portableIO != nil {
+		setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h"
+		_, err := b.portableIO.Write([]byte(setupCmds))
+		return err
+	}
+
 	state, err := MakeRaw(b.in.Fd(), b.out.Fd())
 	if err != nil {
 		return fmt.Errorf("windows konsolu raw moda gecirilemedi: %w", err)
@@ -55,7 +96,13 @@ func (b *Backend) Close() error {
 	}
 
 	restoreCmds := "\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
-	_, _ = b.out.WriteString(restoreCmds)
+	if b.portableIO != nil {
+		_, _ = b.portableIO.Write([]byte(restoreCmds))
+		return nil
+	}
+	if b.out != nil {
+		_, _ = b.out.WriteString(restoreCmds)
+	}
 
 	if b.state != nil {
 		return RestoreConsole(b.state)
@@ -74,7 +121,15 @@ func (b *Backend) StartEventLoop() {
 	go func() {
 		buf := make([]byte, 512)
 		for {
-			n, err := b.in.Read(buf)
+			var n int
+			var err error
+			if b.portableIO != nil {
+				n, err = b.portableIO.Read(buf)
+			} else if b.in != nil {
+				n, err = b.in.Read(buf)
+			} else {
+				return
+			}
 			if err != nil {
 				return
 			}
@@ -174,6 +229,19 @@ func (b *Backend) StartEventLoop() {
 
 // Size konsol tamponu boyutunu döner.
 func (b *Backend) Size() (uint16, uint16, error) {
+	if b.portableIO != nil {
+		w, h, err := b.portableIO.Size()
+		if err == nil && w > 0 && h > 0 {
+			b.width, b.height = w, h
+		}
+		if b.width == 0 || b.height == 0 {
+			return 80, 24, nil
+		}
+		return b.width, b.height, nil
+	}
+	if b.out == nil {
+		return 80, 24, nil
+	}
 	var csbi windows.ConsoleScreenBufferInfo
 	err := windows.GetConsoleScreenBufferInfo(windows.Handle(b.out.Fd()), &csbi)
 	if err != nil {
@@ -194,15 +262,33 @@ func (b *Backend) CellPixelSize() (uint16, uint16, error) {
 
 // Write doğrudan konsola yazar.
 func (b *Backend) Write(p []byte) (int, error) {
-	return b.out.Write(p)
+	if b.portableIO != nil {
+		return b.portableIO.Write(p)
+	}
+	if b.out != nil {
+		return b.out.Write(p)
+	}
+	return 0, nil
 }
 
 // StartSyncUpdate senkron güncellemeyi başlatır (\x1b[?2026h).
 func (b *Backend) StartSyncUpdate() {
-	_, _ = b.out.WriteString("\x1b[?2026h")
+	if b.portableIO != nil {
+		_, _ = b.portableIO.Write([]byte("\x1b[?2026h"))
+		return
+	}
+	if b.out != nil {
+		_, _ = b.out.WriteString("\x1b[?2026h")
+	}
 }
 
 // EndSyncUpdate senkron güncellemeyi kapatır (\x1b[?2026l).
 func (b *Backend) EndSyncUpdate() {
-	_, _ = b.out.WriteString("\x1b[?2026l")
+	if b.portableIO != nil {
+		_, _ = b.portableIO.Write([]byte("\x1b[?2026l"))
+		return
+	}
+	if b.out != nil {
+		_, _ = b.out.WriteString("\x1b[?2026l")
+	}
 }

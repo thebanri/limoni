@@ -26,6 +26,10 @@ func NewPortableBackend(io TerminalIO) *Backend {
 	return &Backend{in: io, out: io, width: w, height: h, events: make(chan Event, 128), done: make(chan struct{})}
 }
 
+func (b *Backend) SetSize(w, h uint16) {
+	b.width, b.height = w, h
+}
+
 func (b *Backend) Setup() error { return nil }
 func (b *Backend) Close() error {
 	select {
