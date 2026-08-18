@@ -80,7 +80,7 @@ func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				continue
 			}
 
-			c.Style = ctx.Style.Merge(s.Style)
+			c.Style = c.Style.Merge(s.Style)
 			c.Style.Fg = barColor
 
 			if dy < fullCells {

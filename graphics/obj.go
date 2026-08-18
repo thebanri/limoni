@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/thebanri/limoni/core/cell"
 )
 
 // Model3D is the geometry consumed by the wireframe/solid/textured renderer.
@@ -18,6 +20,7 @@ type Model3D struct {
 	Name          string
 	Vertices      []Vertex3D
 	Faces         [][]int
+	FaceColors    []cell.Color
 	FaceUVs       [][]int
 	UVs           []UV
 	FaceMaterials []string

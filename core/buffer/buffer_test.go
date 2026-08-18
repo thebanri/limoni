@@ -112,3 +112,55 @@ func TestBufferResizeAllocation(t *testing.T) {
 		t.Errorf("Kapasite aşılmasına rağmen bellek adresi değişmedi")
 	}
 }
+
+func TestBufferTransparentInheritance(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 5)
+	buf := NewBuffer(area)
+
+	// 1. Panelin zemin rengini koy (ör. Surface lacivert)
+	surfaceBg := cell.NewColorRGB(25, 28, 36)
+	for y := uint16(0); y < 5; y++ {
+		for x := uint16(0); x < 10; x++ {
+			buf.SetCellDirect(x, y, cell.Cell{Content: ' ', Style: cell.Style{Bg: surfaceBg}})
+		}
+	}
+
+	// 2. SetString ile arkaplanı belirtilmemiş (Bg=0) metin yaz
+	textFg := cell.NewColorRGB(200, 220, 255)
+	buf.SetString(2, 2, "Test", cell.Style{Fg: textFg})
+
+	for i, r := range "Test" {
+		c := buf.Get(uint16(2+i), 2)
+		if c == nil {
+			t.Fatalf("Hücre nil dönmemeliydi")
+		}
+		if c.Content != r {
+			t.Errorf("Karakter hatalı: beklenen %c, alınan %c", r, c.Content)
+		}
+		if c.Style.Fg != textFg {
+			t.Errorf("Yazı rengi hatalı: beklenen %v, alınan %v", textFg, c.Style.Fg)
+		}
+		if c.Style.Bg != surfaceBg {
+			t.Errorf("Şeffaf kalıtım başarısız! Arkaplan korunmalıydı: beklenen %v, alınan %v", surfaceBg, c.Style.Bg)
+		}
+	}
+
+	// 3. SetCell ile arkaplanı belirtilmemiş tek bir hücre yaz
+	buf.SetCell(0, 0, cell.Cell{Content: '●', Style: cell.Style{Fg: textFg}})
+	thumb := buf.Get(0, 0)
+	if thumb.Content != '●' {
+		t.Errorf("SetCell karakteri hatalı")
+	}
+	if thumb.Style.Bg != surfaceBg {
+		t.Errorf("SetCell şeffaf kalıtım başarısız! Arkaplan korunmalıydı: beklenen %v, alınan %v", surfaceBg, thumb.Style.Bg)
+	}
+
+	// 4. Özel arkaplan tanımlandığında ezebilmeli
+	customBg := cell.NewColorRGB(255, 0, 0)
+	buf.SetString(0, 1, "Red", cell.Style{Fg: textFg, Bg: customBg})
+	redCell := buf.Get(0, 1)
+	if redCell.Style.Bg != customBg {
+		t.Errorf("Özel arkaplan ezilemedi: beklenen %v, alınan %v", customBg, redCell.Style.Bg)
+	}
+}
+

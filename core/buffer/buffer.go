@@ -86,7 +86,26 @@ func (b *Buffer) Get(x, y uint16) *cell.Cell {
 }
 
 // SetCell writes a cell at the specified coordinate.
+// If the style's background is ColorDefault (unstyled), it preserves the cell's existing background color.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
+	if x >= b.Area.Width || y >= b.Area.Height {
+		return
+	}
+	idx := int(y)*int(b.Area.Width) + int(x)
+	mergedStyle := b.Content[idx].Style.Merge(c.Style)
+	mergedCell := cell.Cell{
+		Content: c.Content,
+		Style:   mergedStyle,
+	}
+	if b.Content[idx] != mergedCell {
+		b.Content[idx] = mergedCell
+		b.IsDirty = true
+		b.clean = false
+	}
+}
+
+// SetCellDirect writes a cell at the specified coordinate without style merging (exact overwrite).
+func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return
 	}
@@ -122,9 +141,10 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 		}
 
 		idx := y*b.Area.Width + currX
-		if b.Content[idx].Content != r || b.Content[idx].Style != style {
+		merged := b.Content[idx].Style.Merge(style)
+		if b.Content[idx].Content != r || b.Content[idx].Style != merged {
 			b.Content[idx].Content = r
-			b.Content[idx].Style = style
+			b.Content[idx].Style = merged
 			b.IsDirty = true
 			b.clean = false
 		}

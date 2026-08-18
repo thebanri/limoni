@@ -178,10 +178,10 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			c := buf.Get(scrollbarX, area.Y+uint16(y))
 			if c != nil {
 				c.Content = '░'
-				c.Style = trackStyle
+				c.Style = c.Style.Merge(trackStyle)
 				if y >= thumbY && y < thumbY+thumbH {
 					c.Content = '█'
-					c.Style = thumbStyle
+					c.Style = c.Style.Merge(thumbStyle)
 				}
 			}
 		}
@@ -214,7 +214,7 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for x := area.X; x < area.X+area.Width; x++ {
 			if c := buf.Get(x, currY); c != nil {
 				c.Content = ' '
-				c.Style = itemStyle
+				c.Style = c.Style.Merge(itemStyle)
 			}
 		}
 

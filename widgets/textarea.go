@@ -115,7 +115,14 @@ func (a TextArea) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	for y := uint16(0); y < ctx.Area.Height; y++ {
 		for x := uint16(0); x < ctx.Area.Width; x++ {
-			buf.SetCell(ctx.Area.X+x, ctx.Area.Y+y, cell.Cell{Content: ' ', Style: style})
+			px := ctx.Area.X + x
+			py := ctx.Area.Y + y
+			if c := buf.Get(px, py); c != nil {
+				c.Content = ' '
+				c.Style = c.Style.Merge(style)
+			} else {
+				buf.SetCell(px, py, cell.Cell{Content: ' ', Style: style})
+			}
 		}
 	}
 	lines := strings.Split(string(a.State.Text), "\n")

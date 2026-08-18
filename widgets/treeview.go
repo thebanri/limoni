@@ -398,7 +398,7 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for x := area.X; x < area.X+area.Width; x++ {
 			if c := buf.Get(x, currY); c != nil {
 				c.Content = ' '
-				c.Style = rowStyle
+				c.Style = c.Style.Merge(rowStyle)
 			}
 		}
 

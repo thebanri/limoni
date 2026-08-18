@@ -7,7 +7,7 @@ Limoni includes a comprehensive collection of production-ready showcase and refe
 ## 📂 Complete Examples Matrix
 
 | Directory | Name | Highlights & APIs | Run Command |
-| :--- | :--- | :--- | :--- |
+| **[`examples/ascii3d`](../examples/ascii3d)** | **ASCII3D Real-Time Object Engine** | Multi-mode 3D ASCII & Sub-cell rendering (`ASCII`, `Half-Block 2x`, `Low-Poly`, `Braille 8x`, `Wireframe`), GLB texture decoding, Blinn-Phong studio lighting, and interactive controls. | `go run ./examples/ascii3d` |
 | **[`examples/3d_viewer`](../examples/3d_viewer)** | **3D Software Rasterizer** | 3D mesh loading (`.obj`, `.stl`, `.ply`), Lambertian / Gouraud depth-buffer shading, Euler rotations, and freeform mouse orbit. | `go run ./examples/3d_viewer` |
 | **[`examples/paint`](../examples/paint)** | **Point Paint Studio** | $2 \times 4$ Braille sub-pixel canvas, `widgets.ColorPicker` with HSV/RGB/Hex modes, live shape preview, and 25-step undo. | `go run ./examples/paint` |
 | **[`examples/dashboard`](../examples/dashboard)** | **System Telemetry & DevOps** | Official `widgets.LineChart`, `widgets.BarChart`, and `widgets.PieChart`, live Linux telemetry (`/proc`), and interactive process table. | `go run ./examples/dashboard` |

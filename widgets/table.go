@@ -795,10 +795,10 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			c := buf.Get(scrollbarX, ctx.Area.Y+uint16(y))
 			if c != nil {
 				c.Content = '░'
-				c.Style = gridStyle
+				c.Style = c.Style.Merge(gridStyle)
 				if y >= thumbY && y < thumbY+thumbH {
 					c.Content = '█'
-					c.Style = thumbStyle
+					c.Style = c.Style.Merge(thumbStyle)
 				}
 			}
 		}

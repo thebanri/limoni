@@ -79,7 +79,14 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		fieldStyle = fieldStyle.Merge(s.FocusedStyle)
 	}
 	for x := uint16(0); x < ctx.Area.Width; x++ {
-		buf.SetCell(ctx.Area.X+x, ctx.Area.Y, cell.Cell{Content: ' ', Style: fieldStyle})
+		px := ctx.Area.X + x
+		py := ctx.Area.Y
+		if c := buf.Get(px, py); c != nil {
+			c.Content = ' '
+			c.Style = c.Style.Merge(fieldStyle)
+		} else {
+			buf.SetCell(px, py, cell.Cell{Content: ' ', Style: fieldStyle})
+		}
 	}
 	label := s.Options[s.State.Selected]
 	indicator := " ▾"

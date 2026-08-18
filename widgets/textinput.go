@@ -145,7 +145,7 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for x := ctx.Area.X; x < ctx.Area.X+ctx.Area.Width; x++ {
 			if c := buf.Get(x, y); c != nil {
 				c.Content = ' '
-				c.Style = boxStyle
+				c.Style = c.Style.Merge(boxStyle)
 			}
 		}
 	}

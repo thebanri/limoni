@@ -57,17 +57,18 @@ func (s *SliderState) HandleKey(ev backend.KeyEvent, min, max int) bool {
 
 // Slider is a horizontal mouse- and keyboard-controlled numeric slider.
 type Slider struct {
-	ID           string
-	State        *SliderState
-	Min          int
-	Max          int
-	Style        cell.Style
-	TrackStyle   cell.Style
-	FilledStyle  cell.Style
-	ThumbStyle   cell.Style
+	ID            string
+	State         *SliderState
+	Min           int
+	Max           int
+	Style         cell.Style
+	TrackStyle    cell.Style
+	FilledStyle   cell.Style
+	ThumbStyle    cell.Style
 	FocusedStyle  cell.Style
 	DisableScroll bool // Fare tekerleğiyle değer değiştirmeyi kapatır
 	DisableFocus  bool // Tıklamayla odak almayı kapatır
+	OnChange      func(value int)
 }
 
 func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -107,7 +108,14 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			content = '●'
 			cellStyle = thumb
 		}
-		buf.SetCell(ctx.Area.X+uint16(x), ctx.Area.Y, cell.Cell{Content: content, Style: cellStyle})
+		px := ctx.Area.X + uint16(x)
+		py := ctx.Area.Y
+		if c := buf.Get(px, py); c != nil {
+			c.Content = content
+			c.Style = c.Style.Merge(cellStyle)
+		} else {
+			buf.SetCell(px, py, cell.Cell{Content: content, Style: cellStyle})
+		}
 	}
 	if ctx.RegisterMouse != nil {
 		setValue := func(x uint16) {
@@ -120,11 +128,17 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			value := s.Min + relative*(s.Max-s.Min)/(width-1)
 			s.State.Set(value, s.Min, s.Max)
+			if s.OnChange != nil {
+				s.OnChange(s.State.Value)
+			}
 		}
 		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
 			if !s.DisableScroll {
 				if ev.Button == backend.MouseScrollUp {
 					s.State.Set(s.State.Value+1, s.Min, s.Max)
+					if s.OnChange != nil {
+						s.OnChange(s.State.Value)
+					}
 					if !s.DisableFocus && ctx.SetFocus != nil {
 						ctx.SetFocus(s.ID)
 					}
@@ -132,6 +146,9 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 				if ev.Button == backend.MouseScrollDown {
 					s.State.Set(s.State.Value-1, s.Min, s.Max)
+					if s.OnChange != nil {
+						s.OnChange(s.State.Value)
+					}
 					if !s.DisableFocus && ctx.SetFocus != nil {
 						ctx.SetFocus(s.ID)
 					}
