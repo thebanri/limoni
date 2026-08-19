@@ -67,6 +67,14 @@ func LoadOBJ(path string) (Model3D, error) {
 	if err := loadOBJMaterialLibraries(path, &model); err != nil {
 		return Model3D{}, err
 	}
+	if len(model.Materials) > 0 && len(model.FaceMaterials) > 0 {
+		model.FaceColors = make([]cell.Color, len(model.FaceMaterials))
+		for i, matName := range model.FaceMaterials {
+			if mat, ok := model.Materials[matName]; ok {
+				model.FaceColors[i] = cell.NewColorRGB(mat.R, mat.G, mat.B)
+			}
+		}
+	}
 	return model, nil
 }
 
@@ -167,7 +175,8 @@ func loadOBJMaterialLibraries(objPath string, model *Model3D) error {
 		if len(fields) >= 2 && fields[0] == "mtllib" {
 			materials, loadErr := LoadMTL(filepath.Join(baseDir, fields[1]))
 			if loadErr != nil {
-				return fmt.Errorf("load MTL %q: %w", fields[1], loadErr)
+				// Missing or unreadable MTL should not prevent OBJ geometry from loading.
+				continue
 			}
 			for name, material := range materials {
 				model.Materials[name] = material
