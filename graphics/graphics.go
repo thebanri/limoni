@@ -106,23 +106,134 @@ func GetImageID(img image.Image) uint32 {
 	return h.Sum32()
 }
 
-// ResizeImage, resmi nearest-neighbor (en yakın komşu) algoritmasıyla hedef piksel boyutuna ölçekler.
-// Sıfır dış bağımlılık ve yüksek hız sunar.
+// ResizeImage scales an image to w x h using area-averaging (box filtering) for downscaling
+// ResizeImage scales an image to w x h using area-averaging (box filtering) for downscaling
+// and bilinear interpolation for upscaling, producing crisp, anti-aliased images with zero external dependencies.
 func ResizeImage(img image.Image, w, h int) image.Image {
-	if w <= 0 || h <= 0 {
+	if img == nil || w <= 0 || h <= 0 {
 		return img
 	}
+
+	if uniform, ok := img.(*image.Uniform); ok {
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		c := color.RGBAModel.Convert(uniform.C).(color.RGBA)
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.SetRGBA(x, y, c)
+			}
+		}
+		return dst
+	}
+
 	srcBounds := img.Bounds()
 	srcW := srcBounds.Dx()
 	srcH := srcBounds.Dy()
+	if srcW <= 0 || srcH <= 0 {
+		return img
+	}
+
+	if srcW > 4096 || srcH > 4096 {
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				srcX := int(float64(x) / float64(w) * float64(srcW))
+				srcY := int(float64(y) / float64(h) * float64(srcH))
+				dst.Set(x, y, img.At(srcBounds.Min.X+srcX, srcBounds.Min.Y+srcY))
+			}
+		}
+		return dst
+	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 
+	// Downscaling: Area-averaging box filter
+	if w <= srcW && h <= srcH {
+		for y := 0; y < h; y++ {
+			srcY0 := srcBounds.Min.Y + int(float64(y)*float64(srcH)/float64(h))
+			srcY1 := srcBounds.Min.Y + int(float64(y+1)*float64(srcH)/float64(h))
+			if srcY1 <= srcY0 {
+				srcY1 = srcY0 + 1
+			}
+			if srcY1 > srcBounds.Max.Y {
+				srcY1 = srcBounds.Max.Y
+			}
+
+			for x := 0; x < w; x++ {
+				srcX0 := srcBounds.Min.X + int(float64(x)*float64(srcW)/float64(w))
+				srcX1 := srcBounds.Min.X + int(float64(x+1)*float64(srcW)/float64(w))
+				if srcX1 <= srcX0 {
+					srcX1 = srcX0 + 1
+				}
+				if srcX1 > srcBounds.Max.X {
+					srcX1 = srcBounds.Max.X
+				}
+
+				var totalR, totalG, totalB, totalA uint64
+				var count uint64
+
+				for sy := srcY0; sy < srcY1; sy++ {
+					for sx := srcX0; sx < srcX1; sx++ {
+						r, g, b, a := img.At(sx, sy).RGBA()
+						totalR += uint64(r)
+						totalG += uint64(g)
+						totalB += uint64(b)
+						totalA += uint64(a)
+						count++
+					}
+				}
+
+				if count > 0 {
+					avgR := uint8((totalR / count) >> 8)
+					avgG := uint8((totalG / count) >> 8)
+					avgB := uint8((totalB / count) >> 8)
+					avgA := uint8((totalA / count) >> 8)
+					dst.SetRGBA(x, y, color.RGBA{R: avgR, G: avgG, B: avgB, A: avgA})
+				}
+			}
+		}
+		return dst
+	}
+
+	// Upscaling: Bilinear interpolation
 	for y := 0; y < h; y++ {
+		srcY := float64(y) * float64(srcH-1) / float64(h)
+		y0 := int(srcY)
+		y1 := y0 + 1
+		if y1 >= srcH {
+			y1 = srcH - 1
+		}
+		fy := srcY - float64(y0)
+
 		for x := 0; x < w; x++ {
-			srcX := int(float64(x) / float64(w) * float64(srcW))
-			srcY := int(float64(y) / float64(h) * float64(srcH))
-			dst.Set(x, y, img.At(srcBounds.Min.X+srcX, srcBounds.Min.Y+srcY))
+			srcX := float64(x) * float64(srcW-1) / float64(w)
+			x0 := int(srcX)
+			x1 := x0 + 1
+			if x1 >= srcW {
+				x1 = srcW - 1
+			}
+			fx := srcX - float64(x0)
+
+			r00, g00, b00, a00 := img.At(srcBounds.Min.X+x0, srcBounds.Min.Y+y0).RGBA()
+			r10, g10, b10, a10 := img.At(srcBounds.Min.X+x1, srcBounds.Min.Y+y0).RGBA()
+			r01, g01, b01, a01 := img.At(srcBounds.Min.X+x0, srcBounds.Min.Y+y1).RGBA()
+			r11, g11, b11, a11 := img.At(srcBounds.Min.X+x1, srcBounds.Min.Y+y1).RGBA()
+
+			topR := float64(r00)*(1-fx) + float64(r10)*fx
+			topG := float64(g00)*(1-fx) + float64(g10)*fx
+			topB := float64(b00)*(1-fx) + float64(b10)*fx
+			topA := float64(a00)*(1-fx) + float64(a10)*fx
+
+			botR := float64(r01)*(1-fx) + float64(r11)*fx
+			botG := float64(g01)*(1-fx) + float64(g11)*fx
+			botB := float64(b01)*(1-fx) + float64(b11)*fx
+			botA := float64(a01)*(1-fx) + float64(a11)*fx
+
+			finR := uint8(int(topR*(1-fy)+botR*fy) >> 8)
+			finG := uint8(int(topG*(1-fy)+botG*fy) >> 8)
+			finB := uint8(int(topB*(1-fy)+botB*fy) >> 8)
+			finA := uint8(int(topA*(1-fy)+botA*fy) >> 8)
+
+			dst.SetRGBA(x, y, color.RGBA{R: finR, G: finG, B: finB, A: finA})
 		}
 	}
 	return dst
@@ -135,6 +246,11 @@ func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image
 	if img == nil || w <= 0 || h <= 0 {
 		return img
 	}
+
+	if uniform, ok := img.(*image.Uniform); ok {
+		return ResizeImage(uniform, w, h)
+	}
+
 	bounds := img.Bounds()
 	srcW, srcH := bounds.Dx(), bounds.Dy()
 	if srcW <= 0 || srcH <= 0 {
@@ -142,7 +258,7 @@ func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image
 	}
 
 	fitW, fitH := w, h
-	if int64(srcW)*int64(h) > int64(srcH)*int64(w) {
+	if float64(srcW)*float64(h) > float64(srcH)*float64(w) {
 		fitH = int(float64(w) * float64(srcH) / float64(srcW))
 	} else {
 		fitW = int(float64(h) * float64(srcW) / float64(srcH))

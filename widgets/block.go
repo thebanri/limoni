@@ -8,8 +8,29 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
 )
+
+var (
+	solidImageCache   = make(map[cell.Color]image.Image)
+	solidImageCacheMu sync.Mutex
+)
+
+func getSolidImage(c cell.Color) image.Image {
+	solidImageCacheMu.Lock()
+	defer solidImageCacheMu.Unlock()
+
+	if img, ok := solidImageCache[c]; ok {
+		return img
+	}
+
+	r, g, b := c.RGB()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: r, G: g, B: b, A: 255})
+	solidImageCache[c] = img
+	return img
+}
 
 // Kenarlık yön maskeleri (bitmask).
 const (
@@ -172,8 +193,11 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault && ctx.RegisterImage != nil {
-		solidImg := getSolidImage(blockStyle.Bg)
-		ctx.RegisterImage(area, solidImg, -99, false) // Marker for frame.go to map ZIndex
+		proto := graphics.DetectProtocol()
+		if proto != graphics.ProtocolHalfBlock {
+			solidImg := getSolidImage(blockStyle.Bg)
+			ctx.RegisterImage(area, solidImg, -99, false) // Marker for frame.go to map ZIndex
+		}
 	}
 
 	// 2. Aşama: Kenarlıkları çiz
@@ -459,22 +483,3 @@ func (b Block) Measure(maxArea cell.Rect) layout.Measure {
 	}
 }
 
-var (
-	solidImageCache   = make(map[cell.Color]image.Image)
-	solidImageCacheMu sync.Mutex
-)
-
-func getSolidImage(c cell.Color) image.Image {
-	solidImageCacheMu.Lock()
-	defer solidImageCacheMu.Unlock()
-
-	if img, ok := solidImageCache[c]; ok {
-		return img
-	}
-
-	r, g, b := c.RGB()
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	img.Set(0, 0, color.RGBA{R: r, G: g, B: b, A: 255})
-	solidImageCache[c] = img
-	return img
-}

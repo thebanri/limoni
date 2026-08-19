@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -85,15 +86,47 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 				continue
 			}
 
-			// Eğer bu hücre bir native resim hücresi ise terminale yazma,
-			// ancak durum eşitlemesi için backCell'i güncelle ve cursor'ı ilerlet.
+			// Eğer bu hücre bir native resim hücresi ise:
+			// Önceki karede bu hücrede bir diyalog/metin karakteri varsa,
+			// \x1b[0m ile stili sıfırlayıp ECMA-48 ECH (\x1b[<count>X) ile eski karakterleri
+			// tek hamlede sil. Böylece resmin üzerinde hiçbir hayalet çizgi kalmaz.
 			if frontCell.Content == cell.RuneImage {
-				*backCell = *frontCell
-				cursorX++
-				if cursorX >= width {
+				spanEnd := x
+				needsErase := false
+				for checkX := x; checkX <= uint16(last); checkX++ {
+					cIdx := int(y)*int(width) + int(checkX)
+					if front.Content[cIdx].Content != cell.RuneImage {
+						break
+					}
+					spanEnd = checkX
+					if back.Content[cIdx].Content != cell.RuneImage {
+						needsErase = true
+					}
+				}
+
+				count := int(spanEnd - x + 1)
+				if needsErase {
+					out = appendCursor(out, x, y)
+					cursorX = 9999
+					cursorY = 9999
+					if currentStyle != (cell.Style{}) {
+						out = append(out, "\x1b[0m"...)
+						currentStyle.Reset()
+					}
+					out = append(out, "\x1b["...)
+					out = strconv.AppendInt(out, int64(count), 10)
+					out = append(out, 'X')
+				} else {
 					cursorX = 9999
 					cursorY = 9999
 				}
+
+				for setX := x; setX <= spanEnd; setX++ {
+					cIdx := int(y)*int(width) + int(setX)
+					back.Content[cIdx] = front.Content[cIdx]
+				}
+
+				x = spanEnd
 				continue
 			}
 

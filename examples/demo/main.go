@@ -543,6 +543,8 @@ func main() {
 			focused != "username_input" && focused != "showcase_input" && focused != "table_filter"
 	}
 	openHelp := func() {
+		state.IsTransitioning = false
+		t.SetTransitionActive(false)
 		state.ShowHelpDialog = true
 		state.ModalOffsetX = 0
 		state.ModalOffsetY = 0
@@ -552,13 +554,14 @@ func main() {
 		state.LastKey = "Help Panel Opened"
 	}
 	openExitConfirmation := func() {
+		state.IsTransitioning = false
+		t.SetTransitionActive(false)
 		state.ShowExitDialog = true
 		state.ModalOffsetX = 0
 		state.ModalOffsetY = 0
 		state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
 		t.FocusManager().SetFocused("exit_dialog_btn_1")
 		state.LastKey = "Exit Confirmation Modal Opened"
-		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
 		Key: backend.KeyF1, Label: "Open Help Panel", Category: "View",
@@ -675,8 +678,10 @@ func main() {
 				if state.ActiveTab != "Home" {
 					state.ActiveTab = "Home"
 					t.FocusManager().SetFocused("")
-					state.TransitionStartTime = time.Now()
-					state.IsTransitioning = true
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
 				}
 			}},
 		{Label: "Go to Settings Tab", Detail: "", Category: "Navigation",
@@ -684,8 +689,10 @@ func main() {
 				if state.ActiveTab != "Settings" {
 					state.ActiveTab = "Settings"
 					t.FocusManager().SetFocused("")
-					state.TransitionStartTime = time.Now()
-					state.IsTransitioning = true
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
 				}
 			}},
 		{Label: "Go to Graphics Tab", Detail: "", Category: "Navigation",
@@ -693,8 +700,10 @@ func main() {
 				if state.ActiveTab != "Graphics" {
 					state.ActiveTab = "Graphics"
 					t.FocusManager().SetFocused("")
-					state.TransitionStartTime = time.Now()
-					state.IsTransitioning = true
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
 				}
 			}},
 		{Label: "Go to Playground Tab", Detail: "", Category: "Navigation",
@@ -702,8 +711,10 @@ func main() {
 				if state.ActiveTab != "Playground" {
 					state.ActiveTab = "Playground"
 					t.FocusManager().SetFocused("")
-					state.TransitionStartTime = time.Now()
-					state.IsTransitioning = true
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
 				}
 			}},
 		{Label: "Go to Reference Tab", Detail: "", Category: "Navigation",
@@ -711,8 +722,10 @@ func main() {
 				if state.ActiveTab != "Reference" {
 					state.ActiveTab = "Reference"
 					t.FocusManager().SetFocused("")
-					state.TransitionStartTime = time.Now()
-					state.IsTransitioning = true
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
 				}
 			}},
 
@@ -961,6 +974,9 @@ func main() {
 				if ev.Key.Type == backend.KeyTab {
 					if ev.Key.Shift {
 						navigateDemoTab(state, t.FocusManager(), -1)
+						t.SetTransitionActive(false)
+						t.ForceFullRedraw()
+						b.Write([]byte("\x1b[2J"))
 						state.LastKey = "Shift+Tab (Prev Tab)"
 					} else {
 						t.FocusManager().NextExcluding("tab_")
@@ -972,9 +988,13 @@ func main() {
 				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace) {
 					tabName := strings.TrimPrefix(focused, "tab_")
 					if tabName != "Exit" && tabName != "Çıkış" {
-						state.ActiveTab = tabName
-						state.IsTransitioning = false
-						t.SetTransitionActive(false)
+						if state.ActiveTab != tabName {
+							state.ActiveTab = tabName
+							state.IsTransitioning = false
+							t.SetTransitionActive(false)
+							t.ForceFullRedraw()
+							b.Write([]byte("\x1b[2J"))
+						}
 					}
 					break
 				}
@@ -1201,16 +1221,21 @@ func main() {
 
 			// Dither geçiş ilerlemesini güncelle
 			if state.IsTransitioning {
-				elapsed := time.Since(state.TransitionStartTime)
-				progress := float64(elapsed) / float64(250*time.Millisecond)
-				if progress >= 1.0 {
-					progress = 1.0
+				if state.ShowHelpDialog || state.ShowExitDialog {
 					state.IsTransitioning = false
 					t.SetTransitionActive(false)
 				} else {
-					t.SetTransitionActive(true)
+					elapsed := time.Since(state.TransitionStartTime)
+					progress := float64(elapsed) / float64(250*time.Millisecond)
+					if progress >= 1.0 {
+						progress = 1.0
+						state.IsTransitioning = false
+						t.SetTransitionActive(false)
+					} else {
+						t.SetTransitionActive(true)
+					}
+					t.SetTransitionProgress(progress)
 				}
-				t.SetTransitionProgress(progress)
 			}
 
 			// Ekranı yeniden çiz
@@ -1360,16 +1385,19 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			registerTargetClick(f, area, func(ev backend.MouseEvent) {
 				if tabName == "Exit" || tabName == "Çıkış" {
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
 					state.ShowExitDialog = true
 					state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
 					t.FocusManager().SetFocused("exit_dialog_btn_1")
-					t.ForceFullRedraw()
 				} else {
 					t.FocusManager().SetFocused(focusID)
 					if state.ActiveTab != tabName {
 						state.ActiveTab = tabName
 						state.IsTransitioning = false
 						t.SetTransitionActive(false)
+						t.ForceFullRedraw()
+						b.Write([]byte("\x1b[2J"))
 					}
 				}
 			})
@@ -1892,7 +1920,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			} else {
 				if progress >= 0.999 && !state.ExitDialogAnim.IsAnimating() && !state.ExitDialogFinished {
 					state.ExitDialogFinished = true
-					t.ForceFullRedraw()
 				} else if progress < 0.999 {
 					state.ExitDialogFinished = false
 				}
@@ -1920,13 +1947,18 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				})
 
 				if animatedArea.Width > 0 && animatedArea.Height > 0 {
+					shadowBackdrop := cell.NewRect(
+						animatedArea.X,
+						animatedArea.Y,
+						animatedArea.Width+2,
+						animatedArea.Height+1,
+					)
 					f.RenderWidget(widgets.Block{
 						Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
 						Opaque: true,
-					}, animatedArea)
-				}
+					}, shadowBackdrop)
 
-				exitDialog := widgets.Dialog{
+					exitDialog := widgets.Dialog{
 					ID:          "exit_dialog",
 					Title:       " ⚠️ SYSTEM EXIT ",
 					Message:     "Are you sure you want to exit the application?",
@@ -1964,6 +1996,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				f.RenderWidget(exitDialog, animatedArea)
 			}
 		}
+	}
 
 		// 6. Help Dialog
 		if state.ShowHelpDialog {

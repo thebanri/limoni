@@ -356,7 +356,7 @@ func drawPlaygroundVertical(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		borders = widgets.BorderNone
 	}
 	sym := widgets.SymbolsRounded
-	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
+	f.RenderWidget(widgets.Block{Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}}, area)
 	f.RenderWidget(widgets.Block{Title: " MARKDOWN · VERTICAL ", Borders: borders, BorderSymbols: sym, BorderStyle: cell.Style{Fg: accentColor}, Child: &widgets.Markdown{Content: "# Limoni TUI\nVertical layout active.\n- Markdown panel\n- Profile avatar mask\n- Canvas / Matrix / Sparkline", Style: cell.Style{Fg: cell.NewColorRGB(210, 215, 225)}}}, parts[0])
 	drawPlaygroundProfile(f, state, accentColor, parts[1], " PROFILE · VERTICAL ", true, borders, sym)
 	drawPlaygroundCanvas(t, f, state, accentColor, sym, parts[2])
@@ -386,7 +386,7 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 	gridLayout := layout.NewGridLayout(columns, rows, 1)
 	gridAreas := gridLayout.Split(area)
 
-	f.RenderWidget(&widgets.Image{Img: playgroundSurfaceImage, ForceHalfBlock: true}, area)
+	f.RenderWidget(widgets.Block{Style: cell.Style{Bg: cell.NewColorRGB(25, 28, 36)}}, area)
 
 	borders := widgets.BorderAll
 	if !state.PlayShowGrid {
@@ -455,12 +455,14 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 }
 
 func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.Color, area cell.Rect, title string, circleMask bool, borders uint8, symbols widgets.BorderSymbols) {
+	surfaceBg := cell.NewColorRGB(25, 28, 36)
 	profileBlock := widgets.Block{
 		Title:          title,
 		TitleAlignment: widgets.AlignCenter,
 		Borders:        borders,
 		BorderSymbols:  symbols,
 		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 165, 0)},
+		Style:          cell.Style{Bg: surfaceBg},
 	}
 	f.RenderWidget(profileBlock, area)
 
@@ -477,15 +479,14 @@ func drawPlaygroundProfile(f *terminal.Frame, state *AppState, accentColor cell.
 	if profileImg == nil {
 		profileImg = state.ActiveImg
 	}
-	profileBackground := cell.NewColorDefault()
-	if c := f.Buffer.Get(profileParts[0].X, profileParts[0].Y); c != nil {
+	profileBackground := surfaceBg
+	if c := f.Buffer.Get(profileParts[0].X, profileParts[0].Y); c != nil && c.Style.Bg.Type() != cell.ColorDefault {
 		profileBackground = c.Style.Bg
 	}
 	f.RenderWidget(&widgets.Image{
 		Img:              profileImg,
 		CircleMask:       circleMask,
-		ZIndex:           -3,
-		OpaqueBackground: profileBackground.Type() != cell.ColorDefault,
+		OpaqueBackground: true,
 		Background:       profileBackground,
 		Opacity:          float64(state.AvatarOpacityState.Value) / 100.0,
 		OpacitySet:       true,

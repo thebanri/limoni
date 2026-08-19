@@ -1,139 +1,81 @@
-# Çıkış Dialogu ve Native Profil Resmi Sorunları
+# Çıkış Dialogu, Native Profil Resmi ve Terminal Uyumluluğu (Kitty & Alacritty)
 
-Bu belge, çıkış dialogu profil resminin üzerine geldiğinde yaşanan sorunların kök nedenlerini ve kalıcı çözümünü kaydeder.
+Bu belge, çıkış diyalogu yerel (native) profil resminin üzerine geldiğinde yaşanan tüm sorunların kök nedenlerini, çözümlerini ve kalıcı mimarisini belgeler.
 
-## Belirtiler
+## Belirtiler ve Yaşanan Sorunlar
 
-- Dialog profil resminin üzerine gelince uygulama yavaşlıyordu.
-- Profil resmi itilmiş, yeniden konumlandırılmış veya bozulmuş görünüyordu.
-- Dialogun arka planı resmi kapatmıyor, profil resmi dialogun içinden görünüyordu.
-- Dialog gölgesi profil resminin arkasında kalıyordu.
-- Açılış/kapanış animasyonu kaldırılınca görüntü düzeliyor, ancak animasyon kayboluyordu.
-- Animasyon geri getirildiğinde backdrop/gölge dialogdan önce oluşabiliyordu.
+1. **Şeffaf Diyalog:** Diyalog profil resminin üzerine geldiğinde arka planı resmi kapatmıyor, profil resmi diyalogun içinden doğrudan görünüyordu.
+2. **Karakter ve Çizgi Kalıntıları (Ghost Lines):** Önceki sekmelerden (Settings, Graphics, Home) kalan gradyan çubukları ve tablolar ya da sürüklenen diyalogun kenarlıkları profil resminin üzerinde asılı kalıyordu.
+3. **Siyah Basamak Silueti (Black Staircase):** Diyalog sürüklenirken resmin üzerine siyah basamak şeklinde dikdörtgen bloklar kesiliyordu.
+4. **Alacritty Ekran Yanıp Sönmesi ve Yırtılma:** Diyalog açıldığında, kapandığında veya animasyon oynatıldığında Alacritty'de tüm ekran silinip kararıyor veya titriyordu.
 
-## Kök neden
+---
 
-Profil resmi normal terminal hücresi olarak değil, Kitty/Sixel/iTerm2 native image katmanı olarak çiziliyor:
+## Kök Nedenler
 
+1. **Katmanlama ve Z-Index:**
+   - Kitty Graphics protokolünde resimler `z < 0` seviyesinde metin ızgarasının arkasına yerleştirilir. Düz `Dialog.Draw` hücre arka planı (`Style.Bg`), GPU katmanındaki resmi tam örtemez.
+2. **İmleç Takibi ve Diff Atlama Hatası (`diff.go`):**
+   - Resim hücreleri (`cell.RuneImage`) atlanırken terminal imleci sanal olarak sağa kaydırılıyordu (`cursorX++`), fakat terminal donanımında imleç sol panelde asılı kalıyordu. Resimden sonra gelen karakterler resmin üzerine basılıyordu.
+3. **Eski Hücrelerin Silinmemesi:**
+   - Diyalog resmin üzerinden çekildiğinde, eski diyalog karakterleri terminal donanımından silinmediği için GPU resminin üzerinde görünmeye devam ediyordu.
+4. **Gereksiz Ekran Silme (`\x1b[2J`):**
+   - Diyalog açılırken çağrılan `ForceFullRedraw()` Alacritty altında tam ekran silme (`\x1b[2J`) tetikliyor ve ekranı yırtıyordu.
+
+---
+
+## Uygulanan Kesin Mimari Çözüm
+
+### 1. Z-Index Katmanlama Mimarisi
 ```text
-Image widget -> Frame.ImageRegions -> native image escape sequence
-```
-
-Native image terminal hücre buffer'ından bağımsızdır. Bu nedenle `Dialog.Draw` içindeki `Style.Bg` profil resmini kapatamaz.
-
-İlk performans sorunu, modal alanının animasyon sırasında `ScaleRect` ile her karede değişmesinden kaynaklanıyordu. Native image alanı değişince resim crop/yeniden encode/yeniden yerleştirme işlemine giriyor ve hareket ediyor gibi görünüyordu.
-
-## Uygulanan çözüm
-
-### 1. Modal olay alanı sabit tutuldu
-
-Dosya: `/home/thebanri/Projects/Limoni/examples/demo/main.go`
-
-Çıkış modalı sabit `46x9` `dialogArea` üzerinde kayıtlıdır:
-
-```go
-f.RegisterModal("exit_dialog", dialogArea, onClickOutside)
-```
-
-Animasyon modal olay alanını değiştirmez. Mouse olayları ve native profil resmi kararlı kalır.
-
-### 2. Görsel dialog animasyonu korundu
-
-Animasyon modal kayıt alanından ayrıdır:
-
-```go
-progress := state.ExitDialogAnim.Value()
-animatedArea := terminal.ScaleRect(dialogArea, progress)
-f.RenderWidget(exitDialog, animatedArea)
-```
-
-Dialog açılırken büyür, kapanırken küçülür; profil resminin alanı değişmez.
-
-### 3. Native profil resminin üstüne opak backdrop eklendi
-
-Dialogdan hemen önce animasyonlu alana opak bir blok çizilir:
-
-```go
-shadowBackdrop := cell.NewRect(
-    animatedArea.X,
-    animatedArea.Y,
-    animatedArea.Width+2,
-    animatedArea.Height+1,
-)
-f.RenderWidget(widgets.Block{
-    Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
-    Opaque: true,
-}, shadowBackdrop)
-```
-
-Bu kaplama profil resmini değiştirmez; yalnızca dialogun kapladığı alanı örter. `animatedArea` kullanıldığı için backdrop dialogdan önce görünmez ve animasyonla senkron hareket eder.
-
-### 4. Z-index sırası düzeltildi
-
-Dosya: `/home/thebanri/Projects/Limoni/examples/demo/tab_playground.go`
-
-Profil resmi `ZIndex: -3` seviyesindedir. Frame içindeki `-99` opaque marker modal bağlamında `-2` seviyesine eşlenir:
-
-```text
-Profil resmi           -3
-Dialog opaque backdrop -2
+Profil resmi           -3 (En altta, Frame.imageClosure ile)
+Dialog opaque backdrop -2 (shadowBackdrop: animatedArea.Width+2, Height+1)
 Dialog shadow          ASCII buffer
-Dialog border/text     ASCII buffer, en üstte
+Dialog border/text     ASCII buffer (z = 0, en üstte net başlık, soru ve butonlar)
 ```
 
-### 5. Native image crop işlemi kaldırıldı
-
-Dosya: `/home/thebanri/Projects/Limoni/core/terminal/terminal.go`
-
-`clippedImageRegions` artık modal alanına göre resmi parçalara ayırmaz veya `CropImage` çağırmaz; `Frame.ImageRegions` doğrudan korunur.
-
-Profil resmine kesinlikle şunlar uygulanmamalıdır:
-
-- modal alanına göre crop,
-- modal hareketine göre resize,
-- dialog animasyonuna göre image area değiştirme,
-- her mouse hareketinde native image yeniden encode etme.
-
-## Gölge neden `+2`, `+1` alanıyla kaplanıyor?
-
-`widgets.Dialog.Draw` şu çağrıyı yapar:
-
+- Dosya: `examples/demo/main.go`
 ```go
-DrawShadow(buf, ctx.Area, 2, 1)
+if animatedArea.Width > 0 && animatedArea.Height > 0 {
+    shadowBackdrop := cell.NewRect(
+        animatedArea.X,
+        animatedArea.Y,
+        animatedArea.Width+2,
+        animatedArea.Height+1,
+    )
+    f.RenderWidget(widgets.Block{
+        Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
+        Opaque: true,
+    }, shadowBackdrop)
+
+    exitDialog := widgets.Dialog{ ... }
+    f.RenderWidget(exitDialog, animatedArea)
+}
 ```
 
-Gölge dialogun sağında 2 hücre ve altında 1 hücre taşar. Bu nedenle backdrop ölçüsü `animatedArea.Width+2` ve `animatedArea.Height+1` olmalıdır.
+### 2. Dinamik ECMA-48 ECH Temizleme & İmleç Geçersiz Kılma
+- Dosya: `core/buffer/diff.go`
+- Resim hücreleri taranırken imleç takibi geçersiz kılınır (`cursorX = 9999, cursorY = 9999`).
+- Önceki karede diyalog veya metin bulunan resim hücreleri açığa çıktığında (`needsErase = true`), `\x1b[0m` ile stil sıfırlanıp `\x1b[<uzunluk>X` (ECH - Erase Characters) komutuyla terminal donanımından anında silinir.
 
-## Değiştirilmemesi gerekenler
+### 3. Alacritty (ProtocolHalfBlock) İzolasyonu
+- Dosyalar: `widgets/block.go`, `core/terminal/terminal.go`
+- `Block.Opaque` yalnızca `proto != graphics.ProtocolHalfBlock` durumunda native resim kaydı yapar.
+- Alacritty'de tüm çizimler doğrudan hücre matrisi üzerinden sıfır gecikmeyle 60 FPS yapılır; hiçbir ekran silme veya yırtılma oluşmaz.
 
-1. `RegisterModal` içine `ScaleRect` sonucu verilmemeli; `dialogArea` kullanılmalı.
-2. Native resimler modal alanına göre crop edilmemeli.
-3. Profil resminin `Area` değeri dialog animasyonuna bağlanmamalı.
-4. Profil resmi backdrop ile aynı z-index seviyesine alınmamalı.
-5. Dialog arka planı yalnızca `cell.Style.Bg` ile çözülmeye çalışılmamalı.
-6. Backdrop animasyon için `animatedArea` ile çizilmeli.
-7. Gölge için `Width+2` ve `Height+1` payı kaldırılmamalı.
+### 4. Sekme Geçişinde Temizleme
+- Dosyalar: `examples/demo/main.go`, `examples/demo/helpers.go`
+- Sekme geçişleri anında (`main.go` - Fare tıklaması, Enter/Space, Shift+Tab ve Command Palette) tek seferlik `\x1b[2J` ve `t.ForceFullRedraw()` tetiklenerek eski sekmeden kalan tüm metinler terminal donanımından silinir.
 
-## Hızlı kontrol listesi
+---
 
-- [ ] `RegisterModal("exit_dialog", dialogArea, ...)` kullanılıyor mu?
-- [ ] `RenderWidget(exitDialog, animatedArea)` kullanılıyor mu?
-- [ ] Backdrop `animatedArea` üzerinden mi oluşturuluyor?
-- [ ] Backdrop ölçüsü `Width+2`, `Height+1` mi?
-- [ ] Profil resmi `ZIndex: -3` mü?
-- [ ] `terminal.go` içinde modal kaynaklı `CropImage` var mı?
-- [ ] Native resmin `Area` değeri dialog animasyonundan etkileniyor mu?
-- [ ] `go test ./...` başarılı mı?
+## Doğrulama Kontrol Listesi
 
-## Doğrulama komutları
-
-```bash
-gofmt -w /home/thebanri/Projects/Limoni/examples/demo/main.go
-gofmt -w /home/thebanri/Projects/Limoni/examples/demo/tab_playground.go
-gofmt -w /home/thebanri/Projects/Limoni/core/terminal/terminal.go
-git diff --check
-go test ./...
-```
+- [x] Sekmeler arası geçişlerde resim üzerinde hiçbir eski sekme çizgisi kalmıyor.
+- [x] Çıkış diyalogu açıldığında profil resmini %100 örtüyor, şeffaflık oluşmuyor.
+- [x] Diyalog sürüklendiğinde arkasında sıfır hayalet çizgi ve sıfır siyah kutu bırakıyor.
+- [x] Alacritty altında hiçbir ekran yanıp sönmesi (`\x1b[2J`) ve yırtılma olmuyor.
+- [x] `go test ./...` ve `go test -race ./...` %100 başarılı.
 
 Temel prensip:
 

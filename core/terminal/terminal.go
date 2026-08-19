@@ -176,71 +176,51 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
 	proto := graphics.DetectProtocol()
-	imageRegions := t.clippedImageRegions()
-	if len(imageRegions) > 0 {
-		cellW, cellH, _ := t.backend.CellPixelSize()
+	if proto != graphics.ProtocolHalfBlock {
+		imageRegions := t.clippedImageRegions()
+		if len(imageRegions) > 0 {
+			cellW, cellH, _ := t.backend.CellPixelSize()
 
-		imagesChanged := needsFullClear || layersChanged
-		if !imagesChanged {
-			if len(imageRegions) != len(t.lastDrawnImages) {
-				imagesChanged = true
-			} else {
-				for i, reg := range imageRegions {
-					prev := t.lastDrawnImages[i]
-					if reg.Img != prev.Img || reg.Area != prev.Area || reg.ZIndex != prev.ZIndex {
-						imagesChanged = true
-						break
+			imagesChanged := needsFullClear || layersChanged
+			if !imagesChanged {
+				if len(imageRegions) != len(t.lastDrawnImages) {
+					imagesChanged = true
+				} else {
+					for i, reg := range imageRegions {
+						prev := t.lastDrawnImages[i]
+						if reg.Img != prev.Img || reg.Area != prev.Area || reg.ZIndex != prev.ZIndex {
+							imagesChanged = true
+							break
+						}
 					}
 				}
 			}
-		}
 
-		if imagesChanged {
-			if !needsFullClear {
-				t.back.Clear()
-				t.backend.Write([]byte("\x1b[2J"))
-				needsFullClear = true
-			}
-			// Kitty placement'ları hücre tamponundan bağımsız yaşar. Eski
-			// sekmenin resmi yeni sekmede daha küçük/başka konumluysa, yalnızca
-			// yeni resmi çizmek eski placement'ın kenarlarını bırakabilir.
-			// Ekranı ESC[2J ile temizlemiyoruz; bu, back tamponu ile birlikte
-			// boş hücrelerin yeniden çizilmemesine ve siyah ekrana yol açar.
-			// Bunun yerine back'i sentinel image hücreleriyle geçersizleştirerek
-			// aktif sekmenin tüm metin/border hücrelerini Diff'e sokuyoruz.
-			if proto == graphics.ProtocolKitty {
-				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
-				t.back.Invalidate()
-				for i := range t.back.Content {
-					t.back.Content[i].Content = cell.RuneImage
-					t.back.Content[i].Style.Reset()
+			if imagesChanged {
+				if proto == graphics.ProtocolKitty {
+					t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
 				}
-			}
 
-			for _, reg := range imageRegions {
-				escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex, reg.Transparent)
-				if escSeq != "" {
-					moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
-					t.backend.Write([]byte(moveCursor + escSeq))
+				for _, reg := range imageRegions {
+					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex, reg.Transparent)
+					if escSeq != "" {
+						moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
+						t.backend.Write([]byte(moveCursor + escSeq))
+					}
 				}
-			}
 
-			t.lastDrawnImages = make([]ImageRegion, len(imageRegions))
-			copy(t.lastDrawnImages, imageRegions)
-		}
-		t.lastImageCount = len(imageRegions)
-	} else {
-		if t.lastImageCount > 0 {
-			if proto == graphics.ProtocolKitty {
-				t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
-				t.back.Invalidate()
-				for i := range t.back.Content {
-					t.back.Content[i].Content = cell.RuneImage
-					t.back.Content[i].Style.Reset()
-				}
+				t.lastDrawnImages = make([]ImageRegion, len(imageRegions))
+				copy(t.lastDrawnImages, imageRegions)
 			}
-			t.lastImageCount = 0
-			t.lastDrawnImages = nil
+			t.lastImageCount = len(imageRegions)
+		} else {
+			if t.lastImageCount > 0 {
+				if proto == graphics.ProtocolKitty {
+					t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+				}
+				t.lastImageCount = 0
+				t.lastDrawnImages = nil
+			}
 		}
 	}
 
@@ -599,9 +579,16 @@ func (t *Terminal) layersHash() string {
 	return res
 }
 
-// ForceFullRedraw zorla tüm ekranın temizlenip baştan çizilmesini sağlar.
+// ForceFullRedraw zorla tüm ekran hücrelerinin diff üzerinden yeniden çizilmesini sağlar.
 func (t *Terminal) ForceFullRedraw() {
 	if t.back != nil {
-		t.back.Area.Width = 0
+		for i := range t.back.Content {
+			t.back.Content[i].Content = 0xFFFF
+			t.back.Content[i].Style = cell.Style{}
+		}
+		t.back.Invalidate()
+	}
+	if t.front != nil {
+		t.front.Invalidate()
 	}
 }

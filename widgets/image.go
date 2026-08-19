@@ -121,6 +121,11 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 	targetW := int(ctx.Area.Width)
 	targetH := int(ctx.Area.Height) * 2
 
+	bgCol := im.Background
+	if bgCol.Type() == cell.ColorDefault {
+		bgCol = ctx.Style.Bg
+	}
+
 	if im.lastImg == img && im.lastArea == ctx.Area && len(im.cachedCells) == int(ctx.Area.Width)*int(ctx.Area.Height) {
 		idx := 0
 		for cy := uint16(0); cy < ctx.Area.Height; cy++ {
@@ -136,7 +141,7 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 		return
 	}
 
-	resized := graphics.ResizeImage(img, targetW, targetH)
+	resized := graphics.ResizeImageContain(img, targetW, targetH, true)
 
 	im.lastImg = img
 	im.lastArea = ctx.Area
@@ -148,12 +153,12 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 			// Üst piksel (Background rengi olacak)
 			topCol := resized.At(int(cx), int(2*cy))
 			_, _, _, ta := topCol.RGBA()
-			bgColor := blendColor(topCol, ctx.Style.Bg)
+			bgColor := blendColor(topCol, bgCol)
 
 			// Alt piksel (Foreground rengi olacak)
 			botCol := resized.At(int(cx), int(2*cy+1))
 			_, _, _, ba := botCol.RGBA()
-			fgColor := blendColor(botCol, ctx.Style.Bg)
+			fgColor := blendColor(botCol, bgCol)
 
 			// Hücreyi güncelle
 			cellX := ctx.Area.X + cx
@@ -162,16 +167,21 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 				c.Style.Modifier = cell.ModifierReset
 
 				if ta == 0 && ba == 0 {
-					// Her iki piksel de şeffaf -> Boşluk karakteri çizerek terminal varsayılan Fg'sinin çizilmesini engelle
+					// Her iki piksel de şeffaf -> Boşluk karakteri
 					c.Content = ' '
-					c.Style.Bg = ctx.Style.Bg
+					c.Style.Bg = bgCol
 				} else if ta > 0 && ba == 0 {
 					// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
 					c.Content = '▀'
 					c.Style.Fg = bgColor
-					c.Style.Bg = ctx.Style.Bg
+					c.Style.Bg = bgCol
+				} else if ta == 0 && ba > 0 {
+					// Üst şeffaf, alt dolu -> Alt yarım blok (▄)
+					c.Content = '▄'
+					c.Style.Fg = fgColor
+					c.Style.Bg = bgCol
 				} else {
-					// İkisi de dolu veya alt dolu -> Alt yarım blok (▄)
+					// İkisi de dolu -> Alt yarım blok (▄)
 					c.Content = '▄'
 					c.Style.Fg = fgColor
 					c.Style.Bg = bgColor
