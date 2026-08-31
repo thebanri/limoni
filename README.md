@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/showcase.png" alt="Limoni Showcase" width="100%" />
+  <img src="assets/logo.png" alt="Limoni Logo" width="180" />
 </p>
 
 <h1 align="center">🍋 Limoni</h1>
@@ -26,6 +26,7 @@
 
 <p align="center">
   <a href="#-why-limoni">Why Limoni?</a> •
+  <a href="#-showcase--demos">Showcase</a> •
   <a href="#-key-features">Key Features</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-documentation">Documentation</a> •
@@ -62,6 +63,47 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and a **sub
 2. **True Multithreaded State**: Push state updates from any goroutine safely without bottlenecking the main event loop.
 3. **Virtual Viewport Paging**: Render tables and lists with millions of rows without loading invisible cells into memory.
 4. **Batteries-Included**: 3D Wireframe/Lambert/Gouraud rendering, rich markdown parser, physics/easing animations, fuzzy search, and command palettes out-of-the-box.
+
+---
+
+## 🎬 Showcase & Demos
+
+### 🎮 3D Mesh & Vector Graphics Engine
+Real-time 3D software rasterization running at 60+ FPS directly in terminal cells. Supports `.obj`, `.stl`, and `.ply` mesh models, depth-buffer Gouraud shading, Lambertian diffuse lighting, and interactive mouse/keyboard orbital controls.
+
+<p align="center">
+  <img src="assets/3d.gif" alt="Limoni 3D Mesh Rendering" width="100%" />
+</p>
+
+```bash
+go run ./examples/3d_viewer
+```
+
+---
+
+### 📁 Superfile-Grade TreeView & Image Previews
+Hierarchical collapsible file explorer widget (`widgets.TreeView`) with directory icons, tree guide lines, git/file status indicators, and live TrueColor half-block image previews.
+
+<p align="center">
+  <img src="assets/treeview.gif" alt="Limoni TreeView File Explorer" width="100%" />
+</p>
+
+```bash
+go run ./examples/treeview
+```
+
+---
+
+### 🎙️ Real-Time Audio Spectrum & Equalizer Visualizer
+High-frequency signal processing and telemetry visualization with rolling sub-pixel Braille curves, vertical RGB gradient equalizer spectrum bars, and peak-hold caps without GC stutter.
+
+<p align="center">
+  <img src="assets/mic.gif" alt="Limoni Audio Spectrum & Telemetry" width="100%" />
+</p>
+
+```bash
+go run ./examples/dashboard
+```
 
 ---
 

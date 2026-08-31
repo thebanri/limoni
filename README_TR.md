@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/showcase.png" alt="Limoni Vitrini" width="100%" />
+  <img src="assets/logo.png" alt="Limoni Logo" width="180" />
 </p>
 
 <h1 align="center">🍋 Limoni</h1>
@@ -24,6 +24,7 @@
 
 <p align="center">
   <a href="#-neden-limoni">Neden Limoni?</a> •
+  <a href="#-vitrin--canlı-demolar">Vitrin</a> •
   <a href="#-temel-özellikler">Özellikler</a> •
   <a href="#-hızlı-başlangıç">Hızlı Başlangıç</a> •
   <a href="#-dokümantasyon">Dokümantasyon</a> •
@@ -52,6 +53,47 @@
 | **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY) & Shaders** | Harici eklenti gerekir | Eklenti gerekir |
 | **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Deneysel |
 | **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
+
+---
+
+## 🎬 Vitrin & Canlı Demolar
+
+### 🎮 3D Vektör ve Model İşleme Motoru
+Terminal hücrelerinde 60+ FPS hızında gerçek zamanlı 3D yazılımsal rasterizasyon. `.obj`, `.stl` ve `.ply` model desteği, derinlik tamponlu Gouraud gölgelendirme, Lambertian aydınlatma ve etkileşimli fare/klavye kamera yörünge kontrolleri.
+
+<p align="center">
+  <img src="assets/3d.gif" alt="Limoni 3D Model İşleme" width="100%" />
+</p>
+
+```bash
+go run ./examples/3d_viewer
+```
+
+---
+
+### 📁 Süper Dosya Gezgini & Görsel Önizleme
+Açılır/kapanır klasörler, hiyerarşik kılavuz çizgileri, dosya meta verileri ve yerleşik TrueColor yarım-blok (half-block) görsel önizleme desteğine sahip gelişmiş dosya ağacı bileşeni (`widgets.TreeView`).
+
+<p align="center">
+  <img src="assets/treeview.gif" alt="Limoni Dosya Gezgini ve Görsel Önizleme" width="100%" />
+</p>
+
+```bash
+go run ./examples/treeview
+```
+
+---
+
+### 🎙️ Gerçek Zamanlı Ses Spektrumu & Ekolayzer
+Sıfır bellek tahsisatlı yüksek frekanslı sinyal işleme, alt-piksel Braille eğrileri, dikey RGB gradyan ekolayzer çubukları ve tepe noktası tutucu (peak-hold) göstergeleri.
+
+<p align="center">
+  <img src="assets/mic.gif" alt="Limoni Ses Spektrumu ve Telemetri" width="100%" />
+</p>
+
+```bash
+go run ./examples/dashboard
+```
 
 ---
 
