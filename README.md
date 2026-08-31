@@ -94,15 +94,15 @@ go run ./examples/treeview
 
 ---
 
-### 🎙️ Real-Time Audio Spectrum & Equalizer Visualizer
-High-frequency signal processing and telemetry visualization with rolling sub-pixel Braille curves, vertical RGB gradient equalizer spectrum bars, and peak-hold caps without GC stutter.
+### 📊 High-Resolution Charts & Data Visualization
+Sub-pixel Braille curves (`widgets.LineChart`), vertical gradient spectrum bars (`widgets.BarChart`), and donut distributions (`widgets.PieChart`) rendering high-frequency streaming telemetry with zero heap allocations.
 
 <p align="center">
-  <img src="assets/mic.gif" alt="Limoni Audio Spectrum & Telemetry" width="100%" />
+  <img src="assets/chart.gif" alt="Limoni Charts & Data Visualization" width="100%" />
 </p>
 
 ```bash
-go run ./examples/dashboard
+go run ./examples/charts
 ```
 
 ---

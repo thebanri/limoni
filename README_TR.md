@@ -84,15 +84,15 @@ go run ./examples/treeview
 
 ---
 
-### 🎙️ Gerçek Zamanlı Ses Spektrumu & Ekolayzer
-Sıfır bellek tahsisatlı yüksek frekanslı sinyal işleme, alt-piksel Braille eğrileri, dikey RGB gradyan ekolayzer çubukları ve tepe noktası tutucu (peak-hold) göstergeleri.
+### 📊 Yüksek Çözünürlüklü Grafikler & Veri Görselleştirme
+Alt-piksel Braille eğrileri (`widgets.LineChart`), dikey gradyan spektrum çubukları (`widgets.BarChart`) ve pasta/halka dağılımları (`widgets.PieChart`) ile sıfır bellek tahsisatlı yüksek frekanslı telemetri görselleştirme.
 
 <p align="center">
-  <img src="assets/mic.gif" alt="Limoni Ses Spektrumu ve Telemetri" width="100%" />
+  <img src="assets/chart.gif" alt="Limoni Grafikler ve Veri Görselleştirme" width="100%" />
 </p>
 
 ```bash
-go run ./examples/dashboard
+go run ./examples/charts
 ```
 
 ---
