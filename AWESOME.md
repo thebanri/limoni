@@ -18,7 +18,7 @@ A curated list of amazing applications, tools, custom widgets, templates, and li
 ## 🚀 Applications & Dashboards
 
 - **[Limoni 3D Mesh Viewer](https://github.com/thebanri/limoni/tree/main/examples/3d_viewer)** — Real-time 3D model viewer supporting `.obj`, `.stl`, `.ply`, Lambertian diffuse, and Gouraud shading.
-- **[Limoni Voice](https://github.com/limoni-voice)** — Voice-driven interactive terminal interface and audio assistant powered by Limoni.
+- **[Limoni Voice](https://github.com/thebanri/limoni-voice)** — Voice-driven interactive terminal interface and audio assistant powered by Limoni.
 - **[DevOps Cluster Monitor](https://github.com/thebanri/limoni/tree/main/examples/dashboard)** — System monitoring dashboard with live CPU/RAM sparklines and streaming log viewer.
 - **[Virtual 1M Transaction Ledger](https://github.com/thebanri/limoni/tree/main/examples/table_virtual)** — High-frequency crypto ledger demonstrating 1,000,000 rows with 0 allocations.
 - **[Limoni Todo](https://github.com/thebanri/limoni/tree/main/examples/todo)** — Feature-packed task management app built on The Elm Architecture.
