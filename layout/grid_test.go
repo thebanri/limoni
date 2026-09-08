@@ -79,4 +79,46 @@ func TestGridLayoutWithGaps(t *testing.T) {
 	if spanRect.Height != 22 {
 		t.Errorf("Span(2,2) height with gap = %d; expected 22", spanRect.Height)
 	}
+
+	// Total width should be col 0 (10) + gap (2) + col 1 (26) = 38
+	if spanRect.Width != 38 {
+		t.Errorf("Span(2,2) width with gap = %d; expected 38", spanRect.Width)
+	}
+}
+
+func TestGridLayout_EdgeCasesAndSafety(t *testing.T) {
+	// 1. Nil receiver safety
+	var nilAreas *GridAreas
+	c := nilAreas.Cell(0, 0)
+	if c.Area != (cell.Rect{}) {
+		t.Errorf("expected empty rect from nil GridAreas, got %+v", c.Area)
+	}
+
+	// 2. Empty grid safety
+	emptyGrid := NewGridLayout(nil, nil, 2)
+	emptyAreas := emptyGrid.Split(cell.NewRect(0, 0, 100, 50))
+	cEmpty := emptyAreas.Cell(0, 0)
+	if cEmpty.Area != (cell.Rect{}) {
+		t.Errorf("expected empty rect from empty grid, got %+v", cEmpty.Area)
+	}
+
+	// 3. Exact remainder coverage (100 divided into 3 equal 1fr columns)
+	// Must sum to exactly 100 with zero lost remainder
+	exactGrid := NewGridLayout(
+		[]GridConstraint{GridFraction(1), GridFraction(1), GridFraction(1)},
+		[]GridConstraint{GridFraction(1)},
+		0,
+	)
+	exactAreas := exactGrid.Split(cell.NewRect(0, 0, 100, 30))
+	totalW := exactAreas.colW[0] + exactAreas.colW[1] + exactAreas.colW[2]
+	if totalW != 100 {
+		t.Errorf("expected sum of column widths to equal 100, got %d (cols: %v)", totalW, exactAreas.colW)
+	}
+
+	// 4. Span beyond existing columns/rows must not add phantom gaps
+	c0 := exactAreas.Cell(0, 2) // last column (ColIdx = 2)
+	spanFar := c0.Span(1, 10)   // span 10 columns when only 1 exists
+	if spanFar.Width != exactAreas.colW[2] {
+		t.Errorf("expected span width %d, got %d", exactAreas.colW[2], spanFar.Width)
+	}
 }

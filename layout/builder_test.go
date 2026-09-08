@@ -41,3 +41,28 @@ func TestBuilder_CenteredAndPadded(t *testing.T) {
 		t.Errorf("unexpected padded rect: %+v", padded)
 	}
 }
+
+func TestBuilder_VBoxAndHBoxWithGap(t *testing.T) {
+	area := cell.NewRect(0, 0, 100, 50)
+
+	// Vertical split with gap: 3 items of Fixed(10) with gap 2
+	// Heights: 10, 10, 10. Gap between 0-1 and 1-2 is 2.
+	// Y coords: 0, 12, 24.
+	vRows := VBoxWithGap(area, 2, Fixed(10), Fixed(10), Fixed(10))
+	if len(vRows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(vRows))
+	}
+	if vRows[0].Y != 0 || vRows[1].Y != 12 || vRows[2].Y != 24 {
+		t.Errorf("unexpected Y coords with gap: %d, %d, %d", vRows[0].Y, vRows[1].Y, vRows[2].Y)
+	}
+
+	// Horizontal split with gap: 2 items of Fixed(40) with gap 5
+	// X coords: 0, 45.
+	hCols := HBoxWithGap(area, 5, Fixed(40), Fixed(40))
+	if len(hCols) != 2 {
+		t.Fatalf("expected 2 cols, got %d", len(hCols))
+	}
+	if hCols[0].X != 0 || hCols[1].X != 45 {
+		t.Errorf("unexpected X coords with gap: %d, %d", hCols[0].X, hCols[1].X)
+	}
+}

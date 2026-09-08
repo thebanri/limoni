@@ -205,3 +205,119 @@ func TestFlexLayoutFitContentMixed(t *testing.T) {
 		t.Errorf("Fill genişliği hatalı. Beklenen: 65, Alınan: %d", rects[2].Width)
 	}
 }
+
+func TestFlexLayout_MoreThan32Constraints(t *testing.T) {
+	// Create 50 constraints (exceeding old 32 bitmask limit)
+	constraints := make([]Constraint, 50)
+	for i := range constraints {
+		constraints[i] = Fill()
+	}
+	area := cell.NewRect(0, 0, 100, 20)
+	lay := NewFlexLayout(Horizontal, 0, constraints...)
+	rects := lay.Split(area)
+
+	if len(rects) != 50 {
+		t.Fatalf("expected 50 rects, got %d", len(rects))
+	}
+
+	totalW := uint16(0)
+	for i, r := range rects {
+		if r.Width == 0 {
+			t.Errorf("element %d got 0 width unexpectedly", i)
+		}
+		totalW += r.Width
+	}
+	if totalW != 100 {
+		t.Errorf("expected sum of 50 elements to equal 100, got %d", totalW)
+	}
+}
+
+func TestFlexLayout_GapOverflowProtection(t *testing.T) {
+	// 5 items in a 10-wide area with gap = 10 (total gap = 40 > 10)
+	area := cell.NewRect(0, 0, 10, 5)
+	lay := NewFlexLayout(Horizontal, 10, Fixed(5), Fixed(5), Fixed(5), Fixed(5), Fixed(5))
+	rects := lay.Split(area)
+
+	if len(rects) != 5 {
+		t.Fatalf("expected 5 rects, got %d", len(rects))
+	}
+	for i, r := range rects {
+		if r.Width != 0 {
+			t.Errorf("element %d expected width 0 due to excessive gap, got %d", i, r.Width)
+		}
+	}
+}
+
+func BenchmarkFlexLayout_Split_3Way(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40)
+	lay := NewFlexLayout(Vertical, 0, Fixed(3), Fill(), Fixed(3))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = lay.Split(area)
+	}
+}
+
+func BenchmarkFlexLayout_Split_Complex(b *testing.B) {
+	area := cell.NewRect(0, 0, 200, 60)
+	lay := NewFlexLayout(Horizontal, 1,
+		Fixed(15),
+		Percentage(25),
+		Ratio(2),
+		Ratio(1),
+		Min(10),
+		Max(30),
+		Fill(),
+	)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = lay.Split(area)
+	}
+}
+
+func BenchmarkFlexLayout_Split_50Constraints(b *testing.B) {
+	area := cell.NewRect(0, 0, 500, 100)
+	constraints := make([]Constraint, 50)
+	for i := range constraints {
+		if i%2 == 0 {
+			constraints[i] = Fixed(5)
+		} else {
+			constraints[i] = Fill()
+		}
+	}
+	lay := NewFlexLayout(Horizontal, 0, constraints...)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = lay.Split(area)
+	}
+}
+
+func BenchmarkGridLayout_Split(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40)
+	grid := NewGridLayout(
+		[]GridConstraint{GridFixed(10), GridPercentage(30), GridFraction(2), GridFraction(1)},
+		[]GridConstraint{GridFixed(3), GridFraction(1), GridFixed(2)},
+		1,
+	)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = grid.Split(area)
+	}
+}
+
+func BenchmarkArrange_Aligned(b *testing.B) {
+	area := cell.NewRect(0, 0, 120, 40)
+	measures := []Measure{
+		{IdealWidth: 20, IdealHeight: 10, MaxWidth: 120, MaxHeight: 40},
+		{IdealWidth: 40, IdealHeight: 25, MaxWidth: 120, MaxHeight: 40},
+		{IdealWidth: 30, IdealHeight: 15, MaxWidth: 120, MaxHeight: 40},
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ArrangeAligned(area, measures, Horizontal, 1, AlignCenter)
+	}
+}

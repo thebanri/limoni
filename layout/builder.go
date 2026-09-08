@@ -16,12 +16,12 @@ func HBox(area cell.Rect, constraints ...Constraint) []cell.Rect {
 
 // VBoxWithGap splits a target area vertically with inter-item gap spacing.
 func VBoxWithGap(area cell.Rect, gap uint16, constraints ...Constraint) []cell.Rect {
-	return NewFlexLayout(Vertical, 0, constraints...).Split(area)
+	return NewFlexLayout(Vertical, gap, constraints...).Split(area)
 }
 
 // HBoxWithGap splits a target area horizontally with inter-item gap spacing.
 func HBoxWithGap(area cell.Rect, gap uint16, constraints ...Constraint) []cell.Rect {
-	return NewFlexLayout(Horizontal, 0, constraints...).Split(area)
+	return NewFlexLayout(Horizontal, gap, constraints...).Split(area)
 }
 
 // Centered computes a bounding rect of the specified width and height centered within the parent area.

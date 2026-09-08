@@ -60,6 +60,9 @@ func ArrangeAligned(area cell.Rect, measurements []Measure, direction Direction,
 					y += maxBaseline - baseline
 				}
 			}
+			if y+height > area.Y+area.Height {
+				height = area.Y + area.Height - y
+			}
 			result[i].Y = y
 			result[i].Height = height
 		}
@@ -77,6 +80,9 @@ func ArrangeAligned(area cell.Rect, measurements []Measure, direction Direction,
 			x += (area.Width - width) / 2
 		case AlignEnd:
 			x += area.Width - width
+		}
+		if x+width > area.X+area.Width {
+			width = area.X + area.Width - x
 		}
 		result[i].X = x
 		result[i].Width = width

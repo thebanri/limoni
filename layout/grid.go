@@ -76,28 +76,30 @@ func (ga GridArea) Span(rowSpan, colSpan int) cell.Rect {
 	x := ga.Area.X
 	y := ga.Area.Y
 
-	// Genişliği hesapla (ColSpan kadar sütun genişliği + aralarındaki gap)
 	w := uint16(0)
+	actualCols := 0
 	for i := 0; i < colSpan; i++ {
 		cIdx := ga.ColIdx + i
 		if cIdx < len(ga.colW) {
 			w += ga.colW[cIdx]
+			actualCols++
 		}
 	}
-	if colSpan > 1 {
-		w += uint16(colSpan-1) * ga.gap
+	if actualCols > 1 {
+		w += uint16(actualCols-1) * ga.gap
 	}
 
-	// Yüksekliği hesapla (RowSpan kadar satır yüksekliği + aralarındaki gap)
 	h := uint16(0)
+	actualRows := 0
 	for i := 0; i < rowSpan; i++ {
 		rIdx := ga.RowIdx + i
 		if rIdx < len(ga.rowH) {
 			h += ga.rowH[rIdx]
+			actualRows++
 		}
 	}
-	if rowSpan > 1 {
-		h += uint16(rowSpan-1) * ga.gap
+	if actualRows > 1 {
+		h += uint16(actualRows-1) * ga.gap
 	}
 
 	return cell.NewRect(x, y, w, h)
@@ -114,7 +116,7 @@ type GridAreas struct {
 }
 
 func (ga *GridAreas) Cell(row, col int) GridArea {
-	if row < 0 || row >= len(ga.areas) || col < 0 || col >= len(ga.areas[0]) {
+	if ga == nil || len(ga.areas) == 0 || row < 0 || row >= len(ga.areas) || col < 0 || col >= len(ga.areas[row]) {
 		return GridArea{}
 	}
 	return GridArea{
@@ -144,14 +146,20 @@ func (g *GridLayout) Split(area cell.Rect) *GridAreas {
 	currX := area.X
 	for i, w := range colW {
 		colX[i] = currX
-		currX += w + g.Gap
+		currX += w
+		if i < len(colW)-1 {
+			currX += g.Gap
+		}
 	}
 
 	rowY := make([]uint16, len(rowH))
 	currY := area.Y
 	for i, h := range rowH {
 		rowY[i] = currY
-		currY += h + g.Gap
+		currY += h
+		if i < len(rowH)-1 {
+			currY += g.Gap
+		}
 	}
 
 	// 2D matris alanları oluştur
@@ -179,21 +187,19 @@ func solveGridConstraints(constraints []GridConstraint, totalVal uint16, gap uin
 		return nil
 	}
 
-	// Toplam boşluğu (gap) çıkar
-	totalGap := uint16(0)
+	// Toplam boşluğu (gap) güvenli şekilde çıkar
+	totalGap := uint32(0)
 	if n > 1 {
-		totalGap = uint16(n-1) * gap
+		totalGap = uint32(n-1) * uint32(gap)
 	}
-	availableVal := totalVal
-	if totalGap < availableVal {
-		availableVal -= totalGap
-	} else {
-		availableVal = 0
+	var availableVal uint16
+	if uint32(totalVal) > totalGap {
+		availableVal = totalVal - uint16(totalGap)
 	}
 
 	solved := make([]uint16, n)
 	remainingVal := availableVal
-	totalFr := uint16(0)
+	totalFr := uint32(0)
 
 	// 1. Aşama: Sabit (Fixed) ve Yüzdesel (Percentage) olanları hesapla
 	for i, c := range constraints {
@@ -206,39 +212,57 @@ func solveGridConstraints(constraints []GridConstraint, totalVal uint16, gap uin
 			solved[i] = val
 			remainingVal -= val
 		case gridPercentage:
-			val := uint16(float64(availableVal) * (float64(c.Value) / 100.0))
+			val := uint16((uint32(availableVal) * uint32(c.Value)) / 100)
 			if val > remainingVal {
 				val = remainingVal
 			}
 			solved[i] = val
 			remainingVal -= val
 		case gridFraction:
-			totalFr += c.Value
+			totalFr += uint32(c.Value)
 		}
 	}
 
 	// 2. Aşama: Fraction (fr) ve Auto olanları esnek şekilde paylaştır
 	if totalFr > 0 && remainingVal > 0 {
-		frUnit := float64(remainingVal) / float64(totalFr)
+		var distributed uint16
 		for i, c := range constraints {
 			if c.Type == gridFraction {
-				val := uint16(frUnit * float64(c.Value))
+				val := uint16((uint32(remainingVal) * uint32(c.Value)) / totalFr)
 				solved[i] = val
+				distributed += val
+			}
+		}
+		// Yuvarlama farkını dağıtarak kalan tüm alanı tam doldur
+		diff := remainingVal - distributed
+		for i := 0; i < len(constraints) && diff > 0; i++ {
+			if constraints[i].Type == gridFraction {
+				solved[i]++
+				diff--
 			}
 		}
 	} else if remainingVal > 0 {
 		// Eşit şekilde paylaştır (auto veya kalan alanlar)
-		autoCount := uint16(0)
+		autoCount := uint32(0)
 		for _, c := range constraints {
 			if c.Type == gridAuto {
 				autoCount++
 			}
 		}
 		if autoCount > 0 {
-			autoVal := remainingVal / autoCount
+			autoVal := uint16(uint32(remainingVal) / autoCount)
+			var distributed uint16
 			for i, c := range constraints {
 				if c.Type == gridAuto {
 					solved[i] = autoVal
+					distributed += autoVal
+				}
+			}
+			diff := remainingVal - distributed
+			for i := 0; i < len(constraints) && diff > 0; i++ {
+				if constraints[i].Type == gridAuto {
+					solved[i]++
+					diff--
 				}
 			}
 		}
