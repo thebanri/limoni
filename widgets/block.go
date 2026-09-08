@@ -28,6 +28,9 @@ func getSolidImage(c cell.Color) image.Image {
 	r, g, b := c.RGB()
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	img.Set(0, 0, color.RGBA{R: r, G: g, B: b, A: 255})
+	if len(solidImageCache) > 256 {
+		clear(solidImageCache)
+	}
 	solidImageCache[c] = img
 	return img
 }

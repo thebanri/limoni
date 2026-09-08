@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -54,12 +52,12 @@ func (cb Checkbox) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		prefix = "[x] "
 	}
 
-	buf.SetString(ctx.Area.X, ctx.Area.Y, prefix+cb.Label, textStyle)
+	buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, prefix+cb.Label, textStyle, ctx.Area.Width)
 }
 
 // SizeHint, onay kutusunun kaplayacağı tek satırlık alanı ve en boy ihtiyacını döner.
 func (cb Checkbox) SizeHint(maxArea cell.Rect) (width, height uint16) {
-	neededW := uint16(utf8.RuneCountInString(cb.Label) + 4)
+	neededW := uint16(cell.StringWidth(cb.Label) + 4)
 	if neededW > maxArea.Width {
 		neededW = maxArea.Width
 	}

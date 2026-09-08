@@ -220,11 +220,17 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Metni çiz (allocation-free string rendering)
 		textX := area.X
+		rightLimit := area.X + area.Width
 		if isSel && l.HighlightSymbol != "" {
-			buf.SetString(textX, currY, l.HighlightSymbol, itemStyle)
-			textX += uint16(utf8.RuneCountInString(l.HighlightSymbol))
+			symWidth := uint16(cell.StringWidth(l.HighlightSymbol))
+			if textX < rightLimit {
+				buf.SetStringWithin(textX, currY, l.HighlightSymbol, itemStyle, rightLimit-textX)
+				textX += symWidth
+			}
 		}
-		buf.SetString(textX, currY, itemText, itemStyle)
+		if textX < rightLimit {
+			buf.SetStringWithin(textX, currY, itemText, itemStyle, rightLimit-textX)
+		}
 
 		// Otomatik fare yönlendirme köprüsünü bağla
 		if ctx.RegisterClick != nil && l.State != nil {

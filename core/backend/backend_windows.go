@@ -95,7 +95,7 @@ func (b *Backend) Close() error {
 		close(b.done)
 	}
 
-	restoreCmds := "\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
+	restoreCmds := "\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
 	if b.portableIO != nil {
 		_, _ = b.portableIO.Write([]byte(restoreCmds))
 		return nil

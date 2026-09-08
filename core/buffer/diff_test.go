@@ -284,3 +284,57 @@ func TestDiffColorDownsampling(t *testing.T) {
 		t.Errorf("Expected 16-color ANSI code (13 or 5) for RGB magenta, got: %q", string(out16))
 	}
 }
+
+func TestDiffStyleCacheCap(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Simulate rendering thousands of unique RGB styles
+	var out []byte
+	for i := 0; i < 5000; i++ {
+		r := uint8(i % 256)
+		g := uint8((i / 256) % 256)
+		b := uint8((i * 7) % 256)
+		front.SetCell(0, 0, cell.Cell{
+			Content: 'A',
+			Style:   cell.Style{Fg: cell.NewColorRGB(r, g, b), Modifier: cell.ModifierBold},
+		})
+		var err error
+		out, err = Diff(front, back, out[:0], true, true)
+		if err != nil {
+			t.Fatalf("Diff error: %v", err)
+		}
+	}
+
+	// Verify StyleCache does not exceed the 2048 entry threshold
+	if len(front.StyleCache) > 2048 {
+		t.Errorf("front.StyleCache grew unbounded: len = %d, want <= 2048", len(front.StyleCache))
+	}
+}
+
+func TestDiffSanitizesControlCharacters(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Inject control characters into cells directly
+	cellPtr := front.Get(0, 0)
+	cellPtr.Content = '\n'
+	cellPtr2 := front.Get(1, 0)
+	cellPtr2.Content = '\x1b'
+	cellPtr3 := front.Get(2, 0)
+	cellPtr3.Content = '\r'
+
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+
+	// The output should NOT contain raw \n or \r, and \x1b should only be part of ANSI escape sequences (CSI), not raw \x1b followed by space
+	for i := 0; i < len(out); i++ {
+		if out[i] == '\n' || out[i] == '\r' {
+			t.Errorf("Diff output contains raw newline or carriage return: %q", string(out))
+		}
+	}
+}

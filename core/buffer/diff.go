@@ -160,7 +160,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 			}
 
 			// Karakteri yaz
-			if frontCell.Content == ' ' || frontCell.Content == 0 {
+			if frontCell.Content == ' ' || frontCell.Content == 0 || frontCell.Content < 32 || frontCell.Content == 0x7F {
 				out = append(out, ' ')
 			} else {
 				out = utf8.AppendRune(out, frontCell.Content)
@@ -217,6 +217,9 @@ func getStyleBytes(target cell.Style, trueColor, colors256 bool, cache map[cell.
 	cur.Reset()
 	out, _ = appendStyleRaw(out, cur, target, trueColor, colors256)
 
+	if len(cache) > 2048 {
+		clear(cache)
+	}
 	cache[target] = out
 	return out
 }

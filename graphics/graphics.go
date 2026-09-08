@@ -10,6 +10,7 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
+	"sync"
 )
 
 // CropImage returns a pixel-exact crop of img. The returned image uses a
@@ -37,11 +38,6 @@ const (
 	ProtocolIterm2
 	ProtocolHalfBlock
 )
-
-// transferredKittyImages, Kitty protokolüyle terminal belleğine zaten aktarılmış olan
-// resim ID'lerini saklar. Bu sayede aynı resmi her karede tekrar göndermek yerine
-// sadece konumlandırma komutu gönderilir (performans optimizasyonu).
-var transferredKittyImages = make(map[uint32]bool)
 
 // DetectProtocol, terminal ortam değişkenlerini inceleyerek en uygun resim protokolünü otomatik seçer.
 func DetectProtocol() Protocol {
@@ -490,7 +486,10 @@ type ImageCacheKey struct {
 	Transparent bool
 }
 
-var escapeSequenceCache = make(map[ImageCacheKey]string)
+var (
+	escapeSequenceCache = make(map[ImageCacheKey]string)
+	escapeCacheMu       sync.RWMutex
+)
 
 // GetCachedEscapeSequence, önbellekten veya yeni nesil olarak resmin escape sequence çıktısını döner.
 func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
@@ -505,9 +504,12 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 		Transparent: transparent,
 	}
 
+	escapeCacheMu.RLock()
 	if seq, ok := escapeSequenceCache[key]; ok {
+		escapeCacheMu.RUnlock()
 		return seq
 	}
+	escapeCacheMu.RUnlock()
 
 	var seq string
 	switch proto {
@@ -520,6 +522,11 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 		seq = EncodeSixel(img, cols, rows, cellW, cellH, transparent)
 	}
 
+	escapeCacheMu.Lock()
+	if len(escapeSequenceCache) > 256 {
+		clear(escapeSequenceCache)
+	}
 	escapeSequenceCache[key] = seq
+	escapeCacheMu.Unlock()
 	return seq
 }

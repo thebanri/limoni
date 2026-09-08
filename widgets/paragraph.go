@@ -160,18 +160,26 @@ func wrapText(text string, width uint16) []string {
 	return wrappedLines
 }
 
-// splitLines, metni yeni satır (\n) karakterine göre ham satırlara ayırır.
+// splitLines, metni yeni satır (\n) karakterine göre ham satırlara ayırır (Windows \r\n dahil temizlenir).
 func splitLines(text string) []string {
 	var lines []string
 	start := 0
 	for i := 0; i < len(text); i++ {
 		if text[i] == '\n' {
-			lines = append(lines, text[start:i])
+			line := text[start:i]
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
 			start = i + 1
 		}
 	}
 	if start <= len(text) {
-		lines = append(lines, text[start:])
+		line := text[start:]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		lines = append(lines, line)
 	}
 	return lines
 }

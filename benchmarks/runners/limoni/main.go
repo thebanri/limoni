@@ -226,14 +226,15 @@ func main() {
 			back := buffer.NewBuffer(area)
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
+			block := &widgets.Block{Borders: widgets.BorderAll}
 			var writeBuf []byte
 			runFn = func() []byte {
 				front.Clear()
 				frame.Reset()
 				for i := 0; i < 100; i++ {
-					frame.RegisterLayer(fmt.Sprintf("layer-%d", i), terminal.LayerPopup, cell.NewRect(uint16(i%100), uint16(i%30), 10, 5), i, nil)
+					layerArea := cell.NewRect(uint16(i%70), uint16(i%20), 10, 3)
+					frame.RenderWidget(block, layerArea)
 				}
-				frame.DispatchEventRegions(backend.MouseEvent{X: 50, Y: 10, Button: backend.MouseLeft})
 				writeBuf, _ = buffer.Diff(front, back, writeBuf[:0], true, true)
 				return writeBuf
 			}

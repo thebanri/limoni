@@ -135,35 +135,33 @@ func (fl FlexLayout) Split(area cell.Rect, fitSizes ...uint16) []cell.Rect {
 		return nil
 	}
 
-	// Build key
+	canCache := len(fl.Constraints) <= 16 && len(fitSizes) <= 16
 	var key layoutKey
-	key.direction = fl.Direction
-	key.gap = fl.Gap
-	key.area = area
-	key.numC = len(fl.Constraints)
-	if key.numC > 16 {
-		key.numC = 16
-	}
-	for i := 0; i < key.numC; i++ {
-		key.constraints[i] = ConstraintKey{
-			Type:  fl.Constraints[i].Type,
-			Value: fl.Constraints[i].Value,
+	if canCache {
+		key.direction = fl.Direction
+		key.gap = fl.Gap
+		key.area = area
+		key.numC = len(fl.Constraints)
+		for i := 0; i < key.numC; i++ {
+			key.constraints[i] = ConstraintKey{
+				Type:  fl.Constraints[i].Type,
+				Value: fl.Constraints[i].Value,
+			}
 		}
-	}
-	key.numF = len(fitSizes)
-	if key.numF > 16 {
-		key.numF = 16
-	}
-	for i := 0; i < key.numF; i++ {
-		key.fitSizes[i] = fitSizes[i]
-	}
+		key.numF = len(fitSizes)
+		for i := 0; i < key.numF; i++ {
+			key.fitSizes[i] = fitSizes[i]
+		}
 
-	splitCache.RLock()
-	if val, ok := splitCache.m[key]; ok {
+		splitCache.RLock()
+		if val, ok := splitCache.m[key]; ok {
+			splitCache.RUnlock()
+			res := make([]cell.Rect, len(val))
+			copy(res, val)
+			return res
+		}
 		splitCache.RUnlock()
-		return val
 	}
-	splitCache.RUnlock()
 
 	// Bölme yönündeki toplam boyutu belirle (Genişlik veya Yükseklik)
 	var totalSize uint16
@@ -357,9 +355,17 @@ func (fl FlexLayout) Split(area cell.Rect, fitSizes ...uint16) []cell.Rect {
 		}
 	}
 
-	splitCache.Lock()
-	splitCache.m[key] = res
-	splitCache.Unlock()
+	if canCache {
+		splitCache.Lock()
+		if len(splitCache.m) > 1024 {
+			clear(splitCache.m)
+		}
+		// Store a copy in cache so caller mutations cannot corrupt cache
+		cached := make([]cell.Rect, len(res))
+		copy(cached, res)
+		splitCache.m[key] = cached
+		splitCache.Unlock()
+	}
 
 	return res
 }

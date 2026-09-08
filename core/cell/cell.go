@@ -123,28 +123,51 @@ const RuneImage rune = 0xFFFF
 
 // RuneWidth calculates the terminal display column width of a rune.
 func RuneWidth(r rune) int {
-	// Zero-width / combining characters
+	// 1. Control characters and unprintable C0/C1
+	if r < 32 || (r >= 0x7F && r <= 0x9F) {
+		return 0
+	}
+
+	// 2. Zero-width / combining characters
 	if (r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
 		(r >= 0x0300 && r <= 0x036F) || // Combining Diacritical Marks
 		(r >= 0x1AB0 && r <= 0x1AFF) || // Combining Diacritical Marks Extended
 		(r >= 0x1DC0 && r <= 0x1DFF) || // Combining Diacritical Marks Supplement
 		(r >= 0x20D0 && r <= 0x20FF) || // Combining Diacritical Marks for Symbols
 		(r >= 0xFE20 && r <= 0xFE2F) || // Combining Half Marks
-		r == 0x200D || // Zero Width Joiner
-		r == 0x200B || // Zero Width Space
-		r == 0x200C || // Zero Width Non-Joiner
-		r == 0x00AD { // Soft Hyphen
+		(r >= 0x200B && r <= 0x200F) || // Zero Width Space, ZWNJ, ZWJ, LRM, RLM
+		r == 0x00AD || // Soft Hyphen
+		(r >= 0xE0100 && r <= 0xE01EF) || // Variation Selectors Supplement
+		(r >= 0xE0020 && r <= 0xE007F) { // Tags
 		return 0
 	}
-	if r >= 0x1F000 && r <= 0x1FFFF {
+
+	// 3. Wide character ranges:
+	// - Emojis and Plane 1 symbols: 0x1F000..0x1FFFF
+	// - Plane 2 CJK Unified Ideographs Extension B-F: 0x20000..0x2FFFF
+	// - Plane 3 CJK Unified Ideographs Extension G: 0x30000..0x3FFFF
+	if r >= 0x1F000 && r <= 0x3FFFF {
 		return 2
 	}
-	// Common emojis and CJK character ranges
-	if (r >= 0x2E80 && r <= 0x9FFF) ||
+
+	// - CJK Radicals, Kangxi, Hiragana, Katakana, Bopomofo, CJK Unified Ideographs (0x2E80..0xA4CF)
+	// - Hangul Syllables (0xAC00..0xD7A3)
+	// - Hangul Jamo (0x1100..0x115F)
+	// - CJK Compatibility (0xF900..0xFAFF)
+	// - Vertical Forms & CJK Compatibility Forms (0xFE10..0xFE19, 0xFE30..0xFE6F)
+	// - Fullwidth ASCII & Punctuation (0xFF01..0xFF60, 0xFFE0..0xFFE6)
+	if (r >= 0x1100 && r <= 0x115F) ||
+		(r >= 0x2329 && r <= 0x232A) ||
+		(r >= 0x2E80 && r <= 0xA4CF) ||
+		(r >= 0xAC00 && r <= 0xD7A3) ||
 		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0xFF00 && r <= 0xFFEF) {
+		(r >= 0xFE10 && r <= 0xFE19) ||
+		(r >= 0xFE30 && r <= 0xFE6F) ||
+		(r >= 0xFF01 && r <= 0xFF60) ||
+		(r >= 0xFFE0 && r <= 0xFFE6) {
 		return 2
 	}
+
 	return 1
 }
 

@@ -290,13 +290,34 @@ func parseSGRMouse(paramsStr string, cmd byte, consumed int) (Event, int) {
 
 	// Modifikatör bitlerini temizleyerek butonu ve sürükleme bilgisini ayır
 	btnRaw := btnCode & ^(4 | 8 | 16)
-	ev.Mouse.Drag = (btnRaw & 32) != 0
+	isMotion := (btnRaw & 32) != 0
 	btnBase := btnRaw & ^32
 
 	if cmd == 'm' {
 		// Tuş bırakma olayı
 		ev.Mouse.Button = MouseRelease
+		ev.Mouse.Drag = false
+	} else if isMotion {
+		if btnBase == 3 {
+			// Butonsuz hareket (pure hover / pointer motion)
+			ev.Mouse.Button = MouseNone
+			ev.Mouse.Drag = false
+		} else {
+			// Butona basılıyken hareket (gerçek sürükleme / Drag)
+			ev.Mouse.Drag = true
+			switch btnBase {
+			case 0:
+				ev.Mouse.Button = MouseLeft
+			case 1:
+				ev.Mouse.Button = MouseMiddle
+			case 2:
+				ev.Mouse.Button = MouseRight
+			default:
+				ev.Mouse.Button = MouseNone
+			}
+		}
 	} else {
+		ev.Mouse.Drag = false
 		switch btnBase {
 		case 0:
 			ev.Mouse.Button = MouseLeft

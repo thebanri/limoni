@@ -55,15 +55,15 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 	if status, _ := v.State.Status(); status == VirtualLoading {
-		buf.SetString(ctx.Area.X, ctx.Area.Y, fallback(v.LoadingText, "Loading..."), ctx.Style.Merge(v.Style))
+		buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, fallback(v.LoadingText, "Loading..."), ctx.Style.Merge(v.Style), ctx.Area.Width)
 		return
 	}
 	if err := v.State.Refresh(context.Background(), v.Source, first, visible, v.Prefetch); err != nil {
-		buf.SetString(ctx.Area.X, ctx.Area.Y, fallback(v.ErrorText, "Error: ")+err.Error(), ctx.Style.Merge(v.Style))
+		buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, fallback(v.ErrorText, "Error: ")+err.Error(), ctx.Style.Merge(v.Style), ctx.Area.Width)
 		return
 	}
 	if v.State.Count() == 0 {
-		buf.SetString(ctx.Area.X, ctx.Area.Y, fallback(v.EmptyText, "No data"), ctx.Style.Merge(v.Style))
+		buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, fallback(v.EmptyText, "No data"), ctx.Style.Merge(v.Style), ctx.Area.Width)
 		return
 	}
 	style := ctx.Style.Merge(v.Style)
@@ -123,7 +123,7 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			height = uint16(visible - visualRow)
 		}
 		for lineRow := uint16(0); lineRow < height; lineRow++ {
-			buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(visualRow)+lineRow, line, rowStyle)
+			buf.SetStringWithin(ctx.Area.X, ctx.Area.Y+uint16(visualRow)+lineRow, line, rowStyle, ctx.Area.Width)
 		}
 		if perRowClick {
 			id := item.ID

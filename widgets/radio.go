@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -55,12 +53,12 @@ func (rb RadioButton) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		prefix = "(*) "
 	}
 
-	buf.SetString(ctx.Area.X, ctx.Area.Y, prefix+rb.Label, textStyle)
+	buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, prefix+rb.Label, textStyle, ctx.Area.Width)
 }
 
 // SizeHint, radyo butonunun kaplayacağı tek satırlık alanı ve en boy ihtiyacını döner.
 func (rb RadioButton) SizeHint(maxArea cell.Rect) (width, height uint16) {
-	neededW := uint16(utf8.RuneCountInString(rb.Label) + 4)
+	neededW := uint16(cell.StringWidth(rb.Label) + 4)
 	if neededW > maxArea.Width {
 		neededW = maxArea.Width
 	}

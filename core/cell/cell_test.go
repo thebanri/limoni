@@ -106,3 +106,32 @@ func TestCombiningMarksRuneWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestKoreanHangulAndCJKRuneWidth(t *testing.T) {
+	hangul := []rune{'한', '글', '안', '녕', '하', '세', '요', '가', '힣'}
+	for _, r := range hangul {
+		if w := RuneWidth(r); w != 2 {
+			t.Errorf("RuneWidth(Korean %c / U+%04X) = %d; want 2", r, r, w)
+		}
+	}
+	text := "안녕하세요" // 5 Korean chars = 10 columns
+	if w := StringWidth(text); w != 10 {
+		t.Errorf("StringWidth(%q) = %d; want 10", text, w)
+	}
+
+	cjk := []rune{'漢', '字', '日', '本', '語', 'あ', 'い', 'う'}
+	for _, r := range cjk {
+		if w := RuneWidth(r); w != 2 {
+			t.Errorf("RuneWidth(CJK %c / U+%04X) = %d; want 2", r, r, w)
+		}
+	}
+}
+
+func TestControlCharactersRuneWidth(t *testing.T) {
+	controls := []rune{0, '\n', '\r', '\t', '\x1b', 0x07, 0x1F, 0x7F, 0x80, 0x9F}
+	for _, r := range controls {
+		if w := RuneWidth(r); w != 0 {
+			t.Errorf("RuneWidth(control U+%04X) = %d; want 0", r, w)
+		}
+	}
+}
