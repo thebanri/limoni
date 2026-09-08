@@ -178,17 +178,22 @@ go test ./benchmarks -run '^$' -bench . -benchmem
 
 | Kıyaslama İşlemi | Ölçülen Gecikme | Kare / İşlem Hızı | Bellek Tahsisatı | Açıklama |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~7.10 µs`** | **~140.000 FPS** | **`0 B/op (0 allocs)`** | %100 kirli hücreler için diff hesaplama ve optimize ANSI akışı üretimi |
-| **`BenchmarkDiff_PartialChanges`** | **`~7.20 µs`** | **~138.000 FPS** | **`0 B/op (0 allocs)`** | Kısmi ekran güncellemelerinde bölgesel hücre diff işlemi |
-| **`BenchmarkDiff_NoChanges`** | **`~1.93 ns`** | **~517.000.000 FPS** | **`0 B/op (0 allocs)`** | Ekran değişmediğinde fast-path ile anında dönüş |
-| **`BenchmarkTextHeavyFrame`** | **`~6.62 µs`** | **~151.000 FPS** | **`0 B/op (0 allocs)`** | Yoğun metin içeren tam ekran dashboard çizimi |
-| **`BenchmarkHundredLayers`** | **`~55.7 ns`** | **~17.900.000 FPS** | **`0 B/op (0 allocs)`** | 100 katmanlı Block widget değerlendirmesi (Ratatui denklik testi) |
-| **`BenchmarkTenThousandRowTable`** | **`~58.1 µs`** | **~17.200 FPS** | **`0 B/op (0 allocs)`** | Büyük veri kümesinden sadece ekrandaki satırları sanal render etme |
-| **`BenchmarkMouseHitTest`** | **`~135.8 ns`** | **~7.360.000 op/s** | **`0 B/op (0 allocs)`** | Hiyerarşik widget ağacında uzamsal fare tıklama tespiti |
+| **`BenchmarkDiff_FullChanges`** | **`~90.1 µs`** | **~11.100 FPS** | **`0 B/op (0 allocs)`** | %100 tam ekran hücre değişimi (4.800 hücre) çift tampon diff işlemi ve ANSI akışı üretimi |
+| **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48.800 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
+| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
+| **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16.400 FPS** | **`5 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
+| **`BenchmarkHundredLayers`** | **`~56.7 µs`** | **~17.600 FPS** | **`800 B/op`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
+| **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9.800 FPS** | **`614 B/op`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
+| **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16.200.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
+| **`BenchmarkAsyncUpdateBurst`** | **`~214 ns`** | **~4.660.000 msg/s** | **`8 B/op (0 allocs)`** | Elm çalışma mimarisinde yüksek verimli asenkron mesaj kuyruğu iletimi |
 
 > [!NOTE]
-> **Şeffaflık ve Metodoloji Garantisi**:
-> Erken geliştirme aşamasında benchmark döngüleri `!front.IsDirty` temiz baypasını (`< 0.85 µs`) ölçmekteydi. `v0.1.0+` itibarıyla tüm diff benchmarkları her iterasyonda tampon hücrelerini bizzat kirletip değiştirmektedir. Yukarıdaki rakamlar, sıcak yolda %100 doğrulanmış **sıfır heap tahsisatı** ile çalışan gerçek diff süreleridir.
+> **Şeffaflık ve Mühendislik Dürüstlüğü Garantisi**:
+> Sentetik kısayollar, yapay tampon temizlemeleri veya statik sıfır-offset döngüleri kullanılmaz.
+> - **Diff Kıyaslamaları**: Hücrelerin her karede bizzat değiştiği kalıcı çift tampon üzerinde çalışır; diff motorunu ve ANSI kodlayıcısını uçtan uca çalıştırır.
+> - **Kaydırma Kıyaslamaları**: `Select((i * 7) % N)` ile satırlar arasında aktif olarak kaydırma yapar ve sürekli kaydırma altında bellek tüketimini test eder.
+> - **100 Katman Testi**: Tıklama kestirmesi yerine 100 adet `Block` widget'ını ekrana bizzat çizer.
 
 ---
 

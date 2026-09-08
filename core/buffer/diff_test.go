@@ -122,56 +122,64 @@ func BenchmarkDiff_NoChanges(b *testing.B) {
 }
 
 func BenchmarkDiff_PartialChanges(b *testing.B) {
-	area := cell.NewRect(0, 0, 120, 40) // 4800 hücre
+	area := cell.NewRect(0, 0, 120, 40) // 4800 cells
 	front := NewBuffer(area)
 	back := NewBuffer(area)
 
-	// Ekranın %10'unu değiştir (TUI uygulamaları için gerçekçi senaryo)
-	for y := uint16(0); y < 40; y += 10 {
-		for x := uint16(0); x < 120; x += 10 {
-			front.SetCell(x, y, cell.Cell{
-				Content: 'X',
-				Style: cell.Style{
-					Fg: cell.NewColorANSI(9),
-					Bg: cell.NewColorANSI(0),
-				},
-			})
+	// Baseline frame: fill with baseline content
+	baseStyle := cell.Style{Fg: cell.NewColorRGB(200, 200, 200)}
+	for y := uint16(0); y < 40; y++ {
+		for x := uint16(0); x < 120; x++ {
+			front.SetCell(x, y, cell.Cell{Content: '.', Style: baseStyle})
 		}
 	}
-
 	out := make([]byte, 0, 16384)
+	// Initial diff so back buffer matches baseline
+	out, _ = Diff(front, back, out, true, true)
+
+	activeStyle := cell.Style{
+		Fg: cell.NewColorANSI(9),
+		Bg: cell.NewColorANSI(0),
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		// Realistic scenario: mutate ~10% of cells (480 cells across 4 rows) each frame
+		row := uint16(i % 37)
+		for col := uint16(0); col < 120; col++ {
+			ch := rune('0' + ((i + int(col)) % 10))
+			front.SetCell(col, row, cell.Cell{Content: ch, Style: activeStyle})
+			front.SetCell(col, row+1, cell.Cell{Content: ch, Style: activeStyle})
+			front.SetCell(col, row+2, cell.Cell{Content: ch, Style: activeStyle})
+			front.SetCell(col, (row+10)%40, cell.Cell{Content: ch, Style: activeStyle})
+		}
+
 		out = out[:0]
-		// Her turda front'u geçersiz kılıp (invalidate) back'i temizleyerek
-		// gerçek diff hesaplama döngüsünün çalışmasını sağlıyoruz.
-		front.Invalidate()
-		back.Clear()
 		out, _ = Diff(front, back, out, true, true)
 	}
 }
 
 func BenchmarkDiff_FullChanges(b *testing.B) {
-	area := cell.NewRect(0, 0, 120, 40)
+	area := cell.NewRect(0, 0, 120, 40) // 4800 cells
 	front := NewBuffer(area)
 	back := NewBuffer(area)
 
-	// Tüm hücreleri doldur
-	style := cell.Style{Fg: cell.NewColorRGB(100, 200, 50)}
-	for y := uint16(0); y < 40; y++ {
-		for x := uint16(0); x < 120; x++ {
-			front.SetCell(x, y, cell.Cell{Content: 'A', Style: style})
-		}
-	}
-
 	out := make([]byte, 0, 65536)
+	// Initial diff so back buffer is primed
+	out, _ = Diff(front, back, out, true, true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		// Realistic 100% full-screen redraw: every single cell mutates each frame
+		ch := rune('A' + (i % 26))
+		style := cell.Style{Fg: cell.NewColorRGB(uint8(i%256), 200, 50)}
+		for y := uint16(0); y < 40; y++ {
+			for x := uint16(0); x < 120; x++ {
+				front.SetCell(x, y, cell.Cell{Content: ch, Style: style})
+			}
+		}
+
 		out = out[:0]
-		front.Invalidate()
-		back.Clear()
 		out, _ = Diff(front, back, out, true, true)
 	}
 }

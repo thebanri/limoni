@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"strings"
 	"testing"
+
+	"github.com/thebanri/limoni/core/cell"
 )
 
 // createTestImage, test amaçlı 2x2 basit renkli bir resim oluşturur.
@@ -165,5 +167,50 @@ func TestCacheBounds(t *testing.T) {
 		_ = ApplyOpacity(img, 0.8)
 		_ = FlattenImage(img, color.RGBA{R: uint8(i % 255), G: 0, B: 0, A: 255})
 		_ = ApplyCircleMask(img)
+	}
+}
+
+func TestApplyShade_ANSI(t *testing.T) {
+	ansiRed := cell.NewColorANSI(9) // Bright red -> (255, 0, 0)
+	shaded := ApplyShade(ansiRed, 0.5)
+	r, g, b := shaded.RGB()
+	if r < 120 || r > 135 || g != 0 || b != 0 {
+		t.Fatalf("expected shaded red (~128, 0, 0), got (%d, %d, %d)", r, g, b)
+	}
+}
+
+func BenchmarkGetImageID_1080p(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 1920, 1080))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = GetImageID(img)
+	}
+}
+
+func BenchmarkResizeImageContain(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ResizeImageContain(img, 120, 40, true)
+	}
+}
+
+func BenchmarkEncodeKitty(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 80, 40))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = EncodeKitty(img, 20, 10, 8, 16, 42, 0, true)
+	}
+}
+
+func BenchmarkEncodeSixel(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 80, 40))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = EncodeSixel(img, 20, 10, 8, 16, true)
 	}
 }

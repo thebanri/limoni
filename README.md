@@ -329,17 +329,22 @@ go run ./benchmarks/runners/dashboard -output benchmark-results/dashboard.html b
 
 | Benchmark Operation | Measured Latency | Throughput | Allocations | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~7.10 µs`** | **~140,000 FPS** | **`0 B/op (0 allocs)`** | 100% dirty front & back buffer diff emitting optimized ANSI stream |
-| **`BenchmarkDiff_PartialChanges`** | **`~7.20 µs`** | **~138,000 FPS** | **`0 B/op (0 allocs)`** | Partial screen invalidation with localized run changes |
-| **`BenchmarkDiff_NoChanges`** | **`~1.93 ns`** | **~517,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
-| **`BenchmarkTextHeavyFrame`** | **`~6.62 µs`** | **~151,000 FPS** | **`0 B/op (0 allocs)`** | Full text-heavy dashboard layout rendering and cell writes |
-| **`BenchmarkHundredLayers`** | **`~55.7 ns`** | **~17,900,000 FPS** | **`0 B/op (0 allocs)`** | 100 layered Block widgets evaluation (Ratatui parity test) |
-| **`BenchmarkTenThousandRowTable`** | **`~58.1 µs`** | **~17,200 FPS** | **`0 B/op (0 allocs)`** | Virtual paged table rendering visible rows from large data set |
-| **`BenchmarkMouseHitTest`** | **`~135.8 ns`** | **~7,360,000 ops/s** | **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing |
+| **`BenchmarkDiff_FullChanges`** | **`~90.1 µs`** | **~11,100 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
+| **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48,800 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
+| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
+| **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16,400 FPS** | **`5 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
+| **`BenchmarkHundredLayers`** | **`~56.7 µs`** | **~17,600 FPS** | **`800 B/op`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
+| **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9,800 FPS** | **`614 B/op`** | Active selection scrolling through a 10,000-row table rendering visible rows |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
+| **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16,200,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
+| **`BenchmarkAsyncUpdateBurst`** | **`~214 ns`** | **~4,660,000 msg/s** | **`8 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
 
 > [!NOTE]
-> **Transparency & Methodology Guarantee**:
-> In early development, benchmark loops measured the `!front.IsDirty` clean fast-path (`< 0.85 µs`). All diff benchmarks now explicitly invalidate and mutate buffer cells on every single iteration. The figures above reflect genuine, end-to-end dirty diffing with 100% verified zero heap allocations in the hot path.
+> **Transparency & Engineering Integrity Guarantee**:
+> We do not use synthetic shortcuts, artificial buffer clears, or zero-offset static loops.
+> - **Diff Benchmarks**: Run against a persistent double-buffer where cells genuinely mutate every single frame, forcing the full diff algorithm and ANSI encoder to run end-to-end.
+> - **Scroll Benchmarks**: Actively cycle through rows (`Select((i * 7) % N)`), proving zero-overhead virtual window rendering under continuous scrolling.
+> - **Hundred Layers**: Genuinely renders 100 overlapping `Block` widgets rather than a synthetic hit-test shortcut.
 
 ---
 

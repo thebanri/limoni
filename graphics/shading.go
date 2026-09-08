@@ -76,9 +76,63 @@ func (l Light) CalculateIntensity(normal Vector3D) float64 {
 	return intensity
 }
 
+func ansiToRGB(code uint8) (uint8, uint8, uint8) {
+	switch code {
+	case 0:
+		return 0, 0, 0
+	case 1:
+		return 128, 0, 0
+	case 2:
+		return 0, 128, 0
+	case 3:
+		return 128, 128, 0
+	case 4:
+		return 0, 0, 128
+	case 5:
+		return 128, 0, 128
+	case 6:
+		return 0, 128, 128
+	case 7:
+		return 192, 192, 192
+	case 8:
+		return 128, 128, 128
+	case 9:
+		return 255, 0, 0
+	case 10:
+		return 0, 255, 0
+	case 11:
+		return 255, 255, 0
+	case 12:
+		return 0, 0, 255
+	case 13:
+		return 255, 0, 255
+	case 14:
+		return 0, 255, 255
+	case 15:
+		return 255, 255, 255
+	}
+	if code >= 16 && code <= 231 {
+		idx := code - 16
+		r := (idx / 36) * 51
+		g := ((idx % 36) / 6) * 51
+		b := (idx % 6) * 51
+		return r, g, b
+	}
+	// 232-255: grayscale ramp
+	v := 8 + (code-232)*10
+	return v, v, v
+}
+
+func colorToRGB(c cell.Color) (uint8, uint8, uint8) {
+	if c.Type() == cell.ColorANSI {
+		return ansiToRGB(c.ANSI())
+	}
+	return c.RGB()
+}
+
 // ApplyShade modulates an RGB Color by a lighting intensity [0.0, 1.0].
 func ApplyShade(c cell.Color, intensity float64) cell.Color {
-	r, g, b := c.RGB()
+	r, g, b := colorToRGB(c)
 	sr := uint8(math.Round(float64(r) * intensity))
 	sg := uint8(math.Round(float64(g) * intensity))
 	sb := uint8(math.Round(float64(b) * intensity))
@@ -93,8 +147,8 @@ func InterpolateColor(c1, c2 cell.Color, t float64) cell.Color {
 	if t >= 1 {
 		return c2
 	}
-	r1, g1, b1 := c1.RGB()
-	r2, g2, b2 := c2.RGB()
+	r1, g1, b1 := colorToRGB(c1)
+	r2, g2, b2 := colorToRGB(c2)
 
 	r := uint8(float64(r1)*(1-t) + float64(r2)*t)
 	g := uint8(float64(g1)*(1-t) + float64(g2)*t)

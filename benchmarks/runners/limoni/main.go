@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"strings"
 
 	"github.com/thebanri/limoni/benchmarks"
 	"github.com/thebanri/limoni/core/backend"
@@ -77,13 +78,17 @@ func main() {
 			front := buffer.NewBuffer(area)
 			back := buffer.NewBuffer(area)
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
 				front.Clear()
+				ch := rune('A' + (step % 26))
+				fg := cell.Color((step * 3) % 256)
+				step++
 				for y := uint16(0); y < spec.Height; y++ {
 					for x := uint16(0); x < spec.Width; x++ {
 						front.SetCell(x, y, cell.Cell{
-							Content: 'A',
-							Style:   cell.Style{Fg: cell.Color(x), Bg: cell.Color(y)},
+							Content: ch,
+							Style:   cell.Style{Fg: fg, Bg: cell.Color(y)},
 						})
 					}
 				}
@@ -116,11 +121,19 @@ func main() {
 			area := cell.NewRect(0, 0, spec.Width, spec.Height)
 			front := buffer.NewBuffer(area)
 			back := buffer.NewBuffer(area)
-			p := &widgets.Paragraph{Text: "Limoni benchmark ✓ 日本語. Heavy text rendering test for performance analysis.", Wrap: true}
+			var sb strings.Builder
+			for line := 0; line < 40; line++ {
+				sb.WriteString(fmt.Sprintf("Line %02d: Limoni text rendering engine benchmark with unicode ✓, symbols ★ ➔, and wrapping across 120 columns.\n", line))
+			}
+			baseText := sb.String()
+			p := &widgets.Paragraph{Wrap: true}
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
+				p.Text = fmt.Sprintf("Frame %04d | %s", step, baseText)
+				step++
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(p, area)
@@ -132,11 +145,14 @@ func main() {
 			area := cell.NewRect(0, 0, spec.Width, spec.Height)
 			front := buffer.NewBuffer(area)
 			back := buffer.NewBuffer(area)
-			p := &widgets.Paragraph{Text: "Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification.", Wrap: true}
+			p := &widgets.Paragraph{Wrap: true}
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
+				p.Text = fmt.Sprintf("Step %04d: Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification.", step)
+				step++
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(p, area)
@@ -152,6 +168,7 @@ func main() {
 			for i := range rows {
 				rows[i] = widgets.NewRow(fmt.Sprintf("%d", i), "process", "running")
 			}
+			tableState := widgets.NewTableState()
 			table := &widgets.Table{
 				Rows: rows,
 				Constraints: []widgets.TableConstraint{
@@ -160,11 +177,15 @@ func main() {
 					{Type: widgets.ConstraintFill},
 				},
 				DrawGrid: true,
+				State:    tableState,
 			}
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
+				tableState.Select((step * 7) % len(rows))
+				step++
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(table, area)
@@ -226,14 +247,22 @@ func main() {
 			back := buffer.NewBuffer(area)
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
-			block := &widgets.Block{Borders: widgets.BorderAll}
+			blocks := make([]widgets.Block, 100)
+			for i := range blocks {
+				blocks[i] = widgets.Block{
+					Title:   fmt.Sprintf("Layer %d", i),
+					Borders: widgets.BorderAll,
+				}
+			}
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
+				step++
 				front.Clear()
 				frame.Reset()
 				for i := 0; i < 100; i++ {
-					layerArea := cell.NewRect(uint16(i%70), uint16(i%20), 10, 3)
-					frame.RenderWidget(block, layerArea)
+					layerArea := cell.NewRect(uint16((i+step)%70), uint16((i+step)%20), 10, 3)
+					frame.RenderWidget(&blocks[i], layerArea)
 				}
 				writeBuf, _ = buffer.Diff(front, back, writeBuf[:0], true, true)
 				return writeBuf

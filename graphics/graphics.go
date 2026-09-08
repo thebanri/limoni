@@ -86,17 +86,28 @@ func GetImageID(img image.Image) uint32 {
 		return 0
 	}
 	h := fnv.New32a()
+	if rgba, ok := img.(*image.RGBA); ok {
+		h.Write(rgba.Pix)
+		return h.Sum32()
+	}
+	if nrgba, ok := img.(*image.NRGBA); ok {
+		h.Write(nrgba.Pix)
+		return h.Sum32()
+	}
 	bounds := img.Bounds()
-	// Performans için hızlıca tüm pikselleri hash'le
+	var pixel [8]byte
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
-			h.Write([]byte{
-				byte(r), byte(r >> 8),
-				byte(g), byte(g >> 8),
-				byte(b), byte(b >> 8),
-				byte(a), byte(a >> 8),
-			})
+			pixel[0] = byte(r)
+			pixel[1] = byte(r >> 8)
+			pixel[2] = byte(g)
+			pixel[3] = byte(g >> 8)
+			pixel[4] = byte(b)
+			pixel[5] = byte(b >> 8)
+			pixel[6] = byte(a)
+			pixel[7] = byte(a >> 8)
+			h.Write(pixel[:])
 		}
 	}
 	return h.Sum32()

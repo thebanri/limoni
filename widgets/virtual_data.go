@@ -445,50 +445,46 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 		last = count
 	}
 
-	// 2. Incremental Loading Check: Copy existing rows first, only load what is missing.
-	s.mu.RLock()
-	existing := s.rows
-	s.mu.RUnlock()
-
-	loaded := make(map[int]Row)
-	for i := first; i < last; i++ {
-		if row, ok := existing[i]; ok {
-			loaded[i] = row
-			continue
-		}
-		row, rowErr := source.RowAt(requestCtx, i)
-		if rowErr != nil {
-			s.mu.Lock()
-			if s.generation != generation {
-				s.stats.Stale++
-				s.mu.Unlock()
-				return ErrVirtualStale
-			}
-			s.status = VirtualError
-			s.err = rowErr
-			s.stats.Canceled++
-			s.mu.Unlock()
-			return rowErr
-		}
-		loaded[i] = row
-	}
-
-	// 3. Cache Eviction: Avoid unbounded memory growth.
-	if len(loaded) > 500 {
-		for idx := range loaded {
-			if idx < first-100 || idx > last+100 {
-				delete(loaded, idx)
-			}
-		}
-	}
-
+	// 2. Incremental Loading Check: Fetch only rows missing from s.rows.
 	s.mu.Lock()
 	if s.generation != generation {
 		s.stats.Stale++
 		s.mu.Unlock()
 		return ErrVirtualStale
 	}
-	s.rows = loaded
+	if s.rows == nil {
+		s.rows = make(map[int]Row)
+	}
+
+	for i := first; i < last; i++ {
+		if _, ok := s.rows[i]; ok {
+			continue
+		}
+		s.mu.Unlock()
+		row, rowErr := source.RowAt(requestCtx, i)
+		s.mu.Lock()
+		if s.generation != generation {
+			s.stats.Stale++
+			s.mu.Unlock()
+			return ErrVirtualStale
+		}
+		if rowErr != nil {
+			s.status = VirtualError
+			s.err = rowErr
+			s.stats.Canceled++
+			s.mu.Unlock()
+			return rowErr
+		}
+		s.rows[i] = row
+	}
+
+	// 3. Cache Eviction: Retain only viewport and prefetch rows in s.rows map
+	for idx := range s.rows {
+		if idx < first || idx >= last {
+			delete(s.rows, idx)
+		}
+	}
+
 	s.count = count
 	s.status = VirtualReady
 	if count == 0 {
@@ -496,7 +492,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	}
 	s.queryResult = VirtualQueryResult{
 		Count:    count,
-		Filtered: len(loaded),
+		Filtered: len(s.rows),
 		Offset:   first,
 	}
 	s.stats.Completed++
