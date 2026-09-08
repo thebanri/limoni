@@ -333,7 +333,7 @@ go run ./benchmarks/runners/dashboard -output benchmark-results/dashboard.html b
 | **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48,800 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
 | **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
 | **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16,400 FPS** | **`5 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
-| **`BenchmarkHundredLayers`** | **`~56.7 µs`** | **~17,600 FPS** | **`800 B/op`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
+| **`BenchmarkHundredLayers`** | **`~47.0 µs`** | **~21,200 FPS** | **`0 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
 | **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9,800 FPS** | **`614 B/op`** | Active selection scrolling through a 10,000-row table rendering visible rows |
 | **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
 | **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16,200,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |

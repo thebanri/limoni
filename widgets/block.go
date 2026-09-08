@@ -3,7 +3,6 @@ package widgets
 import (
 	"image"
 	"image/color"
-	"strings"
 	"sync"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -280,25 +279,13 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// 3. Aşama: Başlığı üst kenarlığa çiz
 	if b.Title != "" && hasT && area.Width > 4 {
 		titleStyle := blockStyle.Merge(b.TitleStyle)
-		formattedTitle := " " + b.Title + " "
-		titleWidth := uint16(cell.StringWidth(formattedTitle))
-
-		// Başlığın sığabileceği maksimum genişlik
+		rawTitleWidth := uint16(cell.StringWidth(b.Title))
 		maxTitleWidth := area.Width - 4
-		if titleWidth > maxTitleWidth {
-			// Güvenli UTF-8 kırpma
-			var truncated strings.Builder
-			curW := uint16(0)
-			for _, r := range formattedTitle {
-				rw := uint16(cell.RuneWidth(r))
-				if curW+rw > maxTitleWidth {
-					break
-				}
-				truncated.WriteRune(r)
-				curW += rw
-			}
-			formattedTitle = truncated.String()
-			titleWidth = curW
+		var titleWidth uint16
+		if rawTitleWidth+2 <= maxTitleWidth {
+			titleWidth = rawTitleWidth + 2
+		} else {
+			titleWidth = maxTitleWidth
 		}
 
 		var titleX uint16
@@ -319,7 +306,16 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		buf.SetString(titleX, area.Y, formattedTitle, titleStyle)
+		curX := titleX
+		buf.SetCell(curX, area.Y, cell.Cell{Content: ' ', Style: titleStyle})
+		curX++
+		if titleWidth > 2 {
+			buf.SetStringWithin(curX, area.Y, b.Title, titleStyle, titleWidth-2)
+			curX += min(rawTitleWidth, titleWidth-2)
+		}
+		if curX < titleX+titleWidth {
+			buf.SetCell(curX, area.Y, cell.Cell{Content: ' ', Style: titleStyle})
+		}
 	}
 
 	// 4. Aşama: Alt bileşeni (Child) çiz

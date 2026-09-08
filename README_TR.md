@@ -182,7 +182,7 @@ go test ./benchmarks -run '^$' -bench . -benchmem
 | **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48.800 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
 | **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
 | **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16.400 FPS** | **`5 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
-| **`BenchmarkHundredLayers`** | **`~56.7 µs`** | **~17.600 FPS** | **`800 B/op`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
+| **`BenchmarkHundredLayers`** | **`~47.0 µs`** | **~21.200 FPS** | **`0 B/op (0 allocs)`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
 | **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9.800 FPS** | **`614 B/op`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
 | **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
 | **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16.200.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
