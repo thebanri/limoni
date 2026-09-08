@@ -206,7 +206,8 @@ go test ./benchmarks -run '^$' -bench . -benchmem
 | **[`examples/dashboard`](examples/dashboard)** | **Sistem Telemetri Paneli** | `go run ./examples/dashboard` |
 | **[`examples/table_virtual`](examples/table_virtual)** | **1M Satırlı Sanal Tablo** | `go run ./examples/table_virtual` |
 | **[`examples/todo`](examples/todo)** | **TEA Todo Uygulaması** | `go run ./examples/todo` |
-| **[`examples/demo`](examples/demo)** | **Kapsamlı Vitrin Demosu** | `go run ./examples/demo` |
+| **[`examples/demo`](examples/demo)** | **3D Limon Modeli (GLB/ASCII/Braille/Half-Block) & Tanıtım Vitrini** | `go run ./examples/demo` |
+| **[`examples/showcase`](examples/showcase)** | **Gelişmiş Vitrin Demosu (Matrix, DevTools F12, Formlar, Komut Paleti)** | `go run ./examples/showcase` |
 | **[`examples/forms`](examples/forms)** | **Form & Girdi Kontrolleri** | `go run ./examples/forms` |
 | **[`examples/layer_demo`](examples/layer_demo)** | **Katman & Modal Demosu** | `go run ./examples/layer_demo` |
 

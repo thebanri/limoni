@@ -1,0 +1,2312 @@
+package main
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	_ "image/jpeg"
+	_ "image/png"
+	"math"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/thebanri/limoni/animation"
+	"github.com/thebanri/limoni/core/accessibility"
+	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/buffer"
+	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/graphics"
+	"github.com/thebanri/limoni/layout"
+	"github.com/thebanri/limoni/widgets"
+)
+
+type ProcessInfo struct {
+	PID    string
+	Name   string
+	CPU    string
+	Memory string
+	Status string
+}
+
+type MatrixStream struct {
+	X     int
+	Y     float64
+	Speed float64
+}
+
+// AppState, interaktif demo uygulamasının durumunu (state) temsil eder.
+func clampDialogOffset(screen cell.Rect, width, height uint16, offsetX, offsetY int) (int, int) {
+	centered := terminal.CenterRect(screen, width, height)
+	minX := -int(centered.X)
+	maxX := int(screen.Width) - int(centered.X) - int(width)
+	minY := -int(centered.Y)
+	maxY := int(screen.Height) - int(centered.Y) - int(height)
+	if maxX < minX {
+		maxX = minX
+	}
+	if maxY < minY {
+		maxY = minY
+	}
+	if offsetX < minX {
+		offsetX = minX
+	}
+	if offsetX > maxX {
+		offsetX = maxX
+	}
+	if offsetY < minY {
+		offsetY = minY
+	}
+	if offsetY > maxY {
+		offsetY = maxY
+	}
+	return offsetX, offsetY
+}
+
+type AppState struct {
+	// ActiveTab, sol menüde hangi sekmenin aktif olduğunu belirtir (örn. "Giriş", "Ayarlar").
+	ActiveTab string
+	// LastKey, klavyeden basılan son tuş bilgisini ekranda göstermek için saklar.
+	LastKey string
+	// LastMouse, fare ile yapılan son eylemin (tıklama, hareket) bilgisini saklar.
+	LastMouse string
+	// ExitButtonArea, Çıkış butonunun ekrandaki koordinatlarını tutar.
+	ExitButtonArea cell.Rect
+	// SettingsListState, Ayarlar sekmesindeki listenin durumunu saklar.
+	SettingsListState *widgets.ListState
+
+	// PulseVal, vektör grafiğindeki dairenin boyutunu animate eder.
+	PulseVal *animation.Float
+	// TabColors, menü butonlarının çerçeve renklerini anime eder.
+	TabColors map[string]*animation.Color
+	// Canvas, çizim hafızasını korumak ve her karede yeni bellek ayırmamak için önbelleklenmiş Canvas bileşeni.
+	Canvas *widgets.Canvas
+
+	// Çift resim geçişli performans demosu için alanlar
+	TestImg1        image.Image
+	TestImg2        image.Image
+	ActiveImg       image.Image
+	LastImageToggle time.Time
+	UseImg2         bool
+
+	// Ayarlar sekmesindeki interaktif form durumları
+	UsernameInputState *widgets.TextInputState
+	MouseModeChecked   bool
+	ThemeSelected      string // "Koyu", "Açık", "Renkli", "Yüksek Kontrast"
+
+	// Çıkış onay diyalog durumu
+	ShowExitDialog     bool
+	ExitDialogFinished bool
+	ExitDialogAnim     *animation.Float
+
+	// Giriş sekmesindeki interaktif tablo durumu
+	TableState          *widgets.TableState
+	TableFilterState    *widgets.TextInputState
+	DemoSliderState     *widgets.SliderState
+	PlayDirectionState  *widgets.SelectState
+	PlayModeState       *widgets.SelectState
+	PlayBorderState     *widgets.SelectState
+	PlayRatioState      *widgets.SliderState
+	AvatarOpacityState  *widgets.SliderState
+	ShowcaseSelected    string
+	ShowcaseSelectState *widgets.SelectState
+	DemoMarkdown        string
+	MarkdownOffset      int
+	MarkdownHeight      int
+	Processes           []ProcessInfo
+	ProcessSamples      map[string]processSample
+	LastProcessRead     time.Time
+	FormProgress        *animation.Float
+
+	// Açılır menü durumu
+	NotificationMode string
+	NotifPopupState  *widgets.PopupState
+
+	// Oyun alanı (Playground) durumları
+	PlaygroundDir    layout.Direction
+	PlaygroundRatio  int
+	PlaygroundBorder string
+	PlayShowGrid     bool
+	ProfileFrame     string
+
+	// Dither geçiş durumları
+	IsTransitioning     bool
+	TransitionStartTime time.Time
+
+	// Oyun alanı ek özellikleri (Matrix ve Sparkline)
+	PlaygroundMode   string
+	VirtualListState *widgets.ListState
+	MatrixStreams    []MatrixStream
+	CPUHistory       []float64
+
+	// Sürükleme ve Yardım Modali özellikleri
+	ShowHelpDialog  bool
+	HelpDialogAnim  *animation.Float
+	IsDraggingModal bool
+	DragMouseStartX int
+	DragMouseStartY int
+	ModalOffsetX    int
+	ModalOffsetY    int
+	ModalDragBaseX  int
+	ModalDragBaseY  int
+
+	// Hata ayıklama modu
+	DebugMode bool
+
+	// 3D Grafik Motoru özellikleri
+	RotX         float64
+	RotY         float64
+	RotZ         float64
+	IsDragging3D bool
+	Drag3DLastX  int
+	Drag3DLastY  int
+	AppleImg     image.Image
+	ProfileImg   image.Image
+	OBJModel     *graphics.Model3D
+	OBJPath      string
+	ThreeDModel  string // "Küp", "Piramit", "Dörtyüzlü", "OBJ"
+	ThreeDStyle  string // "Dokulu", "Dolu Renkli", "Kafes"
+
+	// Pencere boyutlandırma (Resizing) özellikleri
+	IsResizingModal  bool
+	ModalResizeBaseW int
+	ModalResizeBaseH int
+	HelpDialogW      int
+	HelpDialogH      int
+
+	// Komut Paleti ve Kısayol Yöneticisi
+	CmdPalette *widgets.CommandPaletteState
+	KeyManager *widgets.KeybindingManager
+
+	// Referans sekmesi etkileşim sayaçları
+	ReferenceRuntimeMessages      int
+	ReferenceInteractionLast      string
+	ReferenceLayoutPass           int
+	ReferenceSelectedRow          int
+	ReferenceBenchmarkRuns        int
+	ReferenceDataOffset           int
+	ReferenceDataState            *widgets.VirtualDataState
+	ReferenceInteractionHover     string
+	ReferenceInteractionEvents    int
+	ReferenceInteractionLastRoute string
+	ReferenceInteractionPointerX  uint16
+	ReferenceInteractionPointerY  uint16
+	ReferenceInteractionHistory   []string
+	ReferenceLayoutLastAction     string
+	ReferenceLayoutAllocated      cell.Rect
+	ReferenceAccessibilityASCII   bool
+	ScreenReaderMode              bool
+	LastScreenReaderTree          string
+	ReferenceActiveSubTab         string
+
+	// Next-Gen Widgets & DevTools
+	DevToolsState  *widgets.DevToolsState
+	ToastManager   *widgets.ToastManager
+	DemoTreeState  *widgets.TreeViewState
+	DemoColorState *widgets.ColorPickerState
+}
+
+func recordReferenceInteraction(state *AppState, event string) {
+	state.ReferenceInteractionEvents++
+	state.ReferenceInteractionLast = event
+	state.ReferenceInteractionHistory = append(state.ReferenceInteractionHistory, event)
+	if len(state.ReferenceInteractionHistory) > 4 {
+		state.ReferenceInteractionHistory = state.ReferenceInteractionHistory[len(state.ReferenceInteractionHistory)-4:]
+	}
+}
+
+// UpdateAnimations, zaman tabanlı animasyonları bir kare ileriye taşır.
+func (state *AppState) UpdateAnimations(now time.Time) {
+	// Giriş sekmesindeki progress bar 0 -> 100 -> 0 döngüsü
+	if state.FormProgress != nil {
+		if !state.FormProgress.IsAnimating() {
+			if state.FormProgress.Value() >= 99.9 {
+				state.FormProgress.AnimateTo(0, 4*time.Second, animation.EaseInOutSine)
+			} else {
+				state.FormProgress.AnimateTo(100, 4*time.Second, animation.EaseInOutSine)
+			}
+		}
+		state.FormProgress.Update(now)
+	}
+
+	// Daire daralma/genişleme pulse animasyonu
+	if state.PulseVal != nil {
+		if !state.PulseVal.IsAnimating() {
+			if state.PulseVal.Value() == 0 {
+				state.PulseVal.AnimateTo(1.0, 1500*time.Millisecond, animation.EaseInOutSine)
+			} else {
+				state.PulseVal.AnimateTo(0.0, 1500*time.Millisecond, animation.EaseInOutSine)
+			}
+		}
+		state.PulseVal.Update(now)
+	}
+
+	// Matrix/Particle Rain Stream Animasyonu
+	if state.PlaygroundMode == "Matrix" || state.PlaygroundMode == "Particle" {
+		if len(state.MatrixStreams) == 0 {
+			state.MatrixStreams = make([]MatrixStream, 150)
+			for i := range state.MatrixStreams {
+				state.MatrixStreams[i] = MatrixStream{
+					X:     i,
+					Y:     float64(-10 - rand.Intn(40)),
+					Speed: 0.5 + rand.Float64()*1.0,
+				}
+			}
+		}
+
+		for i := range state.MatrixStreams {
+			state.MatrixStreams[i].Y += state.MatrixStreams[i].Speed
+			if state.MatrixStreams[i].Y > 160 { // Sınırı aşanları sıfırla
+				state.MatrixStreams[i].Y = float64(-10 - rand.Intn(40))
+				state.MatrixStreams[i].Speed = 0.5 + rand.Float64()*1.0
+			}
+		}
+	}
+
+	// Sparkline CPU Geçmiş Verisi üretimi
+	if len(state.CPUHistory) == 0 {
+		state.CPUHistory = make([]float64, 120)
+		for i := range state.CPUHistory {
+			state.CPUHistory[i] = 10.0 + rand.Float64()*40.0
+		}
+	}
+	copy(state.CPUHistory, state.CPUHistory[1:])
+	lastVal := state.CPUHistory[len(state.CPUHistory)-2]
+	newVal := lastVal + (rand.Float64()*12.0 - 6.0)
+	if newVal < 10.0 {
+		newVal = 10.0
+	}
+	if newVal > 100.0 {
+		newVal = 100.0
+	}
+	state.CPUHistory[len(state.CPUHistory)-1] = newVal
+
+	// Determine accent color according to selected theme
+	var accentColor cell.Color
+	switch state.ThemeSelected {
+	case "Dark", "Koyu":
+		accentColor = cell.NewColorRGB(0, 255, 0) // Green
+	case "Light", "Açık":
+		accentColor = cell.NewColorRGB(0, 100, 255) // Blue
+	case "Colorful", "Renkli":
+		accentColor = cell.NewColorRGB(255, 165, 0) // Orange
+	case "High Contrast", "Yüksek Kontrast":
+		accentColor = cell.NewColorRGB(255, 255, 0)
+	}
+
+	// Menü sekme butonları renk geçişleri
+	if state.TabColors != nil {
+		for name, anim := range state.TabColors {
+			if state.ActiveTab == name {
+				if anim.Value() != accentColor && !anim.IsAnimating() {
+					anim.AnimateTo(accentColor, 250*time.Millisecond, animation.EaseInOutQuad)
+				}
+			} else {
+				inactiveColor := cell.NewColorRGB(120, 120, 120)
+				if anim.Value() != inactiveColor && !anim.IsAnimating() {
+					anim.AnimateTo(inactiveColor, 250*time.Millisecond, animation.EaseInOutQuad)
+				}
+			}
+			anim.Update(now)
+		}
+	}
+
+	// Resim geçişi (2 saniyede bir resimleri değiştir)
+	if now.Sub(state.LastImageToggle) >= 2*time.Second {
+		state.UseImg2 = !state.UseImg2
+		if state.UseImg2 {
+			state.ActiveImg = state.TestImg2
+		} else {
+			state.ActiveImg = state.TestImg1
+		}
+		state.LastImageToggle = now
+	}
+
+	// Çıkış diyalog animasyonu güncellemesi
+	if state.ExitDialogAnim != nil {
+		state.ExitDialogAnim.Update(now)
+	}
+
+	// Yardım diyalog animasyonu güncellemesi
+	if state.HelpDialogAnim != nil {
+		state.HelpDialogAnim.Update(now)
+	}
+
+	// 3D otomatik rotasyon güncellemesi
+	if !state.IsDragging3D {
+		state.RotX = math.Mod(state.RotX+1.0, 360.0)
+		state.RotY = math.Mod(state.RotY+1.5, 360.0)
+		state.RotZ = math.Mod(state.RotZ+0.5, 360.0)
+	}
+}
+
+func main() {
+	screenReaderMode := slices.Contains(os.Args[1:], "--screen-reader")
+	// Standard I/O kullanarak terminal backend'ini oluştur
+	b := backend.NewBackend(os.Stdin, os.Stdout)
+	if err := b.Setup(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer b.Close()
+
+	t, err := terminal.New(b)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	b.StartEventLoop()
+
+	state := &AppState{
+		ActiveTab:         "Home",
+		ScreenReaderMode:  screenReaderMode,
+		LastKey:           "None",
+		LastMouse:         "None",
+		SettingsListState: widgets.NewListState(),
+		PulseVal:          animation.NewFloat(0),
+		FormProgress:      animation.NewFloat(0),
+		TabColors: map[string]*animation.Color{
+			"Home":       animation.NewColor(cell.NewColorRGB(0, 255, 0)),
+			"Settings":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Graphics":   animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Playground": animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Reference":  animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+			"Exit":       animation.NewColor(cell.NewColorRGB(120, 120, 120)),
+		},
+		UsernameInputState:  widgets.NewTextInputState(),
+		ExitDialogAnim:      animation.NewFloat(0.0),
+		HelpDialogAnim:      animation.NewFloat(0.0),
+		NotificationMode:    "Normal Mode",
+		NotifPopupState:     widgets.NewPopupState(),
+		PlaygroundDir:       layout.Horizontal,
+		PlaygroundRatio:     50,
+		PlaygroundBorder:    "Rounded",
+		PlaygroundMode:      "Vector",
+		VirtualListState:    widgets.NewListState(),
+		MouseModeChecked:    true,
+		ThemeSelected:       "Dark",
+		ProfileFrame:        "Rounded",
+		DebugMode:           false,
+		RotX:                30.0,
+		RotY:                45.0,
+		RotZ:                0.0,
+		IsResizingModal:     false,
+		HelpDialogW:         64,
+		HelpDialogH:         16,
+		LastImageToggle:     time.Now(),
+		TableState:          widgets.NewTableState(),
+		TableFilterState:    widgets.NewTextInputState(),
+		DemoSliderState:     widgets.NewSliderState(50),
+		PlayDirectionState:  widgets.NewSelectState(),
+		PlayModeState:       widgets.NewSelectState(),
+		PlayBorderState:     widgets.NewSelectState(),
+		PlayRatioState:      widgets.NewSliderState(50),
+		AvatarOpacityState:  widgets.NewSliderState(100),
+		ShowcaseSelected:    "Paragraph",
+		ShowcaseSelectState: widgets.NewSelectState(),
+		MarkdownHeight:      6,
+		ProcessSamples:      make(map[string]processSample),
+		DevToolsState:       widgets.NewDevToolsState(),
+		ToastManager:        widgets.NewToastManager(widgets.ToastTopRight),
+		DemoTreeState:       widgets.NewTreeViewState(),
+		DemoColorState:      widgets.NewColorPickerState(0, 200, 255),
+	}
+	state.UsernameInputState.SetValue("LimoniDeveloper")
+	state.DemoMarkdown = loadDemoMarkdown()
+	state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, time.Now())
+	state.TableState.Select(0)
+	state.ReferenceDataState = widgets.NewVirtualDataState()
+
+	// 1. Resmi oluştur (Merkez kırmızı, dışı mavi daire)
+	imgW, imgH := 128, 128
+	testImg1 := image.NewRGBA(image.Rect(0, 0, imgW, imgH))
+	for dy := 0; dy < imgH; dy++ {
+		for dx := 0; dx < imgW; dx++ {
+			distX := float64(dx - imgW/2)
+			distY := float64(dy - imgH/2)
+			dist := math.Sqrt(distX*distX+distY*distY) / (float64(imgW) / 2)
+			if dist > 1.0 {
+				dist = 1.0
+			}
+			r := uint8((1.0 - dist) * 255)
+			g := uint8(dist * 128)
+			b := uint8(dist * 255)
+			testImg1.Set(dx, dy, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+	state.TestImg1 = testImg1
+	state.ActiveImg = testImg1
+
+	// 2. Resmi oluştur (Köşegen yeşil-mor geçiş gradyanı)
+	testImg2 := image.NewRGBA(image.Rect(0, 0, imgW, imgH))
+	for dy := 0; dy < imgH; dy++ {
+		for dx := 0; dx < imgW; dx++ {
+			factor := float64(dx+dy) / float64(imgW+imgH)
+			r := uint8(factor * 255)
+			g := uint8((1.0 - factor) * 255)
+			b := uint8(factor * 128)
+			testImg2.Set(dx, dy, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+	state.TestImg2 = testImg2
+
+	// 3. apple.png dokusunu dosyadan yükle (fallback'li)
+	appleFile, err := os.Open("examples/showcase/apple.png")
+	if err != nil {
+		appleFile, err = os.Open("examples/demo/apple.png")
+	}
+	if err != nil {
+		appleFile, err = os.Open("apple.png")
+	}
+	if err == nil {
+		defer appleFile.Close()
+		appleImg, _, err := image.Decode(appleFile)
+		if err == nil {
+			state.AppleImg = appleImg
+		} else {
+			fmt.Fprintf(os.Stderr, "Limoni Doku Cozumleme Hatasi: %v\n", err)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Limoni Doku Dosyasi Acilamadi (Cift Yol Denendi): %v\n", err)
+	}
+
+	state.ProfileImg = loadProfileImage()
+	state.ThreeDModel = "Cube"
+	state.ThreeDStyle = "Textured"
+
+	// Optional 3D model: LIMONI_MODEL=/path/model.stl go run ./examples/demo
+	modelPath := os.Getenv("LIMONI_MODEL")
+	if modelPath == "" {
+		modelPath = os.Getenv("LIMONI_OBJ")
+	}
+	if modelPath != "" {
+		var model graphics.Model3D
+		var modelErr error
+		if strings.HasSuffix(strings.ToLower(modelPath), ".stl") {
+			model, modelErr = graphics.LoadSTL(modelPath)
+		} else if strings.HasSuffix(strings.ToLower(modelPath), ".ply") {
+			model, modelErr = graphics.LoadPLY(modelPath)
+		} else {
+			model, modelErr = graphics.LoadOBJ(modelPath)
+		}
+		if modelErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load 3D model: %v\n", modelErr)
+		} else {
+			model.Normalize(2.4)
+			state.OBJModel = &model
+			state.OBJPath = modelPath
+			state.ThreeDModel = "OBJ"
+		}
+	}
+
+	// Initialize Command Palette and Keybinding Manager
+	state.CmdPalette = widgets.NewCommandPaletteState()
+	state.KeyManager = widgets.NewKeybindingManager()
+
+	// Register navigation keybindings
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
+		Label: "Toggle Command Palette", Category: "General",
+		Handler: func() {
+			state.CmdPalette.Toggle()
+			if state.CmdPalette.IsOpen {
+				t.FocusManager().SetFocused("command_palette")
+			} else {
+				t.FocusManager().SetFocused("")
+			}
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
+		Label: "Toggle Debug Mode", Category: "View",
+		Handler: func() { state.DebugMode = !state.DebugMode },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key:   backend.KeyF12,
+		Label: "Toggle DevTools Inspector", Category: "Developer",
+		Handler: func() {
+			state.DevToolsState.Toggle()
+			if state.DevToolsState.Enabled {
+				state.ToastManager.Info("DevTools Enabled", "In-App Inspector HUD Active")
+			} else {
+				state.ToastManager.Info("DevTools Hidden", "Press F12 to re-open")
+			}
+		},
+	})
+	canHandleGlobalCommand := func() bool {
+		focused := t.FocusManager().Focused()
+		return !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen &&
+			focused != "username_input" && focused != "showcase_input" && focused != "table_filter"
+	}
+	openHelp := func() {
+		state.IsTransitioning = false
+		t.SetTransitionActive(false)
+		state.ShowHelpDialog = true
+		state.ModalOffsetX = 0
+		state.ModalOffsetY = 0
+		state.HelpDialogW = 66
+		state.HelpDialogH = 12
+		state.HelpDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+		state.LastKey = "Help Panel Opened"
+	}
+	openExitConfirmation := func() {
+		state.IsTransitioning = false
+		t.SetTransitionActive(false)
+		state.ShowExitDialog = true
+		state.ModalOffsetX = 0
+		state.ModalOffsetY = 0
+		state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+		t.FocusManager().SetFocused("exit_dialog_btn_1")
+		state.LastKey = "Exit Confirmation Modal Opened"
+	}
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyF1, Label: "Open Help Panel", Category: "View",
+		When: canHandleGlobalCommand, Handler: openHelp,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'h', Label: "Open Help Panel", Category: "View",
+		When: canHandleGlobalCommand, Handler: openHelp,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'q', Label: "Quit Confirmation", Category: "General",
+		When: canHandleGlobalCommand, Handler: openExitConfirmation,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Quit Confirmation", Category: "General",
+		When: canHandleGlobalCommand, Handler: openExitConfirmation,
+	})
+	closeExitDialog := func() {
+		state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+		t.FocusManager().SetFocused("")
+		t.ForceFullRedraw()
+	}
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Scope: "exit_dialog", Label: "Close Exit Dialog", Category: "Modal",
+		Handler: closeExitDialog,
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Scope: "help_dialog", Label: "Close Help Panel", Category: "Modal",
+		Handler: func() {
+			state.ShowHelpDialog = false
+			t.FocusManager().SetFocused("")
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Close Dropdown", Category: "Modal",
+		When:    func() bool { return state.NotifPopupState.IsOpen },
+		Handler: func() { state.NotifPopupState.Close() },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyEsc, Label: "Blur Control", Category: "Navigation",
+		When: func() bool {
+			switch t.FocusManager().Focused() {
+			case "username_input", "showcase_input", "demo_markdown", "table_filter":
+				return true
+			default:
+				return false
+			}
+		},
+		Handler: func() { t.FocusManager().SetFocused("") },
+	})
+	registerGraphicKey := func(ch rune, label string, handler func()) {
+		state.KeyManager.Register(widgets.Keybinding{
+			Key: backend.KeyRune, Ch: ch, Label: label, Category: "3D Graphics",
+			When: func() bool { return state.ActiveTab == "Graphics" }, Handler: handler,
+		})
+	}
+	registerGraphicKey('1', "3D Model: Cube", func() { state.ThreeDModel = "Cube" })
+	registerGraphicKey('2', "3D Model: Pyramid", func() { state.ThreeDModel = "Pyramid" })
+	registerGraphicKey('3', "3D Model: Tetrahedron", func() { state.ThreeDModel = "Tetrahedron" })
+	registerGraphicKey('4', "Render Style: Textured", func() { state.ThreeDStyle = "Textured" })
+	registerGraphicKey('5', "Render Style: Solid", func() { state.ThreeDStyle = "Solid" })
+	registerGraphicKey('6', "Render Style: Wireframe", func() { state.ThreeDStyle = "Wireframe" })
+	registerGraphicKey('7', "Render Style: Lambert Shading", func() { state.ThreeDStyle = "Lambert" })
+	registerGraphicKey('8', "Render Style: Gouraud Shaded", func() { state.ThreeDStyle = "Gouraud" })
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: '+', Scope: "playground",
+		Label: "Increase Playground Ratio", Category: "Playground",
+		When: func() bool {
+			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() {
+			state.PlaygroundRatio += 5
+			if state.PlaygroundRatio > 90 {
+				state.PlaygroundRatio = 90
+			}
+			state.PlayRatioState.Set(state.PlaygroundRatio, 10, 90)
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: '-', Scope: "playground",
+		Label: "Decrease Playground Ratio", Category: "Playground",
+		When: func() bool {
+			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() {
+			state.PlaygroundRatio -= 5
+			if state.PlaygroundRatio < 10 {
+				state.PlaygroundRatio = 10
+			}
+			state.PlayRatioState.Set(state.PlaygroundRatio, 10, 90)
+		},
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'j', Scope: "playground_virtual_list",
+		Label: "Move Down in Virtual List", Category: "Playground",
+		When: func() bool {
+			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() { moveVirtualListSelection(state, 1) },
+	})
+	state.KeyManager.Register(widgets.Keybinding{
+		Key: backend.KeyRune, Ch: 'k', Scope: "playground_virtual_list",
+		Label: "Move Up in Virtual List", Category: "Playground",
+		When: func() bool {
+			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
+		},
+		Handler: func() { moveVirtualListSelection(state, -1) },
+	})
+
+	// Command Palette Items
+	cmdItems := []widgets.CommandItem{
+		{Label: "Go to Home Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Home" {
+					state.ActiveTab = "Home"
+					t.FocusManager().SetFocused("")
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
+				}
+			}},
+		{Label: "Go to Settings Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Settings" {
+					state.ActiveTab = "Settings"
+					t.FocusManager().SetFocused("")
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
+				}
+			}},
+		{Label: "Go to Graphics Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Graphics" {
+					state.ActiveTab = "Graphics"
+					t.FocusManager().SetFocused("")
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
+				}
+			}},
+		{Label: "Go to Playground Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Playground" {
+					state.ActiveTab = "Playground"
+					t.FocusManager().SetFocused("")
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
+				}
+			}},
+		{Label: "Go to Reference Tab", Detail: "", Category: "Navigation",
+			Handler: func() {
+				if state.ActiveTab != "Reference" {
+					state.ActiveTab = "Reference"
+					t.FocusManager().SetFocused("")
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					t.ForceFullRedraw()
+					b.Write([]byte("\x1b[2J"))
+				}
+			}},
+
+		{Label: "3D Model: Cube", Detail: "1", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Cube" }},
+		{Label: "3D Model: Pyramid", Detail: "2", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Pyramid" }},
+		{Label: "3D Model: Tetrahedron", Detail: "3", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "Tetrahedron" }},
+	}
+	if state.OBJModel != nil {
+		cmdItems = append(cmdItems, widgets.CommandItem{Label: "3D Model: OBJ File", Detail: "7", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDModel = "OBJ" }})
+	}
+	cmdItems = append(cmdItems,
+		widgets.CommandItem{Label: "Render Style: Textured", Detail: "4", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Textured" }},
+		widgets.CommandItem{Label: "Render Style: Solid", Detail: "5", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Solid" }},
+		widgets.CommandItem{Label: "Render Style: Wireframe", Detail: "6", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Wireframe" }},
+		widgets.CommandItem{Label: "Render Style: Lambert Shading", Detail: "7", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Lambert" }},
+		widgets.CommandItem{Label: "Render Style: Gouraud Shaded", Detail: "8", Category: "3D Graphics",
+			Handler: func() { state.ActiveTab = "Graphics"; state.ThreeDStyle = "Gouraud" }},
+	)
+
+	cmdItems = append(cmdItems, state.KeyManager.ToCommandItems()...)
+	state.CmdPalette.AllItems = cmdItems
+	state.CmdPalette.Filtered = widgets.FuzzyFilter("", cmdItems)
+
+	// 30 FPS zamanlayıcısı (~33ms)
+	ticker := time.NewTicker(33 * time.Millisecond)
+	defer ticker.Stop()
+
+	frameCount := 0
+	lastFpsCalc := time.Now()
+	var fps float64
+
+	// İlk kareyi (frame) çiz
+	drawApp(t, b, state, fps)
+
+	// Olay dinleme döngüsü (Event Loop)
+	for {
+		select {
+		case ev, ok := <-b.Events():
+			if !ok {
+				return
+			}
+			switch ev.Type {
+			case backend.EventKey:
+				recordReferenceInteraction(state, fmt.Sprintf("key type=%d rune=%q ctrl=%t alt=%t shift=%t", ev.Key.Type, ev.Key.Ch, ev.Key.Ctrl, ev.Key.Alt, ev.Key.Shift))
+				focused := t.FocusManager().Focused()
+
+				// Palet açıksa tüm tuşları ona yönlendir. Ctrl+P burada
+				// paleti kapatır; kapalıyken aşağıdaki KeybindingManager açar.
+				paletteWasOpen := state.CmdPalette.IsOpen
+				if state.CmdPalette.HandleKey(ev.Key) {
+					if paletteWasOpen && !state.CmdPalette.IsOpen {
+						t.FocusManager().SetFocused("")
+					}
+					break
+				}
+				if (state.ActiveTab == "Reference" || state.ActiveTab == "Referans") && ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'a' &&
+					!state.ShowExitDialog && !state.ShowHelpDialog {
+					state.ReferenceAccessibilityASCII = !state.ReferenceAccessibilityASCII
+					state.LastKey = "Accessibility ASCII mode toggled"
+					break
+				}
+				markdownKey := ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))
+				if (state.ActiveTab == "Home" || state.ActiveTab == "Giriş") && markdownKey && (focused == "demo_markdown" || focused == "" || focused[:minInt(len(focused), len("tab_"))] == "tab_") {
+					switch {
+					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
+						state.MarkdownOffset--
+					case ev.Key.Type == backend.KeyArrowDown:
+						state.MarkdownOffset++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
+						state.MarkdownHeight++
+					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
+						state.MarkdownHeight--
+					}
+					break
+				}
+				if state.KeyManager != nil && canHandleGlobalCommand() && (ev.Key.Type == backend.KeyF1 ||
+					(ev.Key.Type == backend.KeyRune && (ev.Key.Ch == 'h' || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)))) && !ev.Key.Ctrl && !ev.Key.Alt {
+					openHelp()
+					break
+				}
+				if state.KeyManager.Handle(ev.Key, t.FocusManager().ActiveScopes()...) {
+					break
+				}
+
+				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb" || focused == "avatar_opacity"
+				if state.ActiveTab == "Playground" && !playgroundControlFocused && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen {
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						if state.PlaygroundDir == layout.Horizontal {
+							state.PlaygroundDir = layout.Vertical
+						} else {
+							state.PlaygroundDir = layout.Horizontal
+						}
+						state.LastKey = "Playground Direction Changed"
+						break
+					}
+				}
+
+				if state.ShowExitDialog {
+					if ev.Key.Type == backend.KeyTab {
+						if ev.Key.Shift {
+							t.FocusManager().Prev()
+						} else {
+							t.FocusManager().Next()
+						}
+					} else if ev.Key.Type == backend.KeyArrowLeft {
+						t.FocusManager().Prev()
+					} else if ev.Key.Type == backend.KeyArrowRight {
+						t.FocusManager().Next()
+					}
+					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+						if focused == "exit_dialog_btn_0" {
+							b.Close()
+							fmt.Println("\nExited Limoni TUI application. Goodbye!")
+							os.Exit(0)
+						} else if focused == "exit_dialog_btn_1" {
+							state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+							t.FocusManager().SetFocused("")
+							t.ForceFullRedraw()
+						}
+					}
+					if ev.Key.Type == backend.KeyEsc {
+						state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+						t.FocusManager().SetFocused("")
+						t.ForceFullRedraw()
+					}
+					state.LastKey = fmt.Sprintf("Exit Dialog Key: %d", ev.Key.Type)
+					break
+				}
+
+				if state.ShowHelpDialog {
+					if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?') {
+						state.ShowHelpDialog = false
+						t.FocusManager().SetFocused("")
+					}
+					state.LastKey = "Help Panel Closed"
+					break
+				}
+
+				if state.NotifPopupState.IsOpen {
+					if ev.Key.Type == backend.KeyArrowDown {
+						state.NotifPopupState.Next(4)
+					} else if ev.Key.Type == backend.KeyArrowUp {
+						state.NotifPopupState.Prev()
+					} else if ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace {
+						idx := state.NotifPopupState.Selected
+						if idx >= 0 && idx < 3 {
+							switch idx {
+							case 0:
+								state.NotificationMode = "Silent Mode"
+							case 1:
+								state.NotificationMode = "Normal Mode"
+							case 2:
+								state.NotificationMode = "Notify All"
+							}
+							state.NotifPopupState.Close()
+						}
+					} else if ev.Key.Type == backend.KeyEsc {
+						state.NotifPopupState.Close()
+					}
+					state.LastKey = "Dropdown Keyboard Navigation"
+					break
+				}
+
+				var spatialDir terminal.FocusDirection
+				isSpatialKey := false
+
+				consumesArrow := false
+				consumesVim := false
+
+				switch focused {
+				case "username_input", "showcase_input":
+					consumesVim = true
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
+						consumesArrow = true
+					}
+				case "demo_slider", "showcase_slider", "avatar_opacity", "process_table":
+					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						consumesArrow = true
+					}
+				case "play_direction", "play_mode", "play_border", "play_showcase_select":
+					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+						consumesArrow = true
+					}
+				case "table_filter":
+					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown ||
+						ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
+						consumesArrow = true
+					}
+				}
+
+				switch ev.Key.Type {
+				case backend.KeyArrowUp:
+					if !consumesArrow {
+						spatialDir = terminal.DirUp
+						isSpatialKey = true
+					}
+				case backend.KeyArrowDown:
+					if !consumesArrow {
+						spatialDir = terminal.DirDown
+						isSpatialKey = true
+					}
+				case backend.KeyArrowLeft:
+					if !consumesArrow {
+						spatialDir = terminal.DirLeft
+						isSpatialKey = true
+					}
+				case backend.KeyArrowRight:
+					if !consumesArrow {
+						spatialDir = terminal.DirRight
+						isSpatialKey = true
+					}
+				case backend.KeyRune:
+					if !consumesVim {
+						switch ev.Key.Ch {
+						case 'k':
+							spatialDir = terminal.DirUp
+							isSpatialKey = true
+						case 'j':
+							spatialDir = terminal.DirDown
+							isSpatialKey = true
+						case 'h':
+							spatialDir = terminal.DirLeft
+							isSpatialKey = true
+						case 'l':
+							spatialDir = terminal.DirRight
+							isSpatialKey = true
+						}
+					}
+				}
+
+				if isSpatialKey {
+					if t.FocusManager().MoveFocus2D(spatialDir) {
+						state.LastKey = fmt.Sprintf("Direction Focus (%v)", ev.Key.Type)
+						break
+					}
+				}
+
+				if ev.Key.Type == backend.KeyTab {
+					if ev.Key.Shift {
+						navigateDemoTab(state, t.FocusManager(), -1)
+						t.SetTransitionActive(false)
+						t.ForceFullRedraw()
+						b.Write([]byte("\x1b[2J"))
+						state.LastKey = "Shift+Tab (Prev Tab)"
+					} else {
+						t.FocusManager().NextExcluding("tab_")
+						state.LastKey = "Tab (Next Widget)"
+					}
+					break
+				}
+
+				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace) {
+					tabName := strings.TrimPrefix(focused, "tab_")
+					if tabName != "Exit" && tabName != "Çıkış" {
+						if state.ActiveTab != tabName {
+							state.ActiveTab = tabName
+							state.IsTransitioning = false
+							t.SetTransitionActive(false)
+							t.ForceFullRedraw()
+							b.Write([]byte("\x1b[2J"))
+						}
+					}
+					break
+				}
+
+				// Eğer bir TextInput aktif odaklıysa, klavye girdilerini ona yönlendir
+				if focused == "username_input" {
+					if state.UsernameInputState.HandleKey(ev.Key) {
+						// TextInput durumu güncellendi
+					}
+
+				} else if focused == "demo_slider" {
+					state.DemoSliderState.HandleKey(ev.Key, 0, 100)
+				} else if focused == "avatar_opacity" {
+					state.AvatarOpacityState.HandleKey(ev.Key, 0, 100)
+				} else if focused == "play_direction" {
+					state.PlayDirectionState.Open = true
+					state.PlayDirectionState.HandleKey(ev.Key, 2)
+					if state.PlayDirectionState.Selected == 0 {
+						state.PlaygroundDir = layout.Horizontal
+					} else {
+						state.PlaygroundDir = layout.Vertical
+					}
+				} else if focused == "border_rounded" || focused == "border_double" || focused == "border_thick" {
+					borderIDs := []string{"border_rounded", "border_double", "border_thick"}
+					borderValues := []string{"Rounded", "Double", "Thick"}
+					index := 0
+					for i, id := range borderIDs {
+						if id == focused {
+							index = i
+							break
+						}
+					}
+					if ev.Key.Type == backend.KeyArrowUp {
+						index = (index + 2) % 3
+					}
+					if ev.Key.Type == backend.KeyArrowDown {
+						index = (index + 1) % 3
+					}
+					state.PlaygroundBorder = borderValues[index]
+					t.FocusManager().SetFocused(borderIDs[index])
+				} else if focused == "play_grid_cb" {
+					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+						state.PlayShowGrid = !state.PlayShowGrid
+					}
+				} else if focused == "play_mode" {
+					state.PlayModeState.Open = true
+					state.PlayModeState.HandleKey(ev.Key, 8)
+					switch state.PlayModeState.Selected {
+					case 0:
+						state.PlaygroundMode = "Vector"
+					case 1:
+						state.PlaygroundMode = "Matrix"
+					case 2:
+						state.PlaygroundMode = "Chart"
+					case 3:
+						state.PlaygroundMode = "ChartTable"
+					case 4:
+						state.PlaygroundMode = "Particle"
+					case 5:
+						state.PlaygroundMode = "Dither"
+					case 6:
+						state.PlaygroundMode = "Profiler"
+					case 7:
+						state.PlaygroundMode = "VirtualList"
+					}
+
+				} else if focused == "play_showcase_select" {
+					state.ShowcaseSelectState.Open = true
+					state.ShowcaseSelectState.HandleKey(ev.Key, 4)
+					switch state.ShowcaseSelectState.Selected {
+					case 0:
+						state.ShowcaseSelected = "Paragraph"
+					case 1:
+						state.ShowcaseSelected = "Table"
+					case 2:
+						state.ShowcaseSelected = "Forms"
+					case 3:
+						state.ShowcaseSelected = "Vector"
+					}
+				} else if focused == "play_ratio" {
+					state.PlayRatioState.HandleKey(ev.Key, 10, 90)
+					state.PlaygroundRatio = state.PlayRatioState.Value
+				} else if focused == "table_filter" {
+					switch ev.Key.Type {
+					case backend.KeyArrowLeft:
+						if ev.Key.Ctrl {
+							state.TableFilterState.HandleKey(ev.Key)
+							break
+						}
+						state.TableState.MoveSortColumn(-1, 5)
+						state.LastKey = "Sıralama sütunu önceki"
+					case backend.KeyArrowRight:
+						if ev.Key.Ctrl {
+							state.TableFilterState.HandleKey(ev.Key)
+							break
+						}
+						state.TableState.MoveSortColumn(1, 5)
+						state.LastKey = "Next sort column"
+					case backend.KeyArrowUp, backend.KeyArrowDown:
+						if state.TableState.SortColumn < 0 {
+							state.TableState.SortColumn = 2
+						} // Default: CPU
+						state.TableState.SortDescending = ev.Key.Type == backend.KeyArrowDown
+						state.LastKey = "Table sort direction changed"
+					default:
+						state.TableFilterState.HandleKey(ev.Key)
+					}
+
+				} else if focused == "process_table" {
+					if ev.Key.Type == backend.KeyArrowDown {
+						state.TableState.Next(len(state.Processes))
+						state.LastKey = "Table Down (Arrow Key)"
+					} else if ev.Key.Type == backend.KeyArrowUp {
+						state.TableState.Prev()
+						state.LastKey = "Table Up (Arrow Key)"
+					} else if ev.Key.Type == backend.KeyArrowLeft {
+						state.TableState.ScrollHorizontal(-2)
+						state.LastKey = "Table Scroll Left"
+					} else if ev.Key.Type == backend.KeyArrowRight {
+						state.TableState.ScrollHorizontal(2)
+						state.LastKey = "Table Scroll Right"
+					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
+						state.TableState.ToggleRow(state.TableState.Selected)
+						state.LastKey = "Table row selection toggled"
+					}
+				}
+
+				// Checkbox, RadioButton or Popup space/enter selection
+				if focused != "" && focused != "username_input" && (ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter) {
+					switch focused {
+					case "mouse_mode_cb":
+						state.MouseModeChecked = !state.MouseModeChecked
+					case "theme_dark_rb":
+						state.ThemeSelected = "Dark"
+					case "theme_light_rb":
+						state.ThemeSelected = "Light"
+					case "theme_colored_rb":
+						state.ThemeSelected = "Colorful"
+					case "theme_contrast_rb":
+						state.ThemeSelected = "High Contrast"
+					case "notif_popup":
+						state.NotifPopupState.Toggle()
+					}
+				}
+
+				state.LastKey = fmt.Sprintf("Code: %d, Char: %q, Ctrl: %v", ev.Key.Type, string(ev.Key.Ch), ev.Key.Ctrl)
+
+			case backend.EventMouse:
+				handled := t.RouteMouseEvent(ev.Mouse)
+				state.ReferenceInteractionPointerX = ev.Mouse.X
+				state.ReferenceInteractionPointerY = ev.Mouse.Y
+				state.ReferenceInteractionHover = t.HoveredRegionID()
+				if state.ReferenceInteractionHover == "" {
+					state.ReferenceInteractionHover = "no semantic target"
+				}
+				state.ReferenceInteractionLastRoute = fmt.Sprintf("handled=%t", handled)
+				recordReferenceInteraction(state, fmt.Sprintf("mouse button=%d pos=(%d,%d) drag=%t route=%t", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag, handled))
+				if !handled {
+					if ev.Mouse.Drag {
+						if state.IsDraggingModal {
+							dx := int(ev.Mouse.X) - state.DragMouseStartX
+							dy := int(ev.Mouse.Y) - state.DragMouseStartY
+							state.ModalOffsetX = state.ModalDragBaseX + dx
+							state.ModalOffsetY = state.ModalDragBaseY + dy
+						} else if state.IsResizingModal {
+							dx := int(ev.Mouse.X) - state.DragMouseStartX
+							dy := int(ev.Mouse.Y) - state.DragMouseStartY
+							newW := state.ModalResizeBaseW + dx
+							newH := state.ModalResizeBaseH + dy
+							if newW < 40 {
+								newW = 40
+							}
+							if newW > 100 {
+								newW = 100
+							}
+							if newH < 10 {
+								newH = 10
+							}
+							if newH > 30 {
+								newH = 30
+							}
+							state.HelpDialogW = newW
+							state.HelpDialogH = newH
+						} else if state.IsDragging3D {
+							dx := int(ev.Mouse.X) - state.Drag3DLastX
+							dy := int(ev.Mouse.Y) - state.Drag3DLastY
+							state.RotX = math.Mod(state.RotX+float64(dx)*1.5, 360.0)
+							state.RotY = math.Mod(state.RotY-float64(dy)*1.5, 360.0)
+							state.Drag3DLastX = int(ev.Mouse.X)
+							state.Drag3DLastY = int(ev.Mouse.Y)
+						}
+					} else if ev.Mouse.Button == backend.MouseRelease {
+						state.IsDraggingModal = false
+						state.IsResizingModal = false
+						state.IsDragging3D = false
+					}
+					state.LastMouse = fmt.Sprintf("Button: %d, Pos: (%d, %d), Drag: %v", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag)
+				} else {
+					if ev.Mouse.Button == backend.MouseRelease {
+						state.IsDraggingModal = false
+						state.IsResizingModal = false
+						state.IsDragging3D = false
+					}
+				}
+
+			case backend.EventResize:
+				recordReferenceInteraction(state, fmt.Sprintf("resize %dx%d", ev.Resize.Width, ev.Resize.Height))
+			case backend.EventFocus:
+				recordReferenceInteraction(state, fmt.Sprintf("focus gained=%t", ev.Focus.Gained))
+			case backend.EventPaste:
+				recordReferenceInteraction(state, fmt.Sprintf("paste %d chars", len(ev.Paste.Text)))
+			}
+			// Input state is visible immediately; do not wait for the animation tick.
+			drawApp(t, b, state, fps)
+
+		case <-ticker.C:
+			// Animasyonları güncelle
+			now := time.Now()
+			state.UpdateAnimations(now)
+			if state.LastProcessRead.IsZero() || now.Sub(state.LastProcessRead) >= 500*time.Millisecond {
+				state.Processes, state.ProcessSamples = readLiveProcesses(state.ProcessSamples, now)
+				state.LastProcessRead = now
+			}
+
+			// Dither geçiş ilerlemesini güncelle
+			if state.IsTransitioning {
+				if state.ShowHelpDialog || state.ShowExitDialog {
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+				} else {
+					elapsed := time.Since(state.TransitionStartTime)
+					progress := float64(elapsed) / float64(250*time.Millisecond)
+					if progress >= 1.0 {
+						progress = 1.0
+						state.IsTransitioning = false
+						t.SetTransitionActive(false)
+					} else {
+						t.SetTransitionActive(true)
+					}
+					t.SetTransitionProgress(progress)
+				}
+			}
+
+			// Ekranı yeniden çiz
+			drawApp(t, b, state, fps)
+
+			// FPS hesaplama
+			frameCount++
+			if time.Since(lastFpsCalc) >= 1*time.Second {
+				fps = float64(frameCount) / time.Since(lastFpsCalc).Seconds()
+				frameCount = 0
+				lastFpsCalc = time.Now()
+			}
+		}
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
+func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
+	frameStart := time.Now()
+	t.SetDebugMode(state.DebugMode)
+	// Modal açılışı, sekme dither'ından bağımsız bir animasyondur. Önceki
+	// sekme geçişinin old-frame'i modalın üzerine taşınırsa aynı panel iki
+	// farklı konumda görünür; modal açıkken terminal geçişini iptal et.
+	if state.ShowHelpDialog || state.ShowExitDialog {
+		t.SetTransitionActive(false)
+	}
+	var accessibilityFrame *terminal.Frame
+	t.Draw(func(f *terminal.Frame) {
+		accessibilityFrame = f
+		demoTheme := themeForSelection(state.ThemeSelected)
+		f.SetTheme(demoTheme)
+		f.RegisterAccessibility(accessibility.AccessibilityNode{
+			ID: "limoni-demo", Role: accessibility.RoleDialog,
+			Label: "Limoni TUI demo", Value: state.ActiveTab,
+			Bounds: f.Buffer.Area,
+			Children: []accessibility.AccessibilityNode{{
+				ID: "active-tab", Role: accessibility.RoleGeneric,
+				Label: "Aktif sekme", Value: state.ActiveTab,
+				Bounds: f.Buffer.Area,
+			}},
+		})
+		// Tüm ana UI renkleri semantic theme token'larından gelir.
+		mainColor := demoTheme.Colors.Primary
+		accentColor := demoTheme.Colors.Success
+
+		// Eğer çıkış veya yardım diyalogu açık olacaksa, en baştan modalı kaydet ki çizilen arka plan widget'ları olay alamasın!
+		if state.ShowExitDialog {
+			dialogW, dialogH := uint16(46), uint16(9)
+			dialogArea := terminal.CenterRect(f.Buffer.Area, dialogW, dialogH)
+			dialogArea.X = uint16(int(dialogArea.X) + state.ModalOffsetX)
+			dialogArea.Y = uint16(int(dialogArea.Y) + state.ModalOffsetY)
+			// Modal alanı sabit kalır. Resimlerin native yerleşimi bu alana göre
+			// yeniden ölçeklenmez veya yeniden konumlandırılmaz. Görsel dialog
+			// aşağıda ayrıca animasyonlu olarak çizilir.
+			f.RegisterModal("exit_dialog", dialogArea, func() {
+				state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+				t.ForceFullRedraw()
+			})
+		}
+		if state.ShowHelpDialog {
+			helpW := uint16(state.HelpDialogW)
+			helpH := uint16(state.HelpDialogH)
+			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
+			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
+			helpArea.Y = uint16(int(helpArea.Y) + state.ModalOffsetY)
+			f.RegisterModal("help_dialog", helpArea, func() {
+				state.ShowHelpDialog = false
+			})
+		}
+
+		// 1. Ekranı dikeyde 3 bölgeye ayır:
+		// - Header (Sabit 3 satır)
+		// - Body (Kalan tüm dikey alan)
+		// - Footer (Sabit 1 satır)
+		rootLay := layout.NewFlexLayout(
+			layout.Vertical,
+			0,
+			layout.Fixed(3),
+			layout.Fill(),
+			layout.Fixed(1),
+		)
+		chunks := rootLay.Split(f.Buffer.Area)
+
+		// 2. Header
+		headerBlock := widgets.Block{
+			Title:          " LIMONI TUI ENGINE DEMO ",
+			TitleAlignment: widgets.AlignCenter,
+			Borders:        widgets.BorderAll,
+			BorderSymbols:  widgets.SymbolsRounded,
+			BorderStyle:    cell.Style{Fg: mainColor},
+			Child:          label{text: " Inspired by modern TUI frameworks, flexible & performant! ", style: cell.Style{Fg: cell.NewColorRGB(255, 255, 255)}},
+		}
+		f.RenderWidget(headerBlock, chunks[0])
+
+		// 3. Body
+		bodyLay := layout.NewFlexLayout(
+			layout.Horizontal,
+			1,
+			layout.Fixed(22),
+			layout.Fill(),
+		)
+		bodyChunks := bodyLay.Split(chunks[1])
+
+		// Sidebar Navigation Menu
+		menuLay := layout.NewFlexLayout(
+			layout.Vertical,
+			1,
+			layout.Fixed(3), // Home
+			layout.Fixed(3), // Settings
+			layout.Fixed(3), // Graphics
+			layout.Fixed(3), // Playground
+			layout.Fixed(3), // Reference
+			layout.Fixed(3), // Exit
+			layout.Fill(),
+		)
+		menuChunks := menuLay.Split(bodyChunks[0])
+
+		drawButton := func(area cell.Rect, title string, tabName string) {
+			focusID := "tab_" + tabName
+			t.FocusManager().Register(focusID)
+			borderCol := state.TabColors[tabName].Value()
+			if t.FocusManager().IsFocused(focusID) {
+				borderCol = demoTheme.Colors.Primary
+			}
+			titleStyle := cell.Style{Fg: borderCol}
+
+			if state.ActiveTab == tabName {
+				titleStyle.Modifier = cell.ModifierBold
+			}
+
+			btn := widgets.Block{
+				Borders:        widgets.BorderAll,
+				BorderSymbols:  widgets.SymbolsRounded,
+				BorderStyle:    cell.Style{Fg: borderCol},
+				Title:          title,
+				TitleAlignment: widgets.AlignCenter,
+				TitleStyle:     titleStyle,
+			}
+			f.RenderWidget(btn, area)
+
+			registerTargetClick(f, area, func(ev backend.MouseEvent) {
+				if tabName == "Exit" || tabName == "Çıkış" {
+					state.IsTransitioning = false
+					t.SetTransitionActive(false)
+					state.ShowExitDialog = true
+					state.ExitDialogAnim.AnimateTo(1.0, 250*time.Millisecond, animation.EaseOutCubic)
+					t.FocusManager().SetFocused("exit_dialog_btn_1")
+				} else {
+					t.FocusManager().SetFocused(focusID)
+					if state.ActiveTab != tabName {
+						state.ActiveTab = tabName
+						state.IsTransitioning = false
+						t.SetTransitionActive(false)
+						t.ForceFullRedraw()
+						b.Write([]byte("\x1b[2J"))
+					}
+				}
+			})
+		}
+
+		drawButton(menuChunks[0], "1. Home", "Home")
+		drawButton(menuChunks[1], "2. Settings", "Settings")
+		drawButton(menuChunks[2], "3. Graphics", "Graphics")
+		drawButton(menuChunks[3], "4. Playground", "Playground")
+		drawButton(menuChunks[4], "5. Reference", "Reference")
+		drawButton(menuChunks[5], "6. Exit", "Exit")
+
+		state.ExitButtonArea = menuChunks[5]
+
+		// Profiler & Capabilities HUD
+		if menuChunks[6].Height >= 6 {
+			caps := terminal.DetectCapabilities()
+			lastFrameTime := t.LastFrameDuration()
+
+			var lines []string
+			lines = append(lines, fmt.Sprintf("Frame: %5.2f ms", float64(lastFrameTime.Microseconds())/1000.0))
+
+			trueColorText := "TrueColor: [✕]"
+			if caps.TrueColor {
+				trueColorText = "TrueColor: [✓]"
+			}
+			lines = append(lines, trueColorText)
+
+			var protoName string
+			switch caps.GraphicsProto {
+			case graphics.ProtocolKitty:
+				protoName = "Kitty"
+			case graphics.ProtocolSixel:
+				protoName = "Sixel"
+			case graphics.ProtocolIterm2:
+				protoName = "iTerm2"
+			default:
+				protoName = "HalfBlock"
+			}
+			lines = append(lines, "Graphics: "+protoName)
+
+			if menuChunks[6].Height >= 8 && len(t.LastWidgetStats()) > 0 {
+				var slowestType string
+				var slowestDur time.Duration
+				for _, stat := range t.LastWidgetStats() {
+					if stat.Duration > slowestDur {
+						slowestDur = stat.Duration
+						slowestType = stat.Type
+					}
+				}
+				lines = append(lines, fmt.Sprintf("Slowest: %s", slowestType))
+				lines = append(lines, fmt.Sprintf("  %5.2f ms", float64(slowestDur.Microseconds())/1000.0))
+			}
+
+			linesText := strings.Join(lines, "\n")
+			f.RenderWidget(widgets.Block{
+				Title:         " PROFILER ",
+				Borders:       widgets.BorderAll,
+				BorderSymbols: widgets.SymbolsRounded,
+				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(120, 120, 120)},
+				PaddingLeft:   1,
+				PaddingRight:  1,
+				Child:         label{text: linesText, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}},
+			}, menuChunks[6])
+		}
+
+		// Content Panel Rendering
+		switch state.ActiveTab {
+		case "Home", "Giriş":
+			drawHome(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
+		case "Settings", "Ayarlar":
+			drawSettings(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
+		case "Reference", "Referans":
+			drawReference(t, f, state, demoTheme, mainColor, accentColor, bodyChunks[1])
+
+		case "Graphics", "Grafik":
+			// Grafik sekmesini yatayda iki eşit bölüme ayır: Sol tarafta Canvas, Sağ tarafta Resim ve Kontroller
+			grafikLay := layout.NewFlexLayout(
+				layout.Horizontal,
+				1,
+				layout.Percentage(50),
+				layout.Percentage(50),
+			)
+			grafikChunks := grafikLay.Split(bodyChunks[1])
+
+			// Sağ tarafı dikey olarak ikiye böl: Üstte Gerçek Resim, Altta 3D Model Kontrolleri
+			sağLay := layout.NewFlexLayout(
+				layout.Vertical,
+				1,
+				layout.Percentage(50),
+				layout.Percentage(50),
+			)
+			sağChunks := sağLay.Split(grafikChunks[1])
+
+			// 1. SOL TARAF: Braille Vektör Canvas
+			w := uint16(0)
+			h := uint16(0)
+			if grafikChunks[0].Width > 2 {
+				w = grafikChunks[0].Width - 2
+			}
+			if grafikChunks[0].Height > 2 {
+				h = grafikChunks[0].Height - 2
+			}
+
+			if state.Canvas == nil {
+				state.Canvas = widgets.NewCanvas(w, h)
+			} else {
+				state.Canvas.Reset(w, h)
+			}
+			canvas := state.Canvas
+
+			virtualW := int(w) * 2
+			virtualH := int(h) * 4
+
+			if virtualW > 2 && virtualH > 2 {
+				// 3D rotasyon sürüklemesi için tıklama alanını kaydet
+				registerTargetClick(f, grafikChunks[0], func(ev backend.MouseEvent) {
+					state.IsDragging3D = true
+					state.Drag3DLastX = int(ev.X)
+					state.Drag3DLastY = int(ev.Y)
+				})
+
+				// 3D Model Tanımları (Köşeler ve Yüzler)
+				var vertices []graphics.Vertex3D
+				var faces [][]int
+
+				switch state.ThreeDModel {
+				case "Piramit", "Pyramid":
+					vertices = []graphics.Vertex3D{
+						{X: -1.0, Y: 0.6, Z: -1.0}, // 0: sol-arka (BL)
+						{X: 1.0, Y: 0.6, Z: -1.0},  // 1: sağ-arka (BR)
+						{X: 1.0, Y: 0.6, Z: 1.0},   // 2: sağ-ön (FR)
+						{X: -1.0, Y: 0.6, Z: 1.0},  // 3: sol-ön (FL)
+						{X: 0.0, Y: -1.2, Z: 0.0},  // 4: tepe (apex)
+					}
+					faces = [][]int{
+						{3, 2, 1, 0}, // Taban (Base Quad)
+						{0, 1, 4},    // Arka yüz (Edge 0->1 to 4)
+						{1, 2, 4},    // Sağ yüz (Edge 1->2 to 4)
+						{2, 3, 4},    // Ön yüz (Edge 2->3 to 4)
+						{3, 0, 4},    // Sol yüz (Edge 3->0 to 4)
+					}
+
+				case "Dörtyüzlü":
+					// Düzgün Dörtyüzlü (Üçgen Piramit)
+					vertices = []graphics.Vertex3D{
+						{X: 0.0, Y: -1.2, Z: 0.0},  // 0: tepe
+						{X: -1.0, Y: 0.8, Z: -0.8}, // 1: sol-ön
+						{X: 1.0, Y: 0.8, Z: -0.8},  // 2: sağ-ön
+						{X: 0.0, Y: 0.8, Z: 1.2},   // 3: arka
+					}
+					faces = [][]int{
+						{1, 2, 3}, // Taban
+						{0, 2, 1}, // Ön-Sol
+						{0, 3, 2}, // Ön-Sağ
+						{0, 1, 3}, // Arka
+					}
+				case "OBJ":
+					if state.OBJModel != nil {
+						vertices = state.OBJModel.Vertices
+						faces = state.OBJModel.Faces
+					}
+				default: // "Küp"
+					vertices = []graphics.Vertex3D{
+						{X: -1.0, Y: -1.0, Z: -1.0},
+						{X: 1.0, Y: -1.0, Z: -1.0},
+						{X: 1.0, Y: 1.0, Z: -1.0},
+						{X: -1.0, Y: 1.0, Z: -1.0},
+						{X: -1.0, Y: -1.0, Z: 1.0},
+						{X: 1.0, Y: -1.0, Z: 1.0},
+						{X: 1.0, Y: 1.0, Z: 1.0},
+						{X: -1.0, Y: 1.0, Z: 1.0},
+					}
+					faces = [][]int{
+						{0, 1, 2, 3}, // Front (Z = -1)
+						{5, 4, 7, 6}, // Back (Z = 1)
+						{1, 5, 6, 2}, // Right (X = 1)
+						{4, 0, 3, 7}, // Left (X = -1)
+						{3, 2, 6, 7}, // Top (Y = 1)
+						{4, 5, 1, 0}, // Bottom (Y = -1)
+					}
+				}
+
+				rotated := make([]graphics.Vertex3D, len(vertices))
+				projected := make([]struct {
+					x, y    int
+					z       float64
+					visible bool
+				}, len(vertices))
+
+				canvasW := float64(virtualW)
+				canvasH := float64(virtualH)
+
+				for i, v := range vertices {
+					// Eksen rotasyonları uygula (RotateY first, then RotateX!)
+					v = v.RotateY(state.RotY)
+					v = v.RotateX(state.RotX)
+					v = v.RotateZ(state.RotZ)
+					rotated[i] = v
+
+					// Projeksiyon (Mesafe: 3.5, Ölçek: canvas yüksekliğinin %40'ı)
+					scale := canvasH * 0.40
+					px, py, visible := graphics.Project(v, canvasW, canvasH, 3.5, scale)
+					projected[i] = struct {
+						x, y    int
+						z       float64
+						visible bool
+					}{x: int(px), y: int(py), z: v.Z, visible: visible}
+				}
+
+				// Yüzey renkleri (Dolu Renkli mod için prizmatik renk geçişleri)
+				faceColors := []cell.Color{
+					cell.NewColorRGB(0, 255, 255), // Neon Turkuaz
+					cell.NewColorRGB(255, 0, 255), // Neon Pembe
+					cell.NewColorRGB(255, 255, 0), // Neon Sarı
+					cell.NewColorRGB(0, 255, 0),   // Neon Yeşil
+					cell.NewColorRGB(255, 128, 0), // Neon Turuncu
+					cell.NewColorRGB(0, 128, 255), // Neon Mavi
+				}
+
+				textureImg := state.AppleImg
+
+				// Yüzeyleri kapla ve kenarlıkları çiz.
+				wireStyle := cell.Style{Fg: cell.NewColorRGB(0, 255, 255)}
+				if state.ThreeDStyle == "Dokulu" {
+					wireStyle = cell.Style{Fg: cell.NewColorRGB(70, 75, 80)} // İnce ve parlamayan koyu gri kenar stili
+				}
+				getFaceUV := func(faceIndex, corner int, fallback graphics.UV) graphics.UV {
+					if state.OBJModel == nil || faceIndex >= len(state.OBJModel.FaceUVs) || corner >= len(state.OBJModel.FaceUVs[faceIndex]) {
+						return fallback
+					}
+					uvIndex := state.OBJModel.FaceUVs[faceIndex][corner]
+					if uvIndex < 0 || uvIndex >= len(state.OBJModel.UVs) {
+						return fallback
+					}
+					uv := state.OBJModel.UVs[uvIndex]
+					return graphics.UV{U: uv.U, V: 1 - uv.V}
+				}
+				for faceIdx, face := range faces {
+					if len(face) < 3 {
+						continue
+					}
+
+					p0 := projected[face[0]]
+					p1 := projected[face[1]]
+					p2 := projected[face[2]]
+
+					if !p0.visible || !p1.visible || !p2.visible {
+						continue
+					}
+
+					var p3 struct {
+						x, y    int
+						z       float64
+						visible bool
+					}
+					isQuad := len(face) == 4
+					if isQuad {
+						p3 = projected[face[3]]
+						if !p3.visible {
+							continue
+						}
+					}
+
+					// 2D Winding / Back-face Culling Test (Only render front-facing polygons)
+					cross1 := (float64(p1.x-p0.x) * float64(p2.y-p0.y)) - (float64(p1.y-p0.y) * float64(p2.x-p0.x))
+					isFrontFacing := cross1 < 0
+					if isQuad {
+						cross2 := (float64(p2.x-p0.x) * float64(p3.y-p0.y)) - (float64(p2.y-p0.y) * float64(p3.x-p0.x))
+						isFrontFacing = isFrontFacing || cross2 < 0
+					}
+					if isFrontFacing {
+						if state.ThreeDStyle == "Dokulu" && textureImg != nil {
+							if isQuad {
+								// Default UV coordinates (Full image mapping)
+								uMin, uMax, vMin, vMax := 0.0, 1.0, 0.0, 1.0
+
+								uv0 := getFaceUV(faceIdx, 0, graphics.UV{U: uMin, V: vMax})
+								uv1 := getFaceUV(faceIdx, 1, graphics.UV{U: uMax, V: vMax})
+								uv2 := getFaceUV(faceIdx, 2, graphics.UV{U: uMax, V: vMin})
+								uv3 := getFaceUV(faceIdx, 3, graphics.UV{U: uMin, V: vMin})
+
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									uv0, uv1, uv2, textureImg,
+								)
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									uv0, uv2, uv3, textureImg,
+								)
+							} else {
+								uv0 := getFaceUV(faceIdx, 0, graphics.UV{U: 0.0, V: 1.0})
+								uv1 := getFaceUV(faceIdx, 1, graphics.UV{U: 1.0, V: 1.0})
+								uv2 := getFaceUV(faceIdx, 2, graphics.UV{U: 0.5, V: 0.0})
+
+								canvas.DrawTexturedTriangle(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									uv0, uv1, uv2, textureImg,
+								)
+							}
+						} else if state.ThreeDStyle == "Dolu Renkli" {
+							col := faceColors[faceIdx%len(faceColors)]
+							if state.OBJModel != nil && faceIdx < len(state.OBJModel.FaceMaterials) {
+								if material, ok := state.OBJModel.Materials[state.OBJModel.FaceMaterials[faceIdx]]; ok {
+									col = cell.NewColorRGB(material.R, material.G, material.B)
+								}
+							}
+							faceStyle := cell.Style{Fg: col}
+							if isQuad {
+								canvas.DrawFilledTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, faceStyle,
+								)
+								canvas.DrawFilledTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									p0.z, p2.z, p3.z, faceStyle,
+								)
+							} else {
+								canvas.DrawFilledTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, faceStyle,
+								)
+							}
+						} else if state.ThreeDStyle == "Gölgeli" {
+							col := faceColors[faceIdx%len(faceColors)]
+							if state.OBJModel != nil && faceIdx < len(state.OBJModel.FaceMaterials) {
+								if material, ok := state.OBJModel.Materials[state.OBJModel.FaceMaterials[faceIdx]]; ok {
+									col = cell.NewColorRGB(material.R, material.G, material.B)
+								}
+							}
+							faceStyle := cell.Style{Fg: col}
+							light := graphics.DefaultLight()
+							v0, v1, v2 := rotated[face[0]], rotated[face[1]], rotated[face[2]]
+							norm0 := graphics.CalculateNormal(v0, v1, v2)
+							if isQuad {
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, norm0, light, faceStyle,
+								)
+								v3 := rotated[face[3]]
+								norm1 := graphics.CalculateNormal(v0, v2, v3)
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									p0.z, p2.z, p3.z, norm1, light, faceStyle,
+								)
+							} else {
+								canvas.DrawLambertTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, norm0, light, faceStyle,
+								)
+							}
+						} else if state.ThreeDStyle == "Gouraud" {
+							c0 := cell.NewColorRGB(255, 60, 60)
+							c1 := cell.NewColorRGB(60, 255, 60)
+							c2 := cell.NewColorRGB(60, 60, 255)
+							c3 := cell.NewColorRGB(255, 255, 60)
+							if isQuad {
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, c0, c1, c2, cell.Style{},
+								)
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									graphics.Vertex2D{X: float64(p3.x), Y: float64(p3.y)},
+									p0.z, p2.z, p3.z, c0, c2, c3, cell.Style{},
+								)
+							} else {
+								canvas.DrawGouraudTriangleDepth(
+									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
+									graphics.Vertex2D{X: float64(p1.x), Y: float64(p1.y)},
+									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
+									p0.z, p1.z, p2.z, c0, c1, c2, cell.Style{},
+								)
+							}
+						}
+
+						// Sadece ön yüze ait olan kenarlıkları çiz (Arka köşelerin görünmesini engeller)
+						canvas.DrawLine(p0.x, p0.y, p1.x, p1.y, wireStyle)
+						canvas.DrawLine(p1.x, p1.y, p2.x, p2.y, wireStyle)
+						if isQuad {
+							canvas.DrawLine(p2.x, p2.y, p3.x, p3.y, wireStyle)
+							canvas.DrawLine(p3.x, p3.y, p0.x, p0.y, wireStyle)
+						} else {
+							canvas.DrawLine(p2.x, p2.y, p0.x, p0.y, wireStyle)
+						}
+					}
+				}
+			}
+
+			canvasBlock := widgets.Block{
+				Title:          fmt.Sprintf(" 📦 3D %s (%s) ", state.ThreeDModel, state.ThreeDStyle),
+				TitleAlignment: widgets.AlignLeft,
+				Borders:        widgets.BorderAll,
+				BorderSymbols:  widgets.SymbolsRounded,
+				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 255, 255)},
+				Child:          canvas,
+			}
+			f.RenderWidget(canvasBlock, grafikChunks[0])
+
+			// 2. SAĞ ÜST TARAF: Gerçek Görsel Gösterimi (Native Image)
+			imageBlock := widgets.Block{
+				Title:          " GERÇEK RESİM GÖSTERİMİ ",
+				TitleAlignment: widgets.AlignLeft,
+				Borders:        widgets.BorderAll,
+				BorderSymbols:  widgets.SymbolsRounded,
+				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 0, 255)},
+				Child:          &widgets.Image{Img: state.ActiveImg, ForceHalfBlock: true},
+			}
+			f.RenderWidget(imageBlock, sağChunks[0])
+
+			// 3. Right Bottom: 3D Model Control Panel
+			modelLabel := " [1] Cube (PNG Texture) "
+			if state.ThreeDModel == "Cube" || state.ThreeDModel == "Küp" {
+				modelLabel = " 🔴 [1] Cube (Active) "
+			}
+			piramitLabel := " [2] Pyramid "
+			if state.ThreeDModel == "Pyramid" || state.ThreeDModel == "Piramit" {
+				piramitLabel = " 🔴 [2] Pyramid (Active) "
+			}
+			dortyuzluLabel := " [3] Tetrahedron "
+			if state.ThreeDModel == "Tetrahedron" || state.ThreeDModel == "Dörtyüzlü" {
+				dortyuzluLabel = " 🔴 [3] Tetrahedron (Active) "
+			}
+			dokuluLabel := " [4] Textured (PNG Texture) "
+			if state.ThreeDStyle == "Textured" || state.ThreeDStyle == "Dokulu" {
+				dokuluLabel = " 🟢 [4] Textured (Active) "
+			}
+			doluLabel := " [5] Solid (Prismatic) "
+			if state.ThreeDStyle == "Solid" || state.ThreeDStyle == "Dolu Renkli" {
+				doluLabel = " 🟢 [5] Solid (Active) "
+			}
+			kafesLabel := " [6] Wireframe "
+			if state.ThreeDStyle == "Wireframe" || state.ThreeDStyle == "Kafes" {
+				kafesLabel = " 🟢 [6] Wireframe (Active) "
+			}
+			lambertLabel := " [7] Lambert Shading "
+			if state.ThreeDStyle == "Lambert" || state.ThreeDStyle == "Gölgeli" {
+				lambertLabel = " 🟢 [7] Lambert (Active) "
+			}
+			gouraudLabel := " [8] Gouraud Shaded "
+			if state.ThreeDStyle == "Gouraud" {
+				gouraudLabel = " 🟢 [8] Gouraud (Active) "
+			}
+			var ctrlLines []string
+			ctrlLines = append(ctrlLines, "Model Selection (Keys 1-3):")
+			ctrlLines = append(ctrlLines, "  "+modelLabel)
+			ctrlLines = append(ctrlLines, "  "+piramitLabel)
+			ctrlLines = append(ctrlLines, "  "+dortyuzluLabel)
+			ctrlLines = append(ctrlLines, "")
+			ctrlLines = append(ctrlLines, "Render Style (Keys 4-8):")
+			ctrlLines = append(ctrlLines, "  "+dokuluLabel)
+			ctrlLines = append(ctrlLines, "  "+doluLabel)
+			ctrlLines = append(ctrlLines, "  "+kafesLabel)
+			ctrlLines = append(ctrlLines, "  "+lambertLabel)
+			ctrlLines = append(ctrlLines, "  "+gouraudLabel)
+			ctrlLines = append(ctrlLines, "")
+			ctrlLines = append(ctrlLines, "💡 Drag to rotate in 3D space.")
+
+			ctrlBlock := widgets.Block{
+				Title:          " 3D MODEL CONTROLS ",
+				TitleAlignment: widgets.AlignLeft,
+				Borders:        widgets.BorderAll,
+				BorderSymbols:  widgets.SymbolsRounded,
+				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 255, 128)},
+				Child:          widgets.List{Items: ctrlLines},
+			}
+			f.RenderWidget(ctrlBlock, sağChunks[1])
+
+		case "Playground":
+			drawPlayground(t, b, f, state, mainColor, accentColor, bodyChunks[1])
+		}
+
+		// 4. Footer
+		footerStyle := cell.Style{Fg: cell.NewColorRGB(140, 140, 140), Bg: cell.NewColorRGB(30, 30, 30)}
+		footerText := fmt.Sprintf(" Size: %d x %d | FPS: %.1f | Shortcuts: ? | Tabs: Tab / Shift+Tab | Quit: 'q' / ESC", f.Buffer.Area.Width, f.Buffer.Area.Height, fps)
+
+		footerBlock := widgets.Block{
+			Borders: widgets.BorderNone,
+			Style:   footerStyle,
+			Child:   label{text: footerText, style: footerStyle},
+		}
+		f.RenderWidget(footerBlock, chunks[2])
+
+		// 5. Exit Confirmation Modal Dialog
+		if state.ShowExitDialog {
+			dialogW, dialogH := uint16(46), uint16(9)
+			dialogArea := terminal.CenterRect(f.Buffer.Area, dialogW, dialogH)
+
+			dialogArea.X = uint16(int(dialogArea.X) + state.ModalOffsetX)
+			dialogArea.Y = uint16(int(dialogArea.Y) + state.ModalOffsetY)
+
+			progress := state.ExitDialogAnim.Value()
+			animatedArea := terminal.ScaleRect(dialogArea, progress)
+
+			if progress <= 0.001 && !state.ExitDialogAnim.IsAnimating() {
+				state.ShowExitDialog = false
+				t.FocusManager().SetFocused("")
+				t.ForceFullRedraw()
+			} else {
+				if progress >= 0.999 && !state.ExitDialogAnim.IsAnimating() && !state.ExitDialogFinished {
+					state.ExitDialogFinished = true
+				} else if progress < 0.999 {
+					state.ExitDialogFinished = false
+				}
+				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
+				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
+					state.IsDraggingModal = true
+					state.DragMouseStartX = int(ev.X)
+					state.DragMouseStartY = int(ev.Y)
+					state.ModalDragBaseX = state.ModalOffsetX
+					state.ModalDragBaseY = state.ModalOffsetY
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsDraggingModal = false
+							return
+						}
+						if dragEv.Drag {
+							state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, 46, 9,
+								state.ModalDragBaseX+int(dragEv.X)-state.DragMouseStartX,
+								state.ModalDragBaseY+int(dragEv.Y)-state.DragMouseStartY)
+						}
+					})
+				})
+
+				if animatedArea.Width > 0 && animatedArea.Height > 0 {
+					shadowBackdrop := cell.NewRect(
+						animatedArea.X,
+						animatedArea.Y,
+						animatedArea.Width+2,
+						animatedArea.Height+1,
+					)
+					f.RenderWidget(widgets.Block{
+						Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
+						Opaque: true,
+					}, shadowBackdrop)
+
+					exitDialog := widgets.Dialog{
+						ID:          "exit_dialog",
+						Title:       " ⚠️ SYSTEM EXIT ",
+						Message:     "Are you sure you want to exit the application?",
+						SubMessage:  "The session and all unsaved state will be terminated.",
+						Style:       cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
+						HeaderStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(220, 60, 60)},
+						BorderStyle: cell.Style{Fg: cell.NewColorRGB(220, 60, 60)},
+						ButtonStyle: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(45, 45, 45)},
+						ButtonFocusedStyle: cell.Style{
+							Fg:       cell.NewColorRGB(255, 255, 255),
+							Bg:       accentColor,
+							Modifier: cell.ModifierBold,
+						},
+						Shadow: true,
+						Buttons: []widgets.DialogButton{
+							{
+								Text: "Yes",
+								Handler: func() {
+									b.Close()
+									fmt.Println("\nExited Limoni TUI application. Goodbye!")
+									os.Exit(0)
+								},
+							},
+							{
+								Text: "No",
+								Handler: func() {
+									state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+									t.ForceFullRedraw()
+								},
+							},
+						},
+					}
+
+					f.BeginFocusScope("exit_dialog")
+					f.RenderWidget(exitDialog, animatedArea)
+				}
+			}
+		}
+
+		// 6. Help Dialog
+		if state.ShowHelpDialog {
+			helpW := uint16(state.HelpDialogW)
+			helpH := uint16(state.HelpDialogH)
+			helpArea := terminal.CenterRect(f.Buffer.Area, helpW, helpH)
+			state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, helpW, helpH, state.ModalOffsetX, state.ModalOffsetY)
+
+			helpArea.X = uint16(int(helpArea.X) + state.ModalOffsetX)
+			helpArea.Y = uint16(int(helpArea.Y) + state.ModalOffsetY)
+
+			progress := state.HelpDialogAnim.Value()
+			if progress <= 0.001 && !state.HelpDialogAnim.IsAnimating() {
+				state.ShowHelpDialog = false
+				t.FocusManager().SetFocused("")
+			} else {
+				offsetY := int(float64(f.Buffer.Area.Height) * (1.0 - progress))
+				animatedHelpArea := helpArea
+				animatedHelpArea.Y = uint16(int(animatedHelpArea.Y) + offsetY)
+
+				titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
+				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
+					state.IsDraggingModal = true
+					state.DragMouseStartX = int(ev.X)
+					state.DragMouseStartY = int(ev.Y)
+					state.ModalDragBaseX = state.ModalOffsetX
+					state.ModalDragBaseY = state.ModalOffsetY
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsDraggingModal = false
+							return
+						}
+						if dragEv.Drag {
+							state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, helpW, helpH,
+								state.ModalDragBaseX+int(dragEv.X)-state.DragMouseStartX,
+								state.ModalDragBaseY+int(dragEv.Y)-state.DragMouseStartY)
+						}
+					})
+				})
+
+				helpBlock := widgets.Block{
+					Title:          " ⌨ SHORTCUTS & HELP (Drag / Resize from corner) ",
+					TitleAlignment: widgets.AlignLeft,
+					Borders:        widgets.BorderAll,
+					BorderSymbols:  widgets.SymbolsRounded,
+					BorderStyle:    cell.Style{Fg: accentColor},
+					Style:          cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
+					Opaque:         true,
+				}
+				f.BeginFocusScope("help_dialog")
+				f.RenderWidget(helpBlock, animatedHelpArea)
+
+				cornerX := animatedHelpArea.X + animatedHelpArea.Width - 1
+				cornerY := animatedHelpArea.Y + animatedHelpArea.Height - 1
+				if c := f.Buffer.Get(cornerX, cornerY); c != nil {
+					c.Content = '◢'
+					c.Style = cell.Style{Fg: accentColor, Modifier: cell.ModifierBold}
+				}
+
+				resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
+				registerTargetClick(f, resizeHandleArea, func(ev backend.MouseEvent) {
+					if ev.Button != backend.MouseLeft {
+						return
+					}
+					state.IsResizingModal = true
+					state.DragMouseStartX = int(ev.X)
+					state.DragMouseStartY = int(ev.Y)
+					state.ModalResizeBaseW = state.HelpDialogW
+					state.ModalResizeBaseH = state.HelpDialogH
+					f.CaptureMouse(func(dragEv backend.MouseEvent) {
+						if dragEv.Button == backend.MouseRelease {
+							state.IsResizingModal = false
+							return
+						}
+						if !dragEv.Drag {
+							return
+						}
+						newW := state.ModalResizeBaseW + int(dragEv.X) - state.DragMouseStartX
+						newH := state.ModalResizeBaseH + int(dragEv.Y) - state.DragMouseStartY
+						if newW < 40 {
+							newW = 40
+						}
+						if newW > 100 {
+							newW = 100
+						}
+						if newH < 10 {
+							newH = 10
+						}
+						if newH > 30 {
+							newH = 30
+						}
+						state.HelpDialogW = newW
+						state.HelpDialogH = newH
+						state.ModalOffsetX, state.ModalOffsetY = clampDialogOffset(f.Buffer.Area, uint16(newW), uint16(newH), state.ModalOffsetX, state.ModalOffsetY)
+					})
+				})
+
+				helpInner := cell.Rect{
+					X:      animatedHelpArea.X + 2,
+					Y:      animatedHelpArea.Y + 1,
+					Width:  animatedHelpArea.Width - 4,
+					Height: animatedHelpArea.Height - 2,
+				}
+
+				helpLay := layout.NewFlexLayout(
+					layout.Horizontal,
+					1,
+					layout.Ratio(65),
+					layout.Ratio(35),
+				)
+				helpChunks := helpLay.Split(helpInner)
+
+				mdHelp := &widgets.Markdown{
+					Content: `# Limoni Shortcuts
+- **Tab / Shift+Tab:** Switch navigation tabs.
+- **Arrow Keys:** Playground Layout Direction.
+- **+ / - Keys:** Playground Ratio adjustment.
+- **? :** Toggle Help Panel.
+- **q / Esc:** Quit confirmation dialog.`,
+					Style: cell.Style{Fg: cell.NewColorRGB(220, 220, 220)},
+				}
+				f.RenderWidget(mdHelp, helpChunks[0])
+
+				avatarBlock := widgets.Block{
+					Borders: widgets.BorderNone,
+					Child:   &widgets.Image{Img: state.ActiveImg, CircleMask: true},
+				}
+				f.RenderWidget(avatarBlock, helpChunks[1])
+			}
+		}
+
+		// 7. Command Palette Overlay
+		if state.CmdPalette.IsOpen {
+			palette := widgets.CommandPalette{
+				ID:       "command_palette",
+				State:    state.CmdPalette,
+				Position: &widgets.CommandPalettePosition{Bottom: 2},
+			}
+			f.RenderWidget(palette, f.Buffer.Area)
+		}
+
+		// 8. Toast Notifications
+		if state.ToastManager != nil {
+			state.ToastManager.Update(time.Now())
+			state.ToastManager.Draw(cell.NewContext(f.Buffer.Area, cell.Style{}), f.Buffer)
+		}
+
+		// 9. DevTools In-App HUD (F12)
+		if state.DevToolsState != nil && state.DevToolsState.Enabled {
+			widgets.DevTools{State: state.DevToolsState}.Draw(cell.NewContext(f.Buffer.Area, cell.Style{}), f.Buffer)
+		}
+	})
+	if state.DevToolsState != nil {
+		state.DevToolsState.RecordFrame(time.Since(frameStart))
+	}
+	if state.ScreenReaderMode {
+		lineMode := accessibilityFrame.AccessibilityLineMode(accessibility.Mode{ScreenReader: true})
+		if lineMode != "" && lineMode != state.LastScreenReaderTree {
+			fmt.Fprintf(os.Stderr, "\n[limoni screen-reader]\n%s\n", lineMode)
+			state.LastScreenReaderTree = lineMode
+		}
+	}
+}
+
+type label struct {
+	text  string
+	style cell.Style
+}
+
+func (l label) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	mergedStyle := ctx.Style.Merge(l.style)
+
+	currY := ctx.Area.Y
+	lineStart := 0
+	for i := 0; i < len(l.text); i++ {
+		if l.text[i] == '\n' {
+			if currY < ctx.Area.Y+ctx.Area.Height {
+				buf.SetString(ctx.Area.X, currY, l.text[lineStart:i], mergedStyle)
+				currY++
+			}
+			lineStart = i + 1
+		}
+	}
+	if lineStart < len(l.text) && currY < ctx.Area.Y+ctx.Area.Height {
+		buf.SetString(ctx.Area.X, currY, l.text[lineStart:], mergedStyle)
+	}
+}
+
+func (l label) SizeHint(maxArea cell.Rect) (width, height uint16) {
+	lines := 1
+	maxW := 0
+	currW := 0
+	for i := 0; i < len(l.text); i++ {
+		if l.text[i] == '\n' {
+			lines++
+			if currW > maxW {
+				maxW = currW
+			}
+			currW = 0
+		} else {
+			currW++
+		}
+	}
+	if currW > maxW {
+		maxW = currW
+	}
+	return uint16(maxW), uint16(lines)
+}
+
+type processSample struct {
+	ticks uint64
+	at    time.Time
+}
+
+func readLiveProcesses(previous map[string]processSample, now time.Time) ([]ProcessInfo, map[string]processSample) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, previous
+	}
+	if previous == nil {
+		previous = make(map[string]processSample)
+	}
+	current := make(map[string]processSample, len(entries))
+	processes := make([]ProcessInfo, 0, len(entries))
+	for _, entry := range entries {
+		pid := entry.Name()
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := strconv.Atoi(pid); err != nil {
+			continue
+		}
+		statData, err := os.ReadFile(filepath.Join("/proc", pid, "stat"))
+		if err != nil {
+			continue
+		}
+		statText := string(statData)
+		closeParen := strings.LastIndexByte(statText, ')')
+		if closeParen < 0 {
+			continue
+		}
+		name := strings.Trim(statText[strings.Index(statText, " ")+1:closeParen], "()")
+		fields := strings.Fields(statText[closeParen+2:])
+		if len(fields) <= 19 {
+			continue
+		}
+		utime, err1 := strconv.ParseUint(fields[11], 10, 64)
+		stime, err2 := strconv.ParseUint(fields[12], 10, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		ticks := utime + stime
+		current[pid] = processSample{ticks: ticks, at: now}
+		cpu := 0.0
+		if old, ok := previous[pid]; ok && now.After(old.at) && ticks >= old.ticks {
+			cpu = float64(ticks-old.ticks) / now.Sub(old.at).Seconds()
+		}
+		processes = append(processes, ProcessInfo{PID: pid, Name: name, CPU: fmt.Sprintf("%.1f%%", cpu), Memory: fmt.Sprintf("%.1f MB", readProcessMemoryMB(pid)), Status: processState(fields[0])})
+	}
+	sort.Slice(processes, func(i, j int) bool {
+		a, _ := strconv.Atoi(processes[i].PID)
+		b, _ := strconv.Atoi(processes[j].PID)
+		return a < b
+	})
+	return processes, current
+}
+
+func readProcessMemoryMB(pid string) float64 {
+	data, err := os.ReadFile(filepath.Join("/proc", pid, "statm"))
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 2 {
+		return 0
+	}
+	rss, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return float64(rss*uint64(os.Getpagesize())) / (1024 * 1024)
+}
+
+func processState(state string) string {
+	switch state {
+	case "R":
+		return "Running"
+	case "S", "D", "I":
+		return "Sleeping"
+	case "Z":
+		return "Zombie"
+	case "T", "t":
+		return "Stopped"
+	default:
+		return state
+	}
+}
+
+func loadDemoMarkdown() string {
+	paths := []string{".agents/skills/limoni_development/skill.md", "../../.agents/skills/limoni_development/skill.md"}
+	for _, path := range paths {
+		if data, err := os.ReadFile(path); err == nil {
+			return string(data)
+		}
+	}
+	return "# Limoni Demo\nFailed to read markdown file.\n\n- `skill.md` was not found.\n- Showing fallback demo content."
+}

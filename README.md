@@ -361,7 +361,8 @@ Explore runnable demo applications inside the [`examples/`](./examples) director
 | **[`colors_and_styles`](./examples/colors_and_styles)** | 24-bit TrueColor gradients, 256-color ANSI palettes, text modifiers & A11y themes. | `go run ./examples/colors_and_styles` |
 | **[`ssh_server`](./examples/ssh_server)** | Remote terminal server streaming interactive 60 FPS Limoni sessions over network/SSH sockets. | `go run ./examples/ssh_server` |
 | **[`custom_widget`](./examples/custom_widget)** | Developer guide for implementing custom `widgets.Widget` components (Analog Meter / Gauge). | `go run ./examples/custom_widget` |
-| **[`demo`](./examples/demo)** | Comprehensive showcase with 3D graphics, matrix rain, tabs, and command palettes. | `go run ./examples/demo` |
+| **[`demo`](./examples/demo)** | **Interactive 3D Lemon Model (GLB/ASCII/Braille/Half-Block) & Feature Trailer.** | `go run ./examples/demo` |
+| **[`showcase`](./examples/showcase)** | Full multi-tab suite with matrix rain, forms, 3D models, DevTools HUD (`F12`), and command palette. | `go run ./examples/showcase` |
 | **[`wasm`](./examples/wasm)** | In-browser WebAssembly demo running on xterm.js. | `go run ./examples/wasm` |
 | **[`animation`](./examples/animation)** | Physics-based animations, color transitions, and easing curves. | `go run ./examples/animation` |
 | **[`forms`](./examples/forms)** | Text inputs, text areas, radios, checkboxes, and sliders. | `go run ./examples/forms` |

@@ -13,7 +13,7 @@ import (
 )
 
 func loadProfileImage() image.Image {
-	for _, path := range []string{"examples/demo/profile.png", "examples/demo/profile.jpg", "profile.png", "profile.jpg"} {
+	for _, path := range []string{"examples/showcase/profile.png", "examples/showcase/profile.jpg", "examples/demo/profile.png", "examples/demo/profile.jpg", "profile.png", "profile.jpg"} {
 		file, err := os.Open(path)
 		if err != nil {
 			continue
