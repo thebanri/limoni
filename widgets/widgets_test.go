@@ -42,6 +42,36 @@ func TestParagraphWrapAndDraw(t *testing.T) {
 	}
 }
 
+func TestParagraphBoundsClippingNeverBleeds(t *testing.T) {
+	// Entire screen is 40x10. Paragraph is allocated area Width = 10 at X = 0.
+	fullArea := cell.NewRect(0, 0, 40, 10)
+	buf := buffer.NewBuffer(fullArea)
+
+	// An unbroken word of 30 characters (longer than the 10-char allotted area)
+	p := &Paragraph{
+		Text: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234",
+		Wrap: false,
+	}
+
+	subArea := cell.NewRect(0, 0, 10, 5)
+	ctx := cell.NewContext(subArea, cell.Style{})
+	p.Draw(ctx, buf)
+
+	// Columns 0..9 should have text
+	for x := uint16(0); x < 10; x++ {
+		if buf.CellAt(x, 0).Content == ' ' {
+			t.Errorf("Cell %d should contain text", x)
+		}
+	}
+
+	// Column 10 (beyond subArea.Width) MUST be clean space and never bled into
+	for x := uint16(10); x < 40; x++ {
+		if c := buf.CellAt(x, 0).Content; c != ' ' {
+			t.Fatalf("Cell %d contained %c; paragraph bled outside its allotted area.Width!", x, c)
+		}
+	}
+}
+
 func TestListScrollingBounds(t *testing.T) {
 	state := NewListState()
 

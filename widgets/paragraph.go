@@ -67,7 +67,7 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if uint16(i) >= area.Height {
 			break
 		}
-		buf.SetString(area.X, area.Y+uint16(i), line, mergedStyle)
+		buf.SetStringWithin(area.X, area.Y+uint16(i), line, mergedStyle, area.Width)
 	}
 }
 

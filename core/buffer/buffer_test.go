@@ -90,6 +90,29 @@ func TestBufferSetString(t *testing.T) {
 	buf.SetString(20, 20, "Test", style)
 }
 
+func TestBufferSetStringWithin(t *testing.T) {
+	area := cell.NewRect(0, 0, 30, 5)
+	buf := NewBuffer(area)
+
+	style := cell.Style{}
+	// Write with maxWidth = 5 starting at x=10
+	buf.SetStringWithin(10, 0, "ABCDEFGHIJ", style, 5)
+
+	// Columns 10..14 should be "ABCDE"
+	got := ""
+	for x := uint16(10); x < 15; x++ {
+		got += string(buf.CellAt(x, 0).Content)
+	}
+	if got != "ABCDE" {
+		t.Fatalf("SetStringWithin text = %q; want ABCDE", got)
+	}
+
+	// Column 15 must remain blank space (never bled into)
+	if cell15 := buf.CellAt(15, 0).Content; cell15 != ' ' {
+		t.Fatalf("Column 15 was corrupted with %c; should remain empty space", cell15)
+	}
+}
+
 func TestBufferResizeAllocation(t *testing.T) {
 	area := cell.NewRect(0, 0, 10, 10) // 100 hücre
 	buf := NewBuffer(area)

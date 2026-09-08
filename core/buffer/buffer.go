@@ -129,15 +129,21 @@ func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
 	}
 }
 
-// SetString writes a string starting at the specified coordinate with the given style.
-func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
-	if y >= b.Area.Height || x >= b.Area.Width {
+// SetStringWithin writes a string starting at the specified coordinate with the given style,
+// strictly clipping text within maxWidth columns and buffer boundaries.
+func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWidth uint16) {
+	if y >= b.Area.Height || x >= b.Area.Width || maxWidth == 0 {
 		return
+	}
+
+	limitX := x + maxWidth
+	if limitX > b.Area.Width {
+		limitX = b.Area.Width
 	}
 
 	currX := x
 	input := s
-	for len(input) > 0 && currX < b.Area.Width {
+	for len(input) > 0 && currX < limitX {
 		r, size := utf8.DecodeRuneInString(input)
 		if r == utf8.RuneError {
 			break
@@ -148,8 +154,8 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 			input = input[size:]
 			continue // Skip zero-width combining characters
 		}
-		if currX+uint16(w) > b.Area.Width {
-			break // Prevent clipping overflow
+		if currX+uint16(w) > limitX {
+			break // Prevent clipping overflow beyond maxWidth
 		}
 
 		idx := y*b.Area.Width + currX
@@ -172,6 +178,14 @@ func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
 		currX += uint16(w)
 		input = input[size:]
 	}
+}
+
+// SetString writes a string starting at the specified coordinate with the given style.
+func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
+	if x >= b.Area.Width {
+		return
+	}
+	b.SetStringWithin(x, y, s, style, b.Area.Width-x)
 }
 
 // index maps 2D coordinates to the 1D flat slice index. Returns -1 if out of bounds.

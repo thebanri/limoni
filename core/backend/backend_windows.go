@@ -67,7 +67,7 @@ func (b *Backend) SetSize(w, h uint16) {
 // Setup terminali Raw / VT100 moduna geçirir ve ekran hazırlık kodlarını gönderir.
 func (b *Backend) Setup() error {
 	if b.portableIO != nil {
-		setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h"
+		setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h\x1b[?7l"
 		_, err := b.portableIO.Write([]byte(setupCmds))
 		return err
 	}
@@ -78,7 +78,7 @@ func (b *Backend) Setup() error {
 	}
 	b.state = state
 
-	setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h"
+	setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h\x1b[?7l"
 	if _, err := b.out.WriteString(setupCmds); err != nil {
 		b.Close()
 		return fmt.Errorf("ekran hazirlik kodlari gonderilemedi: %w", err)
@@ -95,7 +95,7 @@ func (b *Backend) Close() error {
 		close(b.done)
 	}
 
-	restoreCmds := "\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
+	restoreCmds := "\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
 	if b.portableIO != nil {
 		_, _ = b.portableIO.Write([]byte(restoreCmds))
 		return nil

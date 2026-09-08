@@ -138,6 +138,9 @@ func TestSetupCloseBracketedPaste(t *testing.T) {
 	if !strings.Contains(out, "\x1b[?2004h") {
 		t.Fatalf("Setup output does not contain bracketed paste enable (?2004h): %q", out)
 	}
+	if !strings.Contains(out, "\x1b[?7l") {
+		t.Fatalf("Setup output does not contain auto-wrap disable (?7l): %q", out)
+	}
 
 	if err := b.Close(); err != nil {
 		t.Fatalf("Close failed: %v", err)
@@ -145,5 +148,8 @@ func TestSetupCloseBracketedPaste(t *testing.T) {
 	out = string(io.Output())
 	if !strings.Contains(out, "\x1b[?2004l") {
 		t.Fatalf("Close output does not contain bracketed paste disable (?2004l): %q", out)
+	}
+	if !strings.Contains(out, "\x1b[?7h") {
+		t.Fatalf("Close output does not contain auto-wrap enable (?7h): %q", out)
 	}
 }
