@@ -153,3 +153,30 @@ func TestSetupCloseBracketedPaste(t *testing.T) {
 		t.Fatalf("Close output does not contain auto-wrap enable (?7h): %q", out)
 	}
 }
+
+func TestBackendCloseIdempotentAndConcurrent(t *testing.T) {
+	io := NewMemoryTerminalIO(nil, 80, 24)
+	b := NewPortableBackend(io)
+	if err := b.Setup(); err != nil {
+		t.Fatalf("Setup failed: %v", err)
+	}
+
+	// Call Close concurrently from 20 goroutines
+	done := make(chan struct{})
+	for i := 0; i < 20; i++ {
+		go func() {
+			_ = b.Close()
+			done <- struct{}{}
+		}()
+	}
+
+	for i := 0; i < 20; i++ {
+		<-done
+	}
+
+	// Verify terminal restore commands are sent
+	out := string(io.Output())
+	if !strings.Contains(out, "\x1b[0m") {
+		t.Errorf("Expected reset code \\x1b[0m in restore output: %q", out)
+	}
+}

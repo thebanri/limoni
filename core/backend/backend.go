@@ -23,6 +23,8 @@ type Backend struct {
 	sigWinch   chan os.Signal
 	width      uint16 // cached for portable mode
 	height     uint16 // cached for portable mode
+	closeOnce  sync.Once
+	closeErr   error
 	mu         sync.RWMutex
 }
 
@@ -103,31 +105,34 @@ func (b *Backend) Setup() error {
 
 // Close terminali eski özgün ayarlarına döndürür ve alternatif ekrandan çıkar.
 func (b *Backend) Close() error {
-	// Olay döngüsünü durdur
-	select {
-	case <-b.done:
-	default:
-		close(b.done)
-	}
+	b.closeOnce.Do(func() {
+		// Olay döngüsünü durdur
+		select {
+		case <-b.done:
+		default:
+			close(b.done)
+		}
 
-	if b.sigWinch != nil {
-		signal.Stop(b.sigWinch)
-	}
+		if b.sigWinch != nil {
+			signal.Stop(b.sigWinch)
+		}
 
-	restoreCmds := "\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
+		restoreCmds := "\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
 
-	if b.portableIO != nil {
-		_, err := b.portableIO.Write([]byte(restoreCmds))
-		return err
-	}
+		if b.portableIO != nil {
+			_, b.closeErr = b.portableIO.Write([]byte(restoreCmds))
+			return
+		}
 
-	b.out.WriteString(restoreCmds)
+		b.out.WriteString(restoreCmds)
 
-	// Raw Mode'dan çık, eski termios ayarlarına dön
-	if b.state != nil {
-		return Restore(int(b.in.Fd()), b.state)
-	}
-	return nil
+		// Raw Mode'dan çık, eski termios ayarlarına dön
+		if b.state != nil {
+			b.closeErr = Restore(int(b.in.Fd()), b.state)
+			b.state = nil
+		}
+	})
+	return b.closeErr
 }
 
 // Events olay akışını dinleyen kanal alıcısını döner.
@@ -211,7 +216,11 @@ func (b *Backend) StartEventLoop() {
 							ev, consumed = ParseEvent(readBuf)
 						}
 						if consumed > 0 {
-							b.events <- ev
+							select {
+							case b.events <- ev:
+							case <-b.done:
+								return
+							}
 							readBuf = readBuf[consumed:]
 						} else {
 							break
@@ -225,11 +234,15 @@ func (b *Backend) StartEventLoop() {
 
 				case <-escTimerChan:
 					if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-						b.events <- Event{
+						select {
+						case b.events <- Event{
 							Type: EventKey,
 							Key: KeyEvent{
 								Type: KeyEsc,
 							},
+						}:
+						case <-b.done:
+							return
 						}
 						readBuf = readBuf[:0]
 					}
@@ -245,18 +258,37 @@ func (b *Backend) StartEventLoop() {
 	b.sigWinch = make(chan os.Signal, 1)
 	signal.Notify(b.sigWinch, unix.SIGWINCH)
 
+	// Harici sonlandırma sinyalleri (SIGINT, SIGTERM) geldiğinde terminali koru
+	sigTerm := make(chan os.Signal, 1)
+	signal.Notify(sigTerm, os.Interrupt, unix.SIGTERM)
+	go func() {
+		select {
+		case <-sigTerm:
+			_ = b.Close()
+			os.Exit(130)
+		case <-b.done:
+			signal.Stop(sigTerm)
+			return
+		}
+	}()
+
 	go func() {
 		for {
 			select {
 			case <-b.sigWinch:
 				w, h, err := b.Size()
 				if err == nil {
-					b.events <- Event{
+					select {
+					case b.events <- Event{
 						Type: EventResize,
 						Resize: ResizeEvent{
 							Width:  w,
 							Height: h,
 						},
+					}:
+					case <-b.done:
+						return
+					default:
 					}
 				}
 			case <-b.done:
@@ -318,7 +350,11 @@ func (b *Backend) StartEventLoop() {
 						ev, consumed = ParseEvent(readBuf)
 					}
 					if consumed > 0 {
-						b.events <- ev
+						select {
+						case b.events <- ev:
+						case <-b.done:
+							return
+						}
 						readBuf = readBuf[consumed:]
 					} else {
 						// Tamamlanmamış bir dizi var
@@ -337,11 +373,15 @@ func (b *Backend) StartEventLoop() {
 				// Zaman aşımı doldu ve yeni byte gelmedi. Bu durumda tamponda bekleyen '\x1b'
 				// doğrudan ESC tuşu basımı olarak kabul edilir.
 				if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-					b.events <- Event{
+					select {
+					case b.events <- Event{
 						Type: EventKey,
 						Key: KeyEvent{
 							Type: KeyEsc,
 						},
+					}:
+					case <-b.done:
+						return
 					}
 					readBuf = readBuf[:0]
 				}

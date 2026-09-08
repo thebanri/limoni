@@ -5,6 +5,7 @@ package backend
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -20,6 +21,8 @@ type Backend struct {
 	done       chan struct{}
 	width      uint16
 	height     uint16
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 // NewBackend yeni bir Windows Backend örneği oluşturur.
@@ -89,25 +92,28 @@ func (b *Backend) Setup() error {
 
 // Close terminali eski ayarlarına döndürür ve alternatif ekrandan çıkar.
 func (b *Backend) Close() error {
-	select {
-	case <-b.done:
-	default:
-		close(b.done)
-	}
+	b.closeOnce.Do(func() {
+		select {
+		case <-b.done:
+		default:
+			close(b.done)
+		}
 
-	restoreCmds := "\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
-	if b.portableIO != nil {
-		_, _ = b.portableIO.Write([]byte(restoreCmds))
-		return nil
-	}
-	if b.out != nil {
-		_, _ = b.out.WriteString(restoreCmds)
-	}
+		restoreCmds := "\x1b[0m\x1b[?7h\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
+		if b.portableIO != nil {
+			_, b.closeErr = b.portableIO.Write([]byte(restoreCmds))
+			return
+		}
+		if b.out != nil {
+			_, _ = b.out.WriteString(restoreCmds)
+		}
 
-	if b.state != nil {
-		return RestoreConsole(b.state)
-	}
-	return nil
+		if b.state != nil {
+			b.closeErr = RestoreConsole(b.state)
+			b.state = nil
+		}
+	})
+	return b.closeErr
 }
 
 // Events olay akışını dinleyen kanal alıcısını döner.

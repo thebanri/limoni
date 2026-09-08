@@ -186,3 +186,45 @@ func TestBufferTransparentInheritance(t *testing.T) {
 		t.Errorf("Özel arkaplan ezilemedi: beklenen %v, alınan %v", customBg, redCell.Style.Bg)
 	}
 }
+
+func TestBufferOrphanWideCharacters(t *testing.T) {
+	buf := NewBuffer(cell.NewRect(0, 0, 10, 1))
+
+	// 1. Write emoji at 0, 0
+	buf.SetString(0, 0, "🚀", cell.Style{})
+	if buf.CellAt(0, 0).Content != '🚀' {
+		t.Errorf("Cell 0 want 🚀, got %c", buf.CellAt(0, 0).Content)
+	}
+	if buf.CellAt(1, 0).Content != cell.RuneContinuation {
+		t.Errorf("Cell 1 want RuneContinuation, got U+%04X", buf.CellAt(1, 0).Content)
+	}
+
+	// 2. Overwrite continuation cell at (1, 0) with 'A'
+	buf.SetString(1, 0, "A", cell.Style{})
+	if buf.CellAt(0, 0).Content != ' ' {
+		t.Errorf("Cell 0 should be reset to space after continuation overwrite, got %c", buf.CellAt(0, 0).Content)
+	}
+	if buf.CellAt(1, 0).Content != 'A' {
+		t.Errorf("Cell 1 want A, got %c", buf.CellAt(1, 0).Content)
+	}
+
+	// 3. Write emoji at 0 again, then overwrite left half at (0, 0) with 'B'
+	buf.SetString(0, 0, "🚀", cell.Style{})
+	buf.SetString(0, 0, "B", cell.Style{})
+	if buf.CellAt(0, 0).Content != 'B' {
+		t.Errorf("Cell 0 want B, got %c", buf.CellAt(0, 0).Content)
+	}
+	if buf.CellAt(1, 0).Content != ' ' {
+		t.Errorf("Cell 1 should be reset to space after wide character left-half overwrite, got %c", buf.CellAt(1, 0).Content)
+	}
+
+	// 4. Test SetCell with wide character sets continuation
+	buf.Clear()
+	buf.SetCell(2, 0, cell.Cell{Content: '🔥'})
+	if buf.CellAt(2, 0).Content != '🔥' {
+		t.Errorf("Cell 2 want 🔥, got %c", buf.CellAt(2, 0).Content)
+	}
+	if buf.CellAt(3, 0).Content != cell.RuneContinuation {
+		t.Errorf("Cell 3 want RuneContinuation after SetCell wide rune, got U+%04X", buf.CellAt(3, 0).Content)
+	}
+}

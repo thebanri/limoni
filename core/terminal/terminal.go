@@ -66,6 +66,9 @@ func New(b *backend.Backend) (*Terminal, error) {
 	if err != nil {
 		return nil, err
 	}
+	if w == 0 || h == 0 {
+		w, h = 80, 24
+	}
 
 	area := cell.NewRect(0, 0, w, h)
 	front := buffer.NewBuffer(area)
@@ -109,6 +112,12 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	w, h, err := t.backend.Size()
 	if err != nil {
 		return err
+	}
+	if w == 0 || h == 0 {
+		w, h = t.front.Area.Width, t.front.Area.Height
+		if w == 0 || h == 0 {
+			w, h = 80, 24
+		}
 	}
 
 	// Eğer pencere boyutu değiştiyse sadece front tamponunu yeniden boyutlandır.
