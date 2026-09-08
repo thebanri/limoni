@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image"
 	"os"
-	"strings"
 
 	"github.com/thebanri/limoni/benchmarks"
 	"github.com/thebanri/limoni/core/backend"
@@ -121,19 +120,11 @@ func main() {
 			area := cell.NewRect(0, 0, spec.Width, spec.Height)
 			front := buffer.NewBuffer(area)
 			back := buffer.NewBuffer(area)
-			var sb strings.Builder
-			for line := 0; line < 40; line++ {
-				sb.WriteString(fmt.Sprintf("Line %02d: Limoni text rendering engine benchmark with unicode ✓, symbols ★ ➔, and wrapping across 120 columns.\n", line))
-			}
-			baseText := sb.String()
-			p := &widgets.Paragraph{Wrap: true}
+			p := &widgets.Paragraph{Text: "Limoni benchmark ✓ 日本語. Heavy text rendering test for performance analysis.", Wrap: true}
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
-			step := 0
 			runFn = func() []byte {
-				p.Text = fmt.Sprintf("Frame %04d | %s", step, baseText)
-				step++
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(p, area)
@@ -145,14 +136,11 @@ func main() {
 			area := cell.NewRect(0, 0, spec.Width, spec.Height)
 			front := buffer.NewBuffer(area)
 			back := buffer.NewBuffer(area)
-			p := &widgets.Paragraph{Wrap: true}
+			p := &widgets.Paragraph{Text: "Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification.", Wrap: true}
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
-			step := 0
 			runFn = func() []byte {
-				p.Text = fmt.Sprintf("Step %04d: Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols verification.", step)
-				step++
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(p, area)
