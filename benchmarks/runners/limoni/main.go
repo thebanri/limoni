@@ -184,13 +184,17 @@ func main() {
 			focusMgr := terminal.NewFocusManager()
 			frame := terminal.NewFrame(front, focusMgr)
 			var writeBuf []byte
+			step := 0
 			runFn = func() []byte {
+				first := (step * 5) % (1000000 - viewportHeight)
+				step++
+				_ = state.Refresh(context.Background(), provider, first, first+viewportHeight, 1)
 				front.Clear()
 				frame.Reset()
 				frame.RenderWidget(widgets.VirtualDataView{
 					State:  state,
 					Source: provider,
-					First:  0,
+					First:  first,
 					Offset: &offset,
 					Style:  cell.Style{},
 				}, area)

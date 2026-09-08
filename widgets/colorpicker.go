@@ -543,9 +543,9 @@ func rgbToHSV(r, g, b uint8) (float64, float64, float64) {
 	} else if maxVal == rf {
 		h = 60.0 * math.Mod((gf-bf)/delta, 6.0)
 	} else if maxVal == gf {
-		h = 60.0 * (((bf-rf)/delta) + 2.0)
+		h = 60.0 * (((bf - rf) / delta) + 2.0)
 	} else {
-		h = 60.0 * (((rf-gf)/delta) + 4.0)
+		h = 60.0 * (((rf - gf) / delta) + 4.0)
 	}
 	if h < 0 {
 		h += 360.0

@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -117,5 +118,32 @@ func TestParseIncompleteEscape(t *testing.T) {
 	_, consumed := ParseEvent([]byte("\x1b[1"))
 	if consumed != 0 {
 		t.Errorf("Yarım kalan dizi tüketilmemeliydi, consumed: %d", consumed)
+	}
+}
+
+func TestParseSolitaryEscapeReturnsZero(t *testing.T) {
+	_, consumed := ParseEvent([]byte{'\x1b'})
+	if consumed != 0 {
+		t.Fatalf("ParseEvent on solitary ESC should return consumed 0 to allow timeout/continuation, got %d", consumed)
+	}
+}
+
+func TestSetupCloseBracketedPaste(t *testing.T) {
+	io := NewMemoryTerminalIO(nil, 80, 24)
+	b := NewPortableBackend(io)
+	if err := b.Setup(); err != nil {
+		t.Fatalf("Setup failed: %v", err)
+	}
+	out := string(io.Output())
+	if !strings.Contains(out, "\x1b[?2004h") {
+		t.Fatalf("Setup output does not contain bracketed paste enable (?2004h): %q", out)
+	}
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	out = string(io.Output())
+	if !strings.Contains(out, "\x1b[?2004l") {
+		t.Fatalf("Close output does not contain bracketed paste disable (?2004l): %q", out)
 	}
 }

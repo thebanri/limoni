@@ -742,9 +742,9 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	f.RenderWidget(widgets.Block{
 		Title: " GEOMETRY ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: shapeBorder},
 		Child: widgets.Select{
-			ID:            "shape_select",
-			Options:       options,
-			State:         state.ShapeSelectState,
+			ID:      "shape_select",
+			Options: options,
+			State:   state.ShapeSelectState,
 			OnChange: func(index int, opt string) {
 				if index == 4 && state.OBJModel != nil {
 					state.ActiveShape = "Custom"
@@ -765,9 +765,9 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	f.RenderWidget(widgets.Block{
 		Title: " SHADING ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: shadingBorder},
 		Child: widgets.Select{
-			ID:            "shading_select",
-			Options:       shadings,
-			State:         state.ShadingSelectState,
+			ID:      "shading_select",
+			Options: shadings,
+			State:   state.ShadingSelectState,
 			OnChange: func(index int, opt string) {
 				if index >= 0 && index < len(shadings) {
 					state.ShadingMode = shadings[index]
@@ -1095,4 +1095,3 @@ func draw3DCanvas(f *terminal.Frame, state *AppState, area cell.Rect) {
 		Child:          canvas,
 	}, area)
 }
-

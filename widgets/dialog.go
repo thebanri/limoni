@@ -220,11 +220,11 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		type btnLayout struct {
-			text    string
-			width   int
-			btn     DialogButton
-			btnID   string
-			style   cell.Style
+			text  string
+			width int
+			btn   DialogButton
+			btnID string
+			style cell.Style
 		}
 
 		btnList := make([]btnLayout, len(di.Buttons))
@@ -457,4 +457,3 @@ func splitMessage(msg string, maxW int) []string {
 	}
 	return lines
 }
-

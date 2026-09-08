@@ -81,11 +81,11 @@ func TestBufferSetString(t *testing.T) {
 	// Sınır aşımı kontrolü (Wrap olmamalı, kesilmeli)
 	buf.Clear()
 	buf.SetString(7, 1, "UzunMetin", style) // (7, 1)'de başlar. Sadece "Uzu" yazabilmeli (genişlik 10)
-	
+
 	if buf.Get(9, 1).Content != 'u' {
 		t.Errorf("Sınırda kesilme hatalı. (9,1) 'u' olmalı, alınan: %c", buf.Get(9, 1).Content)
 	}
-	
+
 	// Geçersiz koordinatta SetString paniklememeli
 	buf.SetString(20, 20, "Test", style)
 }
@@ -163,4 +163,3 @@ func TestBufferTransparentInheritance(t *testing.T) {
 		t.Errorf("Özel arkaplan ezilemedi: beklenen %v, alınan %v", customBg, redCell.Style.Bg)
 	}
 }
-

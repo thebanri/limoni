@@ -482,4 +482,3 @@ func (b Block) Measure(maxArea cell.Rect) layout.Measure {
 		Overflow:    layout.OverflowClip,
 	}
 }
-

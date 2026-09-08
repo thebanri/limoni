@@ -144,7 +144,9 @@ func BenchmarkDiff_PartialChanges(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out = out[:0]
-		// Her turda back tamponunu sıfırlayarak değişikliklerin tekrar diff'e düşmesini sağlıyoruz
+		// Her turda front'u geçersiz kılıp (invalidate) back'i temizleyerek
+		// gerçek diff hesaplama döngüsünün çalışmasını sağlıyoruz.
+		front.Invalidate()
 		back.Clear()
 		out, _ = Diff(front, back, out, true, true)
 	}
@@ -155,7 +157,7 @@ func BenchmarkDiff_FullChanges(b *testing.B) {
 	front := NewBuffer(area)
 	back := NewBuffer(area)
 
-	// Tüm hücreleri rastgele doldur
+	// Tüm hücreleri doldur
 	style := cell.Style{Fg: cell.NewColorRGB(100, 200, 50)}
 	for y := uint16(0); y < 40; y++ {
 		for x := uint16(0); x < 120; x++ {
@@ -168,8 +170,45 @@ func BenchmarkDiff_FullChanges(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out = out[:0]
+		front.Invalidate()
 		back.Clear()
 		out, _ = Diff(front, back, out, true, true)
+	}
+}
+
+func TestDiffBufferGetMutationNotSkipped(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 5)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// İlk diff - her iki tampon da temiz
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+	if front.IsDirty {
+		t.Fatal("front should not be dirty after clean diff")
+	}
+
+	// Buffer.Get ile doğrudan hücre mutasyonu yap
+	cellPtr := front.Get(2, 2)
+	if cellPtr == nil {
+		t.Fatal("Get(2, 2) returned nil")
+	}
+	cellPtr.Content = 'Z'
+	cellPtr.Style = cell.Style{Fg: cell.NewColorANSI(2)}
+
+	if !front.IsDirty {
+		t.Fatal("front.IsDirty must be true after calling Buffer.Get")
+	}
+
+	// Diff doğrudan hücre mutasyonunu yakalamalı ve kaçış kodu üretmeli
+	out, err = Diff(front, back, out[:0], true, true)
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+	if len(out) == 0 {
+		t.Fatal("Diff output should not be empty after direct cell mutation via Get")
 	}
 }
 
@@ -245,5 +284,3 @@ func TestDiffColorDownsampling(t *testing.T) {
 		t.Errorf("Expected 16-color ANSI code (13 or 5) for RGB magenta, got: %q", string(out16))
 	}
 }
-
-

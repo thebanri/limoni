@@ -40,9 +40,9 @@
 
 ## ⚡ Overview
 
-**Limoni** is an enterprise-grade, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and modern terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.
+**Limoni** is a modern, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and responsive terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.
 
-By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and a **sub-microsecond differential ANSI engine**, Limoni achieves ultra-smooth 60+ FPS rendering without triggering Go's Garbage Collector.
+By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **optimized differential ANSI engine**, Limoni achieves ultra-smooth 60+ FPS rendering without triggering Go's Garbage Collector.
 
 ---
 
@@ -53,10 +53,10 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and a **sub
 | **Language & Tooling** | **Go (Native)** | Go (Native) | Rust (Native) |
 | **Render Architecture** | **Flat 1D Grid + ANSI Diff Engine** | String concatenation / TEA | Immediate Mode Double Buffer |
 | **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Stack / RAII |
-| **Large Datasets / Tables**| **Sub-µs Virtual Paging (Millions of rows)** | High GC load on scroll | High layout cloning overhead |
+| **Large Datasets / Tables**| **Virtual Paging (Millions of rows)** | High GC load on scroll | High layout cloning overhead |
 | **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY) & Shaders** | Third-party / custom | Addons required |
 | **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Experimental |
-| **Concurrency Model**  | **Lock-Free Channels / Thread-Safe Buffer Swaps** | Single-threaded TEA loop | Manual thread coordination |
+| **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Manual thread coordination |
 
 ### Key Advantages:
 1. **Zero GC Stutter**: Critical rendering loops generate zero heap allocations, eliminating random frame drops during heavy interactions or animations.

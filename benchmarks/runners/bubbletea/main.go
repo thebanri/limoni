@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type spec struct {
@@ -54,10 +54,10 @@ type workload struct {
 }
 
 type report struct {
-	Implementation string     `json:"implementation"`
+	Implementation string      `json:"implementation"`
 	Environment    envMetadata `json:"environment"`
-	Valid          bool       `json:"valid"`
-	Workloads      []workload `json:"workloads"`
+	Valid          bool        `json:"valid"`
+	Workloads      []workload  `json:"workloads"`
 }
 
 type envMetadata struct {

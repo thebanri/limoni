@@ -127,10 +127,10 @@ func (ts *TableState) handleScroll(ev backend.MouseEvent, rowCount, viewportHeig
 }
 
 type tableDrawScratch struct {
-	widths    []uint16
-	owner     map[[2]int][2]int
-	cells     map[[2]int]TableCell
-	filtered  []TableRow
+	widths   []uint16
+	owner    map[[2]int][2]int
+	cells    map[[2]int]TableCell
+	filtered []TableRow
 }
 
 var tableDrawScratchPool = sync.Pool{

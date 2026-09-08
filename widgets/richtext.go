@@ -210,4 +210,3 @@ func TextFromRichText(text string, baseStyle cell.Style, theme Theme) Text {
 		Style: baseStyle,
 	}
 }
-

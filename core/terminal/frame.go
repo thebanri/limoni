@@ -848,4 +848,3 @@ func (f *Frame) Area() cell.Rect {
 	}
 	return f.Buffer.Area
 }
-

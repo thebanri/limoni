@@ -54,14 +54,14 @@ func NewGridLayout(cols []GridConstraint, rows []GridConstraint, gap uint16) *Gr
 
 // GridArea, grid üzerindeki belirli bir hücre alanını ve onun span genişlemesini temsil eder.
 type GridArea struct {
-	Area    cell.Rect
-	RowIdx  int
-	ColIdx  int
-	rowH    []uint16
-	colW    []uint16
-	rowY    []uint16
-	colX    []uint16
-	gap     uint16
+	Area   cell.Rect
+	RowIdx int
+	ColIdx int
+	rowH   []uint16
+	colW   []uint16
+	rowY   []uint16
+	colX   []uint16
+	gap    uint16
 }
 
 // Span, mevcut hücreyi belirtilen satır ve sütun miktarı kadar genişletir (RowSpan, ColSpan).

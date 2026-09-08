@@ -194,8 +194,8 @@ func NewTorus(r1, r2 float64, radialSegments, tubularSegments int) Model3D {
 	for r := 0; r < radialSegments; r++ {
 		for t := 0; t < tubularSegments; t++ {
 			p0 := r*tubularSegments + t
-			p1 := r*tubularSegments + (t + 1)%tubularSegments
-			p2 := ((r+1)%radialSegments)*tubularSegments + (t + 1)%tubularSegments
+			p1 := r*tubularSegments + (t+1)%tubularSegments
+			p2 := ((r+1)%radialSegments)*tubularSegments + (t+1)%tubularSegments
 			p3 := ((r+1)%radialSegments)*tubularSegments + t
 
 			faces = append(faces, []int{p3, p2, p1, p0})

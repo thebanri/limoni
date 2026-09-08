@@ -132,4 +132,3 @@ func TestTextFromRichText(t *testing.T) {
 		t.Errorf("Span 1 line 1 style mismatch: got %q / %+v", line1.Spans[1].Text, line1.Spans[1].Style)
 	}
 }
-

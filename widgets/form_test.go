@@ -63,7 +63,7 @@ func TestCheckboxAndRadio(t *testing.T) {
 		Checked: &checked,
 		Label:   "Onayla",
 	}
-	
+
 	// Test size hint
 	w, h := cb.SizeHint(cell.NewRect(0, 0, 100, 100))
 	if w != 10 || h != 1 {

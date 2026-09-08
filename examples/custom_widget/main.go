@@ -123,16 +123,16 @@ type ColorPaletteGrid struct {
 
 var paletteColors = [][]cell.Color{
 	{
-		cell.NewColorRGB(255, 0, 0),     // Red
-		cell.NewColorRGB(255, 127, 0),   // Orange
-		cell.NewColorRGB(255, 255, 0),   // Yellow
-		cell.NewColorRGB(127, 255, 0),   // Lime
+		cell.NewColorRGB(255, 0, 0),   // Red
+		cell.NewColorRGB(255, 127, 0), // Orange
+		cell.NewColorRGB(255, 255, 0), // Yellow
+		cell.NewColorRGB(127, 255, 0), // Lime
 	},
 	{
-		cell.NewColorRGB(0, 255, 0),     // Green
-		cell.NewColorRGB(0, 255, 255),   // Cyan
-		cell.NewColorRGB(0, 127, 255),   // Sky Blue
-		cell.NewColorRGB(0, 0, 255),     // Blue
+		cell.NewColorRGB(0, 255, 0),   // Green
+		cell.NewColorRGB(0, 255, 255), // Cyan
+		cell.NewColorRGB(0, 127, 255), // Sky Blue
+		cell.NewColorRGB(0, 0, 255),   // Blue
 	},
 	{
 		cell.NewColorRGB(127, 0, 255),   // Purple

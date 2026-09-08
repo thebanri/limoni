@@ -163,7 +163,9 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 	// Resim ve metin çıktısını aynı senkron güncelleme içinde üret. Böylece
 	// tam ekran temizleme ile native resim arasında görünür bir ara kare oluşmaz.
-	t.backend.StartSyncUpdate()
+	if t.caps.SyncOutput {
+		t.backend.StartSyncUpdate()
+	}
 
 	// Tam yeniden çizimde buffer.Diff'in sonradan göndereceği ESC[2J,
 	// daha önce gönderilmiş native resimleri silmemelidir. Boyutları burada
@@ -230,17 +232,23 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	var diffErr error
 	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf, t.caps.TrueColor, t.caps.Colors256)
 	if diffErr != nil {
-		t.backend.EndSyncUpdate()
+		if t.caps.SyncOutput {
+			t.backend.EndSyncUpdate()
+		}
 		return diffErr
 	}
 
 	if len(t.writeBuf) > 0 {
 		if _, err := t.backend.Write(t.writeBuf); err != nil {
-			t.backend.EndSyncUpdate()
+			if t.caps.SyncOutput {
+				t.backend.EndSyncUpdate()
+			}
 			return err
 		}
 	}
-	t.backend.EndSyncUpdate()
+	if t.caps.SyncOutput {
+		t.backend.EndSyncUpdate()
+	}
 
 	dur := time.Since(t0)
 	t.lastFrameDuration = dur

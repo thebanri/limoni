@@ -50,7 +50,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 	for y := uint16(0); y < height; y++ {
 		first := int(-1)
 		last := int(-1)
-		rowOffset := int(y)*int(width)
+		rowOffset := int(y) * int(width)
 		for x := 0; x < int(width); x++ {
 			idx := rowOffset + x
 			if front.Content[idx] != back.Content[idx] {

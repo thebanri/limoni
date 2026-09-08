@@ -660,47 +660,47 @@ func main() {
 				} else {
 					// 2. CODE & DIRECTORY LINES PREVIEW
 					maxLines := int(cols[2].Height) - 5
-				for i, rawLine := range state.PreviewLines {
-					if i >= maxLines {
-						break
-					}
-					currLineY := pInnerY + uint16(i)
-					lineNumStyle := cell.Style{Fg: cell.NewColorRGB(90, 100, 120), Bg: bgCard}
-					codeStyle := cell.Style{Fg: cell.NewColorRGB(215, 225, 240), Bg: bgCard}
-
-					// Expand tabs and remove \r
-					cleanLine := strings.ReplaceAll(rawLine, "\t", "    ")
-					cleanLine = strings.ReplaceAll(cleanLine, "\r", "")
-
-					if selItem.IsDir {
-						maxCodeW := int(cols[2].Width) - 4
-						if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
-							cleanLine = string([]rune(cleanLine)[:maxCodeW])
+					for i, rawLine := range state.PreviewLines {
+						if i >= maxLines {
+							break
 						}
-						f.Buffer.SetString(cols[2].X+2, currLineY, cleanLine, codeStyle)
-					} else {
-						lineNumStr := fmt.Sprintf("%2d │ ", i+1)
-						f.Buffer.SetString(cols[2].X+2, currLineY, lineNumStr, lineNumStyle)
+						currLineY := pInnerY + uint16(i)
+						lineNumStyle := cell.Style{Fg: cell.NewColorRGB(90, 100, 120), Bg: bgCard}
+						codeStyle := cell.Style{Fg: cell.NewColorRGB(215, 225, 240), Bg: bgCard}
 
-						maxCodeW := int(cols[2].Width) - 8
-						if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
-							cleanLine = string([]rune(cleanLine)[:maxCodeW])
+						// Expand tabs and remove \r
+						cleanLine := strings.ReplaceAll(rawLine, "\t", "    ")
+						cleanLine = strings.ReplaceAll(cleanLine, "\r", "")
+
+						if selItem.IsDir {
+							maxCodeW := int(cols[2].Width) - 4
+							if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
+								cleanLine = string([]rune(cleanLine)[:maxCodeW])
+							}
+							f.Buffer.SetString(cols[2].X+2, currLineY, cleanLine, codeStyle)
+						} else {
+							lineNumStr := fmt.Sprintf("%2d │ ", i+1)
+							f.Buffer.SetString(cols[2].X+2, currLineY, lineNumStr, lineNumStyle)
+
+							maxCodeW := int(cols[2].Width) - 8
+							if len([]rune(cleanLine)) > maxCodeW && maxCodeW > 0 {
+								cleanLine = string([]rune(cleanLine)[:maxCodeW])
+							}
+
+							// Basic syntax highlight tinting
+							if strings.Contains(cleanLine, "func ") || strings.Contains(cleanLine, "package ") || strings.Contains(cleanLine, "import ") || strings.Contains(cleanLine, "type ") {
+								codeStyle.Fg = cell.NewColorRGB(0, 220, 255)
+							} else if strings.Contains(cleanLine, "//") || strings.Contains(cleanLine, "/*") {
+								codeStyle.Fg = cell.NewColorRGB(100, 110, 130)
+							} else if strings.Contains(cleanLine, "\"") {
+								codeStyle.Fg = cell.NewColorRGB(46, 204, 113)
+							}
+
+							f.Buffer.SetString(cols[2].X+7, currLineY, cleanLine, codeStyle)
 						}
-
-						// Basic syntax highlight tinting
-						if strings.Contains(cleanLine, "func ") || strings.Contains(cleanLine, "package ") || strings.Contains(cleanLine, "import ") || strings.Contains(cleanLine, "type ") {
-							codeStyle.Fg = cell.NewColorRGB(0, 220, 255)
-						} else if strings.Contains(cleanLine, "//") || strings.Contains(cleanLine, "/*") {
-							codeStyle.Fg = cell.NewColorRGB(100, 110, 130)
-						} else if strings.Contains(cleanLine, "\"") {
-							codeStyle.Fg = cell.NewColorRGB(46, 204, 113)
-						}
-
-						f.Buffer.SetString(cols[2].X+7, currLineY, cleanLine, codeStyle)
 					}
 				}
 			}
-		}
 
 			// 3. BOTTOM FOOTER SHORTCUTS
 			footerText := " [j/k/▲/▼] Move  [Enter/l] Open  [Backspace/h] Parent  [1-7] Pinned  [.] Hidden  [q] Quit"

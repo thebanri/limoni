@@ -75,14 +75,26 @@ func (b *Buffer) Resize(area cell.Rect) {
 	b.Clear()
 }
 
-// Get returns a direct pointer to the cell at the specified coordinates.
+// Get returns a direct mutable pointer to the cell at the specified coordinates.
+// Calling Get marks the buffer as dirty and non-clean, ensuring subsequent diff passes
+// do not skip mutations performed through the returned pointer.
 // Returns nil if coordinates are out of bounds.
 func (b *Buffer) Get(x, y uint16) *cell.Cell {
 	if x >= b.Area.Width || y >= b.Area.Height {
 		return nil
 	}
 	b.clean = false
+	b.IsDirty = true
 	return &b.Content[y*b.Area.Width+x]
+}
+
+// CellAt returns a copy of the cell at the specified coordinates without modifying the buffer's dirty state.
+// If coordinates are out of bounds, it returns a zero Cell.
+func (b *Buffer) CellAt(x, y uint16) cell.Cell {
+	if x >= b.Area.Width || y >= b.Area.Height {
+		return cell.Cell{}
+	}
+	return b.Content[y*b.Area.Width+x]
 }
 
 // SetCell writes a cell at the specified coordinate.

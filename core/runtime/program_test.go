@@ -133,3 +133,63 @@ func TestProgramSendCancellation(t *testing.T) {
 		t.Fatalf("Send error = %v, want context.Canceled", err)
 	}
 }
+
+// mutableRaceModel is intentionally NOT synchronized internally to verify that
+// Program's internal modelMu protects against concurrent Update and View races.
+type mutableRaceModel struct {
+	counter int
+	items   []string
+}
+
+func (m *mutableRaceModel) Init() []Cmd {
+	return nil
+}
+
+func (m *mutableRaceModel) Update(msg Msg) UpdateResult {
+	m.counter++
+	m.items = append(m.items, "updated")
+	if m.counter > 2000 {
+		return UpdateResult{Quit: true}
+	}
+	return UpdateResult{Redraw: true}
+}
+
+func (m *mutableRaceModel) View(frame *terminal.Frame) {
+	_ = m.counter
+	_ = len(m.items)
+}
+
+func TestProgramConcurrentUpdateAndViewRace(t *testing.T) {
+	model := &mutableRaceModel{}
+	program := New(WithModel(model), WithMessageQueue(256))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- program.Run(ctx)
+	}()
+
+	// Concurrently send messages (which call Update) and call View directly
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = program.Send(ctx, i)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			program.View(nil)
+		}
+	}()
+
+	wg.Wait()
+	program.Stop()
+	<-runDone
+}

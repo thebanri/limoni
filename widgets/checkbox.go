@@ -8,7 +8,6 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-
 // Checkbox, işaretlenebilir interaktif bir onay kutusudur.
 type Checkbox struct {
 	ID           string

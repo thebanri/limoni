@@ -70,10 +70,10 @@ func (b *Backend) SetSize(w, h uint16) {
 	}
 }
 
-// Setup terminali Raw Mode'a geçirir ve ekran hazırlık kodlarını (Alt Screen, Mouse, Focus) gönderir.
+// Setup terminali Raw Mode'a geçirir ve ekran hazırlık kodlarını (Alt Screen, Mouse, Focus, Paste) gönderir.
 func (b *Backend) Setup() error {
+	setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h\x1b[?2004h"
 	if b.portableIO != nil {
-		setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h"
 		_, err := b.portableIO.Write([]byte(setupCmds))
 		return err
 	}
@@ -91,7 +91,7 @@ func (b *Backend) Setup() error {
 	// \x1b[?1003h - Tüm fare hareketlerini ve tıklamalarını izle (SGR)
 	// \x1b[?1006h - SGR fare uzantı modunu aç
 	// \x1b[?1004h - Odaklanma (Focus In/Out) raporlamasını aç
-	setupCmds := "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?1004h"
+	// \x1b[?2004h - Bracketed Paste modunu aç
 	if _, err := b.out.WriteString(setupCmds); err != nil {
 		b.Close()
 		return fmt.Errorf("ekran hazirlik kodlari gonderilemedi: %w", err)
@@ -113,7 +113,7 @@ func (b *Backend) Close() error {
 		signal.Stop(b.sigWinch)
 	}
 
-	restoreCmds := "\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
+	restoreCmds := "\x1b[?2004l\x1b[?1004l\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l"
 
 	if b.portableIO != nil {
 		_, err := b.portableIO.Write([]byte(restoreCmds))

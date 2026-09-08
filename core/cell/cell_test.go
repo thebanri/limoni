@@ -74,3 +74,35 @@ func TestMemoryAlignment(t *testing.T) {
 		t.Errorf("Cell struct boyutu %d olmalıydı, alınan: %d", expectedCellSize, sizeCell)
 	}
 }
+
+func TestGreekExtendedRuneWidth(t *testing.T) {
+	// U+1F00..U+1F1F are Greek Extended letters and must have width 1 (not 0)
+	greekChars := []rune{'ἀ', 'ἁ', 'ἂ', 'ἃ', 'ἄ', 'ἅ', 'ἆ', 'ἇ', 'Ἀ', 'Ἑ', 'Ἕ'}
+	for _, r := range greekChars {
+		w := RuneWidth(r)
+		if w != 1 {
+			t.Errorf("RuneWidth(%c / U+%04X) = %d; want 1", r, r, w)
+		}
+	}
+	text := "ἀρχή"
+	if w := StringWidth(text); w != 4 {
+		t.Errorf("StringWidth(%q) = %d; want 4", text, w)
+	}
+}
+
+func TestCombiningMarksRuneWidth(t *testing.T) {
+	combiningMarks := []rune{
+		0x0300, // Combining Grave Accent
+		0x0301, // Combining Acute Accent
+		0x1AB0, // Combining Doubled Circumflex Accent
+		0x1DC0, // Combining Dotted Grave Accent
+		0x20D0, // Combining Left Harpoon Above
+		0xFE20, // Combining Ligature Left Half
+	}
+	for _, r := range combiningMarks {
+		w := RuneWidth(r)
+		if w != 0 {
+			t.Errorf("RuneWidth(U+%04X) = %d; want 0", r, w)
+		}
+	}
+}

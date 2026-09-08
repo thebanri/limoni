@@ -125,8 +125,11 @@ const RuneImage rune = 0xFFFF
 func RuneWidth(r rune) int {
 	// Zero-width / combining characters
 	if (r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
-		(r >= 0x1F00 && r <= 0x1F1F) || // Combining diacritical marks
 		(r >= 0x0300 && r <= 0x036F) || // Combining Diacritical Marks
+		(r >= 0x1AB0 && r <= 0x1AFF) || // Combining Diacritical Marks Extended
+		(r >= 0x1DC0 && r <= 0x1DFF) || // Combining Diacritical Marks Supplement
+		(r >= 0x20D0 && r <= 0x20FF) || // Combining Diacritical Marks for Symbols
+		(r >= 0xFE20 && r <= 0xFE2F) || // Combining Half Marks
 		r == 0x200D || // Zero Width Joiner
 		r == 0x200B || // Zero Width Space
 		r == 0x200C || // Zero Width Non-Joiner

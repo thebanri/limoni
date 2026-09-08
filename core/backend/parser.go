@@ -50,8 +50,9 @@ func ParseEvent(buf []byte) (Event, int) {
 
 	// 2. Escape (\x1b) karakteri ile başlayan dizi kontrolü
 	if len(buf) == 1 {
-		// Tamponda sadece ESC tuşu var (Sonrasının gelip gelmediği Event Loop zaman aşımı ile kontrol edilir)
-		return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc}}, 1
+		// Tamponda tek başına ESC var. CSI veya Alt dizisinin devam edip etmediğini
+		// anlamak için event loop zaman aşımını (escTimeoutDuration) beklemelidir.
+		return Event{}, 0
 	}
 
 	switch buf[1] {

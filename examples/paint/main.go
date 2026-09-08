@@ -386,11 +386,11 @@ func colorToHex(col cell.Color) string {
 }
 
 type PaintApp struct {
-	Canvas        *BraillePointCanvas
-	ActiveTool    ToolType
-	ActiveColor   cell.Color
-	SelectedIdx   int
-	CustomColor   cell.Color
+	Canvas           *BraillePointCanvas
+	ActiveTool       ToolType
+	ActiveColor      cell.Color
+	SelectedIdx      int
+	CustomColor      cell.Color
 	BrushSize        int
 	ShowModal        bool
 	ColorPickerState *widgets.ColorPickerState

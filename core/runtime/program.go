@@ -127,7 +127,8 @@ type commandResult struct {
 
 // Program runs a Model and its commands.
 type Program struct {
-	model Model
+	model   Model
+	modelMu sync.Mutex
 
 	messages       chan Msg
 	commandResults chan commandResult
@@ -286,6 +287,8 @@ func (p *Program) Run(ctx context.Context) error {
 }
 
 func (p *Program) callInit() (commands []Cmd) {
+	p.modelMu.Lock()
+	defer p.modelMu.Unlock()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			p.reportPanic(recovered)
@@ -296,6 +299,7 @@ func (p *Program) callInit() (commands []Cmd) {
 
 func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
 	var result UpdateResult
+	p.modelMu.Lock()
 	func() {
 		defer func() {
 			if recovered := recover(); recovered != nil {
@@ -305,6 +309,7 @@ func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
 		}()
 		result = p.model.Update(message)
 	}()
+	p.modelMu.Unlock()
 	for _, command := range result.Commands {
 		p.schedule(ctx, command)
 	}
@@ -350,6 +355,8 @@ func (p *Program) reportPanic(value any) {
 // View calls the model's View method for hosts that own a terminal frame.
 func (p *Program) View(frame *terminal.Frame) {
 	if p != nil && p.model != nil {
+		p.modelMu.Lock()
+		defer p.modelMu.Unlock()
 		p.model.View(frame)
 	}
 }

@@ -13,6 +13,7 @@ type CapabilityProfile struct {
 	Colors256      bool
 	MouseSupport   bool
 	BracketedPaste bool
+	SyncOutput     bool
 	GraphicsProto  graphics.Protocol
 }
 
@@ -23,6 +24,7 @@ func DetectCapabilities() CapabilityProfile {
 		Colors256:      false,
 		MouseSupport:   true,  // Most modern terminals support mouse reporting
 		BracketedPaste: true,  // Most modern terminals support bracketed paste
+		SyncOutput:     false, // Synchronized Output (?2026) is gated on known supporting terminals
 		GraphicsProto:  graphics.DetectProtocol(),
 	}
 
@@ -41,11 +43,18 @@ func DetectCapabilities() CapabilityProfile {
 		profile.Colors256 = true
 	}
 
-	// Some known modern terminals support TrueColor by default even if env is missing
+	// Some known modern terminals support TrueColor and Synchronized Output (?2026)
 	termProg := os.Getenv("TERM_PROGRAM")
 	if termProg == "kitty" || termProg == "WezTerm" || termProg == "Ghostty" || termProg == "iTerm.app" || termProg == "Apple_Terminal" {
 		profile.TrueColor = true
 		profile.Colors256 = true
+		if termProg != "Apple_Terminal" {
+			profile.SyncOutput = true
+		}
+	}
+
+	if os.Getenv("WT_SESSION") != "" || strings.Contains(term, "alacritty") || strings.Contains(term, "foot") || strings.Contains(term, "ghostty") || strings.Contains(term, "kitty") || strings.Contains(term, "wezterm") {
+		profile.SyncOutput = true
 	}
 
 	return profile

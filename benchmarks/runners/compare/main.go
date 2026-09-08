@@ -95,15 +95,15 @@ func main() {
 		}
 
 		// Calculate p50 change
-		p50Diff := float64(currW.Summary.P50NS - baseW.Summary.P50NS) / float64(baseW.Summary.P50NS)
+		p50Diff := float64(currW.Summary.P50NS-baseW.Summary.P50NS) / float64(baseW.Summary.P50NS)
 		// Calculate p95 change
-		p95Diff := float64(currW.Summary.P95NS - baseW.Summary.P95NS) / float64(baseW.Summary.P95NS)
+		p95Diff := float64(currW.Summary.P95NS-baseW.Summary.P95NS) / float64(baseW.Summary.P95NS)
 		// Calculate p99 change
-		p99Diff := float64(currW.Summary.P99NS - baseW.Summary.P99NS) / float64(baseW.Summary.P99NS)
+		p99Diff := float64(currW.Summary.P99NS-baseW.Summary.P99NS) / float64(baseW.Summary.P99NS)
 		// Calculate allocs change
 		allocsDiff := 0.0
 		if baseW.Summary.Allocs > 0 {
-			allocsDiff = float64(int64(currW.Summary.Allocs) - int64(baseW.Summary.Allocs)) / float64(baseW.Summary.Allocs)
+			allocsDiff = float64(int64(currW.Summary.Allocs)-int64(baseW.Summary.Allocs)) / float64(baseW.Summary.Allocs)
 		} else if currW.Summary.Allocs > 0 {
 			allocsDiff = 1.0 // 100% regression if we went from 0 to > 0 allocs
 		}

@@ -22,7 +22,7 @@ func TestColorAnimationRGB(t *testing.T) {
 
 	// 50ms sonra (yarı yolda) güncelle
 	c.Update(now.Add(50 * time.Millisecond))
-	
+
 	r, g, b := c.Value().RGB()
 	if r != 150 || g != 125 || b != 125 {
 		t.Errorf("50ms sonra RGB: (%d, %d, %d); (150, 125, 125) bekleniyordu", r, g, b)

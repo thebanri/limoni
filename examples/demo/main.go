@@ -526,7 +526,7 @@ func main() {
 		Handler: func() { state.DebugMode = !state.DebugMode },
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyF12,
+		Key:   backend.KeyF12,
 		Label: "Toggle DevTools Inspector", Category: "Developer",
 		Handler: func() {
 			state.DevToolsState.Toggle()
@@ -1959,44 +1959,44 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					}, shadowBackdrop)
 
 					exitDialog := widgets.Dialog{
-					ID:          "exit_dialog",
-					Title:       " ⚠️ SYSTEM EXIT ",
-					Message:     "Are you sure you want to exit the application?",
-					SubMessage:  "The session and all unsaved state will be terminated.",
-					Style:       cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
-					HeaderStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(220, 60, 60)},
-					BorderStyle: cell.Style{Fg: cell.NewColorRGB(220, 60, 60)},
-					ButtonStyle: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(45, 45, 45)},
-					ButtonFocusedStyle: cell.Style{
-						Fg:       cell.NewColorRGB(255, 255, 255),
-						Bg:       accentColor,
-						Modifier: cell.ModifierBold,
-					},
-					Shadow: true,
-					Buttons: []widgets.DialogButton{
-						{
-							Text: "Yes",
-							Handler: func() {
-								b.Close()
-								fmt.Println("\nExited Limoni TUI application. Goodbye!")
-								os.Exit(0)
+						ID:          "exit_dialog",
+						Title:       " ⚠️ SYSTEM EXIT ",
+						Message:     "Are you sure you want to exit the application?",
+						SubMessage:  "The session and all unsaved state will be terminated.",
+						Style:       cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(25, 25, 25)},
+						HeaderStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(220, 60, 60)},
+						BorderStyle: cell.Style{Fg: cell.NewColorRGB(220, 60, 60)},
+						ButtonStyle: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(45, 45, 45)},
+						ButtonFocusedStyle: cell.Style{
+							Fg:       cell.NewColorRGB(255, 255, 255),
+							Bg:       accentColor,
+							Modifier: cell.ModifierBold,
+						},
+						Shadow: true,
+						Buttons: []widgets.DialogButton{
+							{
+								Text: "Yes",
+								Handler: func() {
+									b.Close()
+									fmt.Println("\nExited Limoni TUI application. Goodbye!")
+									os.Exit(0)
+								},
+							},
+							{
+								Text: "No",
+								Handler: func() {
+									state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
+									t.ForceFullRedraw()
+								},
 							},
 						},
-						{
-							Text: "No",
-							Handler: func() {
-								state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
-								t.ForceFullRedraw()
-							},
-						},
-					},
-				}
+					}
 
-				f.BeginFocusScope("exit_dialog")
-				f.RenderWidget(exitDialog, animatedArea)
+					f.BeginFocusScope("exit_dialog")
+					f.RenderWidget(exitDialog, animatedArea)
+				}
 			}
 		}
-	}
 
 		// 6. Help Dialog
 		if state.ShowHelpDialog {

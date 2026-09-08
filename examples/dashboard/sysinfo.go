@@ -15,21 +15,21 @@ import (
 
 // SystemMetrics contains live hardware and OS telemetry.
 type SystemMetrics struct {
-	CPUPercent     float64
-	RAMUsedMB      float64
-	RAMTotalMB     float64
-	RAMPercent     float64
-	DiskUsedGB     float64
-	DiskTotalGB    float64
-	DiskPercent    float64
-	NetRxRateMB    float64
-	NetTxRateMB    float64
-	TotalRxMB      float64
-	TotalTxMB      float64
-	UptimeStr      string
-	Hostname       string
-	PlatformInfo   string
-	CoreCount      int
+	CPUPercent   float64
+	RAMUsedMB    float64
+	RAMTotalMB   float64
+	RAMPercent   float64
+	DiskUsedGB   float64
+	DiskTotalGB  float64
+	DiskPercent  float64
+	NetRxRateMB  float64
+	NetTxRateMB  float64
+	TotalRxMB    float64
+	TotalTxMB    float64
+	UptimeStr    string
+	Hostname     string
+	PlatformInfo string
+	CoreCount    int
 }
 
 // SysCollector collects real system statistics on Linux with fallback on other OSes.

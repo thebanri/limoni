@@ -74,11 +74,11 @@ type Ascii3D struct {
 	CellAspect     float64 // Terminal character height/width aspect ratio (default: 0.50)
 
 	// Shading & Optics
-	Contrast             float64 // Tone curve contrast exponent (default: 1.2)
-	EdgeContrast         float64 // Silhouette / edge boost factor (default: 3.0)
-	Exposure             float64 // Overall lighting exposure multiplier (default: 1.0)
-	EnvironmentIntensity float64 // Ambient/environment lighting level (default: 1.0)
-	Roughness            float64 // Surface roughness: lower = sharper specular highlight (default: 0.15)
+	Contrast             float64           // Tone curve contrast exponent (default: 1.2)
+	EdgeContrast         float64           // Silhouette / edge boost factor (default: 3.0)
+	Exposure             float64           // Overall lighting exposure multiplier (default: 1.0)
+	EnvironmentIntensity float64           // Ambient/environment lighting level (default: 1.0)
+	Roughness            float64           // Surface roughness: lower = sharper specular highlight (default: 0.15)
 	LightDirection       graphics.Vector3D // Primary directional light source
 
 	// Rendering Mode & Palette
@@ -261,7 +261,7 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		projX := math.Abs((viewX * baseFocal) / viewZ)
-		projY := math.Abs((viewY * baseFocal) / viewZ) * (cellAspect * float64(yMultiplier) / float64(xMultiplier))
+		projY := math.Abs((viewY*baseFocal)/viewZ) * (cellAspect * float64(yMultiplier) / float64(xMultiplier))
 
 		if projX > maxExtentX {
 			maxExtentX = projX
