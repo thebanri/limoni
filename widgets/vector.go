@@ -139,6 +139,9 @@ func abs(x int) int {
 
 // DrawTexturedTriangle, doku (texture) haritalaması kullanarak Canvas üzerine dokulu bir üçgen çizer.
 func (c *Canvas) DrawTexturedTriangle(p0, p1, p2 graphics.Vertex2D, uv0, uv1, uv2 graphics.UV, img image.Image) {
+	if c == nil || img == nil || c.width == 0 || c.height == 0 || img.Bounds().Empty() {
+		return
+	}
 	// Üçgenin sınır kutusunu (bounding box) hesapla
 	minX := int(math.Min(p0.X, math.Min(p1.X, p2.X)))
 	maxX := int(math.Max(p0.X, math.Max(p1.X, p2.X)))

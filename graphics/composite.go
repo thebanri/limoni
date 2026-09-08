@@ -9,8 +9,12 @@ import (
 	"sync"
 )
 
-var flattenedImageCache sync.Map
-var opacityImageCache sync.Map
+var (
+	flattenedImageCache = make(map[flattenedImageKey]image.Image)
+	flattenedCacheMu    sync.RWMutex
+	opacityImageCache   = make(map[opacityImageKey]image.Image)
+	opacityCacheMu      sync.RWMutex
+)
 
 type flattenedImageKey struct {
 	pointer       uintptr
@@ -38,15 +42,23 @@ func FlattenImage(src image.Image, background color.Color) image.Image {
 	if value.Kind() == reflect.Pointer {
 		key = flattenedImageKey{pointer: value.Pointer(), r: uint8(br >> 8), g: uint8(bg >> 8), b: uint8(bb >> 8), width: width, height: height}
 		cacheable = true
-		if cached, ok := flattenedImageCache.Load(key); ok {
-			return cached.(image.Image)
+		flattenedCacheMu.RLock()
+		if cached, ok := flattenedImageCache[key]; ok {
+			flattenedCacheMu.RUnlock()
+			return cached
 		}
+		flattenedCacheMu.RUnlock()
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
 	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: background}, image.Point{}, draw.Src)
 	draw.Draw(dst, dst.Bounds(), src, bounds.Min, draw.Over)
 	if cacheable {
-		flattenedImageCache.Store(key, dst)
+		flattenedCacheMu.Lock()
+		if len(flattenedImageCache) > 256 {
+			clear(flattenedImageCache)
+		}
+		flattenedImageCache[key] = dst
+		flattenedCacheMu.Unlock()
 	}
 	return dst
 }
@@ -80,9 +92,22 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 			width:   bounds.Dx(),
 			height:  bounds.Dy(),
 		}
-		if cached, ok := opacityImageCache.Load(key); ok {
-			return cached.(image.Image)
+		opacityCacheMu.RLock()
+		if cached, ok := opacityImageCache[key]; ok {
+			opacityCacheMu.RUnlock()
+			return cached
 		}
+		opacityCacheMu.RUnlock()
+	}
+
+	clamp := func(v float64) uint8 {
+		if v <= 0 {
+			return 0
+		}
+		if v >= 255 {
+			return 255
+		}
+		return uint8(v)
 	}
 
 	dst := image.NewRGBA(bounds)
@@ -94,14 +119,20 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 			}
 			newA := uint16(float64(a) * opacity)
 			factor := float64(newA) / float64(a)
-			nr := uint8((float64(r) * factor) / 257.0)
-			ng := uint8((float64(g) * factor) / 257.0)
-			nb := uint8((float64(b) * factor) / 257.0)
-			dst.Set(x, y, color.RGBA{R: nr, G: ng, B: nb, A: uint8(newA / 257)})
+			nr := clamp((float64(r) * factor) / 257.0)
+			ng := clamp((float64(g) * factor) / 257.0)
+			nb := clamp((float64(b) * factor) / 257.0)
+			na := clamp(float64(newA) / 257.0)
+			dst.Set(x, y, color.RGBA{R: nr, G: ng, B: nb, A: na})
 		}
 	}
 	if cacheable {
-		opacityImageCache.Store(key, dst)
+		opacityCacheMu.Lock()
+		if len(opacityImageCache) > 256 {
+			clear(opacityImageCache)
+		}
+		opacityImageCache[key] = dst
+		opacityCacheMu.Unlock()
 	}
 	return dst
 }

@@ -42,4 +42,19 @@ func TestParseBinarySTL(t *testing.T) {
 		t.Fatalf("binary model = %+v", model)
 	}
 
+	// Test binary STL with extra trailing padding bytes (e.g. CAD metadata)
+	dataWithPadding := append(data, []byte{0xDE, 0xAD, 0xBE, 0xEF}...)
+	modelPad, err := ParseSTL(dataWithPadding)
+	if err != nil {
+		t.Fatalf("expected binary STL with trailing padding to parse successfully, got: %v", err)
+	}
+	if len(modelPad.Vertices) != 3 || len(modelPad.Faces) != 1 {
+		t.Fatalf("padded binary model = %+v", modelPad)
+	}
+
+	// Test binary STL with zero triangle count
+	zeroData := make([]byte, 84)
+	if _, err := ParseSTL(zeroData); err == nil {
+		t.Fatalf("expected error for empty/zero-triangle STL")
+	}
 }

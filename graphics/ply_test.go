@@ -14,4 +14,10 @@ func TestParseASCIIPLY(t *testing.T) {
 	if len(model.Vertices) != 3 || len(model.Faces) != 1 {
 		t.Fatalf("PLY model = %+v", model)
 	}
+
+	// Test PLY header with excessive vertex count (exceeds 10,000,000 limit)
+	invalidHeader := "ply\nformat ascii 1.0\nelement vertex 999999999\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nend_header\n"
+	if _, err := ParsePLY(strings.NewReader(invalidHeader)); err == nil {
+		t.Fatalf("expected error for PLY exceeding vertex count limit")
+	}
 }

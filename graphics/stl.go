@@ -29,7 +29,7 @@ func LoadSTL(path string) (Model3D, error) {
 func ParseSTL(data []byte) (Model3D, error) {
 	if len(data) >= 84 {
 		triangleCount := int(binary.LittleEndian.Uint32(data[80:84]))
-		if triangleCount >= 0 && 84+triangleCount*50 == len(data) {
+		if triangleCount > 0 && 84+triangleCount*50 <= len(data) {
 			return parseBinarySTL(data, triangleCount)
 		}
 	}
@@ -37,6 +37,9 @@ func ParseSTL(data []byte) (Model3D, error) {
 }
 
 func parseBinarySTL(data []byte, triangleCount int) (Model3D, error) {
+	if triangleCount <= 0 {
+		return Model3D{}, fmt.Errorf("binary STL contains no triangles")
+	}
 	model := Model3D{Faces: make([][]int, 0, triangleCount)}
 	offset := 84
 	for i := 0; i < triangleCount; i++ {

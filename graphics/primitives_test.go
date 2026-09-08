@@ -37,6 +37,9 @@ func TestPrimitives(t *testing.T) {
 	if len(torus.Vertices) == 0 || len(torus.Faces) == 0 {
 		t.Fatalf("expected non-empty torus geometry")
 	}
+	if len(torus.FaceUVs) != len(torus.Faces) {
+		t.Fatalf("expected torus FaceUVs length %d to match Faces length %d", len(torus.FaceUVs), len(torus.Faces))
+	}
 }
 
 func TestModel3DTextureMethods(t *testing.T) {

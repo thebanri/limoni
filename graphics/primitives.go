@@ -208,5 +208,6 @@ func NewTorus(r1, r2 float64, radialSegments, tubularSegments int) Model3D {
 		Vertices: vertices,
 		Faces:    faces,
 		UVs:      uvs,
+		FaceUVs:  faceUVs,
 	}
 }

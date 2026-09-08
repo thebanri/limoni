@@ -176,6 +176,11 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if len(face) < 3 {
 			continue
 		}
+		if face[0] < 0 || face[0] >= len(projected) ||
+			face[1] < 0 || face[1] >= len(projected) ||
+			face[2] < 0 || face[2] >= len(projected) {
+			continue
+		}
 
 		p0 := projected[face[0]]
 		p1 := projected[face[1]]
@@ -191,6 +196,9 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			visible bool
 		}
 		if isQuad {
+			if face[3] < 0 || face[3] >= len(projected) {
+				continue
+			}
 			p3 = projected[face[3]]
 			if !p3.visible {
 				continue

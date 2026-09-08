@@ -39,7 +39,10 @@ func (c *circleMask) At(x, y int) color.Color {
 	return color.Alpha{A: 0}
 }
 
-var circleMaskCache sync.Map
+var (
+	circleMaskCache = make(map[circleMaskCacheKey]image.Image)
+	circleMaskMu    sync.RWMutex
+)
 
 type circleMaskCacheKey struct {
 	pointer       uintptr
@@ -65,12 +68,16 @@ func ApplyCircleMask(src image.Image) image.Image {
 		return src
 	}
 	value := reflect.ValueOf(src)
-	if value.Kind() == reflect.Pointer {
-		key := circleMaskCacheKey{pointer: value.Pointer(), width: w, height: h}
-		if cached, ok := circleMaskCache.Load(key); ok {
-			return cached.(image.Image)
+	cacheable := value.Kind() == reflect.Pointer
+	var key circleMaskCacheKey
+	if cacheable {
+		key = circleMaskCacheKey{pointer: value.Pointer(), width: w, height: h}
+		circleMaskMu.RLock()
+		if cached, ok := circleMaskCache[key]; ok {
+			circleMaskMu.RUnlock()
+			return cached
 		}
-
+		circleMaskMu.RUnlock()
 	}
 
 	// Yeni boş bir RGBA resmi oluştur
@@ -95,8 +102,13 @@ func ApplyCircleMask(src image.Image) image.Image {
 		draw.Over,
 	)
 
-	if value := reflect.ValueOf(src); value.Kind() == reflect.Pointer {
-		circleMaskCache.Store(circleMaskCacheKey{pointer: value.Pointer(), width: w, height: h}, dst)
+	if cacheable {
+		circleMaskMu.Lock()
+		if len(circleMaskCache) > 256 {
+			clear(circleMaskCache)
+		}
+		circleMaskCache[key] = dst
+		circleMaskMu.Unlock()
 	}
 	return dst
 }

@@ -121,3 +121,49 @@ func TestApplyOpacity(t *testing.T) {
 		t.Fatal("expected ApplyOpacity to reuse the cached transformed image")
 	}
 }
+
+func TestResizeImage_EdgeCases(t *testing.T) {
+	// 1x1 image upscaled
+	img1 := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img1.Set(0, 0, color.RGBA{R: 255, G: 128, B: 64, A: 255})
+	up := ResizeImage(img1, 10, 10)
+	if up.Bounds().Dx() != 10 || up.Bounds().Dy() != 10 {
+		t.Fatalf("expected 10x10, got %v", up.Bounds())
+	}
+	r, g, b, _ := up.At(5, 5).RGBA()
+	if uint8(r>>8) != 255 || uint8(g>>8) != 128 || uint8(b>>8) != 64 {
+		t.Fatalf("unexpected color after 1x1 upscaling: %d, %d, %d", r>>8, g>>8, b>>8)
+	}
+
+	// 10x1 downscaled to 2x1
+	imgStrip := image.NewRGBA(image.Rect(0, 0, 10, 1))
+	down := ResizeImage(imgStrip, 2, 1)
+	if down.Bounds().Dx() != 2 || down.Bounds().Dy() != 1 {
+		t.Fatalf("expected 2x1, got %v", down.Bounds())
+	}
+}
+
+func TestEncodeSixel_Transparent(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	// Set half transparent, half opaque
+	img.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 255})
+	img.Set(1, 0, color.RGBA{R: 0, G: 0, B: 0, A: 0}) // Transparent
+
+	sixel := EncodeSixel(img, 4, 2, 1, 2, true)
+	if !strings.HasPrefix(sixel, "\x1bPq") {
+		t.Fatalf("expected sixel header, got %q", sixel)
+	}
+	if !strings.HasSuffix(sixel, "\x1b\\") {
+		t.Fatalf("expected sixel terminator, got %q", sixel)
+	}
+}
+
+func TestCacheBounds(t *testing.T) {
+	// Verify that inserting > 256 images doesn't leak memory or panic
+	for i := 0; i < 300; i++ {
+		img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+		_ = ApplyOpacity(img, 0.8)
+		_ = FlattenImage(img, color.RGBA{R: uint8(i % 255), G: 0, B: 0, A: 255})
+		_ = ApplyCircleMask(img)
+	}
+}

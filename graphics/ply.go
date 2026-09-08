@@ -56,8 +56,8 @@ func ParsePLY(r io.Reader) (Model3D, error) {
 	if err := scanner.Err(); err != nil {
 		return Model3D{}, err
 	}
-	if vertexCount <= 0 {
-		return Model3D{}, fmt.Errorf("PLY has no vertices")
+	if vertexCount <= 0 || vertexCount > 10_000_000 || faceCount < 0 || faceCount > 10_000_000 {
+		return Model3D{}, fmt.Errorf("PLY vertex/face count (%d/%d) is invalid or exceeds limit", vertexCount, faceCount)
 	}
 	model := Model3D{Vertices: make([]Vertex3D, 0, vertexCount), Faces: make([][]int, 0, faceCount)}
 	for len(model.Vertices) < vertexCount && scanner.Scan() {

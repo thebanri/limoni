@@ -393,6 +393,15 @@ func buildModelFromGLTF(doc *gltfJSON, buffers [][]byte, sourcePath string) (Mod
 				}
 			}
 
+			if model.Texture == nil && primImage != nil {
+				model.Texture = primImage
+			}
+
+			uvOffset := len(model.UVs)
+			for _, uv := range uvs {
+				model.UVs = append(model.UVs, UV{U: uv.u, V: uv.v})
+			}
+
 			sampleTextureColor := func(u, v float64) cell.Color {
 				if primImage == nil {
 					if baseColor != 0 {
@@ -450,6 +459,13 @@ func buildModelFromGLTF(doc *gltfJSON, buffers [][]byte, sourcePath string) (Mod
 
 				for i := 0; i+2 < len(indices); i += 3 {
 					i0, i1, i2 := indices[i], indices[i+1], indices[i+2]
+					if i0 < 0 || i1 < 0 || i2 < 0 ||
+						vertexOffset+i0 >= len(model.Vertices) ||
+						vertexOffset+i1 >= len(model.Vertices) ||
+						vertexOffset+i2 >= len(model.Vertices) {
+						continue
+					}
+
 					model.Faces = append(model.Faces, []int{
 						vertexOffset + i0,
 						vertexOffset + i1,
@@ -461,14 +477,24 @@ func buildModelFromGLTF(doc *gltfJSON, buffers [][]byte, sourcePath string) (Mod
 						avgU := (uvs[i0].u + uvs[i1].u + uvs[i2].u) / 3.0
 						avgV := (uvs[i0].v + uvs[i1].v + uvs[i2].v) / 3.0
 						model.FaceColors = append(model.FaceColors, sampleTextureColor(avgU, avgV))
+						model.FaceUVs = append(model.FaceUVs, []int{
+							uvOffset + i0,
+							uvOffset + i1,
+							uvOffset + i2,
+						})
 					} else {
 						model.FaceColors = append(model.FaceColors, baseColor)
+						model.FaceUVs = append(model.FaceUVs, []int{-1, -1, -1})
 					}
 				}
 			} else {
 				// Non-indexed triangles
 				added := len(model.Vertices) - vertexOffset
 				for i := 0; i+2 < added; i += 3 {
+					if vertexOffset+i+2 >= len(model.Vertices) {
+						break
+					}
+
 					model.Faces = append(model.Faces, []int{
 						vertexOffset + i,
 						vertexOffset + i + 1,
@@ -479,8 +505,14 @@ func buildModelFromGLTF(doc *gltfJSON, buffers [][]byte, sourcePath string) (Mod
 						avgU := (uvs[i].u + uvs[i+1].u + uvs[i+2].u) / 3.0
 						avgV := (uvs[i].v + uvs[i+1].v + uvs[i+2].v) / 3.0
 						model.FaceColors = append(model.FaceColors, sampleTextureColor(avgU, avgV))
+						model.FaceUVs = append(model.FaceUVs, []int{
+							uvOffset + i,
+							uvOffset + i + 1,
+							uvOffset + i + 2,
+						})
 					} else {
 						model.FaceColors = append(model.FaceColors, baseColor)
+						model.FaceUVs = append(model.FaceUVs, []int{-1, -1, -1})
 					}
 				}
 			}

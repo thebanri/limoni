@@ -342,6 +342,11 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		triCount := len(face) - 2
 		for t := 0; t < triCount; t++ {
 			idx0, idx1, idx2 := face[0], face[t+1], face[t+2]
+			if idx0 < 0 || idx0 >= len(projected) ||
+				idx1 < 0 || idx1 >= len(projected) ||
+				idx2 < 0 || idx2 >= len(projected) {
+				continue
+			}
 			p0, p1, p2 := projected[idx0], projected[idx1], projected[idx2]
 
 			if !p0.visible || !p1.visible || !p2.visible {

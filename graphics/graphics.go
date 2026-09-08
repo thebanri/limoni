@@ -103,7 +103,6 @@ func GetImageID(img image.Image) uint32 {
 }
 
 // ResizeImage scales an image to w x h using area-averaging (box filtering) for downscaling
-// ResizeImage scales an image to w x h using area-averaging (box filtering) for downscaling
 // and bilinear interpolation for upscaling, producing crisp, anti-aliased images with zero external dependencies.
 func ResizeImage(img image.Image, w, h int) image.Image {
 	if img == nil || w <= 0 || h <= 0 {
@@ -192,7 +191,12 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 
 	// Upscaling: Bilinear interpolation
 	for y := 0; y < h; y++ {
-		srcY := float64(y) * float64(srcH-1) / float64(h)
+		var srcY float64
+		if h > 1 && srcH > 1 {
+			srcY = float64(y) * float64(srcH-1) / float64(h-1)
+		} else if srcH > 1 {
+			srcY = float64(srcH-1) / 2.0
+		}
 		y0 := int(srcY)
 		y1 := y0 + 1
 		if y1 >= srcH {
@@ -201,7 +205,12 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 		fy := srcY - float64(y0)
 
 		for x := 0; x < w; x++ {
-			srcX := float64(x) * float64(srcW-1) / float64(w)
+			var srcX float64
+			if w > 1 && srcW > 1 {
+				srcX = float64(x) * float64(srcW-1) / float64(w-1)
+			} else if srcW > 1 {
+				srcX = float64(srcW-1) / 2.0
+			}
 			x0 := int(srcX)
 			x1 := x0 + 1
 			if x1 >= srcW {
@@ -374,6 +383,14 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 
 	resized := ResizeImageContain(img, targetW, targetH, transparent)
 	pal := buildPalette(resized, 256)
+	if len(pal) == 0 {
+		pal = color.Palette{color.RGBA{0, 0, 0, 255}}
+	}
+
+	colorToIndex := make(map[color.Color]int, len(pal))
+	for idx, col := range pal {
+		colorToIndex[col] = idx
+	}
 
 	var buf bytes.Buffer
 	// Sixel Giriş ANSI kodu
@@ -391,35 +408,50 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 	width := resized.Bounds().Dx()
 	height := resized.Bounds().Dy()
 
+	bandIndices := make([][6]int16, width)
+	colorsInBand := make([]bool, len(pal))
+
 	// Sixel 6 piksellik dikey bantlar halinde kodlama yapar
 	for bandY := 0; bandY < height; bandY += 6 {
-		for colorIdx, targetColor := range pal {
-			// Renk bu bantta var mı kontrol et (gereksiz I/O'yu engeller)
-			hasColor := false
-			for x := 0; x < width; x++ {
-				for dy := 0; dy < 6; dy++ {
-					y := bandY + dy
-					if y < height {
-						c := pal.Convert(resized.At(x, y))
-						if c == targetColor {
-							hasColor = true
-							break
+		for i := range colorsInBand {
+			colorsInBand[i] = false
+		}
+
+		// Quantize only the current 6-line band once: O(6 * width)
+		for x := 0; x < width; x++ {
+			for dy := 0; dy < 6; dy++ {
+				y := bandY + dy
+				if y < height {
+					pix := resized.At(x, y)
+					_, _, _, a := pix.RGBA()
+					if transparent && a < 32768 {
+						bandIndices[x][dy] = -1 // Transparent pixel
+					} else {
+						var colIdx int
+						c := pal.Convert(pix)
+						if idx, ok := colorToIndex[c]; ok {
+							colIdx = idx
+						} else {
+							colIdx = 0
 						}
+						bandIndices[x][dy] = int16(colIdx)
+						colorsInBand[colIdx] = true
 					}
-				}
-				if hasColor {
-					break
+				} else {
+					bandIndices[x][dy] = -1
 				}
 			}
+		}
 
-			if !hasColor {
+		for colorIdx := range pal {
+			if !colorsInBand[colorIdx] {
 				continue
 			}
 
 			// Aktif rengi seç
 			buf.WriteString(fmt.Sprintf("#%d", colorIdx))
 
-			// Tekrar sıkıştırmasıyla (Repeat Compression) Sixel karakterlerini yaz
+			targetIdx := int16(colorIdx)
 			repeatCount := 0
 			var lastChar byte = 0
 
@@ -439,12 +471,8 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 			for x := 0; x < width; x++ {
 				var mask byte = 0
 				for dy := 0; dy < 6; dy++ {
-					y := bandY + dy
-					if y < height {
-						c := pal.Convert(resized.At(x, y))
-						if c == targetColor {
-							mask |= 1 << dy
-						}
+					if bandIndices[x][dy] == targetIdx {
+						mask |= 1 << dy
 					}
 				}
 
