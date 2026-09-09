@@ -152,8 +152,15 @@ Instead of calculating manual slice splits and passing rectangles by hand, you d
 
 | Function | Description | Example |
 | :--- | :--- | :--- |
-| **`limoni.VStack(children...)`** | Linear top-to-bottom stack layout | `limoni.VStack(header, body, footer)` |
-| **`limoni.HStack(children...)`** | Linear left-to-right stack layout | `limoni.HStack(sidebar, content)` |
+| **`limoni.VStack(children...)`** | Linear top-to-bottom stack layout (`.WithGap`, `.WithJustify`, `.WithAlignItems`) | `limoni.VStack(header, body, footer)` |
+| **`limoni.HStack(children...)`** | Linear left-to-right stack layout (`.WithGap`, `.WithJustify`, `.WithAlignItems`) | `limoni.HStack(sidebar, content)` |
+| **`limoni.ZStack(children...)`** | Depth-axis container rendering background to foreground with zero offscreen buffers | `limoni.ZStack(background, modal)` |
+| **`limoni.When(cond, then, [else])`** | Declarative conditional rendering with zero runtime overhead | `limoni.When(showHelp, helpView)` |
+| **`limoni.Match(val, cases, [default])`** | Declarative pattern matching component selector | `limoni.Match(state, cases, fallback)` |
+| **`limoni.WithStyle(style, child)`** | Cascades Style into component subtree via Context copy | `limoni.WithStyle(style, content)` |
+| **`limoni.WithForeground(fg, child)`** | Cascades foreground color override into component subtree | `limoni.WithForeground(color, content)` |
+| **`limoni.WithBackground(bg, child)`** | Cascades background color override into component subtree | `limoni.WithBackground(color, content)` |
+| **`limoni.OnClick(child, handler)`** | Wraps component with mouse click handler | `limoni.OnClick(button, handleClick)` |
 | **`limoni.Flex(weight, child)`** | Proportional flex expansion inside a stack | `limoni.Flex(2, mainContent)` |
 | **`limoni.FixedSize(w, h, child)`** | Enforces fixed dimensions on a component | `limoni.FixedSize(0, 3, header)` |
 | **`limoni.Border(child, symbols, style)`** | Wraps any component with border lines | `limoni.Border(child, widgets.SymbolsRounded, style)` |

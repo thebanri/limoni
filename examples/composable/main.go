@@ -15,9 +15,12 @@ func main() {
 	list := limoni.NewList(
 		"🧱 Unified Component Interface",
 		"🎨 Pad, Border, Align Wrappers",
-		"📐 VStack & HStack Primitives",
-		"⚡ Zero-Alloc Stack Solver",
-		"🔄 Backward Compatibility",
+		"📐 VStack & HStack (Flexbox)",
+		"🥞 ZStack (Depth / Painter's)",
+		"❓ Conditionals (When, Match)",
+		"🎭 Style Cascading (WithStyle)",
+		"🖱️ Interactive & Local Hit-Testing",
+		"⚡ Zero-Alloc Hot Path (0 B/op)",
 	).
 		WithState(listState).
 		WithHighlightSymbol("👉 ").
@@ -25,10 +28,11 @@ func main() {
 
 	table := limoni.NewTable().
 		WithHeaders("METRIC", "STATUS", "LATENCY", "ALLOCS").
-		WithRow("VStack Draw", "OPTIMAL", "644 ns", "0 B/op (0 allocs)").
-		WithRow("Border Decorator", "OPTIMAL", "4.7 µs", "0 B/op (0 allocs)").
-		WithRow("Nested Composite", "OPTIMAL", "14.7 µs", "0 B/op (0 allocs)").
-		WithRow("Contiguous Buffer", "ACTIVE", "18.3 µs", "0 B/op (0 allocs)").
+		WithRow("VStack / HStack Draw", "OPTIMAL", "650 ns", "0 B/op (0 allocs)").
+		WithRow("ZStack Layering", "OPTIMAL", "437 ns", "0 B/op (0 allocs)").
+		WithRow("Flexbox Justify/Align", "OPTIMAL", "767 ns", "0 B/op (0 allocs)").
+		WithRow("Style Cascading", "OPTIMAL", "428 ns", "0 B/op (0 allocs)").
+		WithRow("Interactive Click Hit", "OPTIMAL", "120 ns", "0 B/op (0 allocs)").
 		WithSelectedStyle(limoni.Fg(limoni.ColorWhite).WithBg(limoni.Hex("#224466")))
 
 	input := limoni.NewTextInput("demo_input").
@@ -36,11 +40,31 @@ func main() {
 		WithStyle(limoni.Fg(limoni.Hex("#FFFFFF"))).
 		WithFocusedStyle(limoni.Fg(limoni.Hex("#FFFF00")).Bold())
 
+	showModal := false
+	clickCount := 0
+	currentMode := "monitoring"
+
 	err := limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
 		if ev != nil && ev.Type == limoni.EventKey {
 			switch ev.Key.Type {
 			case limoni.KeyEsc:
-				return false
+				if showModal {
+					showModal = false
+				} else {
+					return false
+				}
+			case limoni.KeyRune:
+				if ev.Key.Ch == '?' || ev.Key.Ch == 'h' {
+					showModal = !showModal
+				} else if ev.Key.Ch == 'm' {
+					if currentMode == "monitoring" {
+						currentMode = "debug"
+					} else {
+						currentMode = "monitoring"
+					}
+				} else {
+					inputState.HandleKey(ev.Key)
+				}
 			case limoni.KeyUp:
 				listState.Previous()
 			case limoni.KeyDown:
@@ -50,14 +74,41 @@ func main() {
 			}
 		}
 
+		// Mode badge via Match pattern matching:
+		modeBadge := limoni.Match(currentMode, map[string]limoni.Component{
+			"monitoring": limoni.WithForeground(limoni.Hex("#00FFAA"), limoni.Label("🟢 MONITORING")),
+			"debug":      limoni.WithForeground(limoni.Hex("#FFCC00"), limoni.Label("🟡 DEBUG TRACE")),
+		}, limoni.Label("⚪ UNKNOWN"))
+
+		// Action button with OnClick:
+		clickBtn := limoni.OnClick(
+			limoni.Border(
+				limoni.Pad(
+					limoni.Label(fmt.Sprintf("🖱️ Clicks: %d", clickCount), limoni.Bold().WithFg(limoni.Hex("#FF77AA"))),
+					0, 1, 0, 1,
+				),
+				widgets.SymbolsRounded,
+				limoni.Fg(limoni.Hex("#FF77AA")),
+			),
+			func(m limoni.MouseEvent) {
+				clickCount++
+			},
+		)
+
 		// -------------------------------------------------------------
-		// Composable Lego Architecture:
-		// Entire view is composed declaratively without manual Split math!
+		// Base Dashboard View (VStack + HStack):
 		// -------------------------------------------------------------
-		view := limoni.VStack(
-			// Top Header (Fixed Height 3): Border around Padded Label
+		baseDashboard := limoni.VStack(
+			// Top Header (Fixed Height 3): Justified title and status badge
 			limoni.FixedSize(0, 3, limoni.Border(
-				limoni.Center(limoni.Label("🍋 LIMONI COMPOSABLE LEGO ARCHITECTURE 🚀", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+				limoni.Pad(
+					limoni.HStack(
+						limoni.Label("🍋 LIMONI LEGO ARCHITECTURE", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+						modeBadge,
+						clickBtn,
+					).WithJustify(limoni.JustifySpaceBetween).WithAlignItems(limoni.AlignItemsCenter),
+					0, 1, 0, 1,
+				),
 				widgets.SymbolsRounded,
 				limoni.Fg(limoni.Hex("#00FFAA")),
 			)),
@@ -86,15 +137,55 @@ func main() {
 				)),
 			)),
 
-			// Footer (Fixed Height 3): Centered instructions inside border
+			// Footer: SpaceBetween distribution with cascaded styles
 			limoni.FixedSize(0, 3, limoni.Border(
-				limoni.Center(limoni.Label("ESC: Exit | ↑/↓: Navigate List | Type: Edit Input | 100% Zero Heap Allocations", limoni.Fg(limoni.Hex("#888888")))),
+				limoni.Pad(
+					limoni.HStack(
+						limoni.WithForeground(limoni.Hex("#888888"), limoni.Label("ESC: Exit | ?: Toggle Modal | m: Toggle Mode | ↑/↓: List")),
+						limoni.WithForeground(limoni.Hex("#00FFAA"), limoni.Label("0 B/op Zero Alloc")),
+					).WithJustify(limoni.JustifySpaceBetween).WithAlignItems(limoni.AlignItemsCenter),
+					0, 1, 0, 1,
+				),
 				widgets.SymbolsSingle,
 				limoni.Fg(limoni.Hex("#666666")),
 			)),
 		)
 
-		f.RenderComponent(view, f.Area())
+		// -------------------------------------------------------------
+		// Modal Overlay via ZStack + When (Painter's Algorithm):
+		// -------------------------------------------------------------
+		modalLayer := limoni.When(showModal,
+			limoni.Center(
+				limoni.FixedSize(54, 11,
+					limoni.WithBackground(limoni.Hex("#111827"),
+						limoni.Border(
+							limoni.Pad(
+								limoni.VStack(
+									limoni.Center(limoni.Label("✨ ARCHITECTURAL EXTENSIONS ✨", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+									limoni.Label("• ZStack: Depth-axis layering with zero offscreen buffers", limoni.Fg(limoni.Hex("#FFFFFF"))),
+									limoni.Label("• Flexbox: JustifyContent & AlignItems on Stacks", limoni.Fg(limoni.Hex("#E5E7EB"))),
+									limoni.Label("• Conditionals: Declarative When & Match", limoni.Fg(limoni.Hex("#D1D5DB"))),
+									limoni.Label("• Style Cascading: WithStyle, WithForeground", limoni.Fg(limoni.Hex("#9CA3AF"))),
+									limoni.Label("• Interactive: OnClick & local hit-testing", limoni.Fg(limoni.Hex("#6EE7B7"))),
+									limoni.Center(limoni.Label("[Press Esc or ? to Close]", limoni.Fg(limoni.Hex("#F59E0B")).Bold())),
+								).WithJustify(limoni.JustifySpaceAround),
+								1, 2, 1, 2,
+							),
+							widgets.SymbolsDouble,
+							limoni.Fg(limoni.Hex("#F59E0B")),
+						),
+					),
+				),
+			),
+		)
+
+		// ZStack combines base dashboard and modal layer:
+		rootView := limoni.ZStack(
+			baseDashboard,
+			modalLayer,
+		)
+
+		f.RenderComponent(rootView, f.Area())
 		return true
 	})
 

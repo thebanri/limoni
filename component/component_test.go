@@ -6,6 +6,7 @@ import (
 	"github.com/thebanri/limoni/component"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -270,5 +271,230 @@ func BenchmarkNestedCompositeDrawZeroAlloc(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tree.Draw(ctx, buf)
+	}
+}
+
+func TestZStackLayoutAndDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 5})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 5}, cell.NewStyle())
+
+	bg := component.Text("..........")
+	fg := component.Center(component.Fixed(2, 1, component.Text("AB")))
+
+	z := component.ZStack(bg, fg)
+
+	props := z.LayoutInfo(ctx.Area)
+	if props.MinWidth != 10 || props.MinHeight != 1 {
+		t.Fatalf("expected 10x1, got %dx%d", props.MinWidth, props.MinHeight)
+	}
+
+	z.Draw(ctx, buf)
+
+	// Foreground 'AB' should be centered at (4,2) and (5,2)
+	if c := buf.Get(4, 2); c == nil || c.Content != 'A' {
+		t.Fatalf("expected 'A' at (4,2), got %v", c)
+	}
+	if c := buf.Get(5, 2); c == nil || c.Content != 'B' {
+		t.Fatalf("expected 'B' at (5,2), got %v", c)
+	}
+
+	// Background '.' should remain visible at (0,0) and (9,0)
+	if c := buf.Get(0, 0); c == nil || c.Content != '.' {
+		t.Fatalf("expected '.' at (0,0) from background layer, got %v", c)
+	}
+	if c := buf.Get(9, 0); c == nil || c.Content != '.' {
+		t.Fatalf("expected '.' at (9,0) from background layer, got %v", c)
+	}
+}
+
+func TestStackJustifyContent(t *testing.T) {
+	item1 := component.Fixed(4, 1, component.Text("AAAA"))
+	item2 := component.Fixed(4, 1, component.Text("BBBB"))
+
+	// 1. JustifyCenter
+	bufCenter := buffer.NewBuffer(cell.Rect{Width: 20, Height: 1})
+	ctxCenter := cell.NewContext(cell.Rect{Width: 20, Height: 1}, cell.NewStyle())
+	stackCenter := component.HStack(item1, item2).WithJustify(component.JustifyCenter)
+	stackCenter.Draw(ctxCenter, bufCenter)
+
+	if c := bufCenter.Get(6, 0); c == nil || c.Content != 'A' {
+		t.Fatalf("expected 'A' at X=6 for JustifyCenter, got %v", c)
+	}
+	if c := bufCenter.Get(10, 0); c == nil || c.Content != 'B' {
+		t.Fatalf("expected 'B' at X=10 for JustifyCenter, got %v", c)
+	}
+
+	// 2. JustifySpaceBetween
+	bufSB := buffer.NewBuffer(cell.Rect{Width: 20, Height: 1})
+	stackSB := component.HStack(item1, item2).WithJustify(component.JustifySpaceBetween)
+	stackSB.Draw(ctxCenter, bufSB)
+
+	if c := bufSB.Get(0, 0); c == nil || c.Content != 'A' {
+		t.Fatalf("expected 'A' at X=0 for JustifySpaceBetween, got %v", c)
+	}
+	if c := bufSB.Get(16, 0); c == nil || c.Content != 'B' {
+		t.Fatalf("expected 'B' at X=16 for JustifySpaceBetween, got %v", c)
+	}
+}
+
+func TestStackAlignItems(t *testing.T) {
+	item := component.Fixed(4, 1, component.Text("TEST"))
+
+	// AlignItemsCenter: Y = (5 - 1) / 2 = 2
+	bufCenter := buffer.NewBuffer(cell.Rect{Width: 10, Height: 5})
+	ctx := cell.NewContext(cell.Rect{Width: 10, Height: 5}, cell.NewStyle())
+	stackCenter := component.HStack(item).WithAlignItems(component.AlignItemsCenter)
+	stackCenter.Draw(ctx, bufCenter)
+
+	if c := bufCenter.Get(0, 2); c == nil || c.Content != 'T' {
+		t.Fatalf("expected 'T' at Y=2 for AlignItemsCenter, got %v", c)
+	}
+
+	// AlignItemsEnd: Y = 5 - 1 = 4
+	bufEnd := buffer.NewBuffer(cell.Rect{Width: 10, Height: 5})
+	stackEnd := component.HStack(item).WithAlignItems(component.AlignItemsEnd)
+	stackEnd.Draw(ctx, bufEnd)
+
+	if c := bufEnd.Get(0, 4); c == nil || c.Content != 'T' {
+		t.Fatalf("expected 'T' at Y=4 for AlignItemsEnd, got %v", c)
+	}
+}
+
+func TestConditionalWhenAndMatch(t *testing.T) {
+	a := component.Text("A")
+	b := component.Text("B")
+
+	if component.When(true, a, b) != a {
+		t.Fatalf("expected a for condition true")
+	}
+	if component.When(false, a, b) != b {
+		t.Fatalf("expected b for condition false")
+	}
+	if component.When(false, a) == nil {
+		t.Fatalf("expected empty non-nil component")
+	}
+
+	cases := map[string]component.Component{
+		"active": a,
+		"paused": b,
+	}
+	if component.Match("active", cases, nil) != a {
+		t.Fatalf("expected match active -> a")
+	}
+	if component.Match("unknown", cases, b) != b {
+		t.Fatalf("expected match fallback -> b")
+	}
+}
+
+func TestStyleCascading(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{Width: 10, Height: 1}, cell.NewStyle())
+
+	fgColor := cell.NewColorRGB(255, 128, 0)
+	styled := component.WithForeground(fgColor, component.Text("OK"))
+	styled.Draw(ctx, buf)
+
+	c := buf.Get(0, 0)
+	if c == nil || c.Content != 'O' || c.Style.Fg != fgColor {
+		t.Fatalf("expected 'O' with cascaded foreground color, got %v", c)
+	}
+}
+
+func TestInteractiveEventRouting(t *testing.T) {
+	ctx := cell.NewContext(cell.Rect{X: 10, Y: 10, Width: 20, Height: 5}, cell.NewStyle())
+
+	clicked := false
+	button := component.OnClick(component.Text("Click Me"), func(ev driver.MouseEvent) {
+		clicked = true
+	})
+
+	// Click inside (15, 12)
+	evInside := &driver.Event{
+		Type:  driver.EventMouse,
+		Mouse: driver.MouseEvent{X: 15, Y: 12, Button: driver.MouseLeft},
+	}
+	if !component.DispatchEvent(button, ctx, evInside) {
+		t.Fatalf("expected click to be handled")
+	}
+	if !clicked {
+		t.Fatalf("expected clicked handler to be called")
+	}
+
+	// Click outside (5, 5)
+	clicked = false
+	evOutside := &driver.Event{
+		Type:  driver.EventMouse,
+		Mouse: driver.MouseEvent{X: 5, Y: 5, Button: driver.MouseLeft},
+	}
+	if component.DispatchEvent(button, ctx, evOutside) {
+		t.Fatalf("expected click outside to NOT be handled")
+	}
+	if clicked {
+		t.Fatalf("expected clicked handler NOT to be called for click outside")
+	}
+
+	// Event routing through ZStack
+	topClicked := false
+	topBtn := component.OnClick(component.Text("Top"), func(ev driver.MouseEvent) {
+		topClicked = true
+	})
+	z := component.ZStack(button, topBtn)
+	if !component.DispatchEvent(z, ctx, evInside) {
+		t.Fatalf("expected ZStack to handle event")
+	}
+	if !topClicked {
+		t.Fatalf("expected topmost component to consume event first")
+	}
+}
+
+func BenchmarkZStackDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	z := component.ZStack(
+		component.Text("Layer 1"),
+		component.Center(component.Fixed(20, 5, component.Text("Modal"))),
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		z.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkFlexboxJustifyAndAlignZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 100, Height: 20})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 100, Height: 20}, cell.NewStyle())
+
+	stack := component.HStack(
+		component.Fixed(10, 2, component.Text("Item 1")),
+		component.Fixed(10, 2, component.Text("Item 2")),
+		component.Fixed(10, 2, component.Text("Item 3")),
+	).WithJustify(component.JustifySpaceBetween).WithAlignItems(component.AlignItemsCenter)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stack.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkStyleCascadeZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	styled := component.WithForeground(
+		cell.NewColorRGB(0, 255, 128),
+		component.WithBackground(
+			cell.NewColorRGB(10, 10, 20),
+			component.Text("Cascaded Style"),
+		),
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		styled.Draw(ctx, buf)
 	}
 }

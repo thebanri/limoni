@@ -165,8 +165,15 @@ Bu katman, `pony` ve `glyph` gibi modern UI kütüphanelerinden esinlenmiş olup
 
 | Fonksiyon | Açıklama |
 | :--- | :--- |
-| `limoni.VStack(children...)` | Çocuk bileşenleri yukarıdan aşağıya dikey dizer. |
-| `limoni.HStack(children...)` | Çocuk bileşenleri soldan sağa yatay dizer. |
+| `limoni.VStack(children...)` | Dikey yığın yerleşimi (`.WithGap`, `.WithJustify`, `.WithAlignItems`). |
+| `limoni.HStack(children...)` | Yatay yığın yerleşimi (`.WithGap`, `.WithJustify`, `.WithAlignItems`). |
+| `limoni.ZStack(children...)` | Derinlik ekseni (Painter's algorithm) katmanlama; arka plandan ön plana tamponsuz doğrudan çizer. |
+| `limoni.When(cond, then, [else])` | Bildirimsel koşullu çizim (sıfır ek sarmalayıcı maliyeti). |
+| `limoni.Match(val, cases, [default])` | Bildirimsel örüntü eşleştirme (pattern matching) seçicisi. |
+| `limoni.WithStyle(style, child)` | Stili alt bileşen ağacına çağrı yığını üzerinden kopyalayarak aktarır. |
+| `limoni.WithForeground(fg, child)` | Ön plan rengini alt bileşen ağacına aktarır. |
+| `limoni.WithBackground(bg, child)` | Arka plan rengini alt bileşen ağacına aktarır. |
+| `limoni.OnClick(child, handler)` | Bileşeni fare tıklama yöneticisiyle sarar. |
 | `limoni.Pad(child, top, right, bottom, left)` | Bileşenin etrafına iç dolgu (padding) ekler. |
 | `limoni.PadAll(child, p)` | 4 tarafa eşit dolgu uygular. |
 | `limoni.PadAxis(child, h, v)` | Yatay ve dikey simetrik dolgu uygular. |

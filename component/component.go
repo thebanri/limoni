@@ -5,6 +5,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -142,6 +143,30 @@ func (p *padComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return props.MinWidth, props.MinHeight
 }
 
+func (p *padComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	area := ctx.Area
+	hPad := p.left + p.right
+	vPad := p.top + p.bottom
+
+	if area.Width <= hPad || area.Height <= vPad {
+		return false
+	}
+
+	innerArea := cell.Rect{
+		X:      area.X + p.left,
+		Y:      area.Y + p.top,
+		Width:  area.Width - hPad,
+		Height: area.Height - vPad,
+	}
+
+	if ev != nil && ev.Type == driver.EventMouse && !innerArea.Contains(ev.Mouse.X, ev.Mouse.Y) {
+		return false
+	}
+
+	ctx.Area = innerArea
+	return DispatchEvent(p.child, ctx, ev)
+}
+
 // --- BORDER ---
 
 type borderComponent struct {
@@ -225,6 +250,27 @@ func (b *borderComponent) LayoutInfo(maxArea cell.Rect) LayoutProps {
 func (b *borderComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	props := b.LayoutInfo(maxArea)
 	return props.MinWidth, props.MinHeight
+}
+
+func (b *borderComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	area := ctx.Area
+	if area.Width < 2 || area.Height < 2 {
+		return false
+	}
+
+	innerArea := cell.Rect{
+		X:      area.X + 1,
+		Y:      area.Y + 1,
+		Width:  area.Width - 2,
+		Height: area.Height - 2,
+	}
+
+	if ev != nil && ev.Type == driver.EventMouse && !innerArea.Contains(ev.Mouse.X, ev.Mouse.Y) {
+		return false
+	}
+
+	ctx.Area = innerArea
+	return DispatchEvent(b.child, ctx, ev)
 }
 
 // --- ALIGNMENT ---
@@ -318,6 +364,56 @@ func (a *alignComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return props.MinWidth, props.MinHeight
 }
 
+func (a *alignComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	area := ctx.Area
+	if area.Width == 0 || area.Height == 0 {
+		return false
+	}
+
+	props := a.child.LayoutInfo(area)
+	targetW := props.MinWidth
+	targetH := props.MinHeight
+	if targetW == 0 || targetW > area.Width {
+		targetW = area.Width
+	}
+	if targetH == 0 || targetH > area.Height {
+		targetH = area.Height
+	}
+
+	var posX, posY uint16
+	switch a.hAlign {
+	case AlignCenter:
+		posX = area.X + (area.Width-targetW)/2
+	case AlignRight:
+		posX = area.X + area.Width - targetW
+	default: // AlignLeft
+		posX = area.X
+	}
+
+	switch a.vAlign {
+	case AlignMiddle:
+		posY = area.Y + (area.Height-targetH)/2
+	case AlignBottom:
+		posY = area.Y + area.Height - targetH
+	default: // AlignTop
+		posY = area.Y
+	}
+
+	innerArea := cell.Rect{
+		X:      posX,
+		Y:      posY,
+		Width:  targetW,
+		Height: targetH,
+	}
+
+	if ev != nil && ev.Type == driver.EventMouse && !innerArea.Contains(ev.Mouse.X, ev.Mouse.Y) {
+		return false
+	}
+
+	ctx.Area = innerArea
+	return DispatchEvent(a.child, ctx, ev)
+}
+
 // --- FLEX & FIXED MODIFIERS ---
 
 type flexComponent struct {
@@ -345,6 +441,10 @@ func (f *flexComponent) LayoutInfo(maxArea cell.Rect) LayoutProps {
 
 func (f *flexComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return f.child.SizeHint(maxArea)
+}
+
+func (f *flexComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	return DispatchEvent(f.child, ctx, ev)
 }
 
 type fixedComponent struct {
@@ -380,202 +480,12 @@ func (fc *fixedComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return fc.width, fc.height
 }
 
-// ---------------------------------------------------------------------
-// 4. Composable Layout Primitives (VStack & HStack)
-// ---------------------------------------------------------------------
-
-// StackLayout arranges components linearly along a primary axis.
-type StackLayout struct {
-	isVertical bool
-	gap        uint16
-	children   []Component
-}
-
-// VStack creates a vertical stack arranging children top-to-bottom.
-func VStack(children ...Component) *StackLayout {
-	return &StackLayout{isVertical: true, gap: 0, children: children}
-}
-
-// HStack creates a horizontal stack arranging children left-to-right.
-func HStack(children ...Component) *StackLayout {
-	return &StackLayout{isVertical: false, gap: 0, children: children}
-}
-
-// WithGap sets the cell gap between adjacent children.
-func (s *StackLayout) WithGap(gap uint16) *StackLayout {
-	s.gap = gap
-	return s
-}
-
-func (s *StackLayout) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	n := len(s.children)
-	if n == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
-		return
-	}
-
-	// Zero-allocation scratch arrays for up to 32 items
-	var sizes [32]uint16
-	var props [32]LayoutProps
-
-	count := n
-	if count > 32 {
-		count = 32
-	}
-
-	var totalFixed uint16
-	var totalFlex uint16
-
-	availPrimary := ctx.Area.Height
-	if !s.isVertical {
-		availPrimary = ctx.Area.Width
-	}
-
-	totalGaps := uint16(count-1) * s.gap
-	if availPrimary > totalGaps {
-		availPrimary -= totalGaps
-	} else {
-		availPrimary = 0
-	}
-
-	// Measure pass
-	for i := 0; i < count; i++ {
-		props[i] = s.children[i].LayoutInfo(ctx.Area)
-		if props[i].Flex > 0 {
-			totalFlex += props[i].Flex
-		} else {
-			fixedSize := props[i].MinHeight
-			if !s.isVertical {
-				fixedSize = props[i].MinWidth
-			}
-			sizes[i] = fixedSize
-			totalFixed += fixedSize
-		}
-	}
-
-	// Flex distribution pass
-	var remaining uint16
-	if availPrimary > totalFixed {
-		remaining = availPrimary - totalFixed
-	}
-
-	if totalFlex > 0 && remaining > 0 {
-		var allocatedFlex uint16
-		var flexItemsCount uint16
-
-		for i := 0; i < count; i++ {
-			if props[i].Flex > 0 {
-				flexItemsCount++
-			}
-		}
-
-		var flexIndex uint16
-		for i := 0; i < count; i++ {
-			if props[i].Flex > 0 {
-				flexIndex++
-				var size uint16
-				if flexIndex == flexItemsCount {
-					// Assign exact remainder to last flex item to prevent rounding gaps
-					size = remaining - allocatedFlex
-				} else {
-					size = (remaining * props[i].Flex) / totalFlex
-					allocatedFlex += size
-				}
-				sizes[i] = size
-			}
-		}
-	}
-
-	// Arrange and Draw pass
-	currentOffset := uint16(0)
-	for i := 0; i < count; i++ {
-		var childArea cell.Rect
-		if s.isVertical {
-			childH := sizes[i]
-			if currentOffset+childH > ctx.Area.Height {
-				if currentOffset < ctx.Area.Height {
-					childH = ctx.Area.Height - currentOffset
-				} else {
-					childH = 0
-				}
-			}
-			childArea = cell.Rect{
-				X:      ctx.Area.X,
-				Y:      ctx.Area.Y + currentOffset,
-				Width:  ctx.Area.Width,
-				Height: childH,
-			}
-		} else {
-			childW := sizes[i]
-			if currentOffset+childW > ctx.Area.Width {
-				if currentOffset < ctx.Area.Width {
-					childW = ctx.Area.Width - currentOffset
-				} else {
-					childW = 0
-				}
-			}
-			childArea = cell.Rect{
-				X:      ctx.Area.X + currentOffset,
-				Y:      ctx.Area.Y,
-				Width:  childW,
-				Height: ctx.Area.Height,
-			}
-		}
-
-		if childArea.Width > 0 && childArea.Height > 0 {
-			childCtx := ctx
-			childCtx.Area = childArea
-			s.children[i].Draw(childCtx, buf)
-		}
-
-		currentOffset += sizes[i] + s.gap
-	}
-}
-
-func (s *StackLayout) LayoutInfo(maxArea cell.Rect) LayoutProps {
-	var totalW, totalH uint16
-	var maxFlex uint16
-
-	for _, c := range s.children {
-		p := c.LayoutInfo(maxArea)
-		if s.isVertical {
-			totalH += p.MinHeight
-			if p.MinWidth > totalW {
-				totalW = p.MinWidth
-			}
-		} else {
-			totalW += p.MinWidth
-			if p.MinHeight > totalH {
-				totalH = p.MinHeight
-			}
-		}
-		if p.Flex > maxFlex {
-			maxFlex = p.Flex
-		}
-	}
-
-	if len(s.children) > 1 {
-		gapTotal := uint16(len(s.children)-1) * s.gap
-		if s.isVertical {
-			totalH += gapTotal
-		} else {
-			totalW += gapTotal
-		}
-	}
-
-	return LayoutProps{
-		MinWidth:  totalW,
-		MinHeight: totalH,
-		Flex:      maxFlex,
-	}
-}
-
-func (s *StackLayout) SizeHint(maxArea cell.Rect) (uint16, uint16) {
-	props := s.LayoutInfo(maxArea)
-	return props.MinWidth, props.MinHeight
+func (fc *fixedComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	return DispatchEvent(fc.child, ctx, ev)
 }
 
 // ---------------------------------------------------------------------
-// 5. Adapters & Lightweight Primitives
+// 4. Adapters & Lightweight Primitives
 // ---------------------------------------------------------------------
 
 // WidgetAdapter turns any legacy or monolithic widgets.Widget into a Component.
@@ -608,6 +518,18 @@ func (a *WidgetAdapter) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return a.w.SizeHint(maxArea)
 }
 
+func (a *WidgetAdapter) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	if ev != nil && ev.Type == driver.EventMouse && !ctx.Area.Contains(ev.Mouse.X, ev.Mouse.Y) {
+		return false
+	}
+	if a.w != nil {
+		if inter, ok := a.w.(interface{ HandleEvent(cell.Context, *driver.Event) bool }); ok {
+			return inter.HandleEvent(ctx, ev)
+		}
+	}
+	return false
+}
+
 // --- LIGHTWEIGHT INLINE TEXT ---
 
 type textComponent struct {
@@ -627,6 +549,7 @@ func Text(content string, style ...cell.Style) Component {
 
 func (t *textComponent) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := ctx.Area
+	finalStyle := ctx.Style.Merge(t.style)
 	for row, line := range t.lines {
 		if uint16(row) >= area.Height {
 			break
@@ -639,7 +562,7 @@ func (t *textComponent) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			buf.SetCell(area.X+col, area.Y+uint16(row), cell.Cell{
 				Content: r,
-				Style:   t.style,
+				Style:   finalStyle,
 			})
 			col += uint16(rw)
 		}
@@ -664,4 +587,8 @@ func (t *textComponent) LayoutInfo(maxArea cell.Rect) LayoutProps {
 func (t *textComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	props := t.LayoutInfo(maxArea)
 	return props.MinWidth, props.MinHeight
+}
+
+func (t *textComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	return false
 }

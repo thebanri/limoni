@@ -166,3 +166,70 @@ func TestLimoniComposableLego(t *testing.T) {
 		t.Fatalf("expected non-zero min width for composable stack")
 	}
 }
+
+func TestLimoniComposableAdvancedExtensions(t *testing.T) {
+	// 1. ZStack
+	z := ZStack(
+		Label("Background Layer"),
+		Center(FixedSize(10, 2, Label("Modal Dialog"))),
+	)
+	if z == nil {
+		t.Fatalf("expected non-nil ZStack")
+	}
+
+	// 2. StackLayout with Justify and AlignItems
+	v := VStack(Label("A"), Label("B")).
+		WithJustify(JustifySpaceBetween).
+		WithAlignItems(AlignItemsCenter)
+	if v == nil {
+		t.Fatalf("expected non-nil VStack")
+	}
+
+	h := HStack(Label("X"), Label("Y")).
+		WithJustify(JustifySpaceEvenly).
+		WithAlignItems(AlignItemsEnd)
+	if h == nil {
+		t.Fatalf("expected non-nil HStack")
+	}
+
+	// 3. Declarative Conditionals (When, Match, Empty)
+	whenTrue := When(true, Label("Yes"), Label("No"))
+	whenFalse := When(false, Label("Yes"), Label("No"))
+	matched := Match("mode", map[string]Component{
+		"mode": Label("Matched"),
+	}, Label("Default"))
+	empty := Empty()
+
+	if whenTrue == nil || whenFalse == nil || matched == nil || empty == nil {
+		t.Fatalf("expected non-nil conditional components")
+	}
+
+	// 4. Style Context Cascading
+	styled := WithStyle(Bold(),
+		WithForeground(ColorGreen,
+			WithBackground(ColorBlack, Label("Cascaded")),
+		),
+	)
+	if styled == nil {
+		t.Fatalf("expected non-nil styled component")
+	}
+
+	// 5. Interactive Event Propagation
+	clicked := false
+	btn := OnClick(Label("Click"), func(ev MouseEvent) {
+		clicked = true
+	})
+
+	ctx := NewContext(NewRect(0, 0, 10, 3), NewStyle())
+	ev := &Event{
+		Type:  EventMouse,
+		Mouse: MouseEvent{X: 2, Y: 1, Button: MouseLeft},
+	}
+	if !DispatchEvent(btn, ctx, ev) {
+		t.Fatalf("expected click to be handled")
+	}
+	if !clicked {
+		t.Fatalf("expected clicked to be true")
+	}
+}
+

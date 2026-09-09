@@ -161,6 +161,11 @@ func NewRect(x, y, w, h uint16) Rect {
 	return cell.NewRect(x, y, w, h)
 }
 
+// NewContext creates a new ephemeral drawing Context for widgets and components.
+func NewContext(area Rect, style Style) Context {
+	return cell.NewContext(area, style)
+}
+
 // StringWidth returns the terminal display column width of UTF-8 text.
 func StringWidth(text string) int {
 	return cell.StringWidth(text)
