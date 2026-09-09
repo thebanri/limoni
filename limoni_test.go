@@ -232,4 +232,3 @@ func TestLimoniComposableAdvancedExtensions(t *testing.T) {
 		t.Fatalf("expected clicked to be true")
 	}
 }
-

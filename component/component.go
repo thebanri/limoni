@@ -61,14 +61,14 @@ const (
 // 3. Decorator / Wrapper Components (Lego Architecture)
 // ---------------------------------------------------------------------
 
-// --- PADDING ---
+// --- PADDING & MARGIN (BOX MODEL) ---
 
 type padComponent struct {
 	child                    Component
 	top, right, bottom, left uint16
 }
 
-// Pad adds inner spacing around any component.
+// Pad adds inner spacing around any component (inside any border).
 func Pad(child Component, top, right, bottom, left uint16) Component {
 	return &padComponent{
 		child:  child,
@@ -167,82 +167,283 @@ func (p *padComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
 	return DispatchEvent(p.child, ctx, ev)
 }
 
-// --- BORDER ---
+type marginComponent struct {
+	child                    Component
+	top, right, bottom, left uint16
+}
+
+// Margin adds outer spacing around any component (outside any border).
+func Margin(child Component, top, right, bottom, left uint16) Component {
+	return &marginComponent{
+		child:  child,
+		top:    top,
+		right:  right,
+		bottom: bottom,
+		left:   left,
+	}
+}
+
+// MarginAll adds uniform outer spacing on all 4 sides.
+func MarginAll(child Component, m uint16) Component {
+	return Margin(child, m, m, m, m)
+}
+
+// MarginAxis adds symmetric horizontal and vertical outer spacing.
+func MarginAxis(child Component, horizontal, vertical uint16) Component {
+	return Margin(child, vertical, horizontal, vertical, horizontal)
+}
+
+func (m *marginComponent) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	area := ctx.Area
+	hMargin := m.left + m.right
+	vMargin := m.top + m.bottom
+
+	if area.Width <= hMargin || area.Height <= vMargin {
+		return
+	}
+
+	innerArea := cell.Rect{
+		X:      area.X + m.left,
+		Y:      area.Y + m.top,
+		Width:  area.Width - hMargin,
+		Height: area.Height - vMargin,
+	}
+
+	ctx.Area = innerArea
+	m.child.Draw(ctx, buf)
+}
+
+func (m *marginComponent) LayoutInfo(maxArea cell.Rect) LayoutProps {
+	hMargin := m.left + m.right
+	vMargin := m.top + m.bottom
+
+	innerMax := maxArea
+	if innerMax.Width > hMargin {
+		innerMax.Width -= hMargin
+	} else {
+		innerMax.Width = 0
+	}
+	if innerMax.Height > vMargin {
+		innerMax.Height -= vMargin
+	} else {
+		innerMax.Height = 0
+	}
+
+	props := m.child.LayoutInfo(innerMax)
+	props.MinWidth += hMargin
+	props.MinHeight += vMargin
+	if props.MaxWidth > 0 {
+		props.MaxWidth += hMargin
+	}
+	if props.MaxHeight > 0 {
+		props.MaxHeight += vMargin
+	}
+	return props
+}
+
+func (m *marginComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
+	props := m.LayoutInfo(maxArea)
+	return props.MinWidth, props.MinHeight
+}
+
+func (m *marginComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
+	area := ctx.Area
+	hMargin := m.left + m.right
+	vMargin := m.top + m.bottom
+
+	if area.Width <= hMargin || area.Height <= vMargin {
+		return false
+	}
+
+	innerArea := cell.Rect{
+		X:      area.X + m.left,
+		Y:      area.Y + m.top,
+		Width:  area.Width - hMargin,
+		Height: area.Height - vMargin,
+	}
+
+	if ev != nil && ev.Type == driver.EventMouse && !innerArea.Contains(ev.Mouse.X, ev.Mouse.Y) {
+		return false
+	}
+
+	ctx.Area = innerArea
+	return DispatchEvent(m.child, ctx, ev)
+}
+
+// --- BORDER WITH SELECTIVE EDGES ---
+
+// BorderEdges specifies which sides of a border to render.
+type BorderEdges uint8
+
+const (
+	BorderEdgeTop BorderEdges = 1 << iota
+	BorderEdgeRight
+	BorderEdgeBottom
+	BorderEdgeLeft
+
+	BorderEdgeAll        = BorderEdgeTop | BorderEdgeRight | BorderEdgeBottom | BorderEdgeLeft
+	BorderEdgeHorizontal = BorderEdgeTop | BorderEdgeBottom
+	BorderEdgeVertical   = BorderEdgeLeft | BorderEdgeRight
+)
 
 type borderComponent struct {
 	child   Component
 	symbols widgets.BorderSymbols
 	style   cell.Style
+	edges   BorderEdges
 }
 
-// Border wraps any component with a decorative border.
+// Border wraps any component with a decorative 4-sided border.
 func Border(child Component, symbols widgets.BorderSymbols, style cell.Style) Component {
+	return BorderCustom(child, symbols, style, BorderEdgeAll)
+}
+
+// BorderCustom wraps any component with selective border edges (e.g. only top, bottom, or sides).
+func BorderCustom(child Component, symbols widgets.BorderSymbols, style cell.Style, edges BorderEdges) Component {
+	if edges == 0 {
+		edges = BorderEdgeAll
+	}
 	return &borderComponent{
 		child:   child,
 		symbols: symbols,
 		style:   style,
+		edges:   edges,
 	}
+}
+
+// TopBorder wraps a component with a single top border rule.
+func TopBorder(child Component, symbol rune, style cell.Style) Component {
+	syms := widgets.BorderSymbols{Horizontal: symbol}
+	return BorderCustom(child, syms, style, BorderEdgeTop)
+}
+
+// BottomBorder wraps a component with a single bottom border rule (e.g. tab underline).
+func BottomBorder(child Component, symbol rune, style cell.Style) Component {
+	syms := widgets.BorderSymbols{Horizontal: symbol}
+	return BorderCustom(child, syms, style, BorderEdgeBottom)
+}
+
+func (b *borderComponent) paddings() (top, right, bottom, left uint16) {
+	if b.edges&BorderEdgeTop != 0 {
+		top = 1
+	}
+	if b.edges&BorderEdgeRight != 0 {
+		right = 1
+	}
+	if b.edges&BorderEdgeBottom != 0 {
+		bottom = 1
+	}
+	if b.edges&BorderEdgeLeft != 0 {
+		left = 1
+	}
+	return
 }
 
 func (b *borderComponent) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := ctx.Area
-	if area.Width < 2 || area.Height < 2 {
+	padTop, padRight, padBottom, padLeft := b.paddings()
+	hPad := padLeft + padRight
+	vPad := padTop + padBottom
+
+	if area.Width < hPad || area.Height < vPad {
 		return
 	}
 
+	finalStyle := ctx.Style.Merge(b.style)
 	maxX := area.X + area.Width - 1
 	maxY := area.Y + area.Height - 1
 
-	// Draw corners
-	buf.SetCell(area.X, area.Y, cell.Cell{Content: b.symbols.TopLeft, Style: b.style})
-	buf.SetCell(maxX, area.Y, cell.Cell{Content: b.symbols.TopRight, Style: b.style})
-	buf.SetCell(area.X, maxY, cell.Cell{Content: b.symbols.BottomLeft, Style: b.style})
-	buf.SetCell(maxX, maxY, cell.Cell{Content: b.symbols.BottomRight, Style: b.style})
+	hasTop := b.edges&BorderEdgeTop != 0
+	hasBottom := b.edges&BorderEdgeBottom != 0
+	hasLeft := b.edges&BorderEdgeLeft != 0
+	hasRight := b.edges&BorderEdgeRight != 0
 
-	// Horizontal border segments
-	for x := area.X + 1; x < maxX; x++ {
-		buf.SetCell(x, area.Y, cell.Cell{Content: b.symbols.Horizontal, Style: b.style})
-		buf.SetCell(x, maxY, cell.Cell{Content: b.symbols.Horizontal, Style: b.style})
+	// Draw top edge
+	if hasTop && area.Height > 0 {
+		for x := area.X; x <= maxX; x++ {
+			var ch rune
+			if x == area.X && hasLeft {
+				ch = b.symbols.TopLeft
+			} else if x == maxX && hasRight {
+				ch = b.symbols.TopRight
+			} else {
+				ch = b.symbols.Horizontal
+			}
+			buf.SetCell(x, area.Y, cell.Cell{Content: ch, Style: finalStyle})
+		}
 	}
 
-	// Vertical border segments
-	for y := area.Y + 1; y < maxY; y++ {
-		buf.SetCell(area.X, y, cell.Cell{Content: b.symbols.Vertical, Style: b.style})
-		buf.SetCell(maxX, y, cell.Cell{Content: b.symbols.Vertical, Style: b.style})
+	// Draw bottom edge
+	if hasBottom && area.Height > 0 {
+		for x := area.X; x <= maxX; x++ {
+			var ch rune
+			if x == area.X && hasLeft {
+				ch = b.symbols.BottomLeft
+			} else if x == maxX && hasRight {
+				ch = b.symbols.BottomRight
+			} else {
+				ch = b.symbols.Horizontal
+			}
+			buf.SetCell(x, maxY, cell.Cell{Content: ch, Style: finalStyle})
+		}
+	}
+
+	// Draw left edge
+	if hasLeft && area.Width > 0 {
+		startY := area.Y + padTop
+		endY := maxY - padBottom
+		for y := startY; y <= endY; y++ {
+			buf.SetCell(area.X, y, cell.Cell{Content: b.symbols.Vertical, Style: finalStyle})
+		}
+	}
+
+	// Draw right edge
+	if hasRight && area.Width > 0 {
+		startY := area.Y + padTop
+		endY := maxY - padBottom
+		for y := startY; y <= endY; y++ {
+			buf.SetCell(maxX, y, cell.Cell{Content: b.symbols.Vertical, Style: finalStyle})
+		}
 	}
 
 	// Render child within inner bounds
-	innerCtx := ctx
-	innerCtx.Area = cell.Rect{
-		X:      area.X + 1,
-		Y:      area.Y + 1,
-		Width:  area.Width - 2,
-		Height: area.Height - 2,
+	if area.Width > hPad && area.Height > vPad {
+		innerCtx := ctx
+		innerCtx.Area = cell.Rect{
+			X:      area.X + padLeft,
+			Y:      area.Y + padTop,
+			Width:  area.Width - hPad,
+			Height: area.Height - vPad,
+		}
+		b.child.Draw(innerCtx, buf)
 	}
-	b.child.Draw(innerCtx, buf)
 }
 
 func (b *borderComponent) LayoutInfo(maxArea cell.Rect) LayoutProps {
+	padTop, padRight, padBottom, padLeft := b.paddings()
+	hPad := padLeft + padRight
+	vPad := padTop + padBottom
+
 	innerMax := maxArea
-	if innerMax.Width > 2 {
-		innerMax.Width -= 2
+	if innerMax.Width > hPad {
+		innerMax.Width -= hPad
 	} else {
 		innerMax.Width = 0
 	}
-	if innerMax.Height > 2 {
-		innerMax.Height -= 2
+	if innerMax.Height > vPad {
+		innerMax.Height -= vPad
 	} else {
 		innerMax.Height = 0
 	}
 
 	props := b.child.LayoutInfo(innerMax)
-	props.MinWidth += 2
-	props.MinHeight += 2
+	props.MinWidth += hPad
+	props.MinHeight += vPad
 	if props.MaxWidth > 0 {
-		props.MaxWidth += 2
+		props.MaxWidth += hPad
 	}
 	if props.MaxHeight > 0 {
-		props.MaxHeight += 2
+		props.MaxHeight += vPad
 	}
 	return props
 }
@@ -253,16 +454,19 @@ func (b *borderComponent) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 func (b *borderComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
-	area := ctx.Area
-	if area.Width < 2 || area.Height < 2 {
+	padTop, padRight, padBottom, padLeft := b.paddings()
+	hPad := padLeft + padRight
+	vPad := padTop + padBottom
+
+	if ctx.Area.Width <= hPad || ctx.Area.Height <= vPad {
 		return false
 	}
 
 	innerArea := cell.Rect{
-		X:      area.X + 1,
-		Y:      area.Y + 1,
-		Width:  area.Width - 2,
-		Height: area.Height - 2,
+		X:      ctx.Area.X + padLeft,
+		Y:      ctx.Area.Y + padTop,
+		Width:  ctx.Area.Width - hPad,
+		Height: ctx.Area.Height - vPad,
 	}
 
 	if ev != nil && ev.Type == driver.EventMouse && !innerArea.Contains(ev.Mouse.X, ev.Mouse.Y) {
@@ -523,7 +727,9 @@ func (a *WidgetAdapter) HandleEvent(ctx cell.Context, ev *driver.Event) bool {
 		return false
 	}
 	if a.w != nil {
-		if inter, ok := a.w.(interface{ HandleEvent(cell.Context, *driver.Event) bool }); ok {
+		if inter, ok := a.w.(interface {
+			HandleEvent(cell.Context, *driver.Event) bool
+		}); ok {
 			return inter.HandleEvent(ctx, ev)
 		}
 	}

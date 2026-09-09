@@ -115,6 +115,28 @@ func (oe *onEventComponent) HandleEvent(ctx cell.Context, ev *driver.Event) bool
 	return DispatchEvent(oe.child, ctx, ev)
 }
 
+// OnKey binds a specific keyboard key (e.g. driver.KeyEsc, driver.KeyEnter) to a component.
+// If the key matches and handler returns true, event propagation stops.
+func OnKey(child Component, key driver.KeyType, handler func(ev driver.KeyEvent) bool) InteractiveComponent {
+	return OnEvent(child, func(ctx cell.Context, ev *driver.Event) bool {
+		if ev != nil && ev.Type == driver.EventKey && ev.Key.Type == key && handler != nil {
+			return handler(ev.Key)
+		}
+		return false
+	})
+}
+
+// OnRune binds a specific character rune (e.g. 'q', 'j', 'k', '?') to a component.
+// If the key matches and handler returns true, event propagation stops.
+func OnRune(child Component, r rune, handler func(ev driver.KeyEvent) bool) InteractiveComponent {
+	return OnEvent(child, func(ctx cell.Context, ev *driver.Event) bool {
+		if ev != nil && ev.Type == driver.EventKey && ev.Key.Ch == r && handler != nil {
+			return handler(ev.Key)
+		}
+		return false
+	})
+}
+
 // DispatchEvent routes an event down a component tree starting from root within ctx.Area.
 // Returns true if any component consumed the event.
 func DispatchEvent(root Component, ctx cell.Context, ev *driver.Event) bool {

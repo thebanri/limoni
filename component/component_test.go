@@ -447,6 +447,384 @@ func TestInteractiveEventRouting(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------
+// New Primitive Tests (Lipgloss/Glyph Gap Closure)
+// ---------------------------------------------------------------------
+
+func TestSpacerExpansion(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 40, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 40, Height: 1}, cell.NewStyle())
+
+	// HStack: Text "A", Spacer, Text "B"
+	// Text "A" at X=0, Spacer fills middle, Text "B" pushed to right side.
+	stack := component.HStack(
+		component.Text("A"),
+		component.Spacer(),
+		component.Text("B"),
+	)
+
+	stack.Draw(ctx, buf)
+
+	if c := buf.Get(0, 0); c == nil || c.Content != 'A' {
+		t.Fatalf("expected 'A' at (0,0), got %v", c)
+	}
+	// "B" should be at X=39 (rightmost)
+	if c := buf.Get(39, 0); c == nil || c.Content != 'B' {
+		t.Fatalf("expected 'B' at (39,0), got %v", c)
+	}
+
+	// Spacer LayoutInfo: Flex > 0, MinWidth/MinHeight = 0
+	spacer := component.Spacer()
+	props := spacer.LayoutInfo(cell.Rect{Width: 100, Height: 50})
+	if props.Flex == 0 {
+		t.Fatalf("expected Spacer to have Flex > 0")
+	}
+	if props.MinWidth != 0 || props.MinHeight != 0 {
+		t.Fatalf("expected Spacer to have zero intrinsic size")
+	}
+}
+
+func TestDividerDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 20, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 20, Height: 1}, cell.NewStyle())
+
+	div := component.Divider()
+	div.Draw(ctx, buf)
+
+	// All 20 cells should be '─'
+	for x := uint16(0); x < 20; x++ {
+		c := buf.Get(x, 0)
+		if c == nil || c.Content != '─' {
+			t.Fatalf("expected '─' at (%d,0), got %v", x, c)
+		}
+	}
+}
+
+func TestDividerWithTitleDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 30, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 30, Height: 1}, cell.NewStyle())
+
+	div := component.DividerWithTitle("Section", widgets.SymbolsSingle, cell.NewStyle())
+	div.Draw(ctx, buf)
+
+	// First two chars should be '─'
+	if c := buf.Get(0, 0); c == nil || c.Content != '─' {
+		t.Fatalf("expected '─' at (0,0), got %v", c)
+	}
+	// Title 'S' starts at X=3
+	if c := buf.Get(3, 0); c == nil || c.Content != 'S' {
+		t.Fatalf("expected 'S' at (3,0), got %v", c)
+	}
+}
+
+func TestVDividerDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 1, Height: 5})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 1, Height: 5}, cell.NewStyle())
+
+	vd := component.VDivider()
+	vd.Draw(ctx, buf)
+
+	for y := uint16(0); y < 5; y++ {
+		c := buf.Get(0, y)
+		if c == nil || c.Content != '│' {
+			t.Fatalf("expected '│' at (0,%d), got %v", y, c)
+		}
+	}
+}
+
+func TestMarginLayoutAndDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 20, Height: 10})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 20, Height: 10}, cell.NewStyle())
+
+	// Margin(top=2, right=3, bottom=1, left=4)
+	m := component.Margin(component.Text("Hi"), 2, 3, 1, 4)
+	m.Draw(ctx, buf)
+
+	// 'H' should appear at (4, 2)
+	if c := buf.Get(4, 2); c == nil || c.Content != 'H' {
+		t.Fatalf("expected 'H' at (4,2), got %v", c)
+	}
+	if c := buf.Get(5, 2); c == nil || c.Content != 'i' {
+		t.Fatalf("expected 'i' at (5,2), got %v", c)
+	}
+
+	// LayoutInfo should include margin in MinWidth/MinHeight
+	props := m.LayoutInfo(cell.Rect{Width: 20, Height: 10})
+	if props.MinWidth != 2+4+3 { // "Hi" width=2 + left=4 + right=3
+		t.Fatalf("expected MinWidth=9, got %d", props.MinWidth)
+	}
+	if props.MinHeight != 1+2+1 { // "Hi" height=1 + top=2 + bottom=1
+		t.Fatalf("expected MinHeight=4, got %d", props.MinHeight)
+	}
+}
+
+func TestBorderEdgesSelectiveDraw(t *testing.T) {
+	// Bottom-only border
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 3})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 3}, cell.NewStyle())
+
+	bottomOnly := component.BottomBorder(component.Text("Tab"), '─', cell.NewStyle())
+	bottomOnly.Draw(ctx, buf)
+
+	// Text should appear at (0,0)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'T' {
+		t.Fatalf("expected 'T' at (0,0), got %v", c)
+	}
+	// Bottom border at Y=2 (height=3, so maxY=2)
+	if c := buf.Get(0, 2); c == nil || c.Content != '─' {
+		t.Fatalf("expected '─' at (0,2), got %v", c)
+	}
+	// No left border at (0,1)
+	if c := buf.Get(0, 1); c != nil && c.Content == '│' {
+		t.Fatalf("expected NO vertical border at (0,1) for bottom-only border")
+	}
+}
+
+func TestBorderCustomEdges(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 12, Height: 5})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 12, Height: 5}, cell.NewStyle())
+
+	// Left + Bottom edges only
+	bc := component.BorderCustom(
+		component.Text("X"),
+		widgets.SymbolsSingle,
+		cell.NewStyle(),
+		component.BorderEdgeLeft|component.BorderEdgeBottom,
+	)
+	bc.Draw(ctx, buf)
+
+	// Left border at X=0
+	if c := buf.Get(0, 0); c == nil || c.Content != '│' {
+		t.Fatalf("expected '│' at (0,0), got %v", c)
+	}
+	// Bottom border at maxY=4
+	if c := buf.Get(5, 4); c == nil || c.Content != '─' {
+		t.Fatalf("expected '─' at (5,4), got %v", c)
+	}
+	// Bottom-left corner
+	if c := buf.Get(0, 4); c == nil || c.Content != '└' {
+		t.Fatalf("expected '└' at (0,4), got %v", c)
+	}
+}
+
+func TestConstrainAndMaxWidth(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	// MaxWidth(10, Text("Hello World Long Text"))
+	// Should clamp draw area to 10 columns
+	constrained := component.MaxWidth(10, component.Text("Hello World Long"))
+	constrained.Draw(ctx, buf)
+
+	// 'H' at (0,0)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'H' {
+		t.Fatalf("expected 'H' at (0,0), got %v", c)
+	}
+	// Beyond 10 columns should NOT have text content from the source string (clipped)
+	// "Hello World Long" => index 10 would be 'L' if unconstrained
+	if c := buf.Get(10, 0); c != nil && c.Content == 'L' {
+		t.Fatalf("expected text to be clipped at column 10 due to MaxWidth, but 'L' leaked through")
+	}
+
+	// LayoutInfo should reflect constraint
+	props := constrained.LayoutInfo(cell.Rect{Width: 80, Height: 24})
+	if props.MaxWidth != 10 {
+		t.Fatalf("expected MaxWidth=10, got %d", props.MaxWidth)
+	}
+}
+
+func TestPlaceAlignment(t *testing.T) {
+	// Place(20, 10, AlignCenter, AlignMiddle, Text("X"))
+	// "X" should be centered in a 20x10 box
+	buf := buffer.NewBuffer(cell.Rect{Width: 20, Height: 10})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 20, Height: 10}, cell.NewStyle())
+
+	placed := component.Place(20, 10, component.AlignCenter, component.AlignMiddle, component.Text("X"))
+	placed.Draw(ctx, buf)
+
+	// X has width=1, so centered in 20 => X=9 or 10 depending on rounding
+	// Height=1, centered in 10 => Y=4 or 5
+	foundX := false
+	for x := uint16(0); x < 20; x++ {
+		for y := uint16(0); y < 10; y++ {
+			if c := buf.Get(x, y); c != nil && c.Content == 'X' {
+				foundX = true
+				// Should be roughly centered
+				if x < 5 || x > 15 || y < 2 || y > 8 {
+					t.Fatalf("'X' at (%d,%d) is not centered in 20x10 box", x, y)
+				}
+			}
+		}
+	}
+	if !foundX {
+		t.Fatalf("expected 'X' to be drawn somewhere in the placed area")
+	}
+}
+
+func TestForEachSliceGeneration(t *testing.T) {
+	items := []string{"Alpha", "Beta", "Gamma"}
+	components := component.ForEach(items, func(item string, i int) component.Component {
+		return component.Text(item)
+	})
+
+	if len(components) != 3 {
+		t.Fatalf("expected 3 components, got %d", len(components))
+	}
+
+	// Draw and verify each item
+	for i, label := range items {
+		buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+		ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+		components[i].Draw(ctx, buf)
+		if c := buf.Get(0, 0); c == nil || c.Content != rune(label[0]) {
+			t.Fatalf("ForEach[%d]: expected '%c' at (0,0), got %v", i, label[0], c)
+		}
+	}
+
+	// ForEach with nil slice should return nil
+	result := component.ForEach([]int{}, func(item int, i int) component.Component {
+		return component.Text("x")
+	})
+	if result != nil {
+		t.Fatalf("expected nil for empty slice, got %v", result)
+	}
+}
+
+func TestDynamicComponent(t *testing.T) {
+	mode := 0
+	dynamic := component.Dynamic(func() component.Component {
+		if mode == 0 {
+			return component.Text("A")
+		}
+		return component.Text("B")
+	})
+
+	buf := buffer.NewBuffer(cell.Rect{Width: 5, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 5, Height: 1}, cell.NewStyle())
+
+	// Mode 0: should render "A"
+	dynamic.Draw(ctx, buf)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'A' {
+		t.Fatalf("expected 'A', got %v", c)
+	}
+
+	// Mode 1: should render "B"
+	mode = 1
+	buf = buffer.NewBuffer(cell.Rect{Width: 5, Height: 1})
+	dynamic.Draw(ctx, buf)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'B' {
+		t.Fatalf("expected 'B', got %v", c)
+	}
+}
+
+func TestTextRefComponent(t *testing.T) {
+	msg := "Hello"
+	ref := component.TextRef(&msg)
+
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+	ref.Draw(ctx, buf)
+
+	if c := buf.Get(0, 0); c == nil || c.Content != 'H' {
+		t.Fatalf("expected 'H', got %v", c)
+	}
+
+	// Mutate the variable and re-draw
+	msg = "World"
+	buf = buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ref.Draw(ctx, buf)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'W' {
+		t.Fatalf("expected 'W' after mutation, got %v", c)
+	}
+}
+
+func TestTextFnComponent(t *testing.T) {
+	counter := 0
+	fn := component.TextFn(func() string {
+		counter++
+		return "Call"
+	})
+
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+	fn.Draw(ctx, buf)
+
+	if c := buf.Get(0, 0); c == nil || c.Content != 'C' {
+		t.Fatalf("expected 'C', got %v", c)
+	}
+	if counter != 1 {
+		t.Fatalf("expected getter called once during Draw, got %d", counter)
+	}
+}
+
+func TestOnKeyBinding(t *testing.T) {
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 5}, cell.NewStyle())
+
+	escaped := false
+	comp := component.OnKey(component.Text("Panel"), driver.KeyEsc, func(ev driver.KeyEvent) bool {
+		escaped = true
+		return true
+	})
+
+	// Send Escape key
+	evEsc := &driver.Event{
+		Type: driver.EventKey,
+		Key:  driver.KeyEvent{Type: driver.KeyEsc},
+	}
+	if !component.DispatchEvent(comp, ctx, evEsc) {
+		t.Fatalf("expected Escape key to be handled")
+	}
+	if !escaped {
+		t.Fatalf("expected escaped flag to be set")
+	}
+
+	// Send different key - should NOT be handled by OnKey
+	escaped = false
+	evEnter := &driver.Event{
+		Type: driver.EventKey,
+		Key:  driver.KeyEvent{Type: driver.KeyEnter},
+	}
+	// OnEvent passes through to child, which is plain Text (no handler)
+	if component.DispatchEvent(comp, ctx, evEnter) {
+		t.Fatalf("expected Enter key NOT to be handled by Escape handler")
+	}
+}
+
+func TestOnRuneBinding(t *testing.T) {
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 5}, cell.NewStyle())
+
+	quitPressed := false
+	comp := component.OnRune(component.Text("App"), 'q', func(ev driver.KeyEvent) bool {
+		quitPressed = true
+		return true
+	})
+
+	evQ := &driver.Event{
+		Type: driver.EventKey,
+		Key:  driver.KeyEvent{Type: driver.KeyRune, Ch: 'q'},
+	}
+	if !component.DispatchEvent(comp, ctx, evQ) {
+		t.Fatalf("expected 'q' rune to be handled")
+	}
+	if !quitPressed {
+		t.Fatalf("expected quitPressed to be set")
+	}
+
+	// Different rune should not trigger
+	quitPressed = false
+	evX := &driver.Event{
+		Type: driver.EventKey,
+		Key:  driver.KeyEvent{Type: driver.KeyRune, Ch: 'x'},
+	}
+	if component.DispatchEvent(comp, ctx, evX) {
+		t.Fatalf("expected 'x' rune NOT to be handled by 'q' handler")
+	}
+}
+
+// ---------------------------------------------------------------------
+// Benchmarks: Verifying 0 Heap Allocations on the Hot Path
+// ---------------------------------------------------------------------
+
 func BenchmarkZStackDrawZeroAlloc(b *testing.B) {
 	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
 	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
@@ -496,5 +874,79 @@ func BenchmarkStyleCascadeZeroAlloc(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		styled.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkSpacerDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 1}, cell.NewStyle())
+
+	stack := component.HStack(
+		component.Text("L"),
+		component.Spacer(),
+		component.Text("R"),
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stack.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkDividerDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 1}, cell.NewStyle())
+
+	div := component.Divider()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		div.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkMarginDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	m := component.MarginAll(component.Text("Content"), 2)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkBorderEdgesDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	bc := component.BorderCustom(
+		component.Text("Tab"),
+		widgets.SymbolsSingle,
+		cell.NewStyle(),
+		component.BorderEdgeBottom|component.BorderEdgeLeft,
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bc.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkConstrainDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	c := component.MaxWidth(40, component.Text("Constrained Content"))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Draw(ctx, buf)
 	}
 }
