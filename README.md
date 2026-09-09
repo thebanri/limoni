@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/thebanri/limoni.svg)](https://pkg.go.dev/github.com/thebanri/limoni)
+
 
 <p align="center">
   <img src="assets/logo.png" alt="Limoni Logo" width="180" />
@@ -9,7 +9,7 @@
 <p align="center">
   <strong>An Ultra-Fast, Zero-Allocation, Thread-Safe Modern TUI Framework for Go.</strong>
 </p>
-
+[![Go Reference](https://pkg.go.dev/badge/github.com/thebanri/limoni.svg)](https://pkg.go.dev/github.com/thebanri/limoni)
 <p align="center">
   <a href="https://github.com/thebanri/limoni/actions"><img src="https://img.shields.io/github/actions/workflow/status/thebanri/limoni/ci.yml?branch=main&style=flat-square&logo=github" alt="Build Status"></a>
   <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go.Dev Reference"></a>
