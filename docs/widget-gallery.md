@@ -1,33 +1,102 @@
 # Widget Galerisi ve API Referansı
 
-Bu dosya `go run ./internal/tools/widgetdocs` ile kaynak koddan üretilir; her bileşen
-`Widget` arayüzünü (`Draw(cell.Context, *buffer.Buffer)`) uygular.
-Widget'ı `frame.RenderWidget(widget, area)` ile çizin; tabloda `*` ile başlayan
-alıcı tipleri işaretçi olarak verilmelidir (örn. `&widgets.Paragraph{...}`).
+Bu dosya `widgets` paketindeki kaynak koddan üretilmiştir; her bileşen `Widget`
+arayüzünü (`Draw(cell.Context, *buffer.Buffer)`) uygular.
 
 | Widget | Alıcı tipi | Alan sayısı |
 | --- | --- | --- |
+| [Ascii3D](#ascii3d) | `Ascii3D` | 32 |
+| [BarChart](#barchart) | `BarChart` | 12 |
 | [Block](#block) | `Block` | 15 |
 | [Canvas](#canvas) | `*Canvas` | 0 |
 | [Checkbox](#checkbox) | `Checkbox` | 5 |
+| [ColorPicker](#colorpicker) | `ColorPicker` | 5 |
 | [CommandPalette](#commandpalette) | `CommandPalette` | 8 |
-| [Dialog](#dialog) | `Dialog` | 12 |
-| [Image](#image) | `*Image` | 9 |
-| [List](#list) | `List` | 9 |
+| [DevTools](#devtools) | `DevTools` | 2 |
+| [Dialog](#dialog) | `Dialog` | 14 |
+| [Image](#image) | `*Image` | 11 |
+| [LineChart](#linechart) | `LineChart` | 10 |
+| [List](#list) | `List` | 11 |
 | [Markdown](#markdown) | `*Markdown` | 5 |
-| [Paragraph](#paragraph) | `*Paragraph` | 3 |
+| [Paragraph](#paragraph) | `*Paragraph` | 5 |
+| [PieChart](#piechart) | `PieChart` | 6 |
 | [Popup](#popup) | `Popup` | 10 |
-| [ProgressBar](#progressbar) | `ProgressBar` | 8 |
+| [ProgressBar](#progressbar) | `ProgressBar` | 9 |
 | [RadioButton](#radiobutton) | `RadioButton` | 6 |
-| [Select](#select) | `Select` | 10 |
-| [Slider](#slider) | `Slider` | 9 |
-| [Sparkline](#sparkline) | `Sparkline` | 3 |
-| [Table](#table) | `Table` | 15 |
-| [Text](#text) | `Text` | 4 |
+| [Select](#select) | `Select` | 12 |
+| [Slider](#slider) | `Slider` | 12 |
+| [Sparkline](#sparkline) | `Sparkline` | 5 |
+| [Table](#table) | `Table` | 16 |
+| [Text](#text) | `Text` | 6 |
 | [TextArea](#textarea) | `TextArea` | 4 |
 | [TextInput](#textinput) | `TextInput` | 6 |
+| [ToastManager](#toastmanager) | `*ToastManager` | 3 |
 | [Transducer](#transducer) | `Transducer` | 3 |
-| [VirtualDataView](#virtualdataview) | `VirtualDataView` | 14 |
+| [TreeView](#treeview) | `TreeView` | 9 |
+| [Viewer3D](#viewer3d) | `*Viewer3D` | 15 |
+| [VirtualDataView](#virtualdataview) | `VirtualDataView` | 15 |
+
+## Ascii3D
+
+Ascii3D (or AsciiObject) is a high-performance 3D vector-to-ASCII terminal renderer.
+
+`RenderWidget` çağrısında kullanılacak tip: `Ascii3D`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `Model` | `graphics.Model3D` | 3D Model geometry or file path |
+| `Src` | `string` |  |
+| `Mode` | `Ascii3DMode` | Rendering Mode: - ModeASCII: Typography character ramps (default) - ModeBlock: 2x vertical sub-cell Half-Block (▀/▄) - ModeDithered: Retro Bayer 4x4 ordered dithering - ModeBraille: 8x sub-pixel Unicode Braille dot matrix |
+| `Scale` | `float64` | Transform & Animation |
+| `XOffset` | `float64` |  |
+| `YOffset` | `float64` |  |
+| `FloatIntensity` | `float64` |  |
+| `FloatSpeed` | `float64` |  |
+| `RotationIntensity` | `float64` |  |
+| `AutoRotate` | `bool` |  |
+| `AutoRotateSpeed` | `float64` |  |
+| `Time` | `float64` |  |
+| `RotX` | `float64` | Manual Rotation Offsets (degrees) |
+| `RotY` | `float64` |  |
+| `RotZ` | `float64` |  |
+| `FOV` | `float64` | Camera & Projection |
+| `CameraDistance` | `float64` |  |
+| `CellAspect` | `float64` |  |
+| `Contrast` | `float64` | Shading & Optics |
+| `EdgeContrast` | `float64` |  |
+| `Exposure` | `float64` |  |
+| `EnvironmentIntensity` | `float64` |  |
+| `Roughness` | `float64` |  |
+| `LightDirection` | `graphics.Vector3D` |  |
+| `Ascii` | `bool` | Rendering Mode & Palette |
+| `SubCell` | `bool` |  |
+| `Braille` | `bool` |  |
+| `Colored` | `bool` |  |
+| `Invert` | `bool` |  |
+| `Color` | `cell.Color` |  |
+| `Highlight` | `cell.Color` |  |
+| `Ramp` | `string` |  |
+
+## BarChart
+
+BarChart renders vertical and horizontal bar charts with customizable symbols and labels.
+
+`RenderWidget` çağrısında kullanılacak tip: `BarChart`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `Data` | `[]BarData` |  |
+| `Direction` | `BarChartDirection` |  |
+| `BarWidth` | `int` |  |
+| `BarGap` | `int` |  |
+| `Max` | `float64` |  |
+| `Min` | `float64` |  |
+| `ShowValues` | `bool` |  |
+| `ValueFormatter` | `func(...)` |  |
+| `Style` | `cell.Style` |  |
+| `LabelStyle` | `cell.Style` |  |
+| `DefaultColor` | `cell.Color` |  |
 
 ## Block
 
@@ -75,6 +144,20 @@ Checkbox, işaretlenebilir interaktif bir onay kutusudur.
 | `Style` | `cell.Style` |  |
 | `FocusedStyle` | `cell.Style` |  |
 
+## ColorPicker
+
+ColorPicker is a rich, KDE / desktop-style 2D HSV graphical color picker.
+
+`RenderWidget` çağrısında kullanılacak tip: `ColorPicker`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `State` | `*ColorPickerState` |  |
+| `Palette` | `[]cell.Color` |  |
+| `ShowPreview` | `bool` |  |
+| `Style` | `cell.Style` |  |
+
 ## CommandPalette
 
 CommandPalette, Komut Paleti overlay widget'ıdır.
@@ -91,6 +174,17 @@ CommandPalette, Komut Paleti overlay widget'ıdır.
 | `ItemStyle` | `cell.Style` |  |
 | `SelStyle` | `cell.Style` |  |
 | `DetailStyle` | `cell.Style` |  |
+
+## DevTools
+
+DevTools renders the in-terminal developer inspection dashboard.
+
+`RenderWidget` çağrısında kullanılacak tip: `DevTools`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `State` | `*DevToolsState` |  |
+| `Style` | `cell.Style` |  |
 
 ## Dialog
 
@@ -112,6 +206,8 @@ Dialog is a premium, modern glassmorphism dialog widget with glowing gradient bo
 | `ButtonFocusedStyle` | `cell.Style` |  |
 | `BorderSymbols` | `BorderSymbols` |  |
 | `Shadow` | `bool` |  |
+| `FocusedButton` | `int` |  |
+| `OnButtonHover` | `func(...)` |  |
 
 ## Image
 
@@ -121,6 +217,7 @@ Image, terminalde yerel görsel protokolleri (Kitty, Sixel, iTerm2) kullanarak P
 
 | Alan | Tip | Açıklama |
 | --- | --- | --- |
+| `ID` | `string` | ID, widget odak kimliğidir. |
 | `Img` | `image.Image` | Img, gösterilecek olan ham resim nesnesidir. |
 | `ZIndex` | `int` | ZIndex, resmin dikey katman yerleşim sırasıdır. |
 | `ForceHalfBlock` | `bool` | ForceHalfBlock, aktif edilirse donanımsal protokoller yerine hücre tabanlı half-block yöntemini zorlar. |
@@ -130,6 +227,26 @@ Image, terminalde yerel görsel protokolleri (Kitty, Sixel, iTerm2) kullanarak P
 | `Transparent` | `bool` | Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir. |
 | `Opacity` | `float64` | Opacity, resmin opaklık değeridir (0.0 ile 1.0 arasında). |
 | `OpacitySet` | `bool` | OpacitySet, Opacity alanının bilinçli olarak ayarlandığını belirtir. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle, odaklandığında uygulanacak kenar/vurgu stilidir. |
+
+## LineChart
+
+LineChart renders smooth Braille-based multi-series line graphs with labeled axes.
+
+`RenderWidget` çağrısında kullanılacak tip: `LineChart`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `Datasets` | `[]LineDataset` |  |
+| `MinY` | `float64` |  |
+| `MaxY` | `float64` |  |
+| `XLabels` | `[]string` |  |
+| `ShowAxes` | `bool` |  |
+| `ShowGrid` | `bool` |  |
+| `ShowLegend` | `bool` |  |
+| `Style` | `cell.Style` |  |
+| `AxisStyle` | `cell.Style` |  |
 
 ## List
 
@@ -139,12 +256,14 @@ List, terminal ekranında liste şeklinde dikey öğeler çizen interaktif widge
 
 | Alan | Tip | Açıklama |
 | --- | --- | --- |
+| `ID` | `string` | ID, listenin odaklanma ve kimlik belirleme kimliğidir. |
 | `Items` | `[]string` | Items, listede gösterilecek olan metin dizilimleridir. |
 | `Provider` | `ListProvider` | Provider, sanal liste (virtual scrolling) için veri sağlayıcıdır. |
 | `Scrollbar` | `bool` | Scrollbar, aktif edilirse listenin sağ kenarında bir dikey kaydırma çubuğu çizer. |
 | `ScrollbarTrackStyle` | `cell.Style` | ScrollbarTrackStyle, kaydırma çubuğu rayının (track) stilidir. |
 | `ScrollbarThumbStyle` | `cell.Style` | ScrollbarThumbStyle, kaydırma çubuğu kaydırıcısının (thumb) stilidir. |
 | `Style` | `cell.Style` | Style, listenin genel rengini ve yazı stilini belirtir. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle, liste odağa sahip olduğunda uygulanacak stildir. |
 | `SelectedStyle` | `cell.Style` | SelectedStyle, seçili olan öğenin vurgulanacağı stildir. |
 | `HighlightSymbol` | `string` | HighlightSymbol, seçili olan öğenin soluna yerleştirilecek semboldür (örn: "> "). |
 | `State` | `*ListState` | State, listenin seçili indeksi ve kaydırma durumunu tutan işaretçidir (pointer). |
@@ -169,9 +288,26 @@ Paragraph, çok satırlı metinleri gösteren görsel bileşendir.
 
 | Alan | Tip | Açıklama |
 | --- | --- | --- |
+| `ID` | `string` | ID, widget odak kimliğidir. |
 | `Text` | `string` | Text, gösterilecek olan metin içeriğidir. |
 | `Style` | `cell.Style` | Style, metnin yazı rengi, arka planı ve modifikatör stillerini belirler. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle, paragraf odaklandığında uygulanacak stildir. |
 | `Wrap` | `bool` | Wrap, metnin sınır genişliğine göre otomatik olarak alt satıra kaydırılıp kaydırılmayacağını belirler. |
+
+## PieChart
+
+PieChart renders pie and donut charts using Braille subpixels and color legends.
+
+`RenderWidget` çağrısında kullanılacak tip: `PieChart`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `Data` | `[]PieSlice` |  |
+| `DonutHoleRatio` | `float64` |  |
+| `ShowLegend` | `bool` |  |
+| `ShowPercentages` | `bool` |  |
+| `Style` | `cell.Style` |  |
 
 ## Popup
 
@@ -207,6 +343,7 @@ ProgressBar renders a bounded horizontal progress indicator.
 | `Style` | `cell.Style` |  |
 | `FilledStyle` | `cell.Style` |  |
 | `EmptyStyle` | `cell.Style` |  |
+| `FocusedStyle` | `cell.Style` |  |
 | `ShowPercent` | `bool` |  |
 
 ## RadioButton
@@ -241,6 +378,8 @@ Select is a keyboard- and mouse-interactive dropdown field.
 | `SelectedStyle` | `cell.Style` |  |
 | `HoverStyle` | `cell.Style` |  |
 | `BorderStyle` | `cell.Style` |  |
+| `DisableScroll` | `bool` |  |
+| `DisableFocus` | `bool` |  |
 | `OnChange` | `func(...)` |  |
 
 ## Slider
@@ -260,6 +399,9 @@ Slider is a horizontal mouse- and keyboard-controlled numeric slider.
 | `FilledStyle` | `cell.Style` |  |
 | `ThumbStyle` | `cell.Style` |  |
 | `FocusedStyle` | `cell.Style` |  |
+| `DisableScroll` | `bool` |  |
+| `DisableFocus` | `bool` |  |
+| `OnChange` | `func(...)` |  |
 
 ## Sparkline
 
@@ -267,8 +409,10 @@ Slider is a horizontal mouse- and keyboard-controlled numeric slider.
 
 | Alan | Tip | Açıklama |
 | --- | --- | --- |
+| `ID` | `string` | ID, widget odak kimliğidir. |
 | `Data` | `[]float64` | Data, çizilecek veri geçmişini temsil eden sayılar dizisidir. |
 | `Style` | `cell.Style` | Style, varsayılan hücre stilini tanımlar. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle, odaklandığında uygulanacak stildir. |
 | `Color` | `cell.Color` | Color, barların rengini belirler. |
 
 ## Table
@@ -287,6 +431,7 @@ Table, interaktif, esnek sütunlu, dikey kaydırılabilir ve hücre birleştirme
 | `State` | `*TableState` |  |
 | `GridStyle` | `cell.Style` |  |
 | `SelectedStyle` | `cell.Style` |  |
+| `FocusedStyle` | `cell.Style` |  |
 | `DrawGrid` | `bool` |  |
 | `SortEnabled` | `bool` |  |
 | `MultiSelect` | `bool` |  |
@@ -303,8 +448,10 @@ Text renders multiple rich-text lines with optional cell-aware wrapping.
 
 | Alan | Tip | Açıklama |
 | --- | --- | --- |
+| `ID` | `string` |  |
 | `Lines` | `[]Line` |  |
 | `Style` | `cell.Style` |  |
+| `FocusedStyle` | `cell.Style` |  |
 | `Wrap` | `bool` |  |
 | `Alignment` | `TextAlignment` |  |
 
@@ -336,6 +483,18 @@ TextInput, tek satırlı bir metin girişi kutusudur.
 | `PlaceholderStyle` | `cell.Style` |  |
 | `FocusedStyle` | `cell.Style` |  |
 
+## ToastManager
+
+ToastManager manages a stack of auto-dismissing toast notifications.
+
+`RenderWidget` çağrısında kullanılacak tip: `*ToastManager`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `Toasts` | `[]*ToastItem` |  |
+| `Position` | `ToastPosition` |  |
+| `MaxVisible` | `int` |  |
+
 ## Transducer
 
 `RenderWidget` çağrısında kullanılacak tip: `Transducer`
@@ -345,6 +504,48 @@ TextInput, tek satırlı bir metin girişi kutusudur.
 | `Child` | `Widget` |  |
 | `Type` | `TransducerType` |  |
 | `Progress` | `float64` |  |
+
+## TreeView
+
+TreeView renders a hierarchical collapsible tree with guide lines and selection.
+
+`RenderWidget` çağrısında kullanılacak tip: `TreeView`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `Roots` | `[]TreeNode` |  |
+| `State` | `*TreeViewState` |  |
+| `Style` | `cell.Style` |  |
+| `FocusedStyle` | `cell.Style` |  |
+| `SelectedStyle` | `cell.Style` |  |
+| `GuideStyle` | `cell.Style` |  |
+| `ShowGuides` | `bool` |  |
+| `IndentWidth` | `int` |  |
+
+## Viewer3D
+
+Viewer3D is a high-level widget that renders 3D models with rotation, lighting, shading (Wireframe, Solid, Lambertian, Gouraud), and texture mapping.
+
+`RenderWidget` çağrısında kullanılacak tip: `*Viewer3D`
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| `ID` | `string` | ID is the widget focus identifier. |
+| `Model` | `graphics.Model3D` | Model is the 3D geometry to render. |
+| `ImagePath` | `string` | ImagePath is the optional file path to a PNG/JPEG texture. |
+| `Image` | `image.Image` | Image is an optional in-memory texture image to map onto the 3D model. |
+| `RotX` | `float64` | RotX, RotY, RotZ are the Euler rotation angles in degrees. |
+| `RotY` | `float64` |  |
+| `RotZ` | `float64` |  |
+| `Distance` | `float64` | Distance is the camera distance from the object (default: 3.5). |
+| `Scale` | `float64` | Scale is the zoom/scale multiplier (default: 1.0). |
+| `Shading` | `string` | Shading mode: "Dokulu" (Texture mapped), "Wireframe", "Dolu Renkli" (Flat), "Gölgeli" (Lambertian), "Gouraud" (Smooth interpolated). |
+| `Wireframe` | `bool` | Wireframe overlays edges on top of shaded faces. |
+| `WireframeStyle` | `cell.Style` | WireframeStyle is the cell style for wireframe lines. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle is applied to wireframe/highlight when the viewer is focused. |
+| `Light` | `graphics.Light` | Light is the directional light source for Lambertian and Gouraud shading. |
+| `FaceColors` | `[]cell.Color` | FaceColors is an optional palette for coloring distinct faces in solid mode. |
 
 ## VirtualDataView
 
@@ -361,6 +562,7 @@ VirtualDataView renders the visible portion of a VirtualDataState cache.
 | `Prefetch` | `int` |  |
 | `Style` | `cell.Style` |  |
 | `SelectedStyle` | `cell.Style` |  |
+| `FocusedStyle` | `cell.Style` |  |
 | `EmptyText` | `string` |  |
 | `LoadingText` | `string` |  |
 | `ErrorText` | `string` |  |

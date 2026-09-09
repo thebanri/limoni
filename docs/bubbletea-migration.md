@@ -78,36 +78,66 @@ cs := style.ToCellStyle()            // native cell.Style'a köprü
 
 Adapter `View() string` çıktısını satır satır tampona basar; bu, stil ve
 kısmi güncelleme (diff) avantajlarını sınırlar. Kademeli geçiş için modeli
-`runtime.Model`'a çevirin:
+modern `limoni.Model` arayüzüne çevirin (tek `import "github.com/thebanri/limoni"` yeterlidir):
 
 ```go
-func (m *model) Init() []runtime.Cmd { return nil }
+package main
 
-func (m *model) Update(msg runtime.Msg) runtime.UpdateResult {
-	if ev, ok := msg.(runtime.KeyPressMsg); ok {
-		if ev.Key.Type == backend.KeyEsc {
-			return runtime.UpdateResult{Quit: true}
-		}
-		return runtime.UpdateResult{Redraw: true}
-	}
-	return runtime.UpdateResult{}
+import (
+	"context"
+	"github.com/thebanri/limoni"
+)
+
+type model struct {
+	counter int
 }
 
-func (m *model) View(f *terminal.Frame) {
-	f.RenderWidget(widgets.Block{Title: " App ", Borders: widgets.BorderAll}, f.Buffer.Area)
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	switch msg := msg.(type) {
+	case limoni.KeyPressMsg:
+		switch msg.Key.Type {
+		case limoni.KeyEsc:
+			return limoni.Quit()
+		case limoni.KeyUp, limoni.KeyRunes:
+			if msg.Key.Runes == '+' {
+				m.counter++
+				return limoni.Redraw()
+			}
+		case limoni.KeyDown:
+			m.counter--
+			return limoni.Redraw()
+		}
+	}
+	return limoni.Noop()
+}
+
+func (m *model) View(f *limoni.Frame) {
+	f.RenderWidget(
+		limoni.NewBlock().
+			Title(" Limoni Native App ").
+			Border(limoni.BorderRounded).
+			Style(limoni.Fg(limoni.ColorCyan)),
+		f.Area(),
+	)
+}
+
+func main() {
+	_ = limoni.RunProgram(context.Background(), &model{})
 }
 ```
 
 Karşılıklar:
 
-| Bubble Tea | Limoni native |
+| Bubble Tea | Limoni Native (`limoni.*`) |
 | --- | --- |
-| `Init() Cmd` | `Init() []runtime.Cmd` |
-| `Update(Msg) (Model, Cmd)` | `Update(runtime.Msg) runtime.UpdateResult` |
-| `View() string` | `View(*terminal.Frame)` (doğrudan hücre tamponu) |
-| `tea.Batch(a, b)` | `[]runtime.Cmd{a, b}` |
-| `tea.Quit` | `runtime.UpdateResult{Quit: true}` |
-| string birleştirme ile layout | `layout` paketi + `widgets` bileşenleri |
+| `Init() Cmd` | `Init() []limoni.Cmd` |
+| `Update(Msg) (Model, Cmd)` | `Update(limoni.Msg) limoni.UpdateResult` |
+| `View() string` | `View(*limoni.Frame)` (sıfır-tahsisatlı hücre tamponu) |
+| `tea.Batch(a, b)` | `[]limoni.Cmd{a, b}` |
+| `tea.Quit` | `limoni.Quit()` veya `limoni.UpdateResult{Quit: true}` |
+| String birleştirme ile layout | `limoni.SplitVertical` / `limoni.FlexLayout` + akıcı widget'lar |
 
 Yeni proje iskeleti için:
 

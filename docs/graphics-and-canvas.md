@@ -9,14 +9,20 @@ Limoni, standart metin tabanlı TUI kütüphanelerinin ötesine geçerek termina
 Braille Unicode karakterleri (`⠀` - `⣿`), tek bir terminal hücresinde $2 \times 4$ piksellik bir ızgara oluşturur. Böylece $80 \times 24$ boyutundaki bir terminalde $160 \times 96$ piksel çözünürlük elde edilir.
 
 ```go
+import (
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/graphics"
+	"github.com/thebanri/limoni/widgets"
+)
+
 // Canvas oluştur
 canvas := widgets.NewCanvas(width, height)
 
 // Çizgi çiz
-canvas.DrawLine(x0, y0, x1, y1, cell.Style{Fg: cell.NewColorRGB(0, 255, 200)})
+canvas.DrawLine(x0, y0, x1, y1, limoni.Fg(limoni.RGB(0, 255, 200)))
 
 // Daire çiz
-canvas.DrawCircle(centerX, centerY, radius, cell.Style{Fg: cell.NewColorRGB(255, 215, 0)})
+canvas.DrawCircle(centerX, centerY, radius, limoni.Fg(limoni.RGB(255, 215, 0)))
 
 // Dolu Üçgen çiz (Derinlik Z-Buffer destekli)
 canvas.DrawFilledTriangleDepth(v0, v1, v2, z0, z1, z2, style)
@@ -24,12 +30,30 @@ canvas.DrawFilledTriangleDepth(v0, v1, v2, z0, z1, z2, style)
 
 ---
 
-## 2. 3D Mesh Yükleme & Render Motoru (`graphics`)
+## 2. 3D Mesh Yükleme & Render Motoru (`graphics` & `Viewer3D`)
 
 Limoni aşağıdaki 3D dosya formatlarını dahili olarak ayrıştırabilir:
 - **Wavefront OBJ** (`.obj`): `graphics.LoadOBJ(path)` / `graphics.ParseOBJ(reader)`
 - **Stereolithography STL** (`.stl`): `graphics.LoadSTL(path)` / `graphics.ParseSTL(bytes)`
 - **Stanford PLY** (`.ply`): `graphics.LoadPLY(path)` / `graphics.ParsePLY(reader)`
+- **Dahili Primitifler**: `graphics.NewCube(size)`, `graphics.NewPyramid(base, height)`, `graphics.NewSphere(radius, rings, sectors)`
+
+### Yüksek Seviyeli `Viewer3D` Widget'ı
+3D modelleri terminalde tek satırda döndürmek, aydınlatmak ve dokulandırmak için:
+
+```go
+// 3D Modeli yükle ve widget'a bağla
+mesh, _ := graphics.LoadOBJ("assets/model.obj")
+
+viewer := widgets.NewViewer3D(mesh).
+	WithRotation(rotX, rotY, rotZ).
+	WithShading("Gölgeli").      // "Dokulu", "Wireframe", "Dolu Renkli", "Gölgeli", "Gouraud"
+	WithWireframe(true).
+	WithTexture("assets/texture.png")
+
+// Frame üzerinde çiz
+f.RenderWidget(viewer, f.Area())
+```
 
 ### 3D Render Stilleri & Shader'lar
 
@@ -37,7 +61,7 @@ Limoni aşağıdaki 3D dosya formatlarını dahili olarak ayrıştırabilir:
 2. **Dolu Renkli (Solid Prismatic)**: Yüzeyleri tek renk veya poligon paletleriyle doldurur.
 3. **Lambertian Diffuse Gölgelendirme**: Yüzey normallerini (`graphics.CalculateNormal`) hesaplayarak yönsel ışık kaynağına (`graphics.Light`) göre gerçekçi gölgeler oluşturur (`canvas.DrawLambertTriangleDepth`).
 4. **Gouraud Shading**: Üçgen köşeleri arasında barycentric enterpolasyonla pürüzsüz renk geçişleri sağlar (`canvas.DrawGouraudTriangleDepth`).
-5. **Doku Kaplama (Texture Mapping)**: UV koordinatları ile PNG/prosedürel doku resimlerini poligonların üzerine giydirir (`canvas.DrawTexturedTriangle`).
+5. **Doku Kaplama (Texture Mapping)**: UV koordinatları ile PNG/JPEG doku resimlerini poligonların üzerine giydirir (`canvas.DrawTexturedTriangle`).
 
 ---
 

@@ -22,8 +22,10 @@ currentVal := anim.Value()
 İki RGB renk arasında algısal olarak pürüzsüz geçiş (Linear RGB / HSV Lerp) sağlar.
 
 ```go
-colAnim := animation.NewColor(cell.NewColorRGB(30, 144, 255))
-colAnim.SetTarget(cell.NewColorRGB(255, 69, 0), 300*time.Millisecond, animation.EaseInOutQuad)
+import "github.com/thebanri/limoni"
+
+colAnim := animation.NewColor(limoni.RGB(30, 144, 255))
+colAnim.SetTarget(limoni.RGB(255, 69, 0), 300*time.Millisecond, animation.EaseInOutQuad)
 ```
 
 ---

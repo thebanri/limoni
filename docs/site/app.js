@@ -413,6 +413,18 @@ func (b MyStatusBadge) SizeHint(maxArea cell.Rect) (uint16, uint16) {
         content: `
             <h1>🎬 Animasyon & Fizik Motoru</h1>
             <p><code>animation.Float</code>, <code>animation.Color</code> ve Easing eğrileri (Quad, Cubic, Bounce, Elastic) ile 60 FPS hızında pürüzsüz animasyonlar sağlar.</p>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>import "github.com/thebanri/limoni"
+
+// Yumuşak renk geçişi
+colorAnim := animation.NewColor(limoni.RGB(30, 144, 255))
+colorAnim.SetTarget(limoni.RGB(255, 69, 0), 300*time.Millisecond, animation.EaseInOutQuad)
+
+// Sayısal enterpolasyon
+valAnim := animation.NewFloat(0.0)
+valAnim.SetTarget(100.0, 500*time.Millisecond, animation.EaseOutCubic)</code></pre>
+            </div>
         `
     },
 
@@ -427,6 +439,223 @@ func (b MyStatusBadge) SizeHint(maxArea cell.Rect) (uint16, uint16) {
                 <li><strong>WebAssembly (WASM)</strong>: Tarayıcı içinde xterm.js ile sıfır değişiklikle çalıştırma.</li>
                 <li><strong>SSH Sunucuları</strong>: Uzak terminal istemcilerine ağ üzerinden doğrudan TUI yayını.</li>
             </ul>
+        `
+    },
+
+    widgets: {
+        title: "📦 Zengin Widget Kataloğu (30 Bileşen)",
+        content: `
+            <h1>📦 Zengin Widget Ekosistemi</h1>
+            <p>Limoni, terminal arayüzünüzü hızlıca inşa etmeniz için 30 adet hazır, yüksek performanslı bileşen ve akıcı (fluent) yapıcılar sunar.</p>
+
+            <div class="cards-grid">
+                <div class="feature-card">
+                    <div class="card-icon">📊</div>
+                    <h3>Görsel & Tablolar</h3>
+                    <p><code>Block</code>, <code>Paragraph</code>, <code>Table</code>, <code>VirtualDataView</code> (1M+ satır), <code>ProgressBar</code>, <code>Sparkline</code>, <code>LineChart</code>, <code>PieChart</code>, <code>Markdown</code></p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon">✍️</div>
+                    <h3>Formlar & Girdi</h3>
+                    <p><code>TextInput</code>, <code>TextArea</code>, <code>Checkbox</code>, <code>RadioButton</code>, <code>Select</code>, <code>Slider</code></p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon">🪟</div>
+                    <h3>Modallar & Gezinti</h3>
+                    <p><code>Dialog</code> (Glassmorphism), <code>Popup</code>, <code>CommandPalette</code>, <code>ToastManager</code>, <code>TreeView</code>, <code>List</code></p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon">🧊</div>
+                    <h3>Grafik & 3D</h3>
+                    <p><code>Viewer3D</code> (Wavefront OBJ/STL/PLY), <code>Canvas</code> (2x4 Braille), <code>Image</code> (Kitty, Sixel, iTerm2)</p>
+                </div>
+            </div>
+
+            <h2>⚡ Akıcı (Fluent) Yapıcı Örneği</h2>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>import "github.com/thebanri/limoni"
+
+// Birleşik kök paket üzerinden zincirleme widget oluşturma:
+card := limoni.NewBlock().
+    WithTitle(" 🚀 Sistem Durumu ").
+    Rounded().
+    WithBorderStyle(limoni.Fg(limoni.ColorCyan)).
+    WithChild(
+        limoni.NewParagraph("Tüm servisler %99.98 uptime ile çalışıyor.").
+            WithStyle(limoni.Fg(limoni.ColorGreen).Bold()),
+    )
+
+f.RenderWidget(card, area)</code></pre>
+            </div>
+        `
+    },
+
+    graphics: {
+        title: "🎨 2D & 3D Grafik, Canvas ve Resim Protokolleri",
+        content: `
+            <h1>🎨 2D & 3D Grafik Motoru</h1>
+            <p>Limoni, klasik metin tabanlı TUI sınırlarını aşarak terminal içinde Braille vektör çizimleri, 3D gölgelendirme motoru ve piksel resim sürücüleri sunar.</p>
+
+            <h2>🧊 3D Model Render Motoru (Viewer3D)</h2>
+            <p>Wavefront OBJ, STL veya PLY dosyalarını terminalde döndürün, Lambert/Gouraud shader ile gölgelendirin veya PNG dokusu giydirin:</p>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>mesh, _ := graphics.LoadOBJ("assets/teapot.obj")
+
+viewer := widgets.NewViewer3D(mesh).
+    WithRotation(angleX, angleY, 0).
+    WithShading("Gölgeli"). // "Dokulu", "Wireframe", "Dolu Renkli", "Gölgeli", "Gouraud"
+    WithWireframe(true)
+
+f.RenderWidget(viewer, area)</code></pre>
+            </div>
+
+            <h2>🎨 2D Braille Canvas</h2>
+            <p>Hücre başına 2x4 piksel çözünürlük ile çizgiler, çemberler ve derinlik tamponlu (Z-Buffer) üçgenler çizin:</p>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>canvas := widgets.NewCanvas(width, height)
+canvas.DrawLine(0, 0, 80, 40, limoni.Fg(limoni.RGB(0, 255, 200)))
+canvas.DrawCircle(40, 20, 15, limoni.Fg(limoni.RGB(255, 215, 0)))
+f.RenderWidget(canvas, area)</code></pre>
+            </div>
+
+            <h2>🖼️ Donanım Resim Protokolleri</h2>
+            <ul>
+                <li><strong>Kitty Graphics Protocol</strong>: RGB piksel akışı.</li>
+                <li><strong>Sixel Graphics</strong>: DEC VT terminalleri ve xterm uyumluluğu.</li>
+                <li><strong>iTerm2 Protocol</strong>: macOS için base64 resim aktarımı.</li>
+                <li><strong>Half-Block Fallback</strong>: Eski terminallerde 1x2 ANSI yarım blok geriye uyumluluk.</li>
+            </ul>
+        `
+    },
+
+    examples: {
+        title: "🚀 Örnek Uygulamalar & Canlı Demolar",
+        content: `
+            <h1>🚀 Canlı Örnekler ve Demolar</h1>
+            <p>Limoni deposunda yer alan hazır çalışan uygulamaları tek komutla test edebilirsiniz:</p>
+
+            <div class="cards-grid">
+                <div class="feature-card">
+                    <div class="card-icon">🌟</div>
+                    <h3>Showcase Uygulaması</h3>
+                    <p>7 sekmeli vitrin: Markdown okuyucu, 3D döndürücü, canlı grafikler, 1M satırlı tablo ve formlar.</p>
+                    <div class="code-box" style="margin-top:10px;">
+                        <pre><code>go run ./examples/showcase</code></pre>
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="card-icon">⚡</div>
+                    <h3>Basit Başlangıç</h3>
+                    <p>15 satırda tek import ile çalışan minimal sayaç uygulaması.</p>
+                    <div class="code-box" style="margin-top:10px;">
+                        <pre><code>go run ./examples/simple</code></pre>
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="card-icon">🎮</div>
+                    <h3>İnteraktif Demo</h3>
+                    <p>Animasyonlar, CPU grafikleri ve cam efektli dialog pencereleri.</p>
+                    <div class="code-box" style="margin-top:10px;">
+                        <pre><code>go run ./examples/demo</code></pre>
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="card-icon">🌐</div>
+                    <h3>SSH TUI Sunucusu</h3>
+                    <p>Ağ üzerinden bağlanan kullanıcılara canlı TUI sunan SSH servisi.</p>
+                    <div class="code-box" style="margin-top:10px;">
+                        <pre><code>go run ./examples/ssh_server</code></pre>
+                    </div>
+                </div>
+            </div>
+        `
+    },
+
+    bubbletea: {
+        title: "🍵 Bubble Tea → Limoni Geçiş Kılavuzu",
+        content: `
+            <h1>🍵 Bubble Tea'den Limoni'ye Geçiş</h1>
+            <p>Mevcut Bubble Tea ve Lipgloss projelerinizi Limoni'nin ultra hızlı çekirdeğine zahmetsizce taşıyabilirsiniz.</p>
+
+            <h2>1. Adım: Sıfır Kod Değişikliğiyle Adapter Kullanımı</h2>
+            <p>Sadece import satırını değiştirerek mevcut modellerinizi doğrudan çalıştırın:</p>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>// Önce: import tea "github.com/charmbracelet/bubbletea"
+// Şimdi:
+import tea "github.com/thebanri/limoni/compat/bubbletea"
+
+p := tea.NewProgram(model)
+err := p.RunTerminal(context.Background())</code></pre>
+            </div>
+
+            <h2>2. Adım: Native Limoni API'sine Geçiş</h2>
+            <p>Daha yüksek kare hızları ve sıfır bellek tahsisatı için <code>limoni.Model</code> arayüzüne geçin:</p>
+            <div class="code-box">
+                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <pre><code>package main
+
+import (
+    "context"
+    "github.com/thebanri/limoni"
+)
+
+type model struct{ count int }
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+    switch msg := msg.(type) {
+    case limoni.KeyPressMsg:
+        if msg.Key.Type == limoni.KeyEsc {
+            return limoni.Quit()
+        }
+        m.count++
+        return limoni.Redraw()
+    }
+    return limoni.Noop()
+}
+
+func (m *model) View(f *limoni.Frame) {
+    f.RenderWidget(
+        limoni.NewBlock().
+            Title(" Limoni Native ").
+            Rounded().
+            Style(limoni.Fg(limoni.ColorCyan)),
+        f.Area(),
+    )
+}
+
+func main() {
+    _ = limoni.RunProgram(context.Background(), &model{})
+}</code></pre>
+            </div>
+        `
+    },
+
+    a11y: {
+        title: "♿ Erişilebilirlik (A11y) & Anlamsal Ağaç",
+        content: `
+            <h1>♿ Erişilebilirlik ve Standartlar</h1>
+            <p>Limoni, terminal arayüzlerinin tüm kullanıcılar tarafından erişilebilir olmasını temel bir tasarım ilkesi kabul eder.</p>
+
+            <h2>1. Anlamsal Ağaç (Semantic Node Tree)</h2>
+            <p>Tüm bileşenler çizim anında ekran okuyucular için yapılandırılmış semantik düğümler üretir (Rol, Durum, Değer).</p>
+
+            <h2>2. Yüksek Kontrast (WCAG AAA)</h2>
+            <p>Yüksek kontrast modu etkinleştirildiğinde soluk pastel renkler otomatik olarak maksimum kontrastlı zıt renklere yükseltilir.</p>
+
+            <h2>3. NO_COLOR Standardı</h2>
+            <p>Ortamda <code>NO_COLOR=1</code> tanımlı olduğunda tüm ANSI renk kodları kapatılarak arayüz sembolik olarak çizilir.</p>
+
+            <h2>4. Azaltılmış Hareket (Reduced Motion)</h2>
+            <p>Vestibüler hassasiyeti olan kullanıcılar için animasyon geçişleri otomatik olarak devre dışı bırakılır.</p>
         `
     }
 };
