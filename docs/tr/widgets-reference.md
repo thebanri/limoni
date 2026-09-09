@@ -2,156 +2,223 @@
 
 Limoni, modern terminal kullanıcı arayüzleri geliştirmek için yüksek performanslı ve zengin bir widget kütüphanesi sunar. Tüm bileşenler `widgets.Widget` arayüzünü (`Draw` ve `SizeHint`) uygular.
 
+Hem kök paket (`github.com/thebanri/limoni`) üzerinden akıcı (fluent) yapıcılarla hem de alt paket (`github.com/thebanri/limoni/widgets`) üzerinden doğrudan struct olarak kullanılabilirler.
+
 ---
 
-## 1. Kapsayıcı & Yapısal Bileşenler
+## 1. Kapsayıcı & Metin Bileşenleri
 
-### `widgets.Block`
-Köşe yuvarlama (`SymbolsRounded`), çift çizgi sınırları, başlıklar, iç boşluk (padding) ve iç içe yerleşim sağlayan temel kapsayıcı.
+### `Block`
+Köşe yuvarlama (`SymbolsRounded`), çift çizgi, kalın çizgiler, başlıklar, iç boşluk (padding) ve iç içe yerleşim sağlayan temel kapsayıcı.
+
+#### Akıcı (Fluent) Kullanım
+```go
+block := limoni.NewBlock().
+    WithTitle(" 📦 SUNUCU TELEMETRİSİ ").
+    WithTitleAlign(limoni.AlignCenter).
+    Rounded().                                  // Yuvarlatılmış köşeler (╭ ╮ ╰ ╯)
+    WithBorderStyle(limoni.Fg(limoni.Hex("#00FFAA"))).
+    WithPadding(1, 2, 1, 2).                    // Üst, Sağ, Alt, Sol
+    WithChild(childWidget)
+
+f.RenderWidget(block, area)
+inner := block.Inner(area)                      // Kenarlık ve padding sonrası iç çizim alanı
+```
+
+#### Kenarlık Seçenekleri
+* `Rounded()`: Yuvarlatılmış köşeli (`╭─╮ │ ╰─╯`)
+* `Single()`: İnce tek çizgili (`┌─┐ │ └─┘`)
+* `Double()`: Çift çizgili (`╔═╗ ║ ╚═╝`)
+* `Thick()`: Kalın çizgili (`┏━┓ ┃ ┗━┛`)
+* `BlockBorder()`: Dolu blok karakterli (`███ █ ███`)
+
+---
+
+### `Paragraph`
+Otomatik kelime kaydırma (word wrap), hizalama ve stil desteği sunan metin bloğu.
 
 ```go
-block := widgets.Block{
-    Title:          " 📦 SUNUCU TELEMETRİSİ ",
-    TitleAlignment: widgets.AlignCenter,
-    Borders:        widgets.BorderAll,
-    BorderSymbols:  widgets.SymbolsRounded,
-    BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 210, 255)},
-    TitleStyle:     cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
-    PaddingLeft:    1,
-    PaddingRight:   1,
-}
-frame.RenderWidget(block, area)
+p := limoni.NewParagraph("Limoni sıfır bellek tahsisiyle 60+ FPS hız sunar.").
+    WithWrap(true).
+    WithStyle(limoni.Fg(limoni.RGB(220, 225, 235)).Bold()).
+    WithAlignment(limoni.AlignCenter)
+
+f.RenderWidget(p, area)
 ```
 
 ---
 
-## 2. Gelişmiş Üretkenlik Widget'ları
-
-### `widgets.TreeView`
-Klasör simgeli, kılavuz çizgili (`│  ├─  └─`), klavye ve fare tıklaması destekli hiyerarşik ağaç bileşeni.
+### `Markdown`
+Başlıklar (`#`, `##`), madde işaretli listeler (`-`, `*`), yatay ayırıcılar (`---`), kalın (`**`), italik (`*`) ve satır içi kod (` ` `) destekleyen interaktif Markdown okuyucu. Fare tekerleği ve sürükleme ile kaydırma destekler.
 
 ```go
-state := widgets.NewTreeViewState()
+md := limoni.NewMarkdown(icerik).
+    WithID("doc_viewer").
+    WithStyle(limoni.Fg(limoni.RGB(220, 225, 235))).
+    WithFocusedStyle(limoni.Fg(limoni.Hex("#00E5FF"))).
+    WithScrollOffset(&scrollOffset)
 
-tree := widgets.TreeView{
-    ID: "project_tree",
-    Roots: []widgets.TreeNode{
+f.RenderWidget(md, area)
+```
+
+---
+
+## 2. Listeler & Veri Tabloları
+
+### `Table`
+Sütun kısıtlamaları, satır seçimi, zebra çizgileri ve ızgara desteği sunan tablo bileşeni.
+
+```go
+table := limoni.NewTable().
+    WithHeaders("PID", "PROSES", "CPU %", "BELLEK").
+    WithRow("1024", "nginx", "4.2%", "42 MB").
+    WithRow("2048", "postgres", "12.8%", "256 MB").
+    WithConstraints(
+        limoni.Fixed(8),
+        limoni.Fill(),
+        limoni.Fixed(10),
+        limoni.Fixed(12),
+    ).
+    WithGrid(true).
+    WithSelected(seciliIndex)
+
+f.RenderWidget(table, area)
+```
+
+---
+
+### `VirtualDataView`
+Bellek şişmesi olmadan **1.000.000+ satırlık** devasa veri setlerini sıfır GC yüküyle kaydırabilen sanal tablo.
+
+```go
+view := widgets.VirtualDataView{
+    ID:            "infinite_log_view",
+    Source:        logDataSource, // widgets.VirtualDataSource arayüzünü uygular
+    Prefetch:      20,
+    Offset:        &scrollOffset,
+    Style:         cell.Style{Fg: cell.NewColorRGB(190, 195, 205)},
+    SelectedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(0, 80, 130)},
+}
+f.RenderWidget(view, area)
+```
+
+---
+
+### `List`
+Özelleştirilebilir vurgulama sembolü ve akıcı zincirleme sunan liste bileşeni:
+
+```go
+list := limoni.NewList("Genel Bakış", "Metrikler", "Ayarlar", "Kayıtlar").
+    WithHighlightSymbol("👉 ").
+    WithSelected(seciliIndex).
+    WithSelectedStyle(limoni.Fg(limoni.Hex("#00FFAA")).Bold())
+
+f.RenderWidget(list, area)
+```
+
+---
+
+## 3. Girdi Kontrolleri & Formlar
+
+### `TextInput`
+İmleç takibi, metin seçimi ve şifre maskeleme desteği sunan tek satırlık metin giriş kutusu.
+
+```go
+input := limoni.NewTextInput("api_key_input").
+    WithPlaceholder("Gizli token giriniz...").
+    WithStyle(limoni.Fg(limoni.RGB(220, 225, 235))).
+    WithFocusedStyle(limoni.Fg(limoni.Hex("#00E5FF")).Bold())
+
+f.RenderWidget(input, area)
+```
+
+---
+
+### `Checkbox` & `RadioButton`
+Onay kutuları ve grup bazlı radyo butonları:
+
+```go
+cb := widgets.Checkbox{
+    ID:      "telemetry_cb",
+    Label:   "Telemetri verilerini gönder",
+    Checked: isChecked,
+    OnToggle: func(val bool) { isChecked = val },
+}
+f.RenderWidget(cb, area)
+```
+
+---
+
+### `Slider`
+Sürükle-bırak destekli ses, parlaklık veya oran kaydırıcısı:
+
+```go
+slider := widgets.Slider{
+    ID:          "volume_slider",
+    Min:         0,
+    Max:         100,
+    State:       sliderState,
+    FilledStyle: cell.Style{Fg: cell.NewColorRGB(80, 220, 140)},
+    ThumbStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
+}
+f.RenderWidget(slider, area)
+```
+
+---
+
+## 4. Modallar, Dialoglar ve Katmanlar
+
+### `Dialog`
+Işıltılı degrade kenarlıklar, gölge, taşınabilir başlık çubuğu ve klavye odak koruması sunan modern pencereler:
+
+```go
+dialog := widgets.Dialog{
+    ID:         "exit_dialog",
+    Title:      " ⚠️ ÇIKIŞI ONAYLA ",
+    Message:    "Uygulamadan çıkmak istediğinize emin misiniz?",
+    SubMessage: "Kaydedilmemiş tüm değişiklikler kaybolacaktır.",
+    Shadow:     true,
+    Buttons: []widgets.DialogButton{
         {
-            ID: "src", Label: "src", Icon: "📁", Expanded: true,
-            Children: []widgets.TreeNode{
-                {ID: "main.go", Label: "main.go", Icon: "📄"},
-                {ID: "config.json", Label: "config.json", Icon: "⚙️"},
-            },
+            Text: "Vazgeç",
+            Handler: func() { closeDialog() },
+        },
+        {
+            Text: "Çıkış Yap",
+            Handler: func() { os.Exit(0) },
         },
     },
-    State:      state,
-    ShowGuides: true,
+    ButtonStyle:        cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: cell.NewColorRGB(45, 45, 45)},
+    ButtonFocusedStyle: cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(80, 220, 140), Modifier: cell.ModifierBold},
 }
-frame.RenderWidget(tree, area)
-```
 
-### `widgets.ColorPicker`
-Renk paletleri, RGB kaydırıcıları, Hex girişi ve canlı önizlemeli interaktif renk seçici.
-
-```go
-state := widgets.NewColorPickerState(0, 200, 255)
-
-picker := widgets.ColorPicker{
-    ID:          "theme_picker",
-    State:       state,
-    ShowPreview: true,
-}
-frame.RenderWidget(picker, area)
-```
-
-### `widgets.ToastManager`
-Bilgi, başarı, uyarı ve hata bildirimlerini zaman ayarlı ve gölgeli olarak ekranda gösteren bildirim yöneticisi.
-
-```go
-toastMgr := widgets.NewToastManager(widgets.ToastTopRight)
-toastMgr.Success("Veritabanı Bağlandı", "Gecikme: 2ms")
-
-// Render döngüsünde:
-toastMgr.Update(time.Now())
-toastMgr.Draw(ctx, buf)
+f.BeginFocusScope("exit_dialog")
+f.RenderWidget(dialog, modalArea)
 ```
 
 ---
 
-## 3. Zengin Veri Görselleştirme Grafikleri
+## 5. Grafik & 3D Rasterizer
 
-### `widgets.BarChart`
-Dikey ve yatay, otomatik ölçeklenen çubuk grafikler.
-
-```go
-chart := widgets.BarChart{
-    Data: []widgets.BarData{
-        {Label: "Pzt", Value: 35, Color: cell.NewColorRGB(0, 255, 128)},
-        {Label: "Sal", Value: 68, Color: cell.NewColorRGB(0, 200, 255)},
-        {Label: "Çar", Value: 95, Color: cell.NewColorRGB(255, 100, 50)},
-    },
-    Direction:  widgets.BarVertical,
-    BarWidth:   4,
-    BarGap:     2,
-    ShowValues: true,
-}
-frame.RenderWidget(chart, area)
-```
-
-### `widgets.LineChart`
-Braille alt-pikselli, eksen etiketli ve göstergeli (legend) çoklu seri çizgi grafikler.
+### `Canvas`
+$2 \times 4$ Braille alt-piksel matrisiyle vektörel çizim:
 
 ```go
-lineChart := widgets.LineChart{
-    Datasets: []widgets.LineDataset{
-        {
-            Name:  "Gelen Trafik",
-            Data:  []float64{10, 25, 40, 65, 80, 95},
-            Color: cell.NewColorRGB(46, 204, 113),
-        },
-    },
-    ShowAxes:   true,
-    ShowLegend: true,
-    XLabels:    []string{"00:00", "04:00", "08:00", "12:00"},
-}
-frame.RenderWidget(lineChart, area)
-```
-
-### `widgets.PieChart`
-Pasta ve halka (donut) grafikler, yüzdelik oran hesaplamaları ve renkli göstergeler.
-
-```go
-pie := widgets.PieChart{
-    Data: []widgets.PieSlice{
-        {Label: "Go", Value: 50, Color: cell.NewColorRGB(0, 200, 255)},
-        {Label: "Rust", Value: 30, Color: cell.NewColorRGB(255, 100, 50)},
-        {Label: "TS", Value: 20, Color: cell.NewColorRGB(50, 150, 255)},
-    },
-    DonutHoleRatio:  0.4,
-    ShowLegend:      true,
-    ShowPercentages: true,
-}
-frame.RenderWidget(pie, area)
+cv := widgets.NewCanvas(width, height)
+cv.DrawLine(0, 0, 100, 50, cell.Style{Fg: cell.NewColorRGB(0, 255, 180)})
+cv.DrawCircle(50, 25, 20, cell.Style{Fg: cell.NewColorRGB(255, 200, 0)})
+f.RenderWidget(cv, area)
 ```
 
 ---
 
-## 4. Geliştirici Araçları & Canlı Denetleyici
-
-### `widgets.DevTools` (`F12`)
-Canlı FPS, render süresi (frametime), heap bellek kullanımı, GC sayaçları ve odak zincirini gösteren F12 hata ayıklama paneli.
+### `Viewer3D`
+Donanımdan bağımsız yazılımsal 3D rasterizer (STL, OBJ, PLY dosya yükleme, Gouraud/Lambert aydınlatma):
 
 ```go
-devState := widgets.NewDevToolsState()
-
-// Olay dinleyicide:
-if ev.Type == backend.KeyF12 {
-    devState.Toggle()
-}
-
-// Render döngüsünde:
-devState.RecordFrame(time.Since(frameStart))
-if devState.Enabled {
-    widgets.DevTools{State: devState}.Draw(ctx, buf)
-}
+v3d := widgets.NewViewer3D()
+v3d.LoadMesh(mesh)
+v3d.SetShadingMode(widgets.ShadingGouraud)
+v3d.SetRotation(rx, ry, rz)
+f.RenderWidget(v3d, area)
 ```

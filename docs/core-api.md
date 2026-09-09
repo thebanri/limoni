@@ -1,184 +1,131 @@
-# ⚙️ Core Engine API Reference
+# ⚙️ Core Engine Architecture & API Reference
 
-Limoni's low-level architecture is organized under the `core/` package hierarchy. These modules provide fine-grained, zero-allocation control over hardware terminals, memory buffers, cell geometries, layered rendering, focus management, and event routing.
+Limoni is built upon a modular, layered architecture designed from the ground up for **zero heap allocations** on the rendering hot path, hardware cursor synchronization, and deterministic event processing.
 
 ---
 
-## 1. `core/cell`
+## 1. Unified Root Facade (`package limoni`)
 
-Defines the fundamental atomic unit of the terminal screen: character cells, 24-bit TrueColors, text modifiers, cascading context, and bounding geometry.
-
-### Key Types & Constructors
-
-#### `cell.Color`
-Represents 24-bit TrueColor RGB, 8-bit ANSI, or the default terminal color packed into a single 32-bit integer.
+For 95% of applications, you only need to import the root package:
 
 ```go
-// 24-bit TrueColor RGB
-colRGB := cell.NewColorRGB(255, 128, 0)
-
-// 8-bit ANSI color (0-255)
-colANSI := cell.NewColorANSI(196)
-
-// Default terminal color
-colDef := cell.NewColorDefault()
+import "github.com/thebanri/limoni"
 ```
 
-#### `cell.Modifier`
-Bitmask flags for text formatting:
+The root package re-exports:
+- **Core Types**: `Frame`, `Terminal`, `Rect`, `Style`, `Color`, `Event`, `KeyEvent`, `MouseEvent`.
+- **High-Level Runners**: `limoni.Start()`, `limoni.Run()`, `limoni.NewProgram()`.
+- **Layout Splitters**: `limoni.SplitVertical()`, `limoni.SplitHorizontal()`, `limoni.Fixed()`, `limoni.Percentage()`, `limoni.Fill()`, `limoni.Ratio()`.
+- **Fluent Builders**: `limoni.NewBlock()`, `limoni.NewParagraph()`, `limoni.NewTable()`, `limoni.NewList()`, `limoni.NewTextInput()`, `limoni.NewMarkdown()`.
+- **Color & Style Helpers**: `limoni.RGB()`, `limoni.Hex()`, `limoni.ANSI()`, `limoni.Fg()`, `limoni.Bg()`, `limoni.Bold()`, `limoni.Italic()`.
+
+---
+
+## 2. `core/cell` — Atomic Cells & Geometric Math
+
+Defines the fundamental building block of the terminal grid: character cells, TrueColor RGB, text formatting modifiers, and bounding rectangles.
+
+### `cell.Color`
+Represents 24-bit TrueColor RGB, 8-bit ANSI, or default terminal colors packed into a single 32-bit word:
 
 ```go
-const (
-    ModifierBold            Modifier = 1 << 0
-    ModifierDim             Modifier = 1 << 1
-    ModifierItalic          Modifier = 1 << 2
-    ModifierUnderline       Modifier = 1 << 3
-    ModifierDoubleUnderline Modifier = 1 << 4
-    ModifierUndercurl       Modifier = 1 << 5
-    ModifierBlink           Modifier = 1 << 6
-    ModifierReverse         Modifier = 1 << 7
-    ModifierHidden          Modifier = 1 << 8
-    ModifierStrikethrough   Modifier = 1 << 9
-)
+colRGB  := cell.NewColorRGB(0, 255, 180)
+colANSI := cell.NewColorANSI(196)
+colDef  := cell.NewColorDefault()
+```
 
-// Example: Bold with Neon Cyan text
+### `cell.Style`
+12-byte packed struct containing foreground, background, and bitmask modifiers:
+
+```go
 style := cell.Style{
     Fg: cell.NewColorRGB(0, 210, 255),
+    Bg: cell.NewColorRGB(18, 20, 24),
     Modifier: cell.ModifierBold | cell.ModifierUnderline,
 }
+
+// Merging styles (cascading overrides):
+merged := baseStyle.Merge(overrideStyle)
 ```
 
-#### `cell.Rect`
-Represents a 2D bounding rectangle in terminal cell coordinates:
+### `cell.Rect`
+2D bounding box math with zero heap allocations:
 
 ```go
-type Rect struct {
-    X, Y          uint16
-    Width, Height uint16
-}
-
 area := cell.NewRect(0, 0, 80, 24)
-inside := area.Contains(10, 5)
-clipped := area.Intersection(cell.NewRect(20, 10, 40, 10))
+isInside := area.Contains(10, 5)
+intersection := area.Intersection(otherArea)
 ```
 
-#### `cell.Context`
-Stack-allocated drawing context passed down to widgets during `Draw`:
-- `ctx.Area`: Active bounding box.
-- `ctx.Style`: Cascading parent style.
-- `ctx.RegisterClick(area, callback)`: Registers interactive mouse click zones.
-- `ctx.RegisterMouse(area, callback)`: Registers drag / hover / wheel handlers.
-- `ctx.RegisterFocus(id)`: Registers focusable widget IDs.
-- `ctx.IsFocused(id)`: Checks active focus ownership.
+### `cell.Context`
+Ephemeral draw context passed down to widgets:
+- `ctx.Area`: Active bounding rectangle.
+- `ctx.Style`: Inherited style from parent container or theme.
+- `ctx.ThemeStyle(role)`: Resolves semantic theme colors (`"surface"`, `"border"`, `"text"`).
+- `ctx.RegisterClick(area, handler)`: Registers clickable zones.
+- `ctx.RegisterMouse(area, handler)`: Registers mouse hover, drag, and scroll zones.
+- `ctx.RegisterFocus(id)`: Registers focusable element boundaries.
 
 ---
 
-## 2. `core/buffer`
+## 3. `core/buffer` — 1D Memory Matrix & ANSI Diff Engine
 
-High-performance 1D contiguous cell memory matrix and zero-allocation ANSI differential renderer.
+High-performance contiguous cell buffer with differential ANSI rendering.
 
-### Methods
+### Highlights
+- **1D Flat Memory Array**: `Buffer.Content` is stored as a contiguous slice of `cell.Cell`, maximizing CPU cache locality and eliminating pointer indirection.
+- **Differential Rendering (`buffer.Diff`)**: Compares `front` and `back` buffers, calculating the absolute minimal sequence of ANSI escape codes required to update the hardware screen.
+- **Unicode East Asian Width (`W`/`F`) Accuracy**: Strict table-driven width calculations ensure that single-width symbols (`✓`, `⚠`) occupy 1 column, while emojis (`🔴`, `🚀`, `☕`) occupy 2 columns without cursor desynchronization.
+- **Continuation Cell Protection**: When wide characters are partially occluded or restored (e.g. dragging a modal window), continuation cells (`RuneContinuation`) automatically trigger wide-rune invalidation, preventing ghost borders and visual shredding.
 
 ```go
-// Create buffer
 buf := buffer.NewBuffer(area)
+buf.SetCellDirect(x, y, cell.Cell{Content: 'A', Style: style})
+buf.SetString(x, y, "🚀 Hello Limoni", style)
 
-// Clear buffer (fast path skips clean buffers)
-buf.Clear()
-
-// Write individual cell
-buf.SetCell(x, y, cell.Cell{
-    Content: '█',
-    Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 128)},
-})
-
-// Write UTF-8 string with automatic continuation markers for double-width runes
-buf.SetString(x, y, "Hello Limoni!", cell.Style{Modifier: cell.ModifierBold})
-
-// Generate minimal ANSI diff stream between front and back buffers
+// Generate ANSI delta stream
 writeBuf, err := buffer.Diff(frontBuf, backBuf, writeBuf[:0], true, true)
 ```
 
 ---
 
-## 3. `core/terminal`
+## 4. `core/terminal` — Engine, Layers, Modals & Focus
 
-The terminal orchestration engine managing double buffering, render frames, focus managers, and layered rendering.
+Owns the terminal lifecycle, double buffers, frame generation, and input routing.
 
-### `terminal.Frame` & Layer System
-
-```go
-term, err := terminal.New(b)
-if err != nil {
-    log.Fatal(err)
-}
-
-term.Draw(func(f *terminal.Frame) {
-    area := f.Buffer.Area
-    f.SetTheme(widgets.DarkTheme())
-
-    // 1. Base Layer (Main application layout)
-    f.RenderWidget(myDashboardWidget, area)
-
-    // 2. Modal Layer with Dismissal Callback
-    if showModal {
-        modalArea := terminal.CenterRect(area, 50, 15)
-        f.RegisterLayer("settings_modal", terminal.LayerModal, modalArea, 3000, func() {
-            showModal = false
-        })
-
-        f.BeginLayer("settings_modal")
-        f.RenderWidget(settingsDialog, modalArea)
-        f.EndLayer()
-    }
-})
-```
+### Key Capabilities
+- **60+ FPS Rendering Pipeline**: Renders frames to an in-memory buffer, diffs against the previous frame, and flushes output via buffered I/O.
+- **Layer Stacking**: `f.BeginLayer("overlay")` and `f.EndLayer()` allow non-destructive overlays and floating panels.
+- **Modal Stack Isolation**: `f.RegisterModal("dialog", area, onDismiss)` sandboxes events, automatically blocking underlying widgets from receiving mouse clicks or keyboard events while a modal is active.
+- **Focus Scoping**: `f.BeginFocusScope("modal_id")` restricts `Tab` / `Shift+Tab` keyboard navigation strictly to interactive elements inside the modal.
 
 ---
 
-## 4. `core/backend`
+## 5. `core/runtime` — The Elm Architecture (TEA)
 
-Hardware abstraction layer supporting Linux TTY/PTY (via pure Go termios ioctls), Windows ConPTY, macOS BSD termios, SSH sessions, and WebAssembly.
+Provides a predictable, functional state management loop:
 
-```go
-// Initialize standard TTY backend
-b := backend.NewBackend(os.Stdin, os.Stdout)
-b.Setup() // Enables Raw Mode, SGR Mouse Reporting, and Alt Buffer
-defer b.Close()
-
-// Event Loop
-b.StartEventLoop()
-for ev := range b.Events() {
-    switch ev.Type {
-    case backend.EventKey:
-        if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
-            return
-        }
-    case backend.EventMouse:
-        // Automatically routed to active widgets and layers
-        term.RouteMouseEvent(ev.Mouse)
-    case backend.EventResize:
-        // Window dimensions changed
-    }
-}
 ```
+[Init] ──> Model + Cmd
+             │
+             ▼
+[Message] ──> [Update] ──> Model + Cmd
+                            │
+                            ▼
+                         [View] ──> Frame Render
+```
+
+### Safety & Concurrency Guarantees
+- **Deterministic Command Ordering**: Commands are executed concurrently on worker goroutines, but their results are buffered and delivered to `Update` in strict dispatch sequence order.
+- **Strict Cancellation Precedence**: When context cancellation (`ctx.Done()`) or program shutdown occurs, pending command results and queued messages are immediately discarded, preventing race conditions or late mutations after exit.
+- **Safe Panic Recovery**: `WithPanicHandler` catches panics in user commands or models, preventing process termination and allowing telemetry logging.
 
 ---
 
-## 5. `core/runtime`
+## 6. `core/backend` — Cross-Platform VT & Raw Terminal Engine
 
-The Elm Architecture (TEA) runtime for declarative state management.
+Communicates directly with the operating system terminal driver:
 
-```go
-type Model interface {
-    Init(ctx context.Context) (Model, Cmd)
-    Update(msg Msg) (Model, Cmd)
-    View(f *terminal.Frame)
-}
-
-program := runtime.New(
-    runtime.WithModel(initialModel),
-    runtime.WithFPS(60),
-)
-program.RunTerminal(ctx, term, b)
-```
+- **Linux / macOS**: Configures `termios` for raw mode, enables alternate screen buffer (`\x1b[?1049h`), mouse tracking (`\x1b[?1006h`), and bracketed paste.
+- **Windows**: Uses native Win32 Console API (`GetConsoleMode`, `SetConsoleMode`) with `ENABLE_VIRTUAL_TERMINAL_PROCESSING` and native event loop input decoding.
+- **Signal Handling**: Listens for `SIGWINCH` on Unix and console resize events on Windows to trigger instantaneous window reflows.

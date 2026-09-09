@@ -6,13 +6,13 @@
 
 ## 📚 Dokümantasyon Konuları
 
-1. **[Hızlı Başlangıç Rehberi](getting-started.md)**: Kurulum, temel kavramlar, ilk TUI uygulamasını oluşturma ve TEA mimarisi.
-2. **[Çekirdek Motor API Referansı](core-api.md)**: `core/terminal`, `core/buffer`, `core/cell`, `core/backend`, `core/runtime` paketleri, katman (Layer) ve odak (Focus) sistemi.
-3. **[Zengin Widget Kataloğu](widgets-reference.md)**: Block, Table, VirtualDataView, Canvas, Viewer3D, TextInput, Select, Slider, Tabs ve diğer bileşenler.
-4. **[Yerleşim (Layout) Rehberi](layout-guide.md)**: FlexLayout, GridLayout, kısıtlamalar (Fixed, Percentage, Ratio, Fill) ve boyut pazarlığı (negotiate).
-5. **[Grafik, Canvas & 3D Motoru](graphics-and-canvas.md)**: $2 \times 4$ Braille alt-piksel çizim tuvali, derinlik tamponlu (Depth Buffer) 3D Gouraud/Lambert rasterizer ve mesh yükleme.
-6. **[Örnek Uygulamalar Rehberi](examples.md)**: `examples/` dizinindeki 12 bağımsız örneğin (Dashboard, 3D Viewer, Paint Studio, 1M Virtual Table vb.) tanıtımı ve kısayolları.
-7. **[Mimari ve Performans Prensipleri](architecture.md)**: 1D düz hücre matrisi, sıfır GC duraklaması, ANSI diff algoritması ve iş parçacığı güvenliği.
+1. **[Hızlı Başlangıç Rehberi](getting-started.md)**: Kurulum, tek import ile uygulama başlatma (`limoni.Run`, `limoni.Start`) ve TEA mimarisi.
+2. **[Çekirdek Motor API Referansı](../core-api.md)**: Çekirdek paket yapısı, 1D tampon bellek matrisi, ANSI diff algoritması, Unicode East Asian Width emoji doğruluğu ve donanım imleç senkronizasyonu.
+3. **[Zengin Widget Kataloğu](../widgets-reference.md)**: Block, Paragraph, Table, VirtualDataView, Canvas, Viewer3D, TextInput, Markdown, Dialog, Slider ve akıcı (fluent) yapıcılar.
+4. **[Yerleşim (Layout) Rehberi](../layout-guide.md)**: FlexLayout, GridLayout, kısıtlamalar (Fixed, Percentage, Ratio, Fill) ve `SplitVertical` / `SplitHorizontal` kısayolları.
+5. **[Grafik, Canvas & 3D Motoru](../graphics-and-canvas.md)**: $2 \times 4$ Braille alt-piksel çizim tuvali, yerel resim protokolleri (Kitty, Sixel, iTerm2), derinlik tamponlu (Depth Buffer) 3D Gouraud/Lambert rasterizer ve mesh yükleme.
+6. **[Örnek Uygulamalar Rehberi](../examples.md)**: `examples/` dizinindeki showcase, 3D viewer, animasyon, sanal tablo ve form demoları.
+7. **[Mimari ve Performans Prensipleri](../architecture.md)**: 1D düz hücre matrisi, sıfır GC duraklaması, ANSI diff algoritması ve iş parçacığı güvenliği.
 
 ---
 
@@ -26,35 +26,19 @@ go get github.com/thebanri/limoni
 ```go
 package main
 
-import (
-	"os"
-	"github.com/thebanri/limoni/core/backend"
-	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/terminal"
-	"github.com/thebanri/limoni/widgets"
-)
+import "github.com/thebanri/limoni"
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
-	b.Setup()
-	defer b.Close()
+	limoni.Start(func(f *limoni.Frame) {
+		block := limoni.NewBlock().
+			WithTitle(" 🍋 LIMONI TUI ").
+			WithTitleAlign(limoni.AlignCenter).
+			Rounded().
+			WithBorderStyle(limoni.Fg(limoni.Hex("#00FFAA"))).
+			WithChild(limoni.NewParagraph("Tek import ile modern ve ultra hızlı TUI!").
+				WithStyle(limoni.Fg(limoni.RGB(220, 225, 235)).Bold()))
 
-	t, _ := terminal.New(b)
-	b.StartEventLoop()
-
-	t.Draw(func(f *terminal.Frame) {
-		f.RenderWidget(widgets.Block{
-			Title:         " 🍋 LIMONI TUI ",
-			Borders:       widgets.BorderAll,
-			BorderSymbols: widgets.SymbolsRounded,
-			BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 210, 255)},
-		}, f.Buffer.Area)
+		f.RenderWidget(block, f.Area())
 	})
-
-	for ev := range b.Events() {
-		if ev.Type == backend.EventKey && ev.Key.Type == backend.KeyEsc {
-			return
-		}
-	}
 }
 ```

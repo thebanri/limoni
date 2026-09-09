@@ -1,14 +1,12 @@
-# 🚀 Hızlı Başlangıç (Getting Started)
+# 🚀 Getting Started with Limoni
 
-Limoni, Go dili için sıfır-tahsisat (Zero-Allocation) felsefesiyle tasarlanmış, 60+ FPS yüksek performanslı, 3D grafik ve zengin widget desteğine sahip modern bir Terminal Kullanıcı Arayüzü (TUI) kütüphanesidir.
-
-Bu kılavuzda 5 dakika içinde ilk interaktif Limoni uygulamanızı nasıl kurup çalıştıracağınızı öğreneceksiniz.
+Limoni is an ultra-high-performance, zero-allocation, 60+ FPS Terminal User Interface (TUI) library for Go. It brings modern web and game engine rendering principles to the terminal: 24-bit TrueColor, double-buffered differential rendering, CSS Flexbox and Grid layouts, native image protocols (Kitty, Sixel, iTerm2), a software 3D rasterizer, and a rich, batteries-included widget catalog.
 
 ---
 
-## 📦 Kurulum
+## 📦 Installation
 
-Go 1.22+ yüklü projenizde Limoni'yi bağımlılık olarak ekleyin:
+Add Limoni to your Go module (Go 1.22+ required):
 
 ```bash
 go get github.com/thebanri/limoni
@@ -16,14 +14,119 @@ go get github.com/thebanri/limoni
 
 ---
 
-## ⚡ 5 Dakikada İlk TUI Uygulaması: Sayaç (Counter)
+## ⚡ 1-Minute Quick Start: Single Import API
 
-Limoni, **The Elm Architecture (TEA)** tasarım kalıbını birinci sınıf bir mimari olarak benimser. Her uygulama 3 ana bileşenden oluşur:
-1. **Model**: Uygulamanın anlık durumunu (State) tutan veri yapısı.
-2. **Update**: Gelen klavye, fare veya sistem olaylarına (Message) göre durumu güncelleyen saf fonksiyon.
-3. **View**: Durumu ekrana çizen görsel fonksiyon.
+With Limoni's unified root package (`import "github.com/thebanri/limoni"`), you don't need to juggle multiple subpackages. You can build and run applications with zero boilerplate.
 
-### `main.go`
+### Approach 1: High-Speed Interactive App (`limoni.Run`)
+
+The simplest way to create an interactive terminal app with automatic raw mode, alt-screen, mouse tracking, and event handling:
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/thebanri/limoni"
+)
+
+func main() {
+	count := 0
+
+	limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
+		// 1. Handle user inputs
+		if ev != nil && ev.Type == limoni.EventKey {
+			switch ev.Key.Ch {
+			case 'q', 'Q':
+				return false // Exit application
+			case '+', '=':
+				count++
+			case '-', '_':
+				count--
+			case 'r', 'R':
+				count = 0
+			}
+			if ev.Key.Type == limoni.KeyEsc {
+				return false
+			}
+		}
+
+		// 2. Split screen layout into header, body, and footer
+		rows := limoni.SplitVertical(f.Area(), limoni.Fixed(3), limoni.Fill(), limoni.Fixed(3))
+
+		// 3. Render Header
+		header := limoni.NewBlock().
+			WithTitle(" 🍋 LIMONI COUNTER ").
+			WithTitleAlign(limoni.AlignCenter).
+			WithBorderStyle(limoni.Fg(limoni.RGB(255, 215, 0)))
+		f.RenderWidget(header, rows[0])
+
+		// 4. Render Body Card
+		color := limoni.RGB(80, 220, 140)
+		if count < 0 {
+			color = limoni.RGB(255, 80, 80)
+		}
+		body := limoni.NewBlock().
+			Rounded().
+			WithTitle(" STATE ").
+			WithPadding(1, 2, 1, 2).
+			WithChild(limoni.NewParagraph(fmt.Sprintf("Current Value: %d", count)).
+				WithStyle(limoni.Fg(color).Bold()))
+		f.RenderWidget(body, rows[1])
+
+		// 5. Render Footer Shortcuts
+		footer := limoni.NewBlock().
+			WithTitle(" [+] Increment  [-] Decrement  [R] Reset  [Q/Esc] Quit ").
+			WithBorderStyle(limoni.Fg(limoni.RGB(100, 110, 130)))
+		f.RenderWidget(footer, rows[2])
+
+		return true // Continue running
+	})
+}
+```
+
+Run it directly:
+```bash
+go run main.go
+```
+
+---
+
+### Approach 2: One-Liner Static / Dashboard Display (`limoni.Start`)
+
+If you just want to render a dashboard or snapshot without managing an event loop:
+
+```go
+package main
+
+import "github.com/thebanri/limoni"
+
+func main() {
+	limoni.Start(func(f *limoni.Frame) {
+		cols := limoni.SplitHorizontal(f.Area(), limoni.Percentage(30), limoni.Percentage(70))
+
+		sidebar := limoni.NewBlock().
+			WithTitle(" Navigation ").
+			Rounded().
+			WithChild(limoni.NewList("Dashboard", "Telemetry", "Settings").
+				WithHighlightSymbol("👉 "))
+		f.RenderWidget(sidebar, cols[0])
+
+		content := limoni.NewBlock().
+			WithTitle(" System Overview ").
+			Rounded().
+			WithChild(limoni.NewParagraph("Welcome to Limoni! High performance TUI in Go.").
+				WithStyle(limoni.Fg(limoni.Hex("#00FFAA")).Bold()))
+		f.RenderWidget(content, cols[1])
+	})
+}
+```
+
+---
+
+### Approach 3: The Elm Architecture (TEA)
+
+For large, complex applications requiring structured state management, commands, async workers, and sub-models, Limoni provides a first-class TEA runtime:
 
 ```go
 package main
@@ -31,142 +134,102 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
-	"github.com/thebanri/limoni/core/backend"
-	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
-	"github.com/thebanri/limoni/core/terminal"
-	"github.com/thebanri/limoni/layout"
-	"github.com/thebanri/limoni/widgets"
+	"github.com/thebanri/limoni"
 )
 
-// 1. Model: Durum Yapısı
-type CounterModel struct {
-	Count int
+type Model struct {
+	count int
 }
 
-func (m CounterModel) Init() runtime.Cmd {
+func (m Model) Init() []limoni.Cmd {
 	return nil
 }
 
-// 2. Update: Olay Yönetimi
-func (m CounterModel) Update(msg runtime.Msg) (runtime.Model, runtime.Cmd) {
+func (m Model) Update(msg limoni.Msg) limoni.UpdateResult {
 	switch msg := msg.(type) {
-	case runtime.KeyPressMsg:
-		switch msg.Key.Type {
-		case backend.KeyEsc:
-			return m, runtime.Quit
-		case backend.KeyRune:
-			switch msg.Key.Ch {
-			case 'q', 'Q':
-				return m, runtime.Quit
-			case '+', '=':
-				m.Count++
-			case '-', '_':
-				m.Count--
-			case 'r', 'R':
-				m.Count = 0
-			}
+	case limoni.KeyMsg:
+		switch msg.Key.Ch {
+		case 'q', 'Q':
+			return limoni.UpdateResult{Quit: true}
+		case '+', '=':
+			m.count++
+			return limoni.UpdateResult{Redraw: true}
+		case '-', '_':
+			m.count--
+			return limoni.UpdateResult{Redraw: true}
 		}
 	}
-	return m, nil
+	return limoni.UpdateResult{}
 }
 
-// 3. View: Ekran Çizimi
-func (m CounterModel) View(frame *terminal.Frame) {
-	area := frame.Area()
-
-	// Esnek Yerleşim: Üst Başlık, Orta Sayaç Kartı, Alt Kısayollar
-	chunks := layout.FlexLayout{
-		Direction: layout.Vertical,
-		Constraints: []layout.Constraint{
-			layout.Fixed(3), // Başlık
-			layout.Fill(),   // Gövde
-			layout.Fixed(3), // Kısayol Çubuğu
-		},
-	}.Split(area)
-
-	// Başlık
-	frame.RenderWidget(widgets.Block{
-		Title:          " 🍋 LIMONI SAYAC UYGULAMASI ",
-		TitleAlignment: widgets.AlignCenter,
-		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(255, 215, 0)},
-		TitleStyle:     cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
-	}, chunks[0])
-
-	// Orta Kart
-	countText := fmt.Sprintf("Mevcut Değer: %d", m.Count)
-	countStyle := cell.Style{Fg: cell.NewColorRGB(0, 255, 200), Modifier: cell.ModifierBold}
-	if m.Count < 0 {
-		countStyle.Fg = cell.NewColorRGB(255, 80, 80)
-	}
-
-	bodyBlock := widgets.Block{
-		Title:          " DURUM ",
-		TitleAlignment: widgets.AlignLeft,
-		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
-	}
-	frame.RenderWidget(bodyBlock, chunks[1])
-	frame.RenderWidget(&widgets.Paragraph{
-		Text:  countText,
-		Style: countStyle,
-	}, bodyBlock.Inner(chunks[1]))
-
-	// Alt Çubuk
-	frame.RenderWidget(widgets.Block{
-		Title:          " [+] Artır  [-] Azalt  [R] Sıfırla  [Q/Esc] Çıkış ",
-		TitleAlignment: widgets.AlignLeft,
-		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(100, 110, 120)},
-	}, chunks[2])
+func (m Model) View(f *limoni.Frame) {
+	card := limoni.NewBlock().
+		WithTitle(" TEA Architecture ").
+		Rounded().
+		WithChild(limoni.NewParagraph(fmt.Sprintf("Counter: %d (Press +/- or Q)", m.count)).
+			WithStyle(limoni.Fg(limoni.Hex("#00E5FF")).Bold()))
+	f.RenderWidget(card, f.Area())
 }
 
 func main() {
-	// Terminal arayüzünü hazırla
-	b := backend.NewBackend(os.Stdin, os.Stdout)
-	if err := b.Setup(); err != nil {
-		fmt.Fprintf(os.Stderr, "Terminal başlatılamadı: %v\n", err)
-		os.Exit(1)
-	}
-	defer b.Close()
-
-	term, err := terminal.New(b)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Terminal motoru oluşturulamadı: %v\n", err)
-		os.Exit(1)
-	}
-
-	// TEA Programını başlat
-	p := runtime.New(
-		runtime.WithModel(CounterModel{Count: 0}),
-		runtime.WithFPS(60),
+	program := limoni.NewProgram(
+		limoni.WithModel(Model{count: 0}),
+		limoni.WithAltScreen(),
+		limoni.WithFPS(60),
 	)
-
-	if err := p.RunTerminal(context.Background(), term, b); err != nil {
-		fmt.Fprintf(os.Stderr, "Uygulama hatası: %v\n", err)
-		os.Exit(1)
+	if err := program.Run(context.Background()); err != nil {
+		fmt.Printf("Application exited with error: %v\n", err)
 	}
 }
 ```
 
 ---
 
-## 🏃‍♂️ Çalıştırma
+## 🎨 Fluent Styling & Color Helpers
 
-Terminalinizde aşağıdaki komutu verin:
+Limoni provides intuitive helpers for colors and modifiers:
 
-```bash
-go run main.go
+```go
+// 24-bit TrueColor RGB & Hex
+gold  := limoni.RGB(255, 215, 0)
+neon  := limoni.Hex("#00FFAA")
+ansi  := limoni.ANSI(196)
+
+// Fluent Styles
+style := limoni.NewStyle().
+	WithFg(neon).
+	WithBg(limoni.RGB(20, 24, 32)).
+	Bold().
+	Underline()
+
+// Direct helpers
+fgOnly := limoni.Fg(gold).Bold()
 ```
-
-`+`, `-`, `R` ve `Q` tuşlarıyla anında tepki veren, 60 FPS hızında pürüzsüz bir TUI deneyimi elde edersiniz!
 
 ---
 
-## 🛠️ Sıradaki Adımlar
+## 📐 Layout Ergonomics
 
-- [Mimari ve Sıfır-Tahsisat Felsefesi (docs/architecture.md)](./architecture.md)
-- [Çekirdek Motor API'leri (docs/core-api.md)](./core-api.md)
-- [Esnek Yerleşim Sistemi (docs/layout-guide.md)](./layout-guide.md)
-- [Zengin Widget Kataloğu (docs/widgets-reference.md)](./widgets-reference.md)
-- [Örnek Uygulamalar Galerisi (docs/examples.md)](./examples.md)
+Limoni supports CSS Flexbox and Grid layouts:
+
+```go
+// Fast vertical partition
+rows := limoni.SplitVertical(area, limoni.Fixed(3), limoni.Fill(), limoni.Fixed(1))
+
+// Fast horizontal partition
+cols := limoni.SplitHorizontal(area, limoni.Percentage(25), limoni.Percentage(75))
+
+// Weighted ratios
+sections := limoni.SplitVertical(area, limoni.Ratio(2), limoni.Ratio(1)) // 2/3 and 1/3
+```
+
+---
+
+## 📚 Next Steps
+
+- [Core Engine Architecture & Zero-Alloc Diff](./architecture.md)
+- [Complete Widgets Reference](./widgets-reference.md)
+- [Flexbox & Grid Layout Guide](./layout-guide.md)
+- [3D Graphics & Native Image Protocols](./graphics-and-canvas.md)
+- [Full Application Gallery & Examples](./examples.md)

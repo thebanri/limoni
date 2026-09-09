@@ -74,5 +74,29 @@ Limoni'nin render sıcak yolunda (Hot Path) bellek tahsisatı yapmadığı mikro
 | **Metin Ağırlıklı Çerçeve (Text Frame)** | `4.8 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
 | **10.000 Satırlı Sanal Tablo** | `41.2 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
 | **100 Katmanlı Z-Index Modal Derinliği** | `40.1 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **Fare Tıklama & Hit-Testing** | `99.2 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **Fare Tıklama & Hit-Testing** | `63.5 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
 | **Asenkron Update Burst (1000 Event)** | `204.0 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+
+---
+
+## 5. Unicode Doğu Asya Genişliği & İmleç Senkronizasyonu
+
+Terminallerde emojiler (`🔴`, `🚀`, `☕`) ve Doğu Asya karakterleri 2 sütun kaplarken, dar semboller (`✓`, `⚠`) 1 sütun kaplar. Yanlış genişlik hesaplamaları donanım imlecinin kütüphanedeki imleç takibinden kopmasına ve satırın devamındaki dikey kenarlıkların (`│`) sola kaymasına yol açar:
+
+- **Kesin EAW Standardı**: `core/cell/cell.go` tablosu Unicode East Asian Width (`W`/`F`) standardına göre çalışır.
+- **Devam Hücresi Koruması (`RuneContinuation`)**: Geniş karakterlerin sağ yarısı `RuneContinuation` hücresiyle işaretlenir.
+- **Modal Sürükleme İptali**: Modal veya dialog pencereleri geniş karakterlerin üzerinden geçerken oluşan yetim devam hücreleri `buf.SetCellDirect` ile temizlenir; pencere sürüklendiğinde `diff.go` tarayıcısı geniş karakteri zorla terminale yeniden çizdirerek hayalet kenarlık (ghost border) kalıntılarını sıfırlar.
+
+---
+
+## 6. Runtime Güvenliği & Deterministik Komut Döngüsü
+
+- **Deterministik Sıralama**: `Cmd` komutları çalışan goroutine'lerde asenkron yürütülür, ancak sonuçları modele kesin gönderiliş sırasıyla teslim edilir.
+- **İptal Önceliği**: Bağlam iptal edildiğinde (`ctx.Done()`) veya program durdurulduğunda gecikmiş komut sonuçları hemen elenir; modelin kapatılmış durumda güncellenmesi engellenir.
+- **Panik Yalıtımı**: Kullanıcı komutlarındaki panikler yakalanarak ana uygulamanın çökmesi önlenir.
+
+---
+
+## 7. Kök Paket Cephesi (`github.com/thebanri/limoni`)
+
+Geliştiricilerin çoklu paket bağımlılığıyla uğraşmasını önlemek için tüm çekirdek türler, akıcı widget yapıcıları, yerleşim fonksiyonları ve başlatıcılar tek bir kök paket (`package limoni`) altında toplanmıştır.

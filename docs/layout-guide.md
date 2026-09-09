@@ -1,84 +1,141 @@
-# 📐 Esnek Yerleşim Motoru Kılavuzu (Layout Guide)
+# 📐 Layout Engine Guide: Flexbox & CSS Grid
 
-Limoni, CSS Flexbox ve Ratatui kısıtlama modellerinden ilham alan, sıfır-tahsisatlı güçlü bir esnek kutu yerleşim motoruna (`layout.FlexLayout`) sahiptir.
+Limoni incorporates a powerful, zero-allocation layout engine inspired by modern CSS Flexbox, CSS Grid, and Ratatui's constraint-based geometry system.
 
 ---
 
-## 1. Temel Kavramlar
+## 1. Quick High-Level Splitters
 
-Yerleşim motoru, verilen bir ana `cell.Rect` alanını, belirtilen **Yön (Direction)** ve **Kısıtlamalar (Constraints)** doğrultusunda alt parçalara (`[]cell.Rect`) böler.
+For the majority of common TUI patterns, Limoni provides ergonomic high-level helpers:
 
 ```go
-chunks := layout.FlexLayout{
-    Direction: layout.Vertical,
-    Constraints: []layout.Constraint{
-        layout.Fixed(3), // Sabit 3 satır
-        layout.Fill(),   // Kalan tüm boşluğu doldur
-        layout.Fixed(3), // Sabit 3 satır
-    },
-}.Split(area)
+import "github.com/thebanri/limoni"
+
+// 1. Vertical Splits (e.g. Header, Main Body, Footer)
+rows := limoni.SplitVertical(area,
+    limoni.Fixed(3), // 3 lines header
+    limoni.Fill(),   // Fills all remaining vertical space
+    limoni.Fixed(1), // 1 line status bar
+)
+headerArea := rows[0]
+bodyArea   := rows[1]
+footerArea := rows[2]
+
+// 2. Horizontal Splits (e.g. Sidebar and Main Content)
+cols := limoni.SplitHorizontal(bodyArea,
+    limoni.Percentage(25), // 25% width
+    limoni.Percentage(75), // 75% width
+)
+sidebarArea := cols[0]
+contentArea := cols[1]
+
+// 3. Proportional Weighted Splits
+cards := limoni.SplitHorizontal(contentArea,
+    limoni.Ratio(1),
+    limoni.Ratio(2), // Takes twice as much space as Ratio(1)
+)
 ```
 
 ---
 
-## 2. Kısıtlama Türleri (Constraints)
+## 2. Flexbox Engine (`layout.FlexLayout`)
 
-| Kısıtlama Fonksiyonu | Açıklama | Kullanım Örneği |
+When you need granular control over gaps, margins, and directional flow, use `FlexLayout`:
+
+```go
+chunks := layout.NewFlexLayout(
+    layout.Vertical, // or layout.Horizontal
+    1,               // Gap in cells between elements
+    layout.Fixed(4),
+    layout.Fill(),
+    layout.Fixed(2),
+).Split(area)
+```
+
+### Constraint Types
+
+| Constraint | Description | Example |
 | :--- | :--- | :--- |
-| **`layout.Fixed(N)`** | Tam olarak $N$ hücre büyüklüğünde sabit alan tahsis eder. | `layout.Fixed(3)` (Başlık çubuğu için) |
-| **`layout.Percentage(P)`** | Kullanılabilir toplam alanın $\%P$ kadarını ayırır (0-100). | `layout.Percentage(30)` (Sol kenar çubuğu) |
-| **`layout.Ratio(R)`** | Kalan serbest alanı belirtilen ağırlık oranlarına göre dağıtır. | `layout.Ratio(2)`, `layout.Ratio(1)` ($2/3$ ve $1/3$) |
-| **`layout.Fill()`** | Kalan tüm boşluğu kaplar (`Ratio(1)` ile eşdeğerdir). | `layout.Fill()` (Ana içerik görünümü) |
-| **`layout.Min(N)`** | En az $N$ hücre büyüklüğünde olmasını garanti eder. | `layout.Min(10)` |
-| **`layout.Max(N)`** | En fazla $N$ hücre büyüklüğünde olmasını sınırlar. | `layout.Max(40)` |
-| **`layout.FitContent()`** | İçindeki widget'ın `SizeHint` boyutuna göre yer ayırır. | `layout.FitContent()` |
+| **`Fixed(N)`** | Allocates exactly $N$ terminal cells. | `limoni.Fixed(3)` (Title bar) |
+| **`Percentage(P)`** | Allocates $P\%$ of the available dimension (0–100). | `limoni.Percentage(30)` (Sidebar) |
+| **`Ratio(R)`** | Distributes remaining free space proportionally according to weights. | `limoni.Ratio(2)`, `limoni.Ratio(1)` ($2/3$ and $1/3$) |
+| **`Fill()`** | Fills all remaining space (alias for `Ratio(1)`). | `limoni.Fill()` (Main content canvas) |
+| **`Min(N)`** | Guarantees at least $N$ cells. | `limoni.Min(15)` |
+| **`Max(N)`** | Caps the dimension at $N$ cells. | `limoni.Max(40)` |
+| **`FitContent()`** | Measures the child widget's `SizeHint` and allocates exact needed space. | `limoni.FitContent()` |
 
 ---
 
-## 3. Çok Sütunlu ve İçiçe Yerleşim Örneği
+## 3. CSS Grid Engine (`layout.GridLayout`)
 
-Aşağıdaki örnekte sol tarafta bir menü (%25), sağ tarafta ise üst-alt olarak bölünmüş iki panel oluşturulmaktadır:
+Limoni features a 2D CSS Grid engine allowing multi-row, multi-column grid layouts with precise track sizing:
 
 ```go
-// 1. Ana Ekranı Yatay Olarak Böl (Sol %25, Sağ %75)
-mainColumns := layout.FlexLayout{
-    Direction: layout.Horizontal,
-    Constraints: []layout.Constraint{
-        layout.Percentage(25),
-        layout.Percentage(75),
-    },
-}.Split(area)
+grid := layout.NewGridLayout(
+    area,
+    // Columns: 20 cells, fill remaining, 25% of total
+    []layout.Constraint{layout.Fixed(20), layout.Fill(), layout.Percentage(25)},
+    // Rows: 3 cells, fill remaining, 5 cells
+    []layout.Constraint{layout.Fixed(3), layout.Fill(), layout.Fixed(5)},
+)
 
-leftSidebarArea := mainColumns[0]
-rightContentArea := mainColumns[1]
+// Access individual grid cells (row, col)
+topLeft     := grid.Cell(0, 0)
+centerArea  := grid.Cell(1, 1)
+bottomRight := grid.Cell(2, 2)
 
-// 2. Sağ Tarafı Dikey Olarak İkiye Böl (Üst Tablo, Alt Loglar)
-rightRows := layout.FlexLayout{
-    Direction: layout.Vertical,
-    Constraints: []layout.Constraint{
-        layout.Ratio(2), // 2/3 oran
-        layout.Ratio(1), // 1/3 oran
-    },
-}.Split(rightContentArea)
-
-tableArea := rightRows[0]
-logsArea := rightRows[1]
+// Span across multiple rows or columns
+bannerArea  := grid.Area(0, 0, 1, 3) // Row 0, Col 0, RowSpan 1, ColSpan 3
 ```
 
 ---
 
-## 4. Boşluk (Gap) ve Kenarlık (Padding/Margin)
+## 4. Spacing: Insets, Padding & Margins
 
-Elemanlar arasında görsel boşluk bırakmak için `Gap` parametresi kullanılabilir:
+Widgets like `Block` support CSS-like insets for padding (inner spacing) and margins (outer spacing):
 
 ```go
-cards := layout.FlexLayout{
-    Direction: layout.Horizontal,
-    Gap: 2, // Elemanlar arasında 2 hücre boşluk bırak
-    Constraints: []layout.Constraint{
-        layout.Ratio(1),
-        layout.Ratio(1),
-        layout.Ratio(1),
-    },
-}.Split(area)
+block := limoni.NewBlock().
+    WithTitle(" Card ").
+    Rounded().
+    WithPadding(1, 2, 1, 2) // Top, Right, Bottom, Left
+
+// Retrieve the inner printable area after borders and padding:
+innerArea := block.Inner(outerArea)
+```
+
+---
+
+## 5. Responsive Nested Layout Example
+
+Combining horizontal and vertical splits for a full-featured developer dashboard:
+
+```go
+func drawDashboard(f *limoni.Frame) {
+    screen := f.Area()
+
+    // Root: Top bar (3 lines), Content (Fill), Status bar (1 line)
+    mainRows := limoni.SplitVertical(screen, limoni.Fixed(3), limoni.Fill(), limoni.Fixed(1))
+
+    // Header
+    f.RenderWidget(limoni.NewBlock().
+        WithTitle(" 🚀 CLOUD OPERATIONS CONSOLE ").
+        WithTitleAlign(limoni.AlignCenter).
+        WithBorderStyle(limoni.Fg(limoni.Hex("#00E5FF"))), mainRows[0])
+
+    // Body: Sidebar (20%), Middle Workspace (55%), Telemetry Panel (25%)
+    bodyCols := limoni.SplitHorizontal(mainRows[1],
+        limoni.Percentage(20),
+        limoni.Percentage(55),
+        limoni.Percentage(25),
+    )
+
+    f.RenderWidget(limoni.NewBlock().Rounded().WithTitle(" Services "), bodyCols[0])
+    f.RenderWidget(limoni.NewBlock().Rounded().WithTitle(" Main Workload "), bodyCols[1])
+    f.RenderWidget(limoni.NewBlock().Rounded().WithTitle(" Telemetry "), bodyCols[2])
+
+    // Footer
+    f.RenderWidget(limoni.NewParagraph(" [q] Quit  [tab] Focus  [?] Help").
+        WithStyle(limoni.Fg(limoni.RGB(140, 150, 165))), mainRows[2])
+}
 ```

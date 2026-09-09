@@ -8,6 +8,8 @@ Limoni deposu, `examples/` dizini altında yer alan 12 adet tam teşekküllü, b
 
 | Dizin | Başlık | Açıklama ve Özellikler | Çalıştırma |
 | :--- | :--- | :--- | :--- |
+| **[`examples/showcase`](../../examples/showcase)** | **Çok Sekmeli Ana Vitrin** | Giriş, Ayarlar, 3D Grafikler, Oyun Alanı ve Referans sekmeleri, tema değiştirme ve cam efektli modal pencereler. | `go run ./examples/showcase` |
+| **[`examples/simple`](../../examples/simple)** | **Minimal Tek Paket Başlangıç** | Kök `github.com/thebanri/limoni` paketi ile sıfır kurulum zahmetli en sade başlangıç örneği. | `go run ./examples/simple` |
 | **[`examples/3d_viewer`](../../examples/3d_viewer)** | **3D Yazılım Rasterizer** | `.obj`, `.stl`, `.ply` 3D model yükleme, derinlik tamponlu Gouraud/Lambert gölgelendirme, serbest fare yörünge kontrolü. | `go run ./examples/3d_viewer` |
 | **[`examples/paint`](../../examples/paint)** | **Noktasal Paint Stüdyosu** | $2 \times 4$ Braille alt-piksel tuval, `widgets.ColorPicker` HSV/RGB/Hex seçici, canlı şekil önizlemesi ve 25 adımlı geri alma. | `go run ./examples/paint` |
 | **[`examples/dashboard`](../../examples/dashboard)** | **Sistem Telemetri Paneli** | Resmi `widgets.LineChart`, `widgets.BarChart` ve `widgets.PieChart` bileşenleri, canlı Linux `/proc` telemetrisi ve süreç tablosu. | `go run ./examples/dashboard` |
