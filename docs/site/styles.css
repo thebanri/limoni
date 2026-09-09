@@ -538,6 +538,10 @@ body {
     line-height: 1.45;
     overflow-x: auto;
     white-space: pre;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
 }
 
 /* Terminal Color Spans */

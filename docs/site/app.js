@@ -221,15 +221,15 @@ f.RenderWidget(card, area)</code></pre></div>
             <div class="terminal-preview-card">
                 <div class="terminal-header">
                     <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
-                    <span class="term-title">Terminal Render Çıktısı — 60x7</span>
+                    <span class="term-title">Terminal Render Çıktısı — Block</span>
                     <span class="term-tag">CANLI</span>
                 </div>
-                <div class="terminal-body"><span class="c-yellow">╭─────────────────── 🍋 Sistem Bilgisi ───────────────────╮</span>
-<span class="c-yellow">│</span>                                                         <span class="c-yellow">│</span>
-<span class="c-yellow">│</span>   <span class="c-cyan">Limoni ile modern TUI uygulamaları geliştirin.</span>        <span class="c-yellow">│</span>
-<span class="c-yellow">│</span>   <span class="c-blue">Sıfır bellek tahsisatı ve 60+ FPS akıcı hız.</span>          <span class="c-yellow">│</span>
-<span class="c-yellow">│</span>                                                         <span class="c-yellow">│</span>
-<span class="c-yellow">╰─────────────────────────────────────────────────────────╯</span></div>
+                <div class="terminal-body"><span class="c-yellow">╭─────────────────── Sistem Bilgisi ─────────────────────╮</span>
+<span class="c-yellow">│</span>                                                        <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   <span class="c-cyan">Limoni ile modern TUI uygulamaları geliştirin.</span>       <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   <span class="c-blue">Sıfır bellek tahsisatı ve 60+ FPS akıcı hız.</span>         <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>                                                        <span class="c-yellow">│</span>
+<span class="c-yellow">╰────────────────────────────────────────────────────────╯</span></div>
             </div>
         `
     },
@@ -260,11 +260,11 @@ f.RenderWidget(table, area)</code></pre></div>
                     <span class="term-tag">CANLI</span>
                 </div>
                 <div class="terminal-body"><span class="c-blue">┌───────┬────────────────────────┬──────────┬────────────────┐</span>
-<span class="c-blue">│</span> <span class="c-yellow bold">PID</span>   <span class="c-blue">│</span> <span class="c-yellow bold">PROSES</span>                 <span class="c-blue">│</span> <span class="c-yellow bold">CPU %</span>    <span class="c-blue">│</span> <span class="c-yellow bold">DURUM</span>          <span class="c-blue">│</span>
+<span class="c-blue">│</span> <span class="c-yellow bold">PID   </span><span class="c-blue">│</span> <span class="c-yellow bold">PROSES                 </span><span class="c-blue">│</span> <span class="c-yellow bold">   CPU % </span><span class="c-blue">│</span> <span class="c-yellow bold">DURUM          </span><span class="c-blue">│</span>
 <span class="c-blue">├───────┼────────────────────────┼──────────┼────────────────┤</span>
-<span class="c-blue">│</span> 1024  <span class="c-blue">│</span> nginx-ingress          <span class="c-blue">│</span> <span class="c-green"> 2.1%</span>   <span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR</span>    <span class="c-blue">│</span>
-<span class="c-blue">│</span> 2048  <span class="c-blue">│</span> <span class="c-cyan bold">limoni-core</span>            <span class="c-blue">│</span> <span class="c-green"> 0.4%</span>   <span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR</span>    <span class="c-blue">│</span>
-<span class="c-blue">│</span> 4096  <span class="c-blue">│</span> postgres-master        <span class="c-blue">│</span> <span class="c-red">12.8%</span>   <span class="c-blue">│</span> <span class="c-red">▲ YÜKSEK</span>       <span class="c-blue">│</span>
+<span class="c-blue">│</span> 1024  <span class="c-blue">│</span> nginx-ingress          <span class="c-blue">│</span> <span class="c-green">    2.1% </span><span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR    </span><span class="c-blue">│</span>
+<span class="c-blue">│</span> 2048  <span class="c-blue">│</span> <span class="c-cyan bold">limoni-core            </span><span class="c-blue">│</span> <span class="c-green">    0.4% </span><span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR    </span><span class="c-blue">│</span>
+<span class="c-blue">│</span> 4096  <span class="c-blue">│</span> postgres-master        <span class="c-blue">│</span> <span class="c-red">   12.8% </span><span class="c-blue">│</span> <span class="c-red">▲ YÜKSEK       </span><span class="c-blue">│</span>
 <span class="c-blue">└───────┴────────────────────────┴──────────┴────────────────┘</span></div>
             </div>
         `
@@ -299,7 +299,7 @@ f.RenderWidget(dialog, modalArea)</code></pre></div>
                     <span class="term-title">Terminal Render Çıktısı — Glassmorphism Dialog</span>
                     <span class="term-tag">CANLI</span>
                 </div>
-                <div class="terminal-body"><span class="c-yellow">╭──────────────────────── ⚠️  DİKKAT ────────────────────────╮</span>
+                <div class="terminal-body"><span class="c-yellow">╭──────────────────────── [ DİKKAT ] ────────────────────────╮</span>
 <span class="c-yellow">│</span>                                                            <span class="c-yellow">│</span>
 <span class="c-yellow">│</span>   Yapılan değişiklikler kaydedilsin mi?                    <span class="c-yellow">│</span>
 <span class="c-yellow">│</span>   Kaydedilmemiş 2 adet dosya bulunuyor.                    <span class="c-yellow">│</span>
@@ -307,7 +307,7 @@ f.RenderWidget(dialog, modalArea)</code></pre></div>
 <span class="c-yellow">│</span>              <span class="c-gray">[ İptal ]</span>          <span class="c-green bold">[ Kaydet ]</span>                 <span class="c-yellow">│</span>
 <span class="c-yellow">│</span>                                                            <span class="c-yellow">│</span>
 <span class="c-yellow">╰────────────────────────────────────────────────────────────╯</span>
- <span class="c-gray">░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</span></div>
+  <span class="c-gray">░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</span></div>
             </div>
         `
     },
@@ -552,11 +552,11 @@ f.RenderWidget(view, area)</code></pre></div>
                     <span class="term-title">Terminal Render Çıktısı — 1,000,000 Satırlık Sanal Liste</span>
                     <span class="term-tag">CANLI</span>
                 </div>
-                <div class="terminal-body">  [#000001] Sunucu log kaydı: API çağrısı tamamlandı (200 OK)    <span class="c-yellow">█</span>
+                <div class="terminal-body">  [#000001] Sunucu log kaydı: API çağrısı tamamlandı (200 OK)  <span class="c-yellow">█</span>
   [#000002] DB sorgusu: SELECT * FROM users LIMIT 50           <span class="c-gray">│</span>
-<span class="c-blue bold">&gt; [#000003] Cache miss: Redis anahtarı bulunamadı               </span><span class="c-gray">│</span>
-  [#000004] Arka plan işi: E-posta bildirimi gönderildi         <span class="c-gray">│</span>
-  [#000005] TLS sertifikası yenilendi (Geçerlilik: 90 gün)      <span class="c-gray">│</span>
+<span class="c-blue bold">&gt; [#000003] Cache miss: Redis anahtarı bulunamadı              </span><span class="c-gray">│</span>
+  [#000004] Arka plan işi: E-posta bildirimi gönderildi        <span class="c-gray">│</span>
+  [#000005] TLS sertifikası yenilendi (Geçerlilik: 90 gün)     <span class="c-gray">│</span>
 
   <span class="c-gray">Satır: 3 / 1,000,000  |  Önbellek: 100 kayıt  |  RAM: 1.2 MB</span></div>
             </div>
