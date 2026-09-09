@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -110,7 +110,7 @@ func (l logDataSource) RowID(index int) widgets.RowID {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -316,12 +316,12 @@ func main() {
 
 	for ev := range b.Events() {
 		switch ev.Type {
-		case backend.EventKey:
-			if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+		case driver.EventKey:
+			if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 				return
 			}
 
-			if ev.Key.Type == backend.KeyArrowDown {
+			if ev.Key.Type == driver.KeyArrowDown {
 				offsetMax := source.totalCount - 1
 				if state.Selected() == "" {
 					state.Select(source.RowID(offset))
@@ -339,7 +339,7 @@ func main() {
 				}
 			}
 
-			if ev.Key.Type == backend.KeyArrowUp {
+			if ev.Key.Type == driver.KeyArrowUp {
 				if state.Selected() != "" {
 					var currentIdx int
 					fmt.Sscanf(string(state.Selected()), "log_%d", &currentIdx)
@@ -353,13 +353,13 @@ func main() {
 				}
 			}
 
-			if ev.Key.Type == backend.KeyPageDown {
+			if ev.Key.Type == driver.KeyPageDown {
 				maxOffset := source.totalCount - 25
 				if offset < maxOffset {
 					offset += 25
 				}
 			}
-			if ev.Key.Type == backend.KeyPageUp {
+			if ev.Key.Type == driver.KeyPageUp {
 				if offset > 25 {
 					offset -= 25
 				} else {
@@ -367,11 +367,11 @@ func main() {
 				}
 			}
 
-			if ev.Key.Type == backend.KeyHome {
+			if ev.Key.Type == driver.KeyHome {
 				offset = 0
 				state.Select(source.RowID(0))
 			}
-			if ev.Key.Type == backend.KeyEnd {
+			if ev.Key.Type == driver.KeyEnd {
 				offset = source.totalCount - (height - 6)
 				if offset < 0 {
 					offset = 0
@@ -381,11 +381,11 @@ func main() {
 
 			draw()
 
-		case backend.EventMouse:
+		case driver.EventMouse:
 			t.RouteMouseEvent(ev.Mouse)
 			draw()
 
-		case backend.EventResize:
+		case driver.EventResize:
 			height = int(ev.Resize.Height)
 			draw()
 		}

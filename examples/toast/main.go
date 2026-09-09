@@ -5,15 +5,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -106,8 +106,8 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
-				if ev.Key.Type == backend.KeyRune {
+			case driver.EventKey:
+				if ev.Key.Type == driver.KeyRune {
 					switch ev.Key.Ch {
 					case 'q', 'Q':
 						return
@@ -127,17 +127,17 @@ func main() {
 					}
 					draw()
 				}
-				if ev.Key.Type == backend.KeyEsc {
+				if ev.Key.Type == driver.KeyEsc {
 					return
 				}
-			case backend.EventMouse:
+			case driver.EventMouse:
 				if toastMgr.HandleMouse(ev.Mouse) {
 					draw()
 				} else {
 					t.RouteMouseEvent(ev.Mouse)
 					draw()
 				}
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 		}

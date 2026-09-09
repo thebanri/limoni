@@ -183,4 +183,3 @@ func TestParagraphFluentBuilder(t *testing.T) {
 		t.Fatalf("unexpected paragraph fields: %+v", p)
 	}
 }
-

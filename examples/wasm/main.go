@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/widgets"
@@ -20,40 +20,40 @@ type wasmAppModel struct {
 	count int
 }
 
-func (m *wasmAppModel) Init() []runtime.Cmd {
-	return []runtime.Cmd{
-		func(ctx context.Context) runtime.Msg {
+func (m *wasmAppModel) Init() []engine.Cmd {
+	return []engine.Cmd{
+		func(ctx context.Context) engine.Msg {
 			time.Sleep(50 * time.Millisecond)
 			return tickMsg(time.Now())
 		},
 	}
 }
 
-func (m *wasmAppModel) Update(msg runtime.Msg) runtime.UpdateResult {
+func (m *wasmAppModel) Update(msg engine.Msg) engine.UpdateResult {
 	switch msg := msg.(type) {
 	case tickMsg:
 		m.angle += 3.0
 		if m.angle >= 360.0 {
 			m.angle -= 360.0
 		}
-		return runtime.UpdateResult{
+		return engine.UpdateResult{
 			Redraw: true,
-			Commands: []runtime.Cmd{
-				func(ctx context.Context) runtime.Msg {
+			Commands: []engine.Cmd{
+				func(ctx context.Context) engine.Msg {
 					time.Sleep(50 * time.Millisecond)
 					return tickMsg(time.Now())
 				},
 			},
 		}
 
-	case runtime.KeyPressMsg:
-		if msg.Key.Ch == ' ' || msg.Key.Type == backend.KeyEnter {
+	case engine.KeyPressMsg:
+		if msg.Key.Ch == ' ' || msg.Key.Type == driver.KeyEnter {
 			m.count++
-			return runtime.UpdateResult{Redraw: true}
+			return engine.UpdateResult{Redraw: true}
 		}
 	}
 
-	return runtime.UpdateResult{}
+	return engine.UpdateResult{}
 }
 
 func (m *wasmAppModel) View(frame *terminal.Frame) {
@@ -138,9 +138,9 @@ func (m *wasmAppModel) View(frame *terminal.Frame) {
 
 func main() {
 	model := &wasmAppModel{}
-	app := runtime.New(
-		runtime.WithModel(model),
-		runtime.WithFPS(30),
+	app := engine.New(
+		engine.WithModel(model),
+		engine.WithFPS(30),
 	)
 
 	if err := app.Run(context.Background()); err != nil {

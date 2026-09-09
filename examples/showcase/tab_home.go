@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -55,13 +55,13 @@ func drawHome(t *terminal.Terminal, f *terminal.Frame, state *AppState, demoThem
 			c.Style = demoTheme.Focus
 		}
 		resizeArea := cell.NewRect(cornerX, cornerY, 1, 1)
-		registerTargetClick(f, resizeArea, func(ev backend.MouseEvent) {
-			if ev.Button != backend.MouseLeft {
+		registerTargetClick(f, resizeArea, func(ev driver.MouseEvent) {
+			if ev.Button != driver.MouseLeft {
 				return
 			}
 			startY, baseHeight := int(ev.Y), state.MarkdownHeight
-			f.CaptureMouse(func(dragEv backend.MouseEvent) {
-				if dragEv.Button == backend.MouseRelease {
+			f.CaptureMouse(func(dragEv driver.MouseEvent) {
+				if dragEv.Button == driver.MouseRelease {
 					return
 				}
 				if dragEv.Drag {

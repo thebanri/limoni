@@ -1,18 +1,18 @@
 package terminal
 
 import (
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // Aliases keep the terminal API concise while the event contract lives in the backend layer.
-type EventPhase = backend.EventPhase
-type EventContext = backend.EventContext
+type EventPhase = driver.EventPhase
+type EventContext = driver.EventContext
 
 const (
-	CapturePhase = backend.CapturePhase
-	TargetPhase  = backend.TargetPhase
-	BubblePhase  = backend.BubblePhase
+	CapturePhase = driver.CapturePhase
+	TargetPhase  = driver.TargetPhase
+	BubblePhase  = driver.BubblePhase
 )
 
 type eventRegion struct {
@@ -21,10 +21,10 @@ type eventRegion struct {
 	LayerID  string
 	ZIndex   int
 	Disabled bool
-	Phase    backend.EventPhase
-	Handler  func(*backend.EventContext)
-	OnEnter  func(*backend.EventContext)
-	OnLeave  func(*backend.EventContext)
+	Phase    driver.EventPhase
+	Handler  func(*driver.EventContext)
+	OnEnter  func(*driver.EventContext)
+	OnLeave  func(*driver.EventContext)
 }
 
 // EventRegion describes an event target independent of its visual widget.

@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/animation"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
@@ -157,7 +157,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize backend: %v\n", err)
 		os.Exit(1)
@@ -200,7 +200,7 @@ func main() {
 			prevTab := state.ActiveTab
 
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				handleKey(ev.Key, state)
 				if state.ActiveTab != prevTab {
 					b.Write([]byte("\x1b[2J"))
@@ -211,11 +211,11 @@ func main() {
 				}
 				draw()
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				state.LastMousePos = cell.Point{X: ev.Mouse.X, Y: ev.Mouse.Y}
 				handled := term.RouteMouseEvent(ev.Mouse)
 				if !handled {
-					if ev.Mouse.Button == backend.MouseRelease {
+					if ev.Mouse.Button == driver.MouseRelease {
 						state.IsDraggingModal = false
 					}
 				}
@@ -225,11 +225,11 @@ func main() {
 					if term.FocusManager() != nil {
 						term.FocusManager().Clear()
 					}
-				} else if ev.Mouse.Button == backend.MouseLeft || ev.Mouse.Button == backend.MouseScrollUp || ev.Mouse.Button == backend.MouseScrollDown || ev.Mouse.Drag {
+				} else if ev.Mouse.Button == driver.MouseLeft || ev.Mouse.Button == driver.MouseScrollUp || ev.Mouse.Button == driver.MouseScrollDown || ev.Mouse.Drag {
 					draw()
 				}
 
-			case backend.EventResize:
+			case driver.EventResize:
 				b.Write([]byte("\x1b[2J"))
 				term.ForceFullRedraw()
 				draw()
@@ -380,7 +380,7 @@ func buildProjectTree() []widgets.TreeNode {
 					Children: []widgets.TreeNode{
 						{ID: "term_engine", Label: "terminal.go (Diff Engine)", Icon: "- "},
 						{ID: "c_buffer", Label: "buffer.go (Screen Double-Buffer)", Icon: "- "},
-						{ID: "c_backend", Label: "backend.go (ANSI / Raw Mode)", Icon: "- "},
+						{ID: "c_backend", Label: "driver.go (ANSI / Raw Mode)", Icon: "- "},
 					},
 				},
 				{
@@ -684,7 +684,7 @@ func closeExitDialog(state *AppState, term *terminal.Terminal) {
 	}
 }
 
-func handleKey(key backend.KeyEvent, state *AppState) {
+func handleKey(key driver.KeyEvent, state *AppState) {
 	// If Command Palette is open, feed keys directly to it
 	if state.CmdPalette != nil && state.CmdPalette.IsOpen {
 		if state.CmdPalette.HandleKey(key) {
@@ -693,13 +693,13 @@ func handleKey(key backend.KeyEvent, state *AppState) {
 	}
 
 	// Toggle Command Palette with Ctrl+P or '/'
-	if (key.Type == backend.KeyRune && key.Ch == 'p' && key.Ctrl) || (key.Type == backend.KeyRune && key.Ch == '/' && !state.ShowExitDialog) {
+	if (key.Type == driver.KeyRune && key.Ch == 'p' && key.Ctrl) || (key.Type == driver.KeyRune && key.Ch == '/' && !state.ShowExitDialog) {
 		state.CmdPalette.Toggle()
 		return
 	}
 
 	// Esc key
-	if key.Type == backend.KeyEsc {
+	if key.Type == driver.KeyEsc {
 		if state.CmdPalette != nil && state.CmdPalette.IsOpen {
 			state.CmdPalette.Close()
 			return
@@ -715,30 +715,30 @@ func handleKey(key backend.KeyEvent, state *AppState) {
 	// If Exit Dialog is open:
 	if state.ShowExitDialog {
 		switch key.Type {
-		case backend.KeyArrowLeft:
+		case driver.KeyArrowLeft:
 			state.ExitDialogSelectedBtn = 0
 			return
-		case backend.KeyArrowRight:
+		case driver.KeyArrowRight:
 			state.ExitDialogSelectedBtn = 1
 			return
-		case backend.KeyTab:
+		case driver.KeyTab:
 			if state.ExitDialogSelectedBtn == 0 {
 				state.ExitDialogSelectedBtn = 1
 			} else {
 				state.ExitDialogSelectedBtn = 0
 			}
 			return
-		case backend.KeyEnter, backend.KeySpace:
+		case driver.KeyEnter, driver.KeySpace:
 			if state.ExitDialogSelectedBtn == 0 {
 				state.ExitRequested = true
 			} else {
 				closeExitDialog(state, nil)
 			}
 			return
-		case backend.KeyEsc:
+		case driver.KeyEsc:
 			closeExitDialog(state, nil)
 			return
-		case backend.KeyRune:
+		case driver.KeyRune:
 			if key.Ch == 'y' || key.Ch == 'Y' {
 				state.ExitRequested = true
 				return
@@ -752,7 +752,7 @@ func handleKey(key backend.KeyEvent, state *AppState) {
 	}
 
 	// 'q' or 'Q' or '6' opens exit confirmation dialog
-	if key.Type == backend.KeyRune && (key.Ch == 'q' || key.Ch == 'Q' || key.Ch == '6') {
+	if key.Type == driver.KeyRune && (key.Ch == 'q' || key.Ch == 'Q' || key.Ch == '6') {
 		openExitDialog(state, nil)
 		return
 	}
@@ -766,18 +766,18 @@ func handleKey(key backend.KeyEvent, state *AppState) {
 	}
 
 	switch key.Type {
-	case backend.KeyTab:
+	case driver.KeyTab:
 		state.ActiveTab = (state.ActiveTab + 1) % 5
 		addLog(state, fmt.Sprintf("Tab: %s", state.Tabs[state.ActiveTab]))
-	case backend.KeyArrowRight:
+	case driver.KeyArrowRight:
 		state.ActiveTab = (state.ActiveTab + 1) % 5
-	case backend.KeyArrowLeft:
+	case driver.KeyArrowLeft:
 		state.ActiveTab = (state.ActiveTab - 1 + 5) % 5
-	case backend.KeyArrowUp:
+	case driver.KeyArrowUp:
 		state.RotX += 10.0
-	case backend.KeyArrowDown:
+	case driver.KeyArrowDown:
 		state.RotX -= 10.0
-	case backend.KeySpace:
+	case driver.KeySpace:
 		switch state.ActiveTab {
 		case 0:
 			state.AutoRotate = !state.AutoRotate
@@ -790,7 +790,7 @@ func handleKey(key backend.KeyEvent, state *AppState) {
 			state.ImageCircleMask = !state.ImageCircleMask
 			addLog(state, fmt.Sprintf("Circle Mask: %v", state.ImageCircleMask))
 		}
-	case backend.KeyRune:
+	case driver.KeyRune:
 		switch key.Ch {
 		case '1', '2', '3', '4', '5':
 			idx := int(key.Ch - '1')
@@ -874,7 +874,7 @@ func renderFrame(term *terminal.Terminal, state *AppState) {
 		if headerArea.Width > 75 {
 			searchBtnArea := cell.NewRect(headerArea.X+headerArea.Width-50, headerArea.Y+1, 15, 1)
 			f.Buffer.SetString(searchBtnArea.X, searchBtnArea.Y, " Search [^P] ", cell.Style{Fg: cell.NewColorRGB(0, 0, 0), Bg: theme.Accent, Modifier: cell.ModifierBold})
-			registerTargetClick(f, searchBtnArea, func(ev backend.MouseEvent) {
+			registerTargetClick(f, searchBtnArea, func(ev driver.MouseEvent) {
 				state.CmdPalette.Toggle()
 			})
 
@@ -945,8 +945,8 @@ func renderFrame(term *terminal.Terminal, state *AppState) {
 
 				// Title bar area for dragging
 				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
-				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
-					if ev.Button != backend.MouseLeft {
+				registerTargetClick(f, titleBarArea, func(ev driver.MouseEvent) {
+					if ev.Button != driver.MouseLeft {
 						return
 					}
 					state.IsDraggingModal = true
@@ -954,8 +954,8 @@ func renderFrame(term *terminal.Terminal, state *AppState) {
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalDragBaseX = state.ModalOffsetX
 					state.ModalDragBaseY = state.ModalOffsetY
-					f.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					f.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							state.IsDraggingModal = false
 							return
 						}
@@ -1072,7 +1072,7 @@ func drawSidebarMenu(f *terminal.Frame, area cell.Rect, state *AppState, theme T
 		}
 		f.RenderWidget(btn, btnArea)
 
-		registerTargetClick(f, btnArea, func(ev backend.MouseEvent) {
+		registerTargetClick(f, btnArea, func(ev driver.MouseEvent) {
 			if tabIdx == 5 {
 				// Exit Confirmation Dialog
 				openExitDialog(state, nil)

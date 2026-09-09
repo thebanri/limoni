@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -54,7 +54,7 @@ func TestTableRowBlockClickRespectsScrollOffset(t *testing.T) {
 	area := cell.NewRect(0, 0, 30, 10)
 
 	term.Render(table, area)
-	if !term.Mouse(backend.MouseEvent{X: 2, Y: 2, Button: backend.MouseScrollDown}) {
+	if !term.Mouse(driver.MouseEvent{X: 2, Y: 2, Button: driver.MouseScrollDown}) {
 		t.Fatalf("scroll event was not routed")
 	}
 	if state.Offset != 3 {

@@ -3,14 +3,14 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestTextAreaStateEditing(t *testing.T) {
 	state := NewTextAreaState()
 	state.SetValue("one")
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyEnter})
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: '2'})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyEnter})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '2'})
 	if state.Value() != "one\n2" {
 		t.Fatalf("value = %q; want multiline text", state.Value())
 	}

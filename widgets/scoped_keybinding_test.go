@@ -3,7 +3,7 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestScopedKeybindings(t *testing.T) {
@@ -14,7 +14,7 @@ func TestScopedKeybindings(t *testing.T) {
 
 	// Register global shortcut
 	km.Register(Keybinding{
-		Key:   backend.KeyRune,
+		Key:   driver.KeyRune,
 		Ch:    'q',
 		Scope: "", // global
 		Handler: func() {
@@ -24,7 +24,7 @@ func TestScopedKeybindings(t *testing.T) {
 
 	// Register same shortcut under "modal" scope (should override)
 	km.Register(Keybinding{
-		Key:   backend.KeyRune,
+		Key:   driver.KeyRune,
 		Ch:    'q',
 		Scope: "modal",
 		Handler: func() {
@@ -33,7 +33,7 @@ func TestScopedKeybindings(t *testing.T) {
 	})
 
 	// Test 1: Global scope active (no scopes passed)
-	ev := backend.KeyEvent{Type: backend.KeyRune, Ch: 'q'}
+	ev := driver.KeyEvent{Type: driver.KeyRune, Ch: 'q'}
 	if !km.Handle(ev) {
 		t.Fatal("Expected keybinding to be handled")
 	}

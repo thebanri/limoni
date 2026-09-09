@@ -3,9 +3,9 @@ package widgets
 import (
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/layout"
 )
 
@@ -207,13 +207,13 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.RegisterMouse != nil && l.State != nil {
 		st := l.State
 		viewHeight := int(ctx.Area.Height)
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseScrollUp {
 				st.Offset--
 				if st.Offset < 0 {
 					st.Offset = 0
 				}
-			} else if ev.Button == backend.MouseScrollDown {
+			} else if ev.Button == driver.MouseScrollDown {
 				st.Offset++
 				maxOffset := totalItems - viewHeight
 				if maxOffset < 0 {

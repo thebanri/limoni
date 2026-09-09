@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -29,7 +29,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -64,9 +64,9 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				if state.ShowDialog {
-					if ev.Key.Type == backend.KeyEsc {
+					if ev.Key.Type == driver.KeyEsc {
 						state.ShowDialog = false
 						state.StatusBar = "Modal dismissed"
 					}
@@ -74,7 +74,7 @@ func main() {
 				}
 
 				switch {
-				case ev.Key.Type == backend.KeyEsc:
+				case ev.Key.Type == driver.KeyEsc:
 					if state.FileMenuState.IsOpen {
 						state.FileMenuState.Close()
 					} else if state.EditMenuState.IsOpen {
@@ -84,16 +84,16 @@ func main() {
 					}
 					state.StatusBar = "Menus closed"
 
-				case ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'n' && ev.Key.Ctrl:
+				case ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'n' && ev.Key.Ctrl:
 					state.ShowDialog = true
 					state.StatusBar = "Modal dialog opened — Press Esc to close"
 
-				case ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q':
+				case ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q':
 					b.Close()
 					fmt.Println("\nExited Limoni Layer Demo.")
 					os.Exit(0)
 
-				case ev.Key.Type == backend.KeyF10:
+				case ev.Key.Type == driver.KeyF10:
 					state.FileMenuState.Toggle()
 					if state.FileMenuState.IsOpen {
 						state.EditMenuState.Close()
@@ -103,7 +103,7 @@ func main() {
 						state.StatusBar = "File menu closed"
 					}
 
-				case ev.Key.Type == backend.KeyF11:
+				case ev.Key.Type == driver.KeyF11:
 					state.EditMenuState.Toggle()
 					if state.EditMenuState.IsOpen {
 						state.FileMenuState.Close()
@@ -113,7 +113,7 @@ func main() {
 						state.StatusBar = "Edit menu closed"
 					}
 
-				case ev.Key.Type == backend.KeyF12:
+				case ev.Key.Type == driver.KeyF12:
 					state.HelpMenuState.Toggle()
 					if state.HelpMenuState.IsOpen {
 						state.FileMenuState.Close()
@@ -124,10 +124,10 @@ func main() {
 					}
 				}
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				t.RouteMouseEvent(ev.Mouse)
 
-			case backend.EventResize:
+			case driver.EventResize:
 				// Automatically redrawn on next tick
 			}
 

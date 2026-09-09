@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -337,7 +337,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 				// Mouse hover callback
 				if ctx.RegisterMouse != nil {
-					ctx.RegisterMouse(btnArea, func(ev backend.MouseEvent) {
+					ctx.RegisterMouse(btnArea, func(ev driver.MouseEvent) {
 						if ctx.SetFocus != nil {
 							ctx.SetFocus(btnID)
 						}

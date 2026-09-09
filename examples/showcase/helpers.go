@@ -6,8 +6,8 @@ import (
 	_ "image/png"
 	"os"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -60,9 +60,9 @@ func themeForSelection(selection string) widgets.Theme {
 	return theme
 }
 
-func registerTargetClick(f *terminal.Frame, area cell.Rect, handler func(backend.MouseEvent)) {
-	f.RegisterEventHandler(area, terminal.TargetPhase, func(event *backend.EventContext) {
-		if event.Mouse.Button != backend.MouseLeft || event.Mouse.Drag {
+func registerTargetClick(f *terminal.Frame, area cell.Rect, handler func(driver.MouseEvent)) {
+	f.RegisterEventHandler(area, terminal.TargetPhase, func(event *driver.EventContext) {
+		if event.Mouse.Button != driver.MouseLeft || event.Mouse.Drag {
 			return
 		}
 		event.PreventDefault()

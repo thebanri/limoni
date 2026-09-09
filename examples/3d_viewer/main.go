@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
@@ -152,7 +152,7 @@ func scanImageFiles() []string {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
 		os.Exit(1)
@@ -233,24 +233,24 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				if state.ShowModelModal {
-					if ev.Key.Type == backend.KeyEsc {
+					if ev.Key.Type == driver.KeyEsc {
 						state.ShowModelModal = false
 						draw()
 						continue
 					}
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						if state.ModelListState.Selected > 0 {
 							state.ModelListState.Selected--
 						}
 					}
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						if state.ModelListState.Selected < len(state.ModelFiles)-1 {
 							state.ModelListState.Selected++
 						}
 					}
-					if ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeyEnter {
 						if len(state.ModelFiles) > 0 && state.ModelListState.Selected >= 0 && state.ModelListState.Selected < len(state.ModelFiles) {
 							path := state.ModelFiles[state.ModelListState.Selected]
 							var model graphics.Model3D
@@ -279,22 +279,22 @@ func main() {
 				}
 
 				if state.ShowImageModal {
-					if ev.Key.Type == backend.KeyEsc {
+					if ev.Key.Type == driver.KeyEsc {
 						state.ShowImageModal = false
 						draw()
 						continue
 					}
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						if state.ImageListState.Selected > 0 {
 							state.ImageListState.Selected--
 						}
 					}
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						if state.ImageListState.Selected < len(state.ImageFiles)-1 {
 							state.ImageListState.Selected++
 						}
 					}
-					if ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeyEnter {
 						if len(state.ImageFiles) > 0 && state.ImageListState.Selected >= 0 && state.ImageListState.Selected < len(state.ImageFiles) {
 							path := state.ImageFiles[state.ImageListState.Selected]
 							img := state.getOrLoadImage(path)
@@ -313,12 +313,12 @@ func main() {
 					continue
 				}
 
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
 				// Check Ctrl+E and Ctrl+S
-				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'e' && ev.Key.Ctrl {
+				if ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'e' && ev.Key.Ctrl {
 					state.ModelFiles = scanModelFiles()
 					state.ModelListState.Selected = 0
 					state.ShowModelModal = true
@@ -326,7 +326,7 @@ func main() {
 					draw()
 					continue
 				}
-				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 's' && ev.Key.Ctrl {
+				if ev.Key.Type == driver.KeyRune && ev.Key.Ch == 's' && ev.Key.Ctrl {
 					state.ImageFiles = scanImageFiles()
 					state.ImageListState.Selected = 0
 					state.ShowImageModal = true
@@ -335,7 +335,7 @@ func main() {
 					continue
 				}
 
-				if ev.Key.Type == backend.KeyTab {
+				if ev.Key.Type == driver.KeyTab {
 					t.FocusManager().Next()
 				}
 
@@ -356,7 +356,7 @@ func main() {
 					speedSlider.HandleKey(ev.Key, 0, 100)
 				}
 
-				if ev.Key.Type == backend.KeySpace {
+				if ev.Key.Type == driver.KeySpace {
 					state.AutoRotate = !state.AutoRotate
 				}
 
@@ -368,22 +368,22 @@ func main() {
 					return a
 				}
 
-				if ev.Key.Type == backend.KeyArrowUp {
+				if ev.Key.Type == driver.KeyArrowUp {
 					state.RotX = normAngle(state.RotX + 5)
 				}
-				if ev.Key.Type == backend.KeyArrowDown {
+				if ev.Key.Type == driver.KeyArrowDown {
 					state.RotX = normAngle(state.RotX - 5)
 				}
-				if ev.Key.Type == backend.KeyArrowLeft {
+				if ev.Key.Type == driver.KeyArrowLeft {
 					state.RotY = normAngle(state.RotY - 5)
 				}
-				if ev.Key.Type == backend.KeyArrowRight {
+				if ev.Key.Type == driver.KeyArrowRight {
 					state.RotY = normAngle(state.RotY + 5)
 				}
 
 				draw()
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				if state.ShowModelModal || state.ShowImageModal {
 					t.RouteMouseEvent(ev.Mouse)
 					draw()
@@ -392,7 +392,7 @@ func main() {
 
 				handled := t.RouteMouseEvent(ev.Mouse)
 				if !handled {
-					if ev.Mouse.Button == backend.MouseLeft {
+					if ev.Mouse.Button == driver.MouseLeft {
 						if ev.Mouse.Drag {
 							if state.DragActive {
 								dx := int(ev.Mouse.X) - state.LastDragX
@@ -412,16 +412,16 @@ func main() {
 						} else {
 							state.DragActive = false
 						}
-					} else if ev.Mouse.Button == backend.MouseNone {
+					} else if ev.Mouse.Button == driver.MouseNone {
 						state.DragActive = false
-					} else if ev.Mouse.Button == backend.MouseScrollUp {
+					} else if ev.Mouse.Button == driver.MouseScrollUp {
 						if ev.Mouse.X >= 30 {
 							if state.ZoomScale < 100 {
 								state.ZoomScale += 5
 								zoomSlider.Value = state.ZoomScale
 							}
 						}
-					} else if ev.Mouse.Button == backend.MouseScrollDown {
+					} else if ev.Mouse.Button == driver.MouseScrollDown {
 						if ev.Mouse.X >= 30 {
 							if state.ZoomScale > 10 {
 								state.ZoomScale -= 5
@@ -433,7 +433,7 @@ func main() {
 
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 

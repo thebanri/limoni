@@ -3,9 +3,9 @@ package main
 import (
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -29,13 +29,13 @@ func (l label) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 
 // registerTargetClick registers a click handler for area.
 // This guarantees that mouse clicks are dispatched on MouseLeft, without falsely capturing MouseNone hover events.
-func registerTargetClick(f *terminal.Frame, area cell.Rect, handler func(backend.MouseEvent)) {
+func registerTargetClick(f *terminal.Frame, area cell.Rect, handler func(driver.MouseEvent)) {
 	if handler == nil || area.Width == 0 || area.Height == 0 {
 		return
 	}
 
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button != backend.MouseLeft || ev.Drag {
+	f.RegisterClickHandler(area, func(ev driver.MouseEvent) {
+		if ev.Button != driver.MouseLeft || ev.Drag {
 			return
 		}
 		handler(ev)
@@ -62,7 +62,7 @@ func renderClickButton(f *terminal.Frame, area cell.Rect, title string, active b
 	}
 	f.RenderWidget(btn, area)
 
-	registerTargetClick(f, area, func(ev backend.MouseEvent) {
+	registerTargetClick(f, area, func(ev driver.MouseEvent) {
 		if onClick != nil {
 			onClick()
 		}

@@ -9,10 +9,10 @@ import (
 	"os"
 
 	"github.com/thebanri/limoni/benchmarks"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -29,9 +29,9 @@ func (benchmarkVirtualDataSource) RowID(index int) widgets.RowID {
 
 type benchmarkModel struct{ ready chan struct{} }
 
-func (m *benchmarkModel) Init() []runtime.Cmd                   { close(m.ready); return nil }
-func (*benchmarkModel) Update(runtime.Msg) runtime.UpdateResult { return runtime.UpdateResult{} }
-func (*benchmarkModel) View(*terminal.Frame)                    {}
+func (m *benchmarkModel) Init() []engine.Cmd                  { close(m.ready); return nil }
+func (*benchmarkModel) Update(engine.Msg) engine.UpdateResult { return engine.UpdateResult{} }
+func (*benchmarkModel) View(*terminal.Frame)                  {}
 
 func main() {
 	output := flag.String("output", "limoni.json", "dashboard report path")
@@ -222,9 +222,9 @@ func main() {
 				front.Clear()
 				frame.Reset()
 				for i := 0; i < 100; i++ {
-					frame.RegisterClickHandler(cell.NewRect(uint16(i), 0, 1, 1), func(backend.MouseEvent) {})
+					frame.RegisterClickHandler(cell.NewRect(uint16(i), 0, 1, 1), func(driver.MouseEvent) {})
 				}
-				frame.DispatchEventRegions(backend.MouseEvent{X: 50, Y: 0, Button: backend.MouseLeft})
+				frame.DispatchEventRegions(driver.MouseEvent{X: 50, Y: 0, Button: driver.MouseLeft})
 				writeBuf, _ = buffer.Diff(front, back, writeBuf[:0], true, true)
 				return writeBuf
 			}
@@ -279,7 +279,7 @@ func main() {
 
 		case "async-update-burst":
 			model := &benchmarkModel{}
-			program := runtime.New(runtime.WithModel(model), runtime.WithMessageQueue(1024))
+			program := engine.New(engine.WithModel(model), engine.WithMessageQueue(1024))
 			ctx, cancel := context.WithCancel(context.Background())
 			ready := make(chan struct{})
 			model.ready = ready

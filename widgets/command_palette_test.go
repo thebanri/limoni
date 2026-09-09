@@ -3,9 +3,9 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // testCommandItems, komut paleti testleri için ortak bir komut seti döndürür.
@@ -60,10 +60,10 @@ func TestCommandPaletteRegistersFocusAndKeepsArrowNavigationInState(t *testing.T
 	if registered != "command_palette" {
 		t.Fatalf("registered focus = %q, want command_palette", registered)
 	}
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown}) || state.Selected != 1 {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown}) || state.Selected != 1 {
 		t.Fatalf("arrow down selected = %d, want 1", state.Selected)
 	}
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp}) || state.Selected != 0 {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp}) || state.Selected != 0 {
 		t.Fatalf("arrow up selected = %d, want 0", state.Selected)
 	}
 }
@@ -149,10 +149,10 @@ func TestCommandPaletteState_HandleKey_Closed(t *testing.T) {
 	state.AllItems = testCommandItems()
 
 	// Kapalıyken hiçbir tuş tüketilmemeli
-	if state.HandleKey(backend.KeyEvent{Type: backend.KeyEsc}) {
+	if state.HandleKey(driver.KeyEvent{Type: driver.KeyEsc}) {
 		t.Fatal("kapalı palet Esc'i tüketmemeli")
 	}
-	if state.HandleKey(backend.KeyEvent{Type: backend.KeyEnter}) {
+	if state.HandleKey(driver.KeyEvent{Type: driver.KeyEnter}) {
 		t.Fatal("kapalı palet Enter'ı tüketmemeli")
 	}
 }
@@ -162,7 +162,7 @@ func TestCommandPaletteState_HandleKey_CtrlPTogglesClosed(t *testing.T) {
 	state.AllItems = testCommandItems()
 	state.Open()
 
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'p', Ctrl: true}) {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p', Ctrl: true}) {
 		t.Fatal("açık palet Ctrl+P olayını tüketmeli")
 	}
 	if state.IsOpen {
@@ -175,7 +175,7 @@ func TestCommandPaletteState_HandleKey_Esc(t *testing.T) {
 	state.AllItems = testCommandItems()
 	state.Open()
 
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyEsc}) {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyEsc}) {
 		t.Fatal("açık palet Esc'i tüketmeli")
 	}
 	if state.IsOpen {
@@ -192,12 +192,12 @@ func TestCommandPaletteState_HandleKey_EnterRunsHandler(t *testing.T) {
 	state.Filtered[1].Handler = func() { ran = true }
 
 	// İkinci öğeyi seç
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown})
 	if state.Selected != 1 {
 		t.Fatalf("Selected = %d; 1 bekleniyordu", state.Selected)
 	}
 
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyEnter}) {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyEnter}) {
 		t.Fatal("Enter tüketilmeli")
 	}
 	if !ran {
@@ -213,7 +213,7 @@ func TestCommandPaletteState_HandleKey_EnterNoSelection(t *testing.T) {
 	state.AllItems = []CommandItem{} // Boş liste
 	state.Open()
 
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyEnter}) {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyEnter}) {
 		t.Fatal("Enter tüketilmeli")
 	}
 	// Panik olmamalı, palet kapanmalı
@@ -228,27 +228,27 @@ func TestCommandPaletteState_HandleKey_Navigation(t *testing.T) {
 	state.Open()
 
 	// Yukarı: sınırda kalmalı
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp})
 	if state.Selected != 0 {
 		t.Fatalf("üst sınırda Selected = %d; 0 bekleniyordu", state.Selected)
 	}
 
 	// Aşağı
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown})
 	if state.Selected != 1 {
 		t.Fatalf("Selected = %d; 1 bekleniyordu", state.Selected)
 	}
 
 	// Son öğeye git
 	for i := 0; i < 10; i++ {
-		state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown})
+		state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown})
 	}
 	if state.Selected != len(state.Filtered)-1 {
 		t.Fatalf("alt sınırda Selected = %d; %d bekleniyordu", state.Selected, len(state.Filtered)-1)
 	}
 
 	// Alt sınırda daha aşağı inmemeli
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown})
 	if state.Selected != len(state.Filtered)-1 {
 		t.Fatalf("alt sınır aşıldı: Selected = %d", state.Selected)
 	}
@@ -267,7 +267,7 @@ func TestCommandPaletteState_HandleKey_ScrollOffset(t *testing.T) {
 
 	// 3 kez aşağı in: Selected=3, ScrollOffset 2 olmalı (3 - 2 + 1)
 	for i := 0; i < 3; i++ {
-		state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown})
+		state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown})
 	}
 	if state.Selected != 3 {
 		t.Fatalf("Selected = %d; 3 bekleniyordu", state.Selected)
@@ -277,7 +277,7 @@ func TestCommandPaletteState_HandleKey_ScrollOffset(t *testing.T) {
 	}
 
 	// Yukarı çıkınca offset geri gelmeli
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp})
 	if state.Selected != 2 {
 		t.Fatalf("Selected = %d; 2 bekleniyordu", state.Selected)
 	}
@@ -285,12 +285,12 @@ func TestCommandPaletteState_HandleKey_ScrollOffset(t *testing.T) {
 	if state.ScrollOffset != 2 {
 		t.Fatalf("ScrollOffset = %d; 2 bekleniyordu", state.ScrollOffset)
 	}
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp})
 	// Selected=1: ScrollOffset Selected'a iner -> 1
 	if state.ScrollOffset != 1 {
 		t.Fatalf("ScrollOffset = %d; 1 bekleniyordu", state.ScrollOffset)
 	}
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp})
 	// Selected=0: ScrollOffset 0'a iner
 	if state.ScrollOffset != 0 {
 		t.Fatalf("ScrollOffset = %d; 0 bekleniyordu", state.ScrollOffset)
@@ -304,7 +304,7 @@ func TestCommandPaletteState_HandleKey_FiltersOnTyping(t *testing.T) {
 
 	// "yard" yazınca sadece Yardım eşleşmeli
 	for _, r := range "yard" {
-		state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: r})
+		state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: r})
 	}
 	if len(state.Filtered) != 1 {
 		t.Fatalf("Filtered uzunluğu = %d; 1 bekleniyordu", len(state.Filtered))
@@ -323,21 +323,21 @@ func TestCommandPaletteState_HandleKey_BackspaceRefilters(t *testing.T) {
 	state.Open()
 
 	for _, r := range "yard" {
-		state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: r})
+		state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: r})
 	}
 	if len(state.Filtered) != 1 {
 		t.Fatalf("filtreleme öncesi Filtered = %d; 1 bekleniyordu", len(state.Filtered))
 	}
 
 	// Backspace ile "yar" kalmalı -> "Yardım Panelini Aç" ve "Ayarlar Sekmesine Git" eşleşir
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyBackspace})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyBackspace})
 	if len(state.Filtered) != 2 {
 		t.Fatalf("backspace sonrası Filtered = %d; 2 bekleniyordu", len(state.Filtered))
 	}
 
 	// Tümünü sil -> tüm öğeler geri gelmeli
 	for state.Query.Value() != "" {
-		state.HandleKey(backend.KeyEvent{Type: backend.KeyBackspace})
+		state.HandleKey(driver.KeyEvent{Type: driver.KeyBackspace})
 	}
 	if len(state.Filtered) != len(state.AllItems) {
 		t.Fatalf("boş sorgu sonrası Filtered = %d; %d bekleniyordu", len(state.Filtered), len(state.AllItems))
@@ -350,7 +350,7 @@ func TestCommandPaletteState_HandleKey_ReturnsTrueWhenOpen(t *testing.T) {
 	state.Open()
 
 	// Açıkken herhangi bir tuş tüketilmeli (yazma dahil)
-	if !state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'x'}) {
+	if !state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'x'}) {
 		t.Fatal("açık palet tuş girişini tüketmeli")
 	}
 }
@@ -397,8 +397,8 @@ func TestCommandPaletteMouseClickAndHover(t *testing.T) {
 		clickHandler = fn
 	}
 
-	var mouseHandler func(backend.MouseEvent)
-	ctx.RegisterMouse = func(r cell.Rect, fn func(backend.MouseEvent)) {
+	var mouseHandler func(driver.MouseEvent)
+	ctx.RegisterMouse = func(r cell.Rect, fn func(driver.MouseEvent)) {
 		mouseHandler = fn
 	}
 
@@ -415,7 +415,7 @@ func TestCommandPaletteMouseClickAndHover(t *testing.T) {
 
 	// 1. Simulate mouse hover
 	if mouseHandler != nil {
-		mouseHandler(backend.MouseEvent{Button: backend.MouseNone})
+		mouseHandler(driver.MouseEvent{Button: driver.MouseNone})
 		if state.Selected != 2 {
 			t.Errorf("Expected Selected=2 on hover of item 2, got: %d", state.Selected)
 		}
@@ -430,4 +430,3 @@ func TestCommandPaletteMouseClickAndHover(t *testing.T) {
 		t.Error("Expected CommandPalette to close after item click")
 	}
 }
-

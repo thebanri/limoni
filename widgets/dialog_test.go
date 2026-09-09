@@ -142,9 +142,9 @@ func TestDialogButtonSingleFocus(t *testing.T) {
 	focusedBg := cell.NewColorRGB(80, 220, 140) // green accent
 
 	dialog := Dialog{
-		ID:         "exit_dialog",
-		Title:      "SYSTEM EXIT",
-		Message:    "Exit?",
+		ID:          "exit_dialog",
+		Title:       "SYSTEM EXIT",
+		Message:     "Exit?",
 		ButtonStyle: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: unfocusedBg},
 		ButtonFocusedStyle: cell.Style{
 			Fg:       cell.NewColorRGB(255, 255, 255),

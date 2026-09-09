@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -232,7 +232,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -264,12 +264,12 @@ func main() {
 
 	for ev := range b.Events() {
 		switch ev.Type {
-		case backend.EventKey:
-			if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+		case driver.EventKey:
+			if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 				return
 			}
 
-			if ev.Key.Type == backend.KeyTab {
+			if ev.Key.Type == driver.KeyTab {
 				t.FocusManager().Next()
 				draw()
 				break
@@ -278,56 +278,56 @@ func main() {
 			focused := t.FocusManager().Focused()
 			switch focused {
 			case "knob_dial":
-				if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowRight {
+				if ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowRight {
 					if state.DialValue < 100 {
 						state.DialValue += 5
 					}
 				}
-				if ev.Key.Type == backend.KeyArrowDown || ev.Key.Type == backend.KeyArrowLeft {
+				if ev.Key.Type == driver.KeyArrowDown || ev.Key.Type == driver.KeyArrowLeft {
 					if state.DialValue > 0 {
 						state.DialValue -= 5
 					}
 				}
 
 			case "color_grid":
-				if ev.Key.Type == backend.KeyArrowUp {
+				if ev.Key.Type == driver.KeyArrowUp {
 					if state.PaletteHoverY > 0 {
 						state.PaletteHoverY--
 					}
 				}
-				if ev.Key.Type == backend.KeyArrowDown {
+				if ev.Key.Type == driver.KeyArrowDown {
 					if state.PaletteHoverY < 2 {
 						state.PaletteHoverY++
 					}
 				}
-				if ev.Key.Type == backend.KeyArrowLeft {
+				if ev.Key.Type == driver.KeyArrowLeft {
 					if state.PaletteHoverX > 0 {
 						state.PaletteHoverX--
 					}
 				}
-				if ev.Key.Type == backend.KeyArrowRight {
+				if ev.Key.Type == driver.KeyArrowRight {
 					if state.PaletteHoverX < 3 {
 						state.PaletteHoverX++
 					}
 				}
-				if ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace {
+				if ev.Key.Type == driver.KeyEnter || ev.Key.Type == driver.KeySpace {
 					state.SelectedColor = paletteColors[state.PaletteHoverY][state.PaletteHoverX]
 				}
 			}
 
 			draw()
 
-		case backend.EventMouse:
+		case driver.EventMouse:
 			t.RouteMouseEvent(ev.Mouse)
 
 			focused := t.FocusManager().Focused()
 			if focused == "knob_dial" {
-				if ev.Mouse.Button == backend.MouseScrollUp {
+				if ev.Mouse.Button == driver.MouseScrollUp {
 					if state.DialValue < 100 {
 						state.DialValue += 5
 					}
 				}
-				if ev.Mouse.Button == backend.MouseScrollDown {
+				if ev.Mouse.Button == driver.MouseScrollDown {
 					if state.DialValue > 0 {
 						state.DialValue -= 5
 					}
@@ -336,7 +336,7 @@ func main() {
 
 			draw()
 
-		case backend.EventResize:
+		case driver.EventResize:
 			draw()
 		}
 	}

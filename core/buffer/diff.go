@@ -7,17 +7,17 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-// Diff front (mevcut çizilen) ve back (ekranda olan) tamponları karşılaştırır.
-// Sadece değişen hücreleri ve stildeki değişimleri tespit ederek, minimum ANSI escape kodunu
-// `out` byte dilimine (slice) ekler ve güncellenmiş dilimi döner.
-// Bellek Optimizasyonu: Eğer `out` yeterli kapasiteye sahipse sıfır heap bellek tahsisatı (zero-allocation) ile çalışır.
+// Diff compares the front (currently drawn) and back (currently displayed) buffers.
+// It detects only modified cells and style transitions, appending minimal ANSI escape sequences
+// to the out slice and returning the updated slice.
+// Performance: Operates with zero heap allocations when out has sufficient capacity.
 func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, error) {
-	// Sıfır-Döngü Hızlı Yol (Zero-Loop Fast-Path): Eğer tamponda hiç değişiklik yapılmadıysa doğrudan dön
+	// Zero-Loop Fast-Path: Return immediately if buffer was not dirtied and dimensions match
 	if !front.IsDirty && front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
 		return out, nil
 	}
 
-	// Hızlı Yol (Fast-Path): Tamponlar tamamen aynıysa hiçbir işlem yapma
+	// Fast-Path: No-op if buffers are completely identical
 	if front.Area.Width == back.Area.Width && front.Area.Height == back.Area.Height {
 		identical := true
 		for i := range front.Content {
@@ -32,10 +32,10 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 		}
 	}
 
-	// Boyutlar uyuşmuyorsa, ekranı temizle ve back tamponu yeniden boyutlandır
+	// If dimensions mismatch, clear screen and resize back buffer
 	if front.Area.Width != back.Area.Width || front.Area.Height != back.Area.Height {
 		back.Resize(front.Area)
-		out = append(out, "\x1b[2J"...) // Ekranı temizle
+		out = append(out, "\x1b[2J"...) // Clear screen
 	}
 
 	width := front.Area.Width

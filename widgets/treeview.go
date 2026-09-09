@@ -4,9 +4,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // TreeNode represents a single item in a hierarchical tree.
@@ -100,7 +100,7 @@ func (s *TreeViewState) Select(id string) {
 }
 
 // HandleKey processes keyboard navigation for the tree.
-func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
+func (s *TreeViewState) HandleKey(ev driver.KeyEvent, roots []TreeNode) bool {
 	if s == nil || len(roots) == 0 {
 		return false
 	}
@@ -118,12 +118,12 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 	}
 
 	switch ev.Type {
-	case backend.KeyArrowDown:
+	case driver.KeyArrowDown:
 		if curIdx < len(flat)-1 {
 			s.SelectedID = flat[curIdx+1].node.ID
 			return true
 		}
-	case backend.KeyArrowUp:
+	case driver.KeyArrowUp:
 		if curIdx > 0 {
 			s.SelectedID = flat[curIdx-1].node.ID
 			return true
@@ -131,7 +131,7 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 			s.SelectedID = flat[0].node.ID
 			return true
 		}
-	case backend.KeyPageDown:
+	case driver.KeyPageDown:
 		next := curIdx + 10
 		if next >= len(flat) {
 			next = len(flat) - 1
@@ -140,7 +140,7 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 			s.SelectedID = flat[next].node.ID
 			return true
 		}
-	case backend.KeyPageUp:
+	case driver.KeyPageUp:
 		prev := curIdx - 10
 		if prev < 0 {
 			prev = 0
@@ -149,7 +149,7 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 			s.SelectedID = flat[prev].node.ID
 			return true
 		}
-	case backend.KeyArrowRight:
+	case driver.KeyArrowRight:
 		if curIdx >= 0 && len(flat[curIdx].node.Children) > 0 {
 			if !s.IsExpanded(flat[curIdx].node.ID, flat[curIdx].node.Expanded) {
 				s.Expand(flat[curIdx].node.ID)
@@ -159,7 +159,7 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 				return true
 			}
 		}
-	case backend.KeyArrowLeft:
+	case driver.KeyArrowLeft:
 		if curIdx >= 0 {
 			if len(flat[curIdx].node.Children) > 0 && s.IsExpanded(flat[curIdx].node.ID, flat[curIdx].node.Expanded) {
 				s.Collapse(flat[curIdx].node.ID)
@@ -175,22 +175,22 @@ func (s *TreeViewState) HandleKey(ev backend.KeyEvent, roots []TreeNode) bool {
 				}
 			}
 		}
-	case backend.KeyEnter, backend.KeySpace:
+	case driver.KeyEnter, driver.KeySpace:
 		if curIdx >= 0 && len(flat[curIdx].node.Children) > 0 {
 			s.Toggle(flat[curIdx].node.ID, flat[curIdx].node.Expanded)
 			return true
 		}
-	case backend.KeyHome:
+	case driver.KeyHome:
 		if len(flat) > 0 {
 			s.SelectedID = flat[0].node.ID
 			return true
 		}
-	case backend.KeyEnd:
+	case driver.KeyEnd:
 		if len(flat) > 0 {
 			s.SelectedID = flat[len(flat)-1].node.ID
 			return true
 		}
-	case backend.KeyRune:
+	case driver.KeyRune:
 		switch ev.Ch {
 		case 'j', 'J':
 			if curIdx < len(flat)-1 {
@@ -360,13 +360,13 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Mouse scroll registration
 	if ctx.RegisterMouse != nil && t.State != nil {
 		st := t.State
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseScrollUp {
 				st.Offset--
 				if st.Offset < 0 {
 					st.Offset = 0
 				}
-			} else if ev.Button == backend.MouseScrollDown {
+			} else if ev.Button == driver.MouseScrollDown {
 				st.Offset++
 				if st.Offset > maxOffset {
 					st.Offset = maxOffset

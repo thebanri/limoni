@@ -3,9 +3,9 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestParseInlineStyles(t *testing.T) {
@@ -98,21 +98,21 @@ func TestMarkdownWheelScrolling(t *testing.T) {
 		Content:      "one\ntwo\nthree\nfour\nfive",
 		ScrollOffset: &offset,
 	}
-	var mouseHandler func(backend.MouseEvent)
+	var mouseHandler func(driver.MouseEvent)
 	ctx := cell.NewContext(cell.NewRect(0, 0, 20, 3), cell.Style{})
-	ctx.RegisterMouse = func(_ cell.Rect, handler func(backend.MouseEvent)) {
+	ctx.RegisterMouse = func(_ cell.Rect, handler func(driver.MouseEvent)) {
 		mouseHandler = handler
 	}
 	md.Draw(ctx, buf)
 	if mouseHandler == nil {
 		t.Fatal("expected markdown mouse handler to be registered")
 	}
-	mouseHandler(backend.MouseEvent{Button: backend.MouseScrollDown})
+	mouseHandler(driver.MouseEvent{Button: driver.MouseScrollDown})
 	if offset != 1 {
 		t.Fatalf("wheel down offset = %d, want 1", offset)
 	}
 	for i := 0; i < 20; i++ {
-		mouseHandler(backend.MouseEvent{Button: backend.MouseScrollDown})
+		mouseHandler(driver.MouseEvent{Button: driver.MouseScrollDown})
 	}
 	if offset != 2 {
 		t.Fatalf("wheel offset = %d, want maximum 2", offset)
@@ -126,13 +126,13 @@ func TestMarkdownDragScrolling(t *testing.T) {
 		ScrollOffset: new(int),
 	}
 
-	var mouseHandler func(backend.MouseEvent)
-	var captureHandler func(backend.MouseEvent)
+	var mouseHandler func(driver.MouseEvent)
+	var captureHandler func(driver.MouseEvent)
 	ctx := cell.NewContext(cell.NewRect(0, 0, 40, 4), cell.Style{})
-	ctx.RegisterMouse = func(_ cell.Rect, handler func(backend.MouseEvent)) {
+	ctx.RegisterMouse = func(_ cell.Rect, handler func(driver.MouseEvent)) {
 		mouseHandler = handler
 	}
-	ctx.CaptureMouse = func(handler func(backend.MouseEvent)) {
+	ctx.CaptureMouse = func(handler func(driver.MouseEvent)) {
 		captureHandler = handler
 	}
 
@@ -141,17 +141,17 @@ func TestMarkdownDragScrolling(t *testing.T) {
 		t.Fatal("expected markdown mouse handler to be registered")
 	}
 
-	mouseHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 2})
+	mouseHandler(driver.MouseEvent{Button: driver.MouseLeft, X: 2, Y: 2})
 	if captureHandler == nil {
 		t.Fatal("expected markdown to capture the mouse after a left click")
 	}
 
-	captureHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 0, Drag: true})
+	captureHandler(driver.MouseEvent{Button: driver.MouseLeft, X: 2, Y: 0, Drag: true})
 	if *md.ScrollOffset != 2 {
 		t.Fatalf("expected dragging up by two rows to set offset 2, got %d", *md.ScrollOffset)
 	}
 
-	captureHandler(backend.MouseEvent{Button: backend.MouseLeft, X: 2, Y: 10, Drag: true})
+	captureHandler(driver.MouseEvent{Button: driver.MouseLeft, X: 2, Y: 10, Drag: true})
 	if *md.ScrollOffset != 0 {
 		t.Fatalf("expected dragging down from the original position to reset offset to 0, got %d", *md.ScrollOffset)
 	}

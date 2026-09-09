@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
@@ -175,7 +175,7 @@ func getModelByName(name string) graphics.Model3D {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Backend setup error: %v\n", err)
 		return
@@ -273,24 +273,24 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				if state.ShowFileModal {
-					if ev.Key.Type == backend.KeyEsc {
+					if ev.Key.Type == driver.KeyEsc {
 						state.ShowFileModal = false
 						draw()
 						continue
 					}
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						if state.FileListState.Selected > 0 {
 							state.FileListState.Selected--
 						}
 					}
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						if state.FileListState.Selected < len(state.ModelFiles)-1 {
 							state.FileListState.Selected++
 						}
 					}
-					if ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeyEnter {
 						if len(state.ModelFiles) > 0 && state.FileListState.Selected >= 0 && state.FileListState.Selected < len(state.ModelFiles) {
 							path := state.ModelFiles[state.FileListState.Selected]
 							model, err := graphics.LoadModel(path)
@@ -309,11 +309,11 @@ func main() {
 					continue
 				}
 
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
-				if ev.Key.Type == backend.KeyTab {
+				if ev.Key.Type == driver.KeyTab {
 					if ev.Key.Shift {
 						t.FocusManager().Prev()
 					} else {
@@ -321,7 +321,7 @@ func main() {
 					}
 				}
 
-				if ev.Key.Type == backend.KeyRune {
+				if ev.Key.Type == driver.KeyRune {
 					switch ev.Key.Ch {
 					case ' ':
 						state.AutoRotate = !state.AutoRotate
@@ -441,20 +441,20 @@ func main() {
 				// Arrow Keys for direct 3D rotation if not navigating sliders
 				if focused == "" || strings.HasSuffix(focused, "_select") {
 					switch ev.Key.Type {
-					case backend.KeyArrowUp:
+					case driver.KeyArrowUp:
 						state.RotX += 5.0
-					case backend.KeyArrowDown:
+					case driver.KeyArrowDown:
 						state.RotX -= 5.0
-					case backend.KeyArrowLeft:
+					case driver.KeyArrowLeft:
 						state.RotY -= 5.0
-					case backend.KeyArrowRight:
+					case driver.KeyArrowRight:
 						state.RotY += 5.0
 					}
 				}
 
 				draw()
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				if state.ShowFileModal {
 					t.RouteMouseEvent(ev.Mouse)
 					draw()
@@ -463,7 +463,7 @@ func main() {
 
 				handled := t.RouteMouseEvent(ev.Mouse)
 				if !handled {
-					if ev.Mouse.Button == backend.MouseLeft {
+					if ev.Mouse.Button == driver.MouseLeft {
 						if ev.Mouse.Drag {
 							if state.DragActive {
 								dx := int(ev.Mouse.X) - state.LastDragX
@@ -477,14 +477,14 @@ func main() {
 						} else {
 							state.DragActive = false
 						}
-					} else if ev.Mouse.Button == backend.MouseNone {
+					} else if ev.Mouse.Button == driver.MouseNone {
 						state.DragActive = false
-					} else if ev.Mouse.Button == backend.MouseScrollUp {
+					} else if ev.Mouse.Button == driver.MouseScrollUp {
 						if state.ScaleSliderState.Value < 80 {
 							state.ScaleSliderState.Value += 2
 							state.Scale = float64(state.ScaleSliderState.Value) / 10.0
 						}
-					} else if ev.Mouse.Button == backend.MouseScrollDown {
+					} else if ev.Mouse.Button == driver.MouseScrollDown {
 						if state.ScaleSliderState.Value > 8 {
 							state.ScaleSliderState.Value -= 2
 							state.Scale = float64(state.ScaleSliderState.Value) / 10.0
@@ -493,7 +493,7 @@ func main() {
 				}
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 

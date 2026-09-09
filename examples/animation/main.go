@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/animation"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -31,7 +31,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -72,12 +72,12 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+			case driver.EventKey:
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
-				if ev.Key.Type == backend.KeySpace {
+				if ev.Key.Type == driver.KeySpace {
 					state.SidebarOpen = !state.SidebarOpen
 					target := 6.0
 					if state.SidebarOpen {
@@ -86,7 +86,7 @@ func main() {
 					state.SidebarWidth.AnimateTo(target, 400*time.Millisecond, animation.EaseInOutCubic)
 				}
 
-				if ev.Key.Type == backend.KeyEnter {
+				if ev.Key.Type == driver.KeyEnter {
 					state.ColorIndex = (state.ColorIndex + 1) % 4
 					var targetColor cell.Color
 					switch state.ColorIndex {
@@ -102,18 +102,18 @@ func main() {
 					state.ButtonColor.AnimateTo(targetColor, 500*time.Millisecond, animation.EaseInOutQuad)
 				}
 
-				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'b' {
+				if ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'b' {
 					state.BounceVal.SetValue(0)
 					state.BounceVal.AnimateTo(10, 1000*time.Millisecond, animation.EaseOutBounce)
 				}
 
 				state.LastKey = fmt.Sprintf("Code: %d, Char: %q", ev.Key.Type, string(ev.Key.Ch))
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				t.RouteMouseEvent(ev.Mouse)
 				state.LastMouse = fmt.Sprintf("Btn: %d, Pos: (%d, %d)", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y)
 
-			case backend.EventResize:
+			case driver.EventResize:
 				// Automatically redrawn on next frame
 			}
 
@@ -234,7 +234,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		f.RenderWidget(bounceBox, rightChunks[1])
 
 		// Click Handlers
-		f.RegisterClickHandler(bodyChunks[0], func(ev backend.MouseEvent) {
+		f.RegisterClickHandler(bodyChunks[0], func(ev driver.MouseEvent) {
 			state.SidebarOpen = !state.SidebarOpen
 			target := 6.0
 			if state.SidebarOpen {
@@ -243,7 +243,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			state.SidebarWidth.AnimateTo(target, 400*time.Millisecond, animation.EaseInOutCubic)
 		})
 
-		f.RegisterClickHandler(rightChunks[0], func(ev backend.MouseEvent) {
+		f.RegisterClickHandler(rightChunks[0], func(ev driver.MouseEvent) {
 			state.ColorIndex = (state.ColorIndex + 1) % 4
 			var targetColor cell.Color
 			switch state.ColorIndex {
@@ -259,7 +259,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			state.ButtonColor.AnimateTo(targetColor, 500*time.Millisecond, animation.EaseInOutQuad)
 		})
 
-		f.RegisterClickHandler(rightChunks[1], func(ev backend.MouseEvent) {
+		f.RegisterClickHandler(rightChunks[1], func(ev driver.MouseEvent) {
 			state.BounceVal.SetValue(0)
 			state.BounceVal.AnimateTo(10, 1000*time.Millisecond, animation.EaseOutBounce)
 		})

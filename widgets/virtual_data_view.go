@@ -2,9 +2,9 @@ package widgets
 
 import (
 	"context"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"strings"
 )
 
@@ -71,12 +71,12 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Register single mouse handler for viewport scrolling and click routing
 	if ctx.RegisterMouse != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp && v.Offset != nil && *v.Offset > 0 {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseScrollUp && v.Offset != nil && *v.Offset > 0 {
 				(*v.Offset)--
 				return
 			}
-			if ev.Button == backend.MouseScrollDown && v.Offset != nil {
+			if ev.Button == driver.MouseScrollDown && v.Offset != nil {
 				max := v.State.Count() - int(ctx.Area.Height)
 				if max < 0 {
 					max = 0
@@ -86,7 +86,7 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 				return
 			}
-			if ev.Button == backend.MouseLeft {
+			if ev.Button == driver.MouseLeft {
 				relY := int(ev.Y - ctx.Area.Y)
 				if relY >= 0 && relY < visible {
 					targetIdx := first + relY

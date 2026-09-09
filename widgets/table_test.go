@@ -3,9 +3,9 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestTableWidthSolver(t *testing.T) {
@@ -291,14 +291,14 @@ func TestTableInteractiveResizing(t *testing.T) {
 	buf := buffer.NewBuffer(area)
 
 	var registeredMouse bool
-	var capturedMouse func(ev backend.MouseEvent)
+	var capturedMouse func(ev driver.MouseEvent)
 
 	ctx := cell.NewContext(area, cell.Style{})
-	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev backend.MouseEvent)) {
+	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev driver.MouseEvent)) {
 		registeredMouse = true
-		handler(backend.MouseEvent{X: 10, Y: 0, Button: backend.MouseLeft, Drag: false})
+		handler(driver.MouseEvent{X: 10, Y: 0, Button: driver.MouseLeft, Drag: false})
 	}
-	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {
+	ctx.CaptureMouse = func(handler func(ev driver.MouseEvent)) {
 		capturedMouse = handler
 	}
 
@@ -312,7 +312,7 @@ func TestTableInteractiveResizing(t *testing.T) {
 	}
 
 	// Simulate dragging the mouse to the right (dx = +3)
-	capturedMouse(backend.MouseEvent{X: 13, Y: 0, Button: backend.MouseLeft, Drag: true})
+	capturedMouse(driver.MouseEvent{X: 13, Y: 0, Button: driver.MouseLeft, Drag: true})
 
 	if state.ColumnWidths[0] != 13 {
 		t.Errorf("Expected column 0 width 13, got %d", state.ColumnWidths[0])
@@ -337,15 +337,15 @@ func TestTableInteractiveResizingCascading(t *testing.T) {
 	area := cell.NewRect(0, 0, 32, 5)
 	buf := buffer.NewBuffer(area)
 
-	var capturedMouse func(ev backend.MouseEvent)
+	var capturedMouse func(ev driver.MouseEvent)
 
 	ctx := cell.NewContext(area, cell.Style{})
-	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev backend.MouseEvent)) {
+	ctx.RegisterMouse = func(regArea cell.Rect, handler func(ev driver.MouseEvent)) {
 		if regArea.X == 10 { // boundary between col 0 and 1
-			handler(backend.MouseEvent{X: 10, Y: 0, Button: backend.MouseLeft, Drag: false})
+			handler(driver.MouseEvent{X: 10, Y: 0, Button: driver.MouseLeft, Drag: false})
 		}
 	}
-	ctx.CaptureMouse = func(handler func(ev backend.MouseEvent)) {
+	ctx.CaptureMouse = func(handler func(ev driver.MouseEvent)) {
 		capturedMouse = handler
 	}
 
@@ -358,7 +358,7 @@ func TestTableInteractiveResizingCascading(t *testing.T) {
 	// Grow column 0 by 5 (from 10 to 15).
 	// This should shrink column 2 (last column) by 5 (from 10 to 5).
 	// Column 1 should remain 10.
-	capturedMouse(backend.MouseEvent{X: 15, Y: 0, Button: backend.MouseLeft, Drag: true})
+	capturedMouse(driver.MouseEvent{X: 15, Y: 0, Button: driver.MouseLeft, Drag: true})
 
 	if state.ColumnWidths[0] != 15 {
 		t.Errorf("Expected column 0 width 15, got %d", state.ColumnWidths[0])
@@ -374,7 +374,7 @@ func TestTableInteractiveResizingCascading(t *testing.T) {
 	// Since column 2 can only shrink by 8 (from 10 to 2, min width),
 	// the remaining 4 shrink should be absorbed by column 1 (shrinking it from 10 to 6).
 	// Column 0 should grow to 22.
-	capturedMouse(backend.MouseEvent{X: 22, Y: 0, Button: backend.MouseLeft, Drag: true})
+	capturedMouse(driver.MouseEvent{X: 22, Y: 0, Button: driver.MouseLeft, Drag: true})
 
 	if state.ColumnWidths[0] != 22 {
 		t.Errorf("Expected column 0 width 22, got %d", state.ColumnWidths[0])

@@ -1,9 +1,9 @@
 package widgets
 
 import (
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // SelectState stores the selected option and whether the option list is open.
@@ -16,29 +16,29 @@ type SelectState struct {
 func NewSelectState() *SelectState { return &SelectState{Selected: 0, Hovered: -1} }
 
 // HandleKey handles keyboard navigation for a Select.
-func (s *SelectState) HandleKey(ev backend.KeyEvent, optionCount int) bool {
+func (s *SelectState) HandleKey(ev driver.KeyEvent, optionCount int) bool {
 	if s == nil || optionCount == 0 {
 		return false
 	}
 	switch ev.Type {
-	case backend.KeyArrowUp, backend.KeyArrowLeft:
+	case driver.KeyArrowUp, driver.KeyArrowLeft:
 		if s.Selected > 0 {
 			s.Selected--
 		} else {
 			s.Selected = optionCount - 1
 		}
 		return true
-	case backend.KeyArrowDown, backend.KeyArrowRight:
+	case driver.KeyArrowDown, driver.KeyArrowRight:
 		if s.Selected < optionCount-1 {
 			s.Selected++
 		} else {
 			s.Selected = 0
 		}
 		return true
-	case backend.KeyEnter, backend.KeySpace:
+	case driver.KeyEnter, driver.KeySpace:
 		s.Open = !s.Open
 		return true
-	case backend.KeyEsc:
+	case driver.KeyEsc:
 		if s.Open {
 			s.Open = false
 			return true
@@ -99,8 +99,8 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Fare tıklama ve tekerlek işleyicisi
 	if ctx.RegisterMouse != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseLeft && !ev.Drag {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseLeft && !ev.Drag {
 				if !s.DisableFocus && ctx.SetFocus != nil {
 					ctx.SetFocus(s.ID)
 				}
@@ -108,7 +108,7 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				return
 			}
 			if !s.DisableScroll {
-				if ev.Button == backend.MouseScrollUp {
+				if ev.Button == driver.MouseScrollUp {
 					if s.State.Selected > 0 {
 						s.State.Selected--
 					} else {
@@ -120,7 +120,7 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					if !s.DisableFocus && ctx.SetFocus != nil {
 						ctx.SetFocus(s.ID)
 					}
-				} else if ev.Button == backend.MouseScrollDown {
+				} else if ev.Button == driver.MouseScrollDown {
 					if s.State.Selected < len(s.Options)-1 {
 						s.State.Selected++
 					} else {
@@ -193,12 +193,12 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		if ctx.RegisterMouse != nil {
 			index := i
-			ctx.RegisterMouse(cell.NewRect(ctx.Area.X, y, ctx.Area.Width, 1), func(ev backend.MouseEvent) {
-				if ev.Button == backend.MouseNone {
+			ctx.RegisterMouse(cell.NewRect(ctx.Area.X, y, ctx.Area.Width, 1), func(ev driver.MouseEvent) {
+				if ev.Button == driver.MouseNone {
 					s.State.Hovered = index
 					return
 				}
-				if ev.Button == backend.MouseLeft && !ev.Drag {
+				if ev.Button == driver.MouseLeft && !ev.Drag {
 					s.State.Selected = index
 					s.State.Hovered = -1
 					s.State.Open = false

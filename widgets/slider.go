@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // SliderState stores the current value of a slider.
@@ -34,21 +34,21 @@ func (s *SliderState) Set(value, min, max int) {
 }
 
 // HandleKey adjusts the slider with arrow keys.
-func (s *SliderState) HandleKey(ev backend.KeyEvent, min, max int) bool {
+func (s *SliderState) HandleKey(ev driver.KeyEvent, min, max int) bool {
 	if s == nil {
 		return false
 	}
 	switch ev.Type {
-	case backend.KeyArrowLeft, backend.KeyArrowDown:
+	case driver.KeyArrowLeft, driver.KeyArrowDown:
 		s.Set(s.Value-1, min, max)
 		return true
-	case backend.KeyArrowRight, backend.KeyArrowUp:
+	case driver.KeyArrowRight, driver.KeyArrowUp:
 		s.Set(s.Value+1, min, max)
 		return true
-	case backend.KeyHome:
+	case driver.KeyHome:
 		s.Set(min, min, max)
 		return true
-	case backend.KeyEnd:
+	case driver.KeyEnd:
 		s.Set(max, min, max)
 		return true
 	}
@@ -132,9 +132,9 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				s.OnChange(s.State.Value)
 			}
 		}
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
 			if !s.DisableScroll {
-				if ev.Button == backend.MouseScrollUp {
+				if ev.Button == driver.MouseScrollUp {
 					s.State.Set(s.State.Value+1, s.Min, s.Max)
 					if s.OnChange != nil {
 						s.OnChange(s.State.Value)
@@ -144,7 +144,7 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					}
 					return
 				}
-				if ev.Button == backend.MouseScrollDown {
+				if ev.Button == driver.MouseScrollDown {
 					s.State.Set(s.State.Value-1, s.Min, s.Max)
 					if s.OnChange != nil {
 						s.OnChange(s.State.Value)
@@ -155,7 +155,7 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					return
 				}
 			}
-			if ev.Button != backend.MouseLeft {
+			if ev.Button != driver.MouseLeft {
 				return
 			}
 			if !ev.Drag {
@@ -164,8 +164,8 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 				setValue(ev.X)
 				if ctx.CaptureMouse != nil {
-					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							return
 						}
 						if dragEv.Drag {

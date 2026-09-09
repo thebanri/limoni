@@ -22,9 +22,9 @@ func DetectCapabilities() CapabilityProfile {
 	profile := CapabilityProfile{
 		TrueColor:      false,
 		Colors256:      false,
-		MouseSupport:   true,  // Most modern terminals support mouse reporting
-		BracketedPaste: true,  // Most modern terminals support bracketed paste
-		SyncOutput:     true,  // Synchronized Output (?2026) enables atomic tear-free frames (safely ignored if unsupported)
+		MouseSupport:   true, // Most modern terminals support mouse reporting
+		BracketedPaste: true, // Most modern terminals support bracketed paste
+		SyncOutput:     true, // Synchronized Output (?2026) enables atomic tear-free frames (safely ignored if unsupported)
 		GraphicsProto:  graphics.DetectProtocol(),
 	}
 

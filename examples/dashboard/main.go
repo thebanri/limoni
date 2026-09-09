@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -68,7 +68,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -144,26 +144,26 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				if state.ShowHelp {
-					if ev.Key.Type == backend.KeyEsc || ev.Key.Type == backend.KeyEnter || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == ' ') {
+					if ev.Key.Type == driver.KeyEsc || ev.Key.Type == driver.KeyEnter || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == ' ') {
 						state.ShowHelp = false
 						draw()
 						break
 					}
 				}
 
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
-				if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?' {
+				if ev.Key.Type == driver.KeyRune && ev.Key.Ch == '?' {
 					state.ShowHelp = !state.ShowHelp
 					draw()
 					break
 				}
 
-				if ev.Key.Type == backend.KeyTab {
+				if ev.Key.Type == driver.KeyTab {
 					fm := t.FocusManager()
 					if fm.Focused() == "search_input" {
 						fm.SetFocused("process_table")
@@ -177,7 +177,7 @@ func main() {
 				focused := t.FocusManager().Focused()
 
 				if focused == "search_input" {
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						t.FocusManager().SetFocused("process_table")
 						draw()
 						break
@@ -186,42 +186,42 @@ func main() {
 					state.TableState.Selected = 0
 				} else {
 					filteredCount := len(getFilteredProcesses(state))
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						if state.TableState.Selected > 0 {
 							state.TableState.Selected--
 						} else {
 							t.FocusManager().SetFocused("search_input")
 						}
-					} else if ev.Key.Type == backend.KeyArrowDown {
+					} else if ev.Key.Type == driver.KeyArrowDown {
 						if state.TableState.Selected < filteredCount-1 {
 							state.TableState.Selected++
 						}
-					} else if ev.Key.Type == backend.KeyPageUp {
+					} else if ev.Key.Type == driver.KeyPageUp {
 						state.TableState.Selected -= 10
 						if state.TableState.Selected < 0 {
 							state.TableState.Selected = 0
 						}
-					} else if ev.Key.Type == backend.KeyPageDown {
+					} else if ev.Key.Type == driver.KeyPageDown {
 						state.TableState.Selected += 10
 						if state.TableState.Selected >= filteredCount {
 							state.TableState.Selected = filteredCount - 1
 						}
-					} else if ev.Key.Type == backend.KeyHome {
+					} else if ev.Key.Type == driver.KeyHome {
 						state.TableState.Selected = 0
-					} else if ev.Key.Type == backend.KeyEnd {
+					} else if ev.Key.Type == driver.KeyEnd {
 						state.TableState.Selected = filteredCount - 1
-					} else if ev.Key.Type == backend.KeyRune && ev.Key.Ch == ' ' {
+					} else if ev.Key.Type == driver.KeyRune && ev.Key.Ch == ' ' {
 						if state.TableState.Selected >= 0 && state.TableState.Selected < filteredCount {
 							state.TableState.ToggleRow(state.TableState.Selected)
 						}
-					} else if ev.Key.Type == backend.KeyArrowLeft {
+					} else if ev.Key.Type == driver.KeyArrowLeft {
 						state.TableState.MoveSortColumn(-1, 5)
-					} else if ev.Key.Type == backend.KeyArrowRight {
+					} else if ev.Key.Type == driver.KeyArrowRight {
 						state.TableState.MoveSortColumn(1, 5)
 					}
 				}
 
-				if ev.Key.Type == backend.KeyRune {
+				if ev.Key.Type == driver.KeyRune {
 					switch ev.Key.Ch {
 					case 'm', 'M':
 						state.ChartMode = (state.ChartMode + 1) % 3
@@ -238,11 +238,11 @@ func main() {
 
 				draw()
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				t.RouteMouseEvent(ev.Mouse)
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 

@@ -3,13 +3,13 @@ package widgets
 import (
 	"unicode"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // Keybinding, tek bir klavye kısayolunu ve onun tetiklediği eylemi temsil eder.
 type Keybinding struct {
 	// Key, tuş tipidir (ör: KeyRune, KeyTab, KeyEsc, KeyArrowUp vb.)
-	Key backend.KeyType
+	Key driver.KeyType
 	// Ch, Key == KeyRune ise basılan karakterdir.
 	Ch rune
 	// Ctrl, Ctrl modifikasyonunun gerekli olup olmadığını belirtir.
@@ -48,7 +48,7 @@ func (km *KeybindingManager) Register(kb Keybinding) {
 
 // Handle, gelen tuş olayını aktif odak kapsamları (activeScopes) sırasına göre kontrol eder.
 // Kapsamlar en içtekiden (highest priority) en dıştakine doğru taranır. En son global kapsam kontrol edilir.
-func (km *KeybindingManager) Handle(ev backend.KeyEvent, activeScopes ...string) bool {
+func (km *KeybindingManager) Handle(ev driver.KeyEvent, activeScopes ...string) bool {
 	// Kapsam kontrol sırasını oluştur: en içten en dışa, sonra global ("")
 	scopesToCheck := make([]string, 0, len(activeScopes)+1)
 	for i := len(activeScopes) - 1; i >= 0; i-- {
@@ -76,13 +76,13 @@ func (km *KeybindingManager) Handle(ev backend.KeyEvent, activeScopes ...string)
 			if kb.Key != ev.Type {
 				continue
 			}
-			if kb.Key == backend.KeyRune && kb.Ch != ev.Ch {
+			if kb.Key == driver.KeyRune && kb.Ch != ev.Ch {
 				continue
 			}
 			if kb.Ctrl != ev.Ctrl {
 				continue
 			}
-			if kb.Key != backend.KeyRune && kb.Shift != ev.Shift {
+			if kb.Key != driver.KeyRune && kb.Shift != ev.Shift {
 				continue
 			}
 			if kb.Handler != nil {
@@ -130,25 +130,25 @@ func formatKeybinding(kb Keybinding) string {
 	}
 
 	switch kb.Key {
-	case backend.KeyRune:
+	case driver.KeyRune:
 		s += string(unicode.ToUpper(kb.Ch))
-	case backend.KeyTab:
+	case driver.KeyTab:
 		s += "Tab"
-	case backend.KeyEsc:
+	case driver.KeyEsc:
 		s += "Esc"
-	case backend.KeyEnter:
+	case driver.KeyEnter:
 		s += "Enter"
-	case backend.KeySpace:
+	case driver.KeySpace:
 		s += "Space"
-	case backend.KeyBackspace:
+	case driver.KeyBackspace:
 		s += "Backspace"
-	case backend.KeyArrowUp:
+	case driver.KeyArrowUp:
 		s += "↑"
-	case backend.KeyArrowDown:
+	case driver.KeyArrowDown:
 		s += "↓"
-	case backend.KeyArrowLeft:
+	case driver.KeyArrowLeft:
 		s += "←"
-	case backend.KeyArrowRight:
+	case driver.KeyArrowRight:
 		s += "→"
 	default:
 		s += "?"

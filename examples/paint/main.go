@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -509,7 +509,7 @@ func (app *PaintApp) computePreviewDots() map[int]byte {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -800,14 +800,14 @@ func main() {
 
 	for ev := range b.Events() {
 		switch ev.Type {
-		case backend.EventKey:
+		case driver.EventKey:
 			if app.ShowModal {
-				if ev.Key.Type == backend.KeyEsc {
+				if ev.Key.Type == driver.KeyEsc {
 					app.ShowModal = false
 					draw()
 					break
 				}
-				if ev.Key.Type == backend.KeyEnter {
+				if ev.Key.Type == driver.KeyEnter {
 					chosen := app.ColorPickerState.Color()
 					app.CustomColor = chosen
 					app.ActiveColor = chosen
@@ -822,7 +822,7 @@ func main() {
 				break
 			}
 
-			if ev.Key.Type == backend.KeyEsc {
+			if ev.Key.Type == driver.KeyEsc {
 				if app.IsDragging {
 					app.IsDragging = false
 					draw()
@@ -830,12 +830,12 @@ func main() {
 				}
 				return
 			}
-			if ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q' {
+			if ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q' {
 				return
 			}
 
 			// Number hotkeys for Swatches (1-9, 0)
-			if ev.Key.Type == backend.KeyRune && ev.Key.Ch >= '1' && ev.Key.Ch <= '9' {
+			if ev.Key.Type == driver.KeyRune && ev.Key.Ch >= '1' && ev.Key.Ch <= '9' {
 				idx := int(ev.Key.Ch - '1')
 				app.SelectedIdx = idx
 				app.ActiveColor = defaultSwatches[idx].Color
@@ -845,7 +845,7 @@ func main() {
 				draw()
 				break
 			}
-			if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '0' {
+			if ev.Key.Type == driver.KeyRune && ev.Key.Ch == '0' {
 				app.SelectedIdx = 9
 				app.ActiveColor = defaultSwatches[9].Color
 				if app.ActiveTool == ToolEraser {
@@ -856,15 +856,15 @@ func main() {
 			}
 
 			// Brush Size keys: [ and ]
-			if ev.Key.Type == backend.KeyRune && ev.Key.Ch == '[' && app.BrushSize > 1 {
+			if ev.Key.Type == driver.KeyRune && ev.Key.Ch == '[' && app.BrushSize > 1 {
 				app.BrushSize--
 			}
-			if ev.Key.Type == backend.KeyRune && ev.Key.Ch == ']' && app.BrushSize < 8 {
+			if ev.Key.Type == driver.KeyRune && ev.Key.Ch == ']' && app.BrushSize < 8 {
 				app.BrushSize++
 			}
 
 			// Tool Hotkeys
-			if ev.Key.Type == backend.KeyRune {
+			if ev.Key.Type == driver.KeyRune {
 				switch ev.Key.Ch {
 				case 'b', 'B':
 					app.ActiveTool = ToolBrush
@@ -932,22 +932,22 @@ func main() {
 			}
 
 			// Cursor Navigation
-			if ev.Key.Type == backend.KeyArrowUp && app.CursorY > 0 {
+			if ev.Key.Type == driver.KeyArrowUp && app.CursorY > 0 {
 				app.CursorY--
 				if app.IsDragging {
 					app.DragCurrentY = app.CursorY
 				}
-			} else if ev.Key.Type == backend.KeyArrowDown && app.CursorY < app.Canvas.VirtHeight-1 {
+			} else if ev.Key.Type == driver.KeyArrowDown && app.CursorY < app.Canvas.VirtHeight-1 {
 				app.CursorY++
 				if app.IsDragging {
 					app.DragCurrentY = app.CursorY
 				}
-			} else if ev.Key.Type == backend.KeyArrowLeft && app.CursorX > 0 {
+			} else if ev.Key.Type == driver.KeyArrowLeft && app.CursorX > 0 {
 				app.CursorX--
 				if app.IsDragging {
 					app.DragCurrentX = app.CursorX
 				}
-			} else if ev.Key.Type == backend.KeyArrowRight && app.CursorX < app.Canvas.VirtWidth-1 {
+			} else if ev.Key.Type == driver.KeyArrowRight && app.CursorX < app.Canvas.VirtWidth-1 {
 				app.CursorX++
 				if app.IsDragging {
 					app.DragCurrentX = app.CursorX
@@ -956,7 +956,7 @@ func main() {
 
 			draw()
 
-		case backend.EventMouse:
+		case driver.EventMouse:
 			m := ev.Mouse
 			mx, my := int(m.X), int(m.Y)
 
@@ -1003,7 +1003,7 @@ func main() {
 				app.CursorX = vx
 				app.CursorY = vy
 
-				if m.Button == backend.MouseLeft {
+				if m.Button == driver.MouseLeft {
 					switch app.ActiveTool {
 					case ToolBrush:
 						if !app.IsMouseDown {
@@ -1038,7 +1038,7 @@ func main() {
 					}
 					draw()
 
-				} else if m.Button == backend.MouseRelease {
+				} else if m.Button == driver.MouseRelease {
 					app.IsMouseDown = false
 					if app.IsDragging {
 						app.Canvas.SaveUndo()
@@ -1059,7 +1059,7 @@ func main() {
 				}
 			}
 
-		case backend.EventResize:
+		case driver.EventResize:
 			draw()
 		}
 	}

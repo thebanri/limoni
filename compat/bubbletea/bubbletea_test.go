@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 )
 
@@ -48,9 +48,9 @@ func TestBubbleTeaAdapterBasic(t *testing.T) {
 	}
 
 	// 2. Simulate key press '+'
-	keyMsg := runtime.KeyPressMsg{
-		Key: backend.KeyEvent{
-			Type: backend.KeyRune,
+	keyMsg := engine.KeyPressMsg{
+		Key: driver.KeyEvent{
+			Type: driver.KeyRune,
 			Ch:   '+',
 		},
 	}

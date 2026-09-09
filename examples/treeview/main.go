@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -301,7 +301,7 @@ func (s *SuperfileState) UpdatePreview() {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -730,8 +730,8 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
-				if ev.Key.Type == backend.KeyRune {
+			case driver.EventKey:
+				if ev.Key.Type == driver.KeyRune {
 					switch ev.Key.Ch {
 					case 'q', 'Q':
 						return
@@ -769,21 +769,21 @@ func main() {
 					draw()
 				}
 				switch ev.Key.Type {
-				case backend.KeyEsc:
+				case driver.KeyEsc:
 					return
-				case backend.KeyArrowDown:
+				case driver.KeyArrowDown:
 					if state.SelectedIndex < len(state.Items)-1 {
 						state.SelectedIndex++
 						state.UpdatePreview()
 						draw()
 					}
-				case backend.KeyArrowUp:
+				case driver.KeyArrowUp:
 					if state.SelectedIndex > 0 {
 						state.SelectedIndex--
 						state.UpdatePreview()
 						draw()
 					}
-				case backend.KeyEnter:
+				case driver.KeyEnter:
 					if len(state.Items) > 0 && state.SelectedIndex >= 0 && state.SelectedIndex < len(state.Items) {
 						sel := state.Items[state.SelectedIndex]
 						if sel.IsDir {
@@ -791,31 +791,31 @@ func main() {
 							draw()
 						}
 					}
-				case backend.KeyBackspace:
+				case driver.KeyBackspace:
 					parent := filepath.Dir(state.CurrentDir)
 					if parent != state.CurrentDir {
 						state.LoadDirectory(parent)
 						draw()
 					}
-				case backend.KeyPageDown:
+				case driver.KeyPageDown:
 					state.SelectedIndex += 10
 					if state.SelectedIndex >= len(state.Items) {
 						state.SelectedIndex = len(state.Items) - 1
 					}
 					state.UpdatePreview()
 					draw()
-				case backend.KeyPageUp:
+				case driver.KeyPageUp:
 					state.SelectedIndex -= 10
 					if state.SelectedIndex < 0 {
 						state.SelectedIndex = 0
 					}
 					state.UpdatePreview()
 					draw()
-				case backend.KeyHome:
+				case driver.KeyHome:
 					state.SelectedIndex = 0
 					state.UpdatePreview()
 					draw()
-				case backend.KeyEnd:
+				case driver.KeyEnd:
 					if len(state.Items) > 0 {
 						state.SelectedIndex = len(state.Items) - 1
 						state.UpdatePreview()
@@ -823,9 +823,9 @@ func main() {
 					}
 				}
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				m := ev.Mouse
-				if m.Button == backend.MouseLeft {
+				if m.Button == driver.MouseLeft {
 					// Check Sidebar Bookmark Click
 					if m.X >= sideRect.X && m.X < sideRect.X+sideRect.Width &&
 						m.Y >= sideRect.Y+1 && m.Y < sideRect.Y+sideRect.Height {
@@ -850,13 +850,13 @@ func main() {
 							draw()
 						}
 					}
-				} else if m.Button == backend.MouseScrollUp {
+				} else if m.Button == driver.MouseScrollUp {
 					if state.SelectedIndex > 0 {
 						state.SelectedIndex--
 						state.UpdatePreview()
 						draw()
 					}
-				} else if m.Button == backend.MouseScrollDown {
+				} else if m.Button == driver.MouseScrollDown {
 					if state.SelectedIndex < len(state.Items)-1 {
 						state.SelectedIndex++
 						state.UpdatePreview()
@@ -865,7 +865,7 @@ func main() {
 				}
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 		}

@@ -32,8 +32,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/thebanri/limoni/core/backend"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -42,20 +42,20 @@ type model struct {
 	presses int
 }
 
-func (m *model) Init() []runtime.Cmd { return nil }
+func (m *model) Init() []engine.Cmd { return nil }
 
-func (m *model) Update(msg runtime.Msg) runtime.UpdateResult {
+func (m *model) Update(msg engine.Msg) engine.UpdateResult {
 	switch ev := msg.(type) {
-	case runtime.KeyPressMsg:
-		if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
-			return runtime.UpdateResult{Quit: true}
+	case engine.KeyPressMsg:
+		if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
+			return engine.UpdateResult{Quit: true}
 		}
 		m.presses++
-		return runtime.UpdateResult{Redraw: true}
-	case runtime.ResizeMsg:
-		return runtime.UpdateResult{Redraw: true}
+		return engine.UpdateResult{Redraw: true}
+	case engine.ResizeMsg:
+		return engine.UpdateResult{Redraw: true}
 	}
-	return runtime.UpdateResult{}
+	return engine.UpdateResult{}
 }
 
 func (m *model) View(f *terminal.Frame) {
@@ -73,14 +73,14 @@ func (m *model) View(f *terminal.Frame) {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	term, err := terminal.New(b)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "limoni:", err)
 		os.Exit(1)
 	}
 
-	program := runtime.New(runtime.WithModel(&model{}), runtime.WithFPS(60))
+	program := engine.New(engine.WithModel(&model{}), engine.WithFPS(60))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -111,7 +111,7 @@ go run .
 
 ## Yapı
 
-- ` + "`main.go`" + ` — ` + "`runtime.Model`" + ` arayüzünü uygulayan Init/Update/View döngüsü.
+- ` + "`main.go`" + ` — ` + "`engine.Model`" + ` arayüzünü uygulayan Init/Update/View döngüsü.
 - Klavye: ` + "`q`" + ` veya ` + "`Esc`" + ` çıkış.
 
 ## Sonraki adımlar

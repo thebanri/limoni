@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/animation"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -15,8 +15,8 @@ import (
 // Çift tampon yönetimini (Front/Back Buffer), ekran boyutu değişikliklerini,
 // senkron ekran yenileme protokolünü (?2026) ve fare olaylarının doğru hedeflere yönlendirilmesini koordine eder.
 type Terminal struct {
-	// backend, düşük seviyeli TTY Raw Mode ve I/O işlemlerini yöneten katmandır.
-	backend *backend.Backend
+	// driver, düşük seviyeli TTY Raw Mode ve I/O işlemlerini yöneten katmandır.
+	driver *driver.Driver
 
 	// front, mevcut çizim karesinde üzerine yazılan aktif tampondur.
 	front *buffer.Buffer
@@ -46,7 +46,7 @@ type Terminal struct {
 	debugMode bool
 
 	// mouseCaptureHandler, o an aktif olan fare sürükleme (capture) olay yöneticisidir.
-	mouseCaptureHandler func(ev backend.MouseEvent)
+	mouseCaptureHandler func(ev driver.MouseEvent)
 
 	// lastLayersHash, bir önceki karedeki katmanların (modal/layers) durum özetidir.
 	lastLayersHash string
@@ -60,7 +60,7 @@ type Terminal struct {
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
-func New(b *backend.Backend) (*Terminal, error) {
+func New(b *driver.Backend) (*Terminal, error) {
 	// Terminalin başlangıç satır ve sütun boyutunu al
 	w, h, err := b.Size()
 	if err != nil {
@@ -77,7 +77,7 @@ func New(b *backend.Backend) (*Terminal, error) {
 	focusMgr := NewFocusManager()
 
 	return &Terminal{
-		backend:  b,
+		driver:   b,
 		front:    front,
 		back:     back,
 		frame:    NewFrame(front, focusMgr),
@@ -86,33 +86,38 @@ func New(b *backend.Backend) (*Terminal, error) {
 	}, nil
 }
 
-// Close restores the terminal state and closes the underlying backend.
+// Close restores the terminal state and closes the underlying driver.
 func (t *Terminal) Close() error {
-	if t.backend != nil {
-		return t.backend.Close()
+	if t.driver != nil {
+		return t.driver.Close()
 	}
 	return nil
 }
 
-// Backend returns the underlying backend instance.
-func (t *Terminal) Backend() *backend.Backend {
-	return t.backend
+// Driver returns the underlying driver instance.
+func (t *Terminal) Driver() *driver.Driver {
+	return t.driver
 }
 
-// Events returns the channel of incoming events from the backend.
-func (t *Terminal) Events() <-chan backend.Event {
-	if t.backend == nil {
+// Backend returns the underlying driver instance (backward compatibility alias).
+func (t *Terminal) Backend() *driver.Driver {
+	return t.driver
+}
+
+// Events returns the channel of incoming events from the driver.
+func (t *Terminal) Events() <-chan driver.Event {
+	if t.driver == nil {
 		return nil
 	}
-	return t.backend.Events()
+	return t.driver.Events()
 }
 
-// PollEvent waits for and returns the next event from the backend.
-func (t *Terminal) PollEvent() backend.Event {
-	if t.backend == nil {
-		return backend.Event{}
+// PollEvent waits for and returns the next event from the driver.
+func (t *Terminal) PollEvent() driver.Event {
+	if t.driver == nil {
+		return driver.Event{}
 	}
-	return <-t.backend.Events()
+	return <-t.driver.Events()
 }
 
 // LastFrameDuration returns the rendering and draw duration of the last frame.
@@ -130,15 +135,14 @@ func (t *Terminal) Capabilities() CapabilityProfile {
 	return t.caps
 }
 
-// Draw, çizim döngüsünü başlatır. Boyut değişimlerini algılar, güncel tamponu temizler,
-// çizim callback fonksiyonunu (fn) çalıştırır, diff hesaplamasını yapar ve tek bir senkron I/O çağrısıyla
-// değişen kısımları terminale yazar.
-//
-// Performans: Sıfır-Tahsisat (Zero-Allocation) tasarımı sayesinde bu fonksiyon düzenli çalışmada heap bellek harcamaz.
+// Draw initiates a frame drawing pass. It detects terminal resize, clears the front buffer,
+// executes the user draw callback fn, computes the differential ANSI stream, and writes changes
+// in a single synchronized I/O pass.
+// Performance: Employs a zero-allocation design on steady-state redraw passes.
 func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t0 := time.Now()
 	// Güncel ekran boyutunu sorgula
-	w, h, err := t.backend.Size()
+	w, h, err := t.driver.Size()
 	if err != nil {
 		return err
 	}
@@ -202,7 +206,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// Resim ve metin çıktısını aynı senkron güncelleme içinde üret. Böylece
 	// tam ekran temizleme ile native resim arasında görünür bir ara kare oluşmaz.
 	if t.caps.SyncOutput {
-		t.backend.StartSyncUpdate()
+		t.driver.StartSyncUpdate()
 	}
 
 	// Tam yeniden çizimde buffer.Diff'in sonradan göndereceği ESC[2J,
@@ -211,7 +215,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	needsFullClear := sizeChanged
 	if needsFullClear {
 		t.back.Resize(t.front.Area)
-		t.backend.Write([]byte("\x1b[2J"))
+		t.driver.Write([]byte("\x1b[2J"))
 	}
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
@@ -219,7 +223,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	if proto != graphics.ProtocolHalfBlock {
 		imageRegions := t.clippedImageRegions()
 		if len(imageRegions) > 0 {
-			cellW, cellH, _ := t.backend.CellPixelSize()
+			cellW, cellH, _ := t.driver.CellPixelSize()
 
 			imagesChanged := needsFullClear || layersChanged
 			if !imagesChanged {
@@ -238,7 +242,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 			if imagesChanged {
 				if proto == graphics.ProtocolKitty {
-					t.backend.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
+					t.driver.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
 				}
 
 				for _, reg := range imageRegions {
@@ -249,7 +253,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, zIndex, reg.Transparent)
 					if escSeq != "" {
 						moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
-						t.backend.Write([]byte(moveCursor + escSeq))
+						t.driver.Write([]byte(moveCursor + escSeq))
 					}
 				}
 
@@ -260,7 +264,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		} else {
 			if t.lastImageCount > 0 {
 				if proto == graphics.ProtocolKitty {
-					t.backend.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
+					t.driver.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
 				}
 				t.lastImageCount = 0
 				t.lastDrawnImages = nil
@@ -275,21 +279,21 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf, t.caps.TrueColor, t.caps.Colors256)
 	if diffErr != nil {
 		if t.caps.SyncOutput {
-			t.backend.EndSyncUpdate()
+			t.driver.EndSyncUpdate()
 		}
 		return diffErr
 	}
 
 	if len(t.writeBuf) > 0 {
-		if _, err := t.backend.Write(t.writeBuf); err != nil {
+		if _, err := t.driver.Write(t.writeBuf); err != nil {
 			if t.caps.SyncOutput {
-				t.backend.EndSyncUpdate()
+				t.driver.EndSyncUpdate()
 			}
 			return err
 		}
 	}
 	if t.caps.SyncOutput {
-		t.backend.EndSyncUpdate()
+		t.driver.EndSyncUpdate()
 	}
 
 	dur := time.Since(t0)
@@ -369,12 +373,12 @@ func (t *Terminal) IsTransitionActive() bool {
 // en son çizilen karedeki kayıtlı tıklama bölgeleriyle karşılaştırarak ilgili callback'e yönlendirir.
 // Katmanlı render sistemi: En üstteki katmandaki bölgeler önceliklidir.
 // Olay bir bölgeyle eşleşip tetiklendiyse `true`, eşleşmediyse `false` döner.
-func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
+func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 	// 0. Fare yakalama (mouse capture) kontrolü önce çalışır; drag/release
 	// olayları propagation bölgelerinden bağımsız olarak capture handler'a gider.
 	if t.mouseCaptureHandler != nil {
 		t.mouseCaptureHandler(ev)
-		if ev.Button == backend.MouseRelease {
+		if ev.Button == driver.MouseRelease {
 			t.mouseCaptureHandler = nil
 		}
 		return true
@@ -382,13 +386,13 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 
 	// MouseRelease capture tarafından yukarıda tüketilir. Normal click bölgeleri
 	// yalnızca sol tuş basışını, mouse bölgeleri ise hover (MouseNone) olaylarını alır.
-	if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+	if ev.Button != driver.MouseLeft && ev.Button != driver.MouseNone && ev.Button != driver.MouseScrollUp && ev.Button != driver.MouseScrollDown {
 		return false
 	}
-	if ev.Button == backend.MouseLeft && ev.Drag {
+	if ev.Button == driver.MouseLeft && ev.Drag {
 		return false
 	}
-	if ev.Button == backend.MouseNone {
+	if ev.Button == driver.MouseNone {
 		t.frame.DispatchPointerMove(ev)
 	}
 
@@ -411,7 +415,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 				// Tıklama en üst katmanın içinde: Sadece o katmanın bölgelerini kontrol et
 				for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 					reg := t.frame.ClickRegions[i]
-					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == backend.MouseNone || ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown) || ev.Button == backend.MouseLeft) {
+					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
 						reg.Handler(ev)
 						if t.frame.mouseCaptureRequest != nil {
 							t.mouseCaptureHandler = t.frame.mouseCaptureRequest
@@ -429,7 +433,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 				}
 			} else {
 				// En üst katmanın dışına tıklandı → ClickOutside tetikle (sadece sol tıklama basınçlarında)
-				if ev.Button == backend.MouseLeft && !ev.Drag && topLayer.ClickOutside != nil {
+				if ev.Button == driver.MouseLeft && !ev.Drag && topLayer.ClickOutside != nil {
 					topLayer.ClickOutside()
 				}
 				return true // Tıklamayı yut
@@ -444,7 +448,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 			// Modal içinde: LayerID'si boş olan (kök) veya modal ile aynı ID olan bölgeleri ara
 			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 				reg := t.frame.ClickRegions[i]
-				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == backend.MouseNone || ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown) || ev.Button == backend.MouseLeft) {
+				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
 					reg.Handler(ev)
 					if t.frame.mouseCaptureRequest != nil {
 						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
@@ -456,7 +460,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 			return true // Modal içinde ama boşluğa tıklandı, olayı yut
 		} else {
 			// Modal dışı tıklama (sadece sol tıklama basınçlarında)
-			if ev.Button == backend.MouseLeft && !ev.Drag && modal.ClickOutside != nil {
+			if ev.Button == driver.MouseLeft && !ev.Drag && modal.ClickOutside != nil {
 				modal.ClickOutside()
 			}
 			return true
@@ -466,7 +470,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 	// 3. Normal (katmansız) tıklama yönlendirme döngüsü
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		reg := t.frame.ClickRegions[i]
-		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == backend.MouseNone || ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown) || ev.Button == backend.MouseLeft) {
+		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
 			reg.Handler(ev)
 			if t.frame.mouseCaptureRequest != nil {
 				t.mouseCaptureHandler = t.frame.mouseCaptureRequest
@@ -478,7 +482,7 @@ func (t *Terminal) RouteMouseEvent(ev backend.MouseEvent) bool {
 	return false
 }
 
-func (t *Terminal) dispatchEventRegions(ev backend.MouseEvent) bool {
+func (t *Terminal) dispatchEventRegions(ev driver.MouseEvent) bool {
 	return t.frame.DispatchEventRegions(ev)
 }
 
@@ -677,5 +681,3 @@ func (t *Terminal) Layers() []Layer {
 	copy(layers, t.frame.Layers)
 	return layers
 }
-
-

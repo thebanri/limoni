@@ -3,7 +3,7 @@ package cell
 import (
 	"image"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // Context represents the stack-allocated drawing context passed down to widgets.
@@ -22,13 +22,13 @@ type Context struct {
 	RegisterClick func(area Rect, handler func())
 
 	// RegisterMouse allows widgets to capture drag and advanced mouse events.
-	RegisterMouse func(area Rect, handler func(ev backend.MouseEvent))
+	RegisterMouse func(area Rect, handler func(ev driver.MouseEvent))
 
 	// RegisterEvent registers a capture/target/bubble propagation handler.
-	RegisterEvent func(area Rect, phase backend.EventPhase, handler func(*backend.EventContext))
+	RegisterEvent func(area Rect, phase driver.EventPhase, handler func(*driver.EventContext))
 
 	// CaptureMouse allows widgets to temporarily lock mouse input exclusively.
-	CaptureMouse func(handler func(ev backend.MouseEvent))
+	CaptureMouse func(handler func(ev driver.MouseEvent))
 
 	// RegisterImage allows widgets to register image rendering requests during the draw pass.
 	RegisterImage func(area Rect, img image.Image, zIndex int, transparent bool) bool

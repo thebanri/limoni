@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // DefaultPalette contains curated modern RGB colors.
@@ -122,7 +122,7 @@ func (s *ColorPickerState) syncHex() {
 }
 
 // HandleKey handles keyboard navigation (Arrow keys, Tab, Enter, Backspace).
-func (s *ColorPickerState) HandleKey(ev backend.KeyEvent, palette []cell.Color) bool {
+func (s *ColorPickerState) HandleKey(ev driver.KeyEvent, palette []cell.Color) bool {
 	if s == nil {
 		return false
 	}
@@ -130,7 +130,7 @@ func (s *ColorPickerState) HandleKey(ev backend.KeyEvent, palette []cell.Color) 
 		palette = DefaultPalette
 	}
 
-	if ev.Type == backend.KeyTab {
+	if ev.Type == driver.KeyTab {
 		s.ActiveMode = (s.ActiveMode + 1) % 4
 		return true
 	}
@@ -138,56 +138,56 @@ func (s *ColorPickerState) HandleKey(ev backend.KeyEvent, palette []cell.Color) 
 	switch s.ActiveMode {
 	case 0: // 2D Sat/Val Plane
 		switch ev.Type {
-		case backend.KeyArrowRight:
+		case driver.KeyArrowRight:
 			s.SetHSV(s.Hue, s.Sat+0.05, s.Val)
 			return true
-		case backend.KeyArrowLeft:
+		case driver.KeyArrowLeft:
 			s.SetHSV(s.Hue, s.Sat-0.05, s.Val)
 			return true
-		case backend.KeyArrowUp:
+		case driver.KeyArrowUp:
 			s.SetHSV(s.Hue, s.Sat, s.Val+0.05)
 			return true
-		case backend.KeyArrowDown:
+		case driver.KeyArrowDown:
 			s.SetHSV(s.Hue, s.Sat, s.Val-0.05)
 			return true
 		}
 
 	case 1: // Hue Bar
 		switch ev.Type {
-		case backend.KeyArrowDown, backend.KeyArrowRight:
+		case driver.KeyArrowDown, driver.KeyArrowRight:
 			s.SetHSV(s.Hue+10.0, s.Sat, s.Val)
 			return true
-		case backend.KeyArrowUp, backend.KeyArrowLeft:
+		case driver.KeyArrowUp, driver.KeyArrowLeft:
 			s.SetHSV(s.Hue-10.0, s.Sat, s.Val)
 			return true
 		}
 
 	case 2: // RGB Sliders
 		switch ev.Type {
-		case backend.KeyArrowDown:
+		case driver.KeyArrowDown:
 			s.ActiveSlider = (s.ActiveSlider + 1) % 3
 			return true
-		case backend.KeyArrowUp:
+		case driver.KeyArrowUp:
 			s.ActiveSlider = (s.ActiveSlider - 1 + 3) % 3
 			return true
-		case backend.KeyArrowRight:
+		case driver.KeyArrowRight:
 			s.adjustSlider(5)
 			return true
-		case backend.KeyArrowLeft:
+		case driver.KeyArrowLeft:
 			s.adjustSlider(-5)
 			return true
 		}
 
 	case 3: // Hex Input
-		if ev.Type == backend.KeyBackspace {
+		if ev.Type == driver.KeyBackspace {
 			if len(s.HexInput) > 0 {
 				s.HexInput = s.HexInput[:len(s.HexInput)-1]
 				return true
 			}
-		} else if ev.Type == backend.KeyEnter {
+		} else if ev.Type == driver.KeyEnter {
 			s.SetHex(s.HexInput)
 			return true
-		} else if ev.Type == backend.KeyRune {
+		} else if ev.Type == driver.KeyRune {
 			r := ev.Ch
 			if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') {
 				if len(s.HexInput) < 6 {
@@ -325,8 +325,8 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.RegisterMouse != nil && cp.State != nil {
 		st := cp.State
 		fieldArea := cell.Rect{X: area.X, Y: contentY, Width: uint16(fieldW), Height: uint16(fieldH)}
-		ctx.RegisterMouse(fieldArea, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseLeft || ev.Drag {
+		ctx.RegisterMouse(fieldArea, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseLeft || ev.Drag {
 				relX := int(ev.X) - int(fieldArea.X)
 				relY := int(ev.Y) - int(fieldArea.Y)
 				if relX < 0 {
@@ -372,8 +372,8 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.RegisterMouse != nil && cp.State != nil {
 		st := cp.State
 		hueArea := cell.Rect{X: hueBarX, Y: contentY, Width: 3, Height: uint16(fieldH)}
-		ctx.RegisterMouse(hueArea, func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseLeft || ev.Drag {
+		ctx.RegisterMouse(hueArea, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseLeft || ev.Drag {
 				relY := int(ev.Y) - int(hueArea.Y)
 				if relY < 0 {
 					relY = 0

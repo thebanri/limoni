@@ -3,7 +3,7 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestKeybindingManager_New(t *testing.T) {
@@ -18,8 +18,8 @@ func TestKeybindingManager_New(t *testing.T) {
 
 func TestKeybindingManager_Register(t *testing.T) {
 	km := NewKeybindingManager()
-	km.Register(Keybinding{Key: backend.KeyRune, Ch: 'p', Ctrl: true, Label: "Palet", Category: "Genel"})
-	km.Register(Keybinding{Key: backend.KeyEsc, Label: "Kapat", Category: "Genel"})
+	km.Register(Keybinding{Key: driver.KeyRune, Ch: 'p', Ctrl: true, Label: "Palet", Category: "Genel"})
+	km.Register(Keybinding{Key: driver.KeyEsc, Label: "Kapat", Category: "Genel"})
 
 	if len(km.AllBindings()) != 2 {
 		t.Fatalf("AllBindings uzunluğu = %d; 2 bekleniyordu", len(km.AllBindings()))
@@ -30,12 +30,12 @@ func TestKeybindingManager_Handle_Rune(t *testing.T) {
 	km := NewKeybindingManager()
 	ran := false
 	km.Register(Keybinding{
-		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
+		Key: driver.KeyRune, Ch: 'p', Ctrl: true,
 		Handler: func() { ran = true },
 	})
 
 	// Eşleşen tuş
-	if !km.Handle(backend.KeyEvent{Type: backend.KeyRune, Ch: 'p', Ctrl: true}) {
+	if !km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p', Ctrl: true}) {
 		t.Fatal("eşleşen kısayol true dönmeli")
 	}
 	if !ran {
@@ -44,7 +44,7 @@ func TestKeybindingManager_Handle_Rune(t *testing.T) {
 
 	// Yanlış karakter
 	ran = false
-	if km.Handle(backend.KeyEvent{Type: backend.KeyRune, Ch: 'x', Ctrl: true}) {
+	if km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'x', Ctrl: true}) {
 		t.Fatal("eşleşmeyen karakter false dönmeli")
 	}
 	if ran {
@@ -52,7 +52,7 @@ func TestKeybindingManager_Handle_Rune(t *testing.T) {
 	}
 
 	// Ctrl eksik
-	if km.Handle(backend.KeyEvent{Type: backend.KeyRune, Ch: 'p'}) {
+	if km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p'}) {
 		t.Fatal("Ctrl'suz tuş eşleşmemeli")
 	}
 }
@@ -61,11 +61,11 @@ func TestKeybindingManager_Handle_SpecialKey(t *testing.T) {
 	km := NewKeybindingManager()
 	ran := false
 	km.Register(Keybinding{
-		Key:     backend.KeyEsc,
+		Key:     driver.KeyEsc,
 		Handler: func() { ran = true },
 	})
 
-	if !km.Handle(backend.KeyEvent{Type: backend.KeyEsc}) {
+	if !km.Handle(driver.KeyEvent{Type: driver.KeyEsc}) {
 		t.Fatal("Esc eşleşmeli")
 	}
 	if !ran {
@@ -73,7 +73,7 @@ func TestKeybindingManager_Handle_SpecialKey(t *testing.T) {
 	}
 
 	// Farklı tuş eşleşmemeli
-	if km.Handle(backend.KeyEvent{Type: backend.KeyEnter}) {
+	if km.Handle(driver.KeyEvent{Type: driver.KeyEnter}) {
 		t.Fatal("Enter Esc kısayoluyla eşleşmemeli")
 	}
 }
@@ -82,11 +82,11 @@ func TestKeybindingManager_Handle_Shift(t *testing.T) {
 	km := NewKeybindingManager()
 	ran := false
 	km.Register(Keybinding{
-		Key: backend.KeyTab, Shift: true,
+		Key: driver.KeyTab, Shift: true,
 		Handler: func() { ran = true },
 	})
 
-	if !km.Handle(backend.KeyEvent{Type: backend.KeyTab, Shift: true}) {
+	if !km.Handle(driver.KeyEvent{Type: driver.KeyTab, Shift: true}) {
 		t.Fatal("Shift+Tab eşleşmeli")
 	}
 	if !ran {
@@ -95,7 +95,7 @@ func TestKeybindingManager_Handle_Shift(t *testing.T) {
 
 	// Shift'siz Tab eşleşmemeli
 	ran = false
-	if km.Handle(backend.KeyEvent{Type: backend.KeyTab}) {
+	if km.Handle(driver.KeyEvent{Type: driver.KeyTab}) {
 		t.Fatal("Shift'siz Tab eşleşmemeli")
 	}
 	if ran {
@@ -107,15 +107,15 @@ func TestKeybindingManager_Handle_FirstMatchWins(t *testing.T) {
 	km := NewKeybindingManager()
 	firstRan, secondRan := false, false
 	km.Register(Keybinding{
-		Key: backend.KeyRune, Ch: 'a',
+		Key: driver.KeyRune, Ch: 'a',
 		Handler: func() { firstRan = true },
 	})
 	km.Register(Keybinding{
-		Key: backend.KeyRune, Ch: 'a',
+		Key: driver.KeyRune, Ch: 'a',
 		Handler: func() { secondRan = true },
 	})
 
-	km.Handle(backend.KeyEvent{Type: backend.KeyRune, Ch: 'a'})
+	km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'a'})
 	if !firstRan {
 		t.Fatal("ilk kayıtlı handler çalışmalı")
 	}
@@ -126,9 +126,9 @@ func TestKeybindingManager_Handle_FirstMatchWins(t *testing.T) {
 
 func TestKeybindingManager_Handle_NoMatch(t *testing.T) {
 	km := NewKeybindingManager()
-	km.Register(Keybinding{Key: backend.KeyRune, Ch: 'q', Ctrl: true})
+	km.Register(Keybinding{Key: driver.KeyRune, Ch: 'q', Ctrl: true})
 
-	if km.Handle(backend.KeyEvent{Type: backend.KeyArrowUp}) {
+	if km.Handle(driver.KeyEvent{Type: driver.KeyArrowUp}) {
 		t.Fatal("kayıtlı olmayan tuş false dönmeli")
 	}
 }
@@ -136,12 +136,12 @@ func TestKeybindingManager_Handle_NoMatch(t *testing.T) {
 func TestKeybindingManager_ToCommandItems(t *testing.T) {
 	km := NewKeybindingManager()
 	km.Register(Keybinding{
-		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
+		Key: driver.KeyRune, Ch: 'p', Ctrl: true,
 		Label: "Komut Paletini Aç/Kapa", Category: "Genel",
 		Handler: func() {},
 	})
 	// Label'sız kısayollar CommandItem'a dönüşmemeli
-	km.Register(Keybinding{Key: backend.KeyEsc, Handler: func() {}})
+	km.Register(Keybinding{Key: driver.KeyEsc, Handler: func() {}})
 
 	items := km.ToCommandItems()
 	if len(items) != 1 {
@@ -167,18 +167,18 @@ func TestFormatKeybinding(t *testing.T) {
 		kb   Keybinding
 		want string
 	}{
-		{"rune", Keybinding{Key: backend.KeyRune, Ch: 'p', Ctrl: true}, "Ctrl+P"},
-		{"rune shift", Keybinding{Key: backend.KeyRune, Ch: 'n', Ctrl: true, Shift: true}, "Ctrl+Shift+N"},
-		{"tab", Keybinding{Key: backend.KeyTab}, "Tab"},
-		{"esc", Keybinding{Key: backend.KeyEsc}, "Esc"},
-		{"enter", Keybinding{Key: backend.KeyEnter}, "Enter"},
-		{"space", Keybinding{Key: backend.KeySpace}, "Space"},
-		{"backspace", Keybinding{Key: backend.KeyBackspace}, "Backspace"},
-		{"arrow up", Keybinding{Key: backend.KeyArrowUp}, "↑"},
-		{"arrow down", Keybinding{Key: backend.KeyArrowDown}, "↓"},
-		{"arrow left", Keybinding{Key: backend.KeyArrowLeft}, "←"},
-		{"arrow right", Keybinding{Key: backend.KeyArrowRight}, "→"},
-		{"unknown", Keybinding{Key: backend.KeyF1}, "?"},
+		{"rune", Keybinding{Key: driver.KeyRune, Ch: 'p', Ctrl: true}, "Ctrl+P"},
+		{"rune shift", Keybinding{Key: driver.KeyRune, Ch: 'n', Ctrl: true, Shift: true}, "Ctrl+Shift+N"},
+		{"tab", Keybinding{Key: driver.KeyTab}, "Tab"},
+		{"esc", Keybinding{Key: driver.KeyEsc}, "Esc"},
+		{"enter", Keybinding{Key: driver.KeyEnter}, "Enter"},
+		{"space", Keybinding{Key: driver.KeySpace}, "Space"},
+		{"backspace", Keybinding{Key: driver.KeyBackspace}, "Backspace"},
+		{"arrow up", Keybinding{Key: driver.KeyArrowUp}, "↑"},
+		{"arrow down", Keybinding{Key: driver.KeyArrowDown}, "↓"},
+		{"arrow left", Keybinding{Key: driver.KeyArrowLeft}, "←"},
+		{"arrow right", Keybinding{Key: driver.KeyArrowRight}, "→"},
+		{"unknown", Keybinding{Key: driver.KeyF1}, "?"},
 	}
 
 	for _, tc := range cases {

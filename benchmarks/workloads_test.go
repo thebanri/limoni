@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/testkit"
 	"github.com/thebanri/limoni/widgets"
@@ -99,7 +99,7 @@ func BenchmarkMouseHitTest(b *testing.B) {
 	term := testkit.NewTerminal(120, 40)
 	term.Draw(func(frame *terminal.Frame) {
 		for i := 0; i < 100; i++ {
-			frame.RegisterClickHandler(cell.NewRect(uint16(i), 0, 1, 1), func(backend.MouseEvent) {})
+			frame.RegisterClickHandler(cell.NewRect(uint16(i), 0, 1, 1), func(driver.MouseEvent) {})
 		}
 	})
 	b.ResetTimer()
@@ -130,7 +130,7 @@ func BenchmarkHundredLayers(b *testing.B) {
 
 func BenchmarkAsyncUpdateBurst(b *testing.B) {
 	model := &benchmarkModel{}
-	program := runtime.New(runtime.WithModel(model), runtime.WithMessageQueue(1024))
+	program := engine.New(engine.WithModel(model), engine.WithMessageQueue(1024))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
@@ -148,6 +148,6 @@ func BenchmarkAsyncUpdateBurst(b *testing.B) {
 
 type benchmarkModel struct{ ready chan struct{} }
 
-func (m *benchmarkModel) Init() []runtime.Cmd                   { close(m.ready); return nil }
-func (*benchmarkModel) Update(runtime.Msg) runtime.UpdateResult { return runtime.UpdateResult{} }
-func (*benchmarkModel) View(*terminal.Frame)                    {}
+func (m *benchmarkModel) Init() []engine.Cmd                  { close(m.ready); return nil }
+func (*benchmarkModel) Update(engine.Msg) engine.UpdateResult { return engine.UpdateResult{} }
+func (*benchmarkModel) View(*terminal.Frame)                  {}

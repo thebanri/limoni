@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
@@ -33,7 +33,7 @@ func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return uint16(len(t.value)), 1
 }
 
-// sshSessionWrapper wraps ssh.Channel to implement backend.SSHSessionIO
+// sshSessionWrapper wraps ssh.Channel to implement driver.SSHSessionIO
 type sshSessionWrapper struct {
 	channel ssh.Channel
 	width   uint16
@@ -148,7 +148,7 @@ func handleSessionChannel(channel ssh.Channel, requests <-chan *ssh.Request) {
 		height:  24,
 	}
 
-	var sshBackend *backend.SSHBackend
+	var sshBackend *driver.SSHBackend
 	var term *terminal.Terminal
 	var activeLoopCancel func()
 	var mu sync.Mutex
@@ -192,7 +192,7 @@ func handleSessionChannel(channel ssh.Channel, requests <-chan *ssh.Request) {
 			req.Reply(true, nil)
 
 			mu.Lock()
-			sshBackend = backend.NewSSHBackend(wrapper)
+			sshBackend = driver.NewSSHBackend(wrapper)
 			if err := sshBackend.Setup(); err != nil {
 				mu.Unlock()
 				channel.Close()
@@ -226,7 +226,7 @@ func handleSessionChannel(channel ssh.Channel, requests <-chan *ssh.Request) {
 	}
 }
 
-func runTUIApp(t *terminal.Terminal, b *backend.SSHBackend, done chan struct{}, closeSession func()) {
+func runTUIApp(t *terminal.Terminal, b *driver.SSHBackend, done chan struct{}, closeSession func()) {
 	defer closeSession()
 
 	ticker := time.NewTicker(33 * time.Millisecond)
@@ -322,26 +322,26 @@ func runTUIApp(t *terminal.Terminal, b *backend.SSHBackend, done chan struct{}, 
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+			case driver.EventKey:
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
-				if ev.Key.Type == backend.KeyArrowUp {
+				if ev.Key.Type == driver.KeyArrowUp {
 					rotX += 10
 				}
-				if ev.Key.Type == backend.KeyArrowDown {
+				if ev.Key.Type == driver.KeyArrowDown {
 					rotX -= 10
 				}
-				if ev.Key.Type == backend.KeyArrowLeft {
+				if ev.Key.Type == driver.KeyArrowLeft {
 					rotY -= 10
 				}
-				if ev.Key.Type == backend.KeyArrowRight {
+				if ev.Key.Type == driver.KeyArrowRight {
 					rotY += 10
 				}
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 

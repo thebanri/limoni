@@ -7,9 +7,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/layout"
 )
 
@@ -71,8 +71,8 @@ type TableState struct {
 	SelectedRows     map[int]struct{} // Çoklu satır seçimi
 	selectionDirty   bool             // Seçim değiştiğinde görünürlük ayarı gerektiğini belirtir.
 
-	rowsHandler    func(backend.MouseEvent)
-	scrollHandler  func(backend.MouseEvent)
+	rowsHandler    func(driver.MouseEvent)
+	scrollHandler  func(driver.MouseEvent)
 	lastStartY     uint16
 	lastDrawOffset int
 	lastTotalRows  int
@@ -84,12 +84,12 @@ type TableState struct {
 
 func (ts *TableState) initHandlers() {
 	if ts.rowsHandler == nil {
-		ts.rowsHandler = func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseScrollUp || ev.Button == backend.MouseScrollDown {
+		ts.rowsHandler = func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown {
 				ts.handleScroll(ev, ts.lastRowCount, ts.lastViewportH)
 				return
 			}
-			if ev.Button != backend.MouseLeft || ev.Y < ts.lastStartY {
+			if ev.Button != driver.MouseLeft || ev.Y < ts.lastStartY {
 				return
 			}
 			targetIdx := ts.lastDrawOffset + int(ev.Y-ts.lastStartY)
@@ -103,21 +103,21 @@ func (ts *TableState) initHandlers() {
 		}
 	}
 	if ts.scrollHandler == nil {
-		ts.scrollHandler = func(ev backend.MouseEvent) {
+		ts.scrollHandler = func(ev driver.MouseEvent) {
 			ts.handleScroll(ev, ts.lastRowCount, ts.lastViewportH)
 		}
 	}
 }
 
-func (ts *TableState) handleScroll(ev backend.MouseEvent, rowCount, viewportHeight int) {
+func (ts *TableState) handleScroll(ev driver.MouseEvent, rowCount, viewportHeight int) {
 	switch ev.Button {
-	case backend.MouseScrollUp:
+	case driver.MouseScrollUp:
 		if ev.Shift {
 			ts.ScrollHorizontal(-2)
 		} else {
 			ts.Scroll(-3, rowCount, viewportHeight)
 		}
-	case backend.MouseScrollDown:
+	case driver.MouseScrollDown:
 		if ev.Shift {
 			ts.ScrollHorizontal(2)
 		} else {
@@ -890,7 +890,7 @@ func (t Table) registerScrollHandlers(ctx cell.Context, rowCount int) {
 }
 
 // applyScroll, fare tekerleği olaylarını dikey/yatay kaydırmaya çevirir.
-func (t Table) applyScroll(ev backend.MouseEvent, rowCount, viewportHeight int) {
+func (t Table) applyScroll(ev driver.MouseEvent, rowCount, viewportHeight int) {
 	if t.State == nil {
 		return
 	}
@@ -919,8 +919,8 @@ func (t Table) registerRowsBlockHandler(ctx cell.Context, rowsArea cell.Rect, ro
 		ctx.RegisterMouse(rowsArea, t.State.rowsHandler)
 		return
 	}
-	ctx.RegisterMouse(rowsArea, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && t.ID != "" && ctx.SetFocus != nil {
+	ctx.RegisterMouse(rowsArea, func(ev driver.MouseEvent) {
+		if ev.Button == driver.MouseLeft && t.ID != "" && ctx.SetFocus != nil {
 			ctx.SetFocus(t.ID)
 		}
 	})
@@ -950,13 +950,13 @@ func (t Table) registerResizeHandlers(ctx cell.Context, widths []uint16, colsCou
 			handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
 			colIdx := i
 
-			ctx.RegisterMouse(handleArea, func(ev backend.MouseEvent) {
-				if ev.Button == backend.MouseLeft && !ev.Drag {
+			ctx.RegisterMouse(handleArea, func(ev driver.MouseEvent) {
+				if ev.Button == driver.MouseLeft && !ev.Drag {
 					startMouseX := int(ev.X)
 					startColW := int(t.State.ColumnWidths[colIdx])
 
-					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							return
 						}
 						dx := int(dragEv.X) - startMouseX

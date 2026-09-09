@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -47,9 +47,9 @@ func TestTerminalMouseClickAndCapture(t *testing.T) {
 	clicked := false
 	dragged := false
 	testTerm.Draw(func(frame *terminal.Frame) {
-		frame.RegisterClickHandler(cell.NewRect(2, 0, 4, 1), func(ev backend.MouseEvent) {
+		frame.RegisterClickHandler(cell.NewRect(2, 0, 4, 1), func(ev driver.MouseEvent) {
 			clicked = true
-			frame.CaptureMouse(func(ev backend.MouseEvent) {
+			frame.CaptureMouse(func(ev driver.MouseEvent) {
 				if ev.Drag {
 					dragged = true
 				}
@@ -63,7 +63,7 @@ func TestTerminalMouseClickAndCapture(t *testing.T) {
 	if testTerm.Drag(7, 0) != true || !dragged {
 		t.Fatal("expected captured drag to be routed")
 	}
-	if testTerm.Mouse(backend.MouseEvent{X: 0, Y: 0, Button: backend.MouseLeft}) {
+	if testTerm.Mouse(driver.MouseEvent{X: 0, Y: 0, Button: driver.MouseLeft}) {
 		t.Fatal("expected a new click outside the registered area to be ignored")
 	}
 }
@@ -102,7 +102,7 @@ func TestTerminalFocusAndPropagationSnapshot(t *testing.T) {
 	if got := testTerm.FocusableIDs(); len(got) != 2 || got[0] != "first" || got[1] != "second" {
 		t.Fatalf("focusable IDs = %v, want [first second]", got)
 	}
-	if !testTerm.PropagateMouse(backend.MouseEvent{X: 3, Y: 1, Button: backend.MouseLeft}) {
+	if !testTerm.PropagateMouse(driver.MouseEvent{X: 3, Y: 1, Button: driver.MouseLeft}) {
 		t.Fatal("expected propagation to be handled")
 	}
 	if len(order) != 3 || order[0] != terminal.CapturePhase || order[1] != terminal.TargetPhase || order[2] != terminal.BubblePhase {
@@ -112,7 +112,7 @@ func TestTerminalFocusAndPropagationSnapshot(t *testing.T) {
 
 func TestTerminalSemanticRegionMouseDispatch(t *testing.T) {
 	testTerm := NewTerminal(20, 4)
-	var seen []backend.MouseButton
+	var seen []driver.MouseButton
 	entered := false
 	testTerm.Draw(func(frame *terminal.Frame) {
 		frame.RegisterEventRegion(terminal.EventRegion{
@@ -128,7 +128,7 @@ func TestTerminalSemanticRegionMouseDispatch(t *testing.T) {
 		})
 	})
 
-	if !testTerm.Mouse(backend.MouseEvent{X: 2, Y: 1, Button: backend.MouseNone}) {
+	if !testTerm.Mouse(driver.MouseEvent{X: 2, Y: 1, Button: driver.MouseNone}) {
 		t.Fatal("semantic hover event was not handled")
 	}
 	if !entered {
@@ -137,11 +137,11 @@ func TestTerminalSemanticRegionMouseDispatch(t *testing.T) {
 	if !testTerm.Click(2, 1) {
 		t.Fatal("semantic click was not handled")
 	}
-	if !testTerm.Mouse(backend.MouseEvent{X: 2, Y: 1, Button: backend.MouseScrollDown}) {
+	if !testTerm.Mouse(driver.MouseEvent{X: 2, Y: 1, Button: driver.MouseScrollDown}) {
 		t.Fatal("semantic wheel event was not handled")
 	}
 
-	want := []backend.MouseButton{backend.MouseNone, backend.MouseLeft, backend.MouseScrollDown}
+	want := []driver.MouseButton{driver.MouseNone, driver.MouseLeft, driver.MouseScrollDown}
 	if len(seen) != len(want) {
 		t.Fatalf("semantic event count = %d, want %d", len(seen), len(want))
 	}
@@ -160,8 +160,8 @@ func TestTerminalAccessibilityAssertionAndKeySequence(t *testing.T) {
 	if err := testTerm.AssertAccessibilityContains(accessibility.Mode{ScreenReader: true}, "button#save"); err != nil {
 		t.Fatal(err)
 	}
-	keys := []backend.KeyEvent{{Type: backend.KeyRune, Ch: 'a'}, {Type: backend.KeyEnter}}
-	if got := testTerm.SendKeys(keys, func(backend.KeyEvent) bool { return true }); got != len(keys) {
+	keys := []driver.KeyEvent{{Type: driver.KeyRune, Ch: 'a'}, {Type: driver.KeyEnter}}
+	if got := testTerm.SendKeys(keys, func(driver.KeyEvent) bool { return true }); got != len(keys) {
 		t.Fatalf("handled keys = %d, want %d", got, len(keys))
 	}
 	if err := testTerm.ValidateAccessibility(); err != nil {
@@ -202,7 +202,7 @@ func TestTerminalKeyResizeAndLayerAssertions(t *testing.T) {
 		frame.RegisterLayer("modal", terminal.LayerModal, cell.NewRect(2, 1, 3, 2), 10, nil)
 	})
 	seen := false
-	if !testTerm.SendKey(backend.KeyEvent{Type: backend.KeyEnter}, func(key backend.KeyEvent) bool { seen = key.Type == backend.KeyEnter; return seen }) || !seen {
+	if !testTerm.SendKey(driver.KeyEvent{Type: driver.KeyEnter}, func(key driver.KeyEvent) bool { seen = key.Type == driver.KeyEnter; return seen }) || !seen {
 		t.Fatal("key was not injected")
 	}
 	if got := testTerm.ResizeEvent().Resize.Width; got != 8 {
@@ -229,7 +229,7 @@ func TestTerminalEventTraceAssertion(t *testing.T) {
 		frame.RegisterEventHandler(cell.NewRect(1, 0, 3, 1), terminal.TargetPhase, func(*terminal.EventContext) {})
 		frame.RegisterEventHandler(cell.NewRect(0, 0, 10, 2), terminal.BubblePhase, func(*terminal.EventContext) {})
 	})
-	testTerm.PropagateMouse(backend.MouseEvent{X: 2, Y: 0, Button: backend.MouseLeft})
+	testTerm.PropagateMouse(driver.MouseEvent{X: 2, Y: 0, Button: driver.MouseLeft})
 	if err := testTerm.AssertEventTrace(":capture", ":target", ":bubble"); err != nil {
 		t.Fatal(err)
 	}

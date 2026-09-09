@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -23,7 +23,7 @@ func (t text) Draw(ctx cell.Context, buf *buffer.Buffer) {
 func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -67,11 +67,11 @@ func main() {
 	draw()
 	for ev := range b.Events() {
 		switch ev.Type {
-		case backend.EventKey:
-			if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+		case driver.EventKey:
+			if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 				return
 			}
-			if ev.Key.Type == backend.KeyTab {
+			if ev.Key.Type == driver.KeyTab {
 				t.FocusManager().Next()
 			}
 			switch t.FocusManager().Focused() {
@@ -83,7 +83,7 @@ func main() {
 				textAreaState.HandleKey(ev.Key)
 			}
 			draw()
-		case backend.EventMouse:
+		case driver.EventMouse:
 			t.RouteMouseEvent(ev.Mouse)
 			draw()
 		}

@@ -2,9 +2,9 @@ package widgets
 
 import (
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/layout"
 )
 
@@ -34,41 +34,41 @@ func (state *TextInputState) SetValue(s string) {
 }
 
 // HandleKey, basılan tuşu metin kutusuna uygular. Değer veya imleç değiştiyse true döner.
-func (state *TextInputState) HandleKey(key backend.KeyEvent) bool {
+func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 	switch key.Type {
-	case backend.KeyRune:
+	case driver.KeyRune:
 		state.insert(key.Ch)
 		return true
 
-	case backend.KeySpace:
+	case driver.KeySpace:
 		state.insert(' ')
 		return true
 
-	case backend.KeyBackspace:
+	case driver.KeyBackspace:
 		return state.backspace()
 
-	case backend.KeyDelete:
+	case driver.KeyDelete:
 		return state.delete()
 
-	case backend.KeyArrowLeft:
+	case driver.KeyArrowLeft:
 		if state.Cursor > 0 {
 			state.Cursor--
 			return true
 		}
 
-	case backend.KeyArrowRight:
+	case driver.KeyArrowRight:
 		if state.Cursor < len(state.Text) {
 			state.Cursor++
 			return true
 		}
 
-	case backend.KeyHome:
+	case driver.KeyHome:
 		if state.Cursor != 0 {
 			state.Cursor = 0
 			return true
 		}
 
-	case backend.KeyEnd:
+	case driver.KeyEnd:
 		if state.Cursor != len(state.Text) {
 			state.Cursor = len(state.Text)
 			return true

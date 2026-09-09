@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/animation"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -50,7 +50,7 @@ type AppState struct {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing backend: %v\n", err)
 		os.Exit(1)
@@ -134,25 +134,25 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				if state.ShowHelp {
 					state.ShowHelp = false
 					draw()
 					continue
 				}
 
-				if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'q') {
+				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
 				}
 
-				if ev.Key.Type == backend.KeyTab {
+				if ev.Key.Type == driver.KeyTab {
 					t.FocusManager().Next()
 					draw()
 					continue
 				}
 
 				focused := t.FocusManager().Focused()
-				if focused != "todo_input" && ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '?' || ev.Key.Ch == 'h') {
+				if focused != "todo_input" && ev.Key.Type == driver.KeyRune && (ev.Key.Ch == '?' || ev.Key.Ch == 'h') {
 					state.ShowHelp = true
 					draw()
 					continue
@@ -160,7 +160,7 @@ func main() {
 
 				switch focused {
 				case "todo_input":
-					if ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeyEnter {
 						title := state.InputState.Value()
 						if title != "" {
 							categories := []string{"Work", "Personal", "Shopping"}
@@ -201,12 +201,12 @@ func main() {
 
 				case "filter_list":
 					filters := []string{"All", "Active", "Completed"}
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						if state.FilterState.Selected > 0 {
 							state.FilterState.Selected--
 						}
 					}
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						if state.FilterState.Selected < len(filters)-1 {
 							state.FilterState.Selected++
 						}
@@ -216,17 +216,17 @@ func main() {
 				case "task_list":
 					filtered := getFilteredTasks(state)
 					if len(filtered) > 0 {
-						if ev.Key.Type == backend.KeyArrowUp {
+						if ev.Key.Type == driver.KeyArrowUp {
 							if state.ListState.Selected > 0 {
 								state.ListState.Selected--
 							}
 						}
-						if ev.Key.Type == backend.KeyArrowDown {
+						if ev.Key.Type == driver.KeyArrowDown {
 							if state.ListState.Selected < len(filtered)-1 {
 								state.ListState.Selected++
 							}
 						}
-						if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+						if ev.Key.Type == driver.KeySpace || ev.Key.Type == driver.KeyEnter {
 							targetTask := filtered[state.ListState.Selected]
 							for idx, task := range state.Tasks {
 								if task.ID == targetTask.ID {
@@ -236,7 +236,7 @@ func main() {
 								}
 							}
 						}
-						if (ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'd') || ev.Key.Type == backend.KeyBackspace {
+						if (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'd') || ev.Key.Type == driver.KeyBackspace {
 							targetTask := filtered[state.ListState.Selected]
 							for idx, task := range state.Tasks {
 								if task.ID == targetTask.ID {
@@ -254,10 +254,10 @@ func main() {
 				}
 				draw()
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				t.RouteMouseEvent(ev.Mouse)
 
-				if ev.Mouse.Button == backend.MouseLeft && !ev.Mouse.Drag {
+				if ev.Mouse.Button == driver.MouseLeft && !ev.Mouse.Drag {
 					w, h, _ := b.Size()
 					screenArea := cell.NewRect(0, 0, w, h)
 					_, _, filterRect, listRect, _ := getLayoutRects(screenArea)
@@ -293,7 +293,7 @@ func main() {
 				}
 				draw()
 
-			case backend.EventResize:
+			case driver.EventResize:
 				draw()
 			}
 

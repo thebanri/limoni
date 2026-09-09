@@ -3,9 +3,9 @@ package limoni
 import (
 	"os"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -24,13 +24,14 @@ type (
 	Context         = cell.Context
 	Cell            = cell.Cell
 	Buffer          = buffer.Buffer
-	Backend         = backend.Backend
-	Event           = backend.Event
-	EventType       = backend.EventType
-	KeyEvent        = backend.KeyEvent
-	MouseEvent      = backend.MouseEvent
-	KeyType         = backend.KeyType
-	MouseButton     = backend.MouseButton
+	Driver          = driver.Driver
+	Backend         = driver.Backend
+	Event           = driver.Event
+	EventType       = driver.EventType
+	KeyEvent        = driver.KeyEvent
+	MouseEvent      = driver.MouseEvent
+	KeyType         = driver.KeyType
+	MouseButton     = driver.MouseButton
 	Layout          = layout.FlexLayout
 	FlexLayout      = layout.FlexLayout
 	Constraint      = layout.Constraint
@@ -101,34 +102,34 @@ const (
 	ModifierReverse   = cell.ModifierReverse
 
 	// Event Types
-	EventKey    = backend.EventKey
-	EventMouse  = backend.EventMouse
-	EventResize = backend.EventResize
+	EventKey    = driver.EventKey
+	EventMouse  = driver.EventMouse
+	EventResize = driver.EventResize
 
 	// Key Types
-	KeyRune      = backend.KeyRune
-	KeySpace     = backend.KeySpace
-	KeyEnter     = backend.KeyEnter
-	KeyBackspace = backend.KeyBackspace
-	KeyDelete    = backend.KeyDelete
-	KeyTab       = backend.KeyTab
-	KeyEsc       = backend.KeyEsc
-	KeyUp        = backend.KeyArrowUp
-	KeyDown      = backend.KeyArrowDown
-	KeyLeft      = backend.KeyArrowLeft
-	KeyRight     = backend.KeyArrowRight
-	KeyHome      = backend.KeyHome
-	KeyEnd       = backend.KeyEnd
-	KeyPageUp    = backend.KeyPageUp
-	KeyPageDown  = backend.KeyPageDown
+	KeyRune      = driver.KeyRune
+	KeySpace     = driver.KeySpace
+	KeyEnter     = driver.KeyEnter
+	KeyBackspace = driver.KeyBackspace
+	KeyDelete    = driver.KeyDelete
+	KeyTab       = driver.KeyTab
+	KeyEsc       = driver.KeyEsc
+	KeyUp        = driver.KeyArrowUp
+	KeyDown      = driver.KeyArrowDown
+	KeyLeft      = driver.KeyArrowLeft
+	KeyRight     = driver.KeyArrowRight
+	KeyHome      = driver.KeyHome
+	KeyEnd       = driver.KeyEnd
+	KeyPageUp    = driver.KeyPageUp
+	KeyPageDown  = driver.KeyPageDown
 
 	// Mouse Buttons
-	MouseLeft       = backend.MouseLeft
-	MouseMiddle     = backend.MouseMiddle
-	MouseRight      = backend.MouseRight
-	MouseRelease    = backend.MouseRelease
-	MouseScrollUp   = backend.MouseScrollUp
-	MouseScrollDown = backend.MouseScrollDown
+	MouseLeft       = driver.MouseLeft
+	MouseMiddle     = driver.MouseMiddle
+	MouseRight      = driver.MouseRight
+	MouseRelease    = driver.MouseRelease
+	MouseScrollUp   = driver.MouseScrollUp
+	MouseScrollDown = driver.MouseScrollDown
 )
 
 var (
@@ -143,7 +144,7 @@ var (
 // mouse and TrueColor tracking, and returns a fully ready-to-use Terminal.
 // The caller should defer term.Close() to restore the terminal state.
 func New() (*Terminal, error) {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		return nil, err
 	}

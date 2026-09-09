@@ -495,6 +495,3 @@ func TestDiffContinuationRestorationOnModalDrag(t *testing.T) {
 		t.Fatalf("back[6] after restore = %q; want RuneContinuation", back.Get(6, 0).Content)
 	}
 }
-
-
-

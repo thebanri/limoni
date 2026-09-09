@@ -3,7 +3,7 @@ package widgets
 import (
 	"strings"
 
-	"github.com/thebanri/limoni/core/backend"
+	"github.com/thebanri/limoni/core/driver"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -201,13 +201,13 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		*m.ScrollOffset = offset
 	}
 	if ctx.RegisterMouse != nil && m.ScrollOffset != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev backend.MouseEvent) {
+		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
 			switch ev.Button {
-			case backend.MouseScrollUp:
+			case driver.MouseScrollUp:
 				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset-1, maxOffset)
-			case backend.MouseScrollDown:
+			case driver.MouseScrollDown:
 				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset+1, maxOffset)
-			case backend.MouseLeft:
+			case driver.MouseLeft:
 				// Tıklanan alan içinde dikey sürükleme ile metni kaydır.
 				// Resize tutamacı child area'nın dışında olduğu için bu handler
 				// yükseklik değiştirme sürüklemesiyle çakışmaz.
@@ -217,8 +217,8 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				startY := int(ev.Y)
 				startOffset := *m.ScrollOffset
 				if ctx.CaptureMouse != nil {
-					ctx.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							return
 						}
 						if dragEv.Drag {

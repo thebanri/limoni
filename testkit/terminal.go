@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
@@ -22,7 +22,7 @@ import (
 type Terminal struct {
 	buffer  *buffer.Buffer
 	frame   *terminal.Frame
-	capture func(ev backend.MouseEvent)
+	capture func(ev driver.MouseEvent)
 }
 
 // NewTerminal creates an in-memory terminal with its origin at (0, 0).
@@ -61,27 +61,27 @@ func (t *Terminal) Render(widget widgets.Widget, area cell.Rect) {
 
 // Mouse dispatches a mouse event through the regions registered by the last
 // Draw call. It returns true when a region or a mouse capture handled it.
-func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
+func (t *Terminal) Mouse(ev driver.MouseEvent) bool {
 	if t == nil || t.frame == nil {
 		return false
 	}
 	if t.capture != nil {
 		t.capture(ev)
-		if ev.Button == backend.MouseRelease {
+		if ev.Button == driver.MouseRelease {
 			t.capture = nil
 		}
 		return true
 	}
 
-	if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+	if ev.Button != driver.MouseLeft && ev.Button != driver.MouseNone && ev.Button != driver.MouseScrollUp && ev.Button != driver.MouseScrollDown {
 		return false
 	}
-	if ev.Button == backend.MouseLeft && ev.Drag {
+	if ev.Button == driver.MouseLeft && ev.Drag {
 		return false
 	}
 
 	// Dispatch semantic regions before legacy click regions, matching the production router.
-	if ev.Button == backend.MouseNone {
+	if ev.Button == driver.MouseNone {
 		t.frame.DispatchPointerMove(ev)
 	}
 	if t.frame.DispatchEventRegions(ev) {
@@ -96,10 +96,10 @@ func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
 			continue
 		}
 		if region.MouseOnly {
-			if ev.Button != backend.MouseLeft && ev.Button != backend.MouseNone && ev.Button != backend.MouseScrollUp && ev.Button != backend.MouseScrollDown {
+			if ev.Button != driver.MouseLeft && ev.Button != driver.MouseNone && ev.Button != driver.MouseScrollUp && ev.Button != driver.MouseScrollDown {
 				continue
 			}
-		} else if ev.Button != backend.MouseLeft {
+		} else if ev.Button != driver.MouseLeft {
 			continue
 		}
 		region.Handler(ev)
@@ -111,15 +111,15 @@ func (t *Terminal) Mouse(ev backend.MouseEvent) bool {
 
 // Click dispatches a left-button click at the given position.
 func (t *Terminal) Click(x, y uint16) bool {
-	return t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft})
+	return t.Mouse(driver.MouseEvent{X: x, Y: y, Button: driver.MouseLeft})
 }
 
 // Drag sends a captured drag event followed by a mouse release.
 func (t *Terminal) Drag(x, y uint16) bool {
-	if !t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft, Drag: true}) {
+	if !t.Mouse(driver.MouseEvent{X: x, Y: y, Button: driver.MouseLeft, Drag: true}) {
 		return false
 	}
-	t.Mouse(backend.MouseEvent{X: x, Y: y, Button: backend.MouseRelease})
+	t.Mouse(driver.MouseEvent{X: x, Y: y, Button: driver.MouseRelease})
 	return true
 }
 
@@ -212,7 +212,7 @@ func (t *Terminal) FocusableIDs() []string {
 
 // PropagateMouse dispatches a mouse event through the frame's capture,
 // target, and bubble event handlers.
-func (t *Terminal) PropagateMouse(ev backend.MouseEvent) bool {
+func (t *Terminal) PropagateMouse(ev driver.MouseEvent) bool {
 	if t == nil || t.frame == nil {
 		return false
 	}
@@ -224,7 +224,7 @@ func (t *Terminal) MovePointer(x, y uint16) bool {
 	if t == nil || t.frame == nil {
 		return false
 	}
-	return t.frame.DispatchPointerMove(backend.MouseEvent{X: x, Y: y, Button: backend.MouseNone})
+	return t.frame.DispatchPointerMove(driver.MouseEvent{X: x, Y: y, Button: driver.MouseNone})
 }
 
 // HoveredRegionID returns the currently hovered event region ID.
@@ -294,7 +294,7 @@ func (t *Terminal) AssertAccessibilityContains(mode accessibility.Mode, text str
 
 // SendKeys dispatches a deterministic sequence of key events. It stops at the
 // first unhandled key and returns its index, or len(keys) on success.
-func (t *Terminal) SendKeys(keys []backend.KeyEvent, handler func(backend.KeyEvent) bool) (handled int) {
+func (t *Terminal) SendKeys(keys []driver.KeyEvent, handler func(driver.KeyEvent) bool) (handled int) {
 	if handler == nil {
 		return 0
 	}
@@ -311,12 +311,12 @@ func (t *Terminal) ClickAt(x, y uint16, at time.Time) bool {
 	if t == nil || t.frame == nil {
 		return false
 	}
-	return t.frame.DispatchClick(backend.MouseEvent{X: x, Y: y, Button: backend.MouseLeft}, at)
+	return t.frame.DispatchClick(driver.MouseEvent{X: x, Y: y, Button: driver.MouseLeft}, at)
 }
 
 // SendKey delivers a deterministic key event to a caller-provided handler.
 // It is useful for testing application-level key routing without a TTY.
-func (t *Terminal) SendKey(key backend.KeyEvent, handler func(backend.KeyEvent) bool) bool {
+func (t *Terminal) SendKey(key driver.KeyEvent, handler func(driver.KeyEvent) bool) bool {
 	if t == nil || handler == nil {
 		return false
 	}
@@ -324,9 +324,9 @@ func (t *Terminal) SendKey(key backend.KeyEvent, handler func(backend.KeyEvent) 
 }
 
 // ResizeEvent returns a backend resize event for the current test surface.
-func (t *Terminal) ResizeEvent() backend.Event {
+func (t *Terminal) ResizeEvent() driver.Event {
 	area := t.Area()
-	return backend.Event{Type: backend.EventResize, Resize: backend.ResizeEvent{Width: area.Width, Height: area.Height}}
+	return driver.Event{Type: driver.EventResize, Resize: driver.ResizeEvent{Width: area.Width, Height: area.Height}}
 }
 
 // LayerIDs returns the registered layer IDs in frame order.
@@ -409,7 +409,7 @@ type TraceEntry struct {
 	RegionID string
 	Action   string
 	ZIndex   int
-	Phase    backend.EventPhase
+	Phase    driver.EventPhase
 }
 
 // EventTraceEntries returns the chronological metadata event trace.

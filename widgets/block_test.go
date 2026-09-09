@@ -160,4 +160,3 @@ func TestBlockTitleWideRunesAndTurkish(t *testing.T) {
 		t.Fatalf("expected bottom-right '╯', got %c", c.Content)
 	}
 }
-

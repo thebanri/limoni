@@ -18,9 +18,9 @@ import (
 
 	"github.com/thebanri/limoni/animation"
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
@@ -349,7 +349,7 @@ func (state *AppState) UpdateAnimations(now time.Time) {
 func main() {
 	screenReaderMode := slices.Contains(os.Args[1:], "--screen-reader")
 	// Standard I/O kullanarak terminal backend'ini oluştur
-	b := backend.NewBackend(os.Stdin, os.Stdout)
+	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -512,7 +512,7 @@ func main() {
 
 	// Register navigation keybindings
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'p', Ctrl: true,
+		Key: driver.KeyRune, Ch: 'p', Ctrl: true,
 		Label: "Toggle Command Palette", Category: "General",
 		Handler: func() {
 			state.CmdPalette.Toggle()
@@ -524,12 +524,12 @@ func main() {
 		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'd', Ctrl: true,
+		Key: driver.KeyRune, Ch: 'd', Ctrl: true,
 		Label: "Toggle Debug Mode", Category: "View",
 		Handler: func() { state.DebugMode = !state.DebugMode },
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key:   backend.KeyF12,
+		Key:   driver.KeyF12,
 		Label: "Toggle DevTools Inspector", Category: "Developer",
 		Handler: func() {
 			state.DevToolsState.Toggle()
@@ -567,19 +567,19 @@ func main() {
 		state.LastKey = "Exit Confirmation Modal Opened"
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyF1, Label: "Open Help Panel", Category: "View",
+		Key: driver.KeyF1, Label: "Open Help Panel", Category: "View",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'h', Label: "Open Help Panel", Category: "View",
+		Key: driver.KeyRune, Ch: 'h', Label: "Open Help Panel", Category: "View",
 		When: canHandleGlobalCommand, Handler: openHelp,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'q', Label: "Quit Confirmation", Category: "General",
+		Key: driver.KeyRune, Ch: 'q', Label: "Quit Confirmation", Category: "General",
 		When: canHandleGlobalCommand, Handler: openExitConfirmation,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Quit Confirmation", Category: "General",
+		Key: driver.KeyEsc, Label: "Quit Confirmation", Category: "General",
 		When: canHandleGlobalCommand, Handler: openExitConfirmation,
 	})
 	closeExitDialog := func() {
@@ -588,23 +588,23 @@ func main() {
 		t.ForceFullRedraw()
 	}
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Scope: "exit_dialog", Label: "Close Exit Dialog", Category: "Modal",
+		Key: driver.KeyEsc, Scope: "exit_dialog", Label: "Close Exit Dialog", Category: "Modal",
 		Handler: closeExitDialog,
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Scope: "help_dialog", Label: "Close Help Panel", Category: "Modal",
+		Key: driver.KeyEsc, Scope: "help_dialog", Label: "Close Help Panel", Category: "Modal",
 		Handler: func() {
 			state.ShowHelpDialog = false
 			t.FocusManager().SetFocused("")
 		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Close Dropdown", Category: "Modal",
+		Key: driver.KeyEsc, Label: "Close Dropdown", Category: "Modal",
 		When:    func() bool { return state.NotifPopupState.IsOpen },
 		Handler: func() { state.NotifPopupState.Close() },
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyEsc, Label: "Blur Control", Category: "Navigation",
+		Key: driver.KeyEsc, Label: "Blur Control", Category: "Navigation",
 		When: func() bool {
 			switch t.FocusManager().Focused() {
 			case "username_input", "showcase_input", "demo_markdown", "table_filter":
@@ -617,7 +617,7 @@ func main() {
 	})
 	registerGraphicKey := func(ch rune, label string, handler func()) {
 		state.KeyManager.Register(widgets.Keybinding{
-			Key: backend.KeyRune, Ch: ch, Label: label, Category: "3D Graphics",
+			Key: driver.KeyRune, Ch: ch, Label: label, Category: "3D Graphics",
 			When: func() bool { return state.ActiveTab == "Graphics" }, Handler: handler,
 		})
 	}
@@ -630,7 +630,7 @@ func main() {
 	registerGraphicKey('7', "Render Style: Lambert Shading", func() { state.ThreeDStyle = "Lambert" })
 	registerGraphicKey('8', "Render Style: Gouraud Shaded", func() { state.ThreeDStyle = "Gouraud" })
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: '+', Scope: "playground",
+		Key: driver.KeyRune, Ch: '+', Scope: "playground",
 		Label: "Increase Playground Ratio", Category: "Playground",
 		When: func() bool {
 			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
@@ -644,7 +644,7 @@ func main() {
 		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: '-', Scope: "playground",
+		Key: driver.KeyRune, Ch: '-', Scope: "playground",
 		Label: "Decrease Playground Ratio", Category: "Playground",
 		When: func() bool {
 			return state.ActiveTab == "Playground" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
@@ -658,7 +658,7 @@ func main() {
 		},
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'j', Scope: "playground_virtual_list",
+		Key: driver.KeyRune, Ch: 'j', Scope: "playground_virtual_list",
 		Label: "Move Down in Virtual List", Category: "Playground",
 		When: func() bool {
 			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
@@ -666,7 +666,7 @@ func main() {
 		Handler: func() { moveVirtualListSelection(state, 1) },
 	})
 	state.KeyManager.Register(widgets.Keybinding{
-		Key: backend.KeyRune, Ch: 'k', Scope: "playground_virtual_list",
+		Key: driver.KeyRune, Ch: 'k', Scope: "playground_virtual_list",
 		Label: "Move Up in Virtual List", Category: "Playground",
 		When: func() bool {
 			return state.PlaygroundMode == "VirtualList" && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen
@@ -779,7 +779,7 @@ func main() {
 				return
 			}
 			switch ev.Type {
-			case backend.EventKey:
+			case driver.EventKey:
 				recordReferenceInteraction(state, fmt.Sprintf("key type=%d rune=%q ctrl=%t alt=%t shift=%t", ev.Key.Type, ev.Key.Ch, ev.Key.Ctrl, ev.Key.Alt, ev.Key.Shift))
 				focused := t.FocusManager().Focused()
 
@@ -792,28 +792,28 @@ func main() {
 					}
 					break
 				}
-				if (state.ActiveTab == "Reference" || state.ActiveTab == "Referans") && ev.Key.Type == backend.KeyRune && ev.Key.Ch == 'a' &&
+				if (state.ActiveTab == "Reference" || state.ActiveTab == "Referans") && ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'a' &&
 					!state.ShowExitDialog && !state.ShowHelpDialog {
 					state.ReferenceAccessibilityASCII = !state.ReferenceAccessibilityASCII
 					state.LastKey = "Accessibility ASCII mode toggled"
 					break
 				}
-				markdownKey := ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown || (ev.Key.Type == backend.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))
+				markdownKey := ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowDown || (ev.Key.Type == driver.KeyRune && (ev.Key.Ch == '+' || ev.Key.Ch == '-'))
 				if (state.ActiveTab == "Home" || state.ActiveTab == "Giriş") && markdownKey && (focused == "demo_markdown" || focused == "" || focused[:minInt(len(focused), len("tab_"))] == "tab_") {
 					switch {
-					case ev.Key.Type == backend.KeyArrowUp && state.MarkdownOffset > 0:
+					case ev.Key.Type == driver.KeyArrowUp && state.MarkdownOffset > 0:
 						state.MarkdownOffset--
-					case ev.Key.Type == backend.KeyArrowDown:
+					case ev.Key.Type == driver.KeyArrowDown:
 						state.MarkdownOffset++
-					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
+					case ev.Key.Type == driver.KeyRune && ev.Key.Ch == '+' && state.MarkdownHeight < 12:
 						state.MarkdownHeight++
-					case ev.Key.Type == backend.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
+					case ev.Key.Type == driver.KeyRune && ev.Key.Ch == '-' && state.MarkdownHeight > 4:
 						state.MarkdownHeight--
 					}
 					break
 				}
-				if state.KeyManager != nil && canHandleGlobalCommand() && (ev.Key.Type == backend.KeyF1 ||
-					(ev.Key.Type == backend.KeyRune && (ev.Key.Ch == 'h' || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)))) && !ev.Key.Ctrl && !ev.Key.Alt {
+				if state.KeyManager != nil && canHandleGlobalCommand() && (ev.Key.Type == driver.KeyF1 ||
+					(ev.Key.Type == driver.KeyRune && (ev.Key.Ch == 'h' || ev.Key.Ch == '?' || (ev.Key.Ch == '/' && ev.Key.Shift)))) && !ev.Key.Ctrl && !ev.Key.Alt {
 					openHelp()
 					break
 				}
@@ -823,7 +823,7 @@ func main() {
 
 				playgroundControlFocused := focused == "play_direction" || focused == "play_ratio" || focused == "play_mode" || focused == "border_rounded" || focused == "border_double" || focused == "border_thick" || focused == "play_grid_cb" || focused == "avatar_opacity"
 				if state.ActiveTab == "Playground" && !playgroundControlFocused && !state.ShowExitDialog && !state.ShowHelpDialog && !state.NotifPopupState.IsOpen {
-					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowLeft || ev.Key.Type == driver.KeyArrowRight || ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowDown {
 						if state.PlaygroundDir == layout.Horizontal {
 							state.PlaygroundDir = layout.Vertical
 						} else {
@@ -835,18 +835,18 @@ func main() {
 				}
 
 				if state.ShowExitDialog {
-					if ev.Key.Type == backend.KeyTab {
+					if ev.Key.Type == driver.KeyTab {
 						if ev.Key.Shift {
 							t.FocusManager().Prev()
 						} else {
 							t.FocusManager().Next()
 						}
-					} else if ev.Key.Type == backend.KeyArrowLeft {
+					} else if ev.Key.Type == driver.KeyArrowLeft {
 						t.FocusManager().Prev()
-					} else if ev.Key.Type == backend.KeyArrowRight {
+					} else if ev.Key.Type == driver.KeyArrowRight {
 						t.FocusManager().Next()
 					}
-					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeySpace || ev.Key.Type == driver.KeyEnter {
 						if focused == "exit_dialog_btn_0" {
 							b.Close()
 							fmt.Println("\nExited Limoni TUI application. Goodbye!")
@@ -857,7 +857,7 @@ func main() {
 							t.ForceFullRedraw()
 						}
 					}
-					if ev.Key.Type == backend.KeyEsc {
+					if ev.Key.Type == driver.KeyEsc {
 						state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
 						t.FocusManager().SetFocused("")
 						t.ForceFullRedraw()
@@ -867,7 +867,7 @@ func main() {
 				}
 
 				if state.ShowHelpDialog {
-					if ev.Key.Type == backend.KeyEsc || (ev.Key.Type == backend.KeyRune && ev.Key.Ch == '?') {
+					if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == '?') {
 						state.ShowHelpDialog = false
 						t.FocusManager().SetFocused("")
 					}
@@ -876,11 +876,11 @@ func main() {
 				}
 
 				if state.NotifPopupState.IsOpen {
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						state.NotifPopupState.Next(4)
-					} else if ev.Key.Type == backend.KeyArrowUp {
+					} else if ev.Key.Type == driver.KeyArrowUp {
 						state.NotifPopupState.Prev()
-					} else if ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace {
+					} else if ev.Key.Type == driver.KeyEnter || ev.Key.Type == driver.KeySpace {
 						idx := state.NotifPopupState.Selected
 						if idx >= 0 && idx < 3 {
 							switch idx {
@@ -893,7 +893,7 @@ func main() {
 							}
 							state.NotifPopupState.Close()
 						}
-					} else if ev.Key.Type == backend.KeyEsc {
+					} else if ev.Key.Type == driver.KeyEsc {
 						state.NotifPopupState.Close()
 					}
 					state.LastKey = "Dropdown Keyboard Navigation"
@@ -909,46 +909,46 @@ func main() {
 				switch focused {
 				case "username_input", "showcase_input":
 					consumesVim = true
-					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
+					if ev.Key.Type == driver.KeyArrowLeft || ev.Key.Type == driver.KeyArrowRight {
 						consumesArrow = true
 					}
 				case "demo_slider", "showcase_slider", "avatar_opacity", "process_table":
-					if ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight || ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowLeft || ev.Key.Type == driver.KeyArrowRight || ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowDown {
 						consumesArrow = true
 					}
 				case "play_direction", "play_mode", "play_border", "play_showcase_select":
-					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowDown {
 						consumesArrow = true
 					}
 				case "table_filter":
-					if ev.Key.Type == backend.KeyArrowUp || ev.Key.Type == backend.KeyArrowDown ||
-						ev.Key.Type == backend.KeyArrowLeft || ev.Key.Type == backend.KeyArrowRight {
+					if ev.Key.Type == driver.KeyArrowUp || ev.Key.Type == driver.KeyArrowDown ||
+						ev.Key.Type == driver.KeyArrowLeft || ev.Key.Type == driver.KeyArrowRight {
 						consumesArrow = true
 					}
 				}
 
 				switch ev.Key.Type {
-				case backend.KeyArrowUp:
+				case driver.KeyArrowUp:
 					if !consumesArrow {
 						spatialDir = terminal.DirUp
 						isSpatialKey = true
 					}
-				case backend.KeyArrowDown:
+				case driver.KeyArrowDown:
 					if !consumesArrow {
 						spatialDir = terminal.DirDown
 						isSpatialKey = true
 					}
-				case backend.KeyArrowLeft:
+				case driver.KeyArrowLeft:
 					if !consumesArrow {
 						spatialDir = terminal.DirLeft
 						isSpatialKey = true
 					}
-				case backend.KeyArrowRight:
+				case driver.KeyArrowRight:
 					if !consumesArrow {
 						spatialDir = terminal.DirRight
 						isSpatialKey = true
 					}
-				case backend.KeyRune:
+				case driver.KeyRune:
 					if !consumesVim {
 						switch ev.Key.Ch {
 						case 'k':
@@ -974,7 +974,7 @@ func main() {
 					}
 				}
 
-				if ev.Key.Type == backend.KeyTab {
+				if ev.Key.Type == driver.KeyTab {
 					if ev.Key.Shift {
 						navigateDemoTab(state, t.FocusManager(), -1)
 						t.SetTransitionActive(false)
@@ -988,7 +988,7 @@ func main() {
 					break
 				}
 
-				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == backend.KeyEnter || ev.Key.Type == backend.KeySpace) {
+				if strings.HasPrefix(focused, "tab_") && (ev.Key.Type == driver.KeyEnter || ev.Key.Type == driver.KeySpace) {
 					tabName := strings.TrimPrefix(focused, "tab_")
 					if tabName != "Exit" && tabName != "Çıkış" {
 						if state.ActiveTab != tabName {
@@ -1030,16 +1030,16 @@ func main() {
 							break
 						}
 					}
-					if ev.Key.Type == backend.KeyArrowUp {
+					if ev.Key.Type == driver.KeyArrowUp {
 						index = (index + 2) % 3
 					}
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						index = (index + 1) % 3
 					}
 					state.PlaygroundBorder = borderValues[index]
 					t.FocusManager().SetFocused(borderIDs[index])
 				} else if focused == "play_grid_cb" {
-					if ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter {
+					if ev.Key.Type == driver.KeySpace || ev.Key.Type == driver.KeyEnter {
 						state.PlayShowGrid = !state.PlayShowGrid
 					}
 				} else if focused == "play_mode" {
@@ -1082,51 +1082,51 @@ func main() {
 					state.PlaygroundRatio = state.PlayRatioState.Value
 				} else if focused == "table_filter" {
 					switch ev.Key.Type {
-					case backend.KeyArrowLeft:
+					case driver.KeyArrowLeft:
 						if ev.Key.Ctrl {
 							state.TableFilterState.HandleKey(ev.Key)
 							break
 						}
 						state.TableState.MoveSortColumn(-1, 5)
 						state.LastKey = "Sıralama sütunu önceki"
-					case backend.KeyArrowRight:
+					case driver.KeyArrowRight:
 						if ev.Key.Ctrl {
 							state.TableFilterState.HandleKey(ev.Key)
 							break
 						}
 						state.TableState.MoveSortColumn(1, 5)
 						state.LastKey = "Next sort column"
-					case backend.KeyArrowUp, backend.KeyArrowDown:
+					case driver.KeyArrowUp, driver.KeyArrowDown:
 						if state.TableState.SortColumn < 0 {
 							state.TableState.SortColumn = 2
 						} // Default: CPU
-						state.TableState.SortDescending = ev.Key.Type == backend.KeyArrowDown
+						state.TableState.SortDescending = ev.Key.Type == driver.KeyArrowDown
 						state.LastKey = "Table sort direction changed"
 					default:
 						state.TableFilterState.HandleKey(ev.Key)
 					}
 
 				} else if focused == "process_table" {
-					if ev.Key.Type == backend.KeyArrowDown {
+					if ev.Key.Type == driver.KeyArrowDown {
 						state.TableState.Next(len(state.Processes))
 						state.LastKey = "Table Down (Arrow Key)"
-					} else if ev.Key.Type == backend.KeyArrowUp {
+					} else if ev.Key.Type == driver.KeyArrowUp {
 						state.TableState.Prev()
 						state.LastKey = "Table Up (Arrow Key)"
-					} else if ev.Key.Type == backend.KeyArrowLeft {
+					} else if ev.Key.Type == driver.KeyArrowLeft {
 						state.TableState.ScrollHorizontal(-2)
 						state.LastKey = "Table Scroll Left"
-					} else if ev.Key.Type == backend.KeyArrowRight {
+					} else if ev.Key.Type == driver.KeyArrowRight {
 						state.TableState.ScrollHorizontal(2)
 						state.LastKey = "Table Scroll Right"
-					} else if ev.Key.Type == backend.KeySpace && state.TableState.Selected >= 0 {
+					} else if ev.Key.Type == driver.KeySpace && state.TableState.Selected >= 0 {
 						state.TableState.ToggleRow(state.TableState.Selected)
 						state.LastKey = "Table row selection toggled"
 					}
 				}
 
 				// Checkbox, RadioButton or Popup space/enter selection
-				if focused != "" && focused != "username_input" && (ev.Key.Type == backend.KeySpace || ev.Key.Type == backend.KeyEnter) {
+				if focused != "" && focused != "username_input" && (ev.Key.Type == driver.KeySpace || ev.Key.Type == driver.KeyEnter) {
 					switch focused {
 					case "mouse_mode_cb":
 						state.MouseModeChecked = !state.MouseModeChecked
@@ -1145,7 +1145,7 @@ func main() {
 
 				state.LastKey = fmt.Sprintf("Code: %d, Char: %q, Ctrl: %v", ev.Key.Type, string(ev.Key.Ch), ev.Key.Ctrl)
 
-			case backend.EventMouse:
+			case driver.EventMouse:
 				handled := t.RouteMouseEvent(ev.Mouse)
 				state.ReferenceInteractionPointerX = ev.Mouse.X
 				state.ReferenceInteractionPointerY = ev.Mouse.Y
@@ -1189,25 +1189,25 @@ func main() {
 							state.Drag3DLastX = int(ev.Mouse.X)
 							state.Drag3DLastY = int(ev.Mouse.Y)
 						}
-					} else if ev.Mouse.Button == backend.MouseRelease {
+					} else if ev.Mouse.Button == driver.MouseRelease {
 						state.IsDraggingModal = false
 						state.IsResizingModal = false
 						state.IsDragging3D = false
 					}
 					state.LastMouse = fmt.Sprintf("Button: %d, Pos: (%d, %d), Drag: %v", ev.Mouse.Button, ev.Mouse.X, ev.Mouse.Y, ev.Mouse.Drag)
 				} else {
-					if ev.Mouse.Button == backend.MouseRelease {
+					if ev.Mouse.Button == driver.MouseRelease {
 						state.IsDraggingModal = false
 						state.IsResizingModal = false
 						state.IsDragging3D = false
 					}
 				}
 
-			case backend.EventResize:
+			case driver.EventResize:
 				recordReferenceInteraction(state, fmt.Sprintf("resize %dx%d", ev.Resize.Width, ev.Resize.Height))
-			case backend.EventFocus:
+			case driver.EventFocus:
 				recordReferenceInteraction(state, fmt.Sprintf("focus gained=%t", ev.Focus.Gained))
-			case backend.EventPaste:
+			case driver.EventPaste:
 				recordReferenceInteraction(state, fmt.Sprintf("paste %d chars", len(ev.Paste.Text)))
 			}
 			// Input state is visible immediately; do not wait for the animation tick.
@@ -1263,7 +1263,7 @@ func minInt(a, b int) int {
 }
 
 // drawApp, uygulamanın durumunu okur ve ekranın yerleşimini çizdirir.
-func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps float64) {
+func drawApp(t *terminal.Terminal, b *driver.Backend, state *AppState, fps float64) {
 	frameStart := time.Now()
 	t.SetDebugMode(state.DebugMode)
 	// Modal açılışı, sekme dither'ından bağımsız bir animasyondur. Önceki
@@ -1385,7 +1385,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			}
 			f.RenderWidget(btn, area)
 
-			registerTargetClick(f, area, func(ev backend.MouseEvent) {
+			registerTargetClick(f, area, func(ev driver.MouseEvent) {
 				if tabName == "Exit" || tabName == "Çıkış" {
 					state.IsTransitioning = false
 					t.SetTransitionActive(false)
@@ -1516,7 +1516,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 
 			if virtualW > 2 && virtualH > 2 {
 				// 3D rotasyon sürüklemesi için tıklama alanını kaydet
-				registerTargetClick(f, grafikChunks[0], func(ev backend.MouseEvent) {
+				registerTargetClick(f, grafikChunks[0], func(ev driver.MouseEvent) {
 					state.IsDragging3D = true
 					state.Drag3DLastX = int(ev.X)
 					state.Drag3DLastY = int(ev.Y)
@@ -1926,8 +1926,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					state.ExitDialogFinished = false
 				}
 				titleBarArea := cell.NewRect(animatedArea.X, animatedArea.Y, animatedArea.Width, 1)
-				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
-					if ev.Button != backend.MouseLeft {
+				registerTargetClick(f, titleBarArea, func(ev driver.MouseEvent) {
+					if ev.Button != driver.MouseLeft {
 						return
 					}
 					state.IsDraggingModal = true
@@ -1935,8 +1935,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalDragBaseX = state.ModalOffsetX
 					state.ModalDragBaseY = state.ModalOffsetY
-					f.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					f.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							state.IsDraggingModal = false
 							return
 						}
@@ -2008,8 +2008,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				animatedHelpArea.Y = uint16(int(animatedHelpArea.Y) + offsetY)
 
 				titleBarArea := cell.NewRect(animatedHelpArea.X, animatedHelpArea.Y, helpW, 1)
-				registerTargetClick(f, titleBarArea, func(ev backend.MouseEvent) {
-					if ev.Button != backend.MouseLeft {
+				registerTargetClick(f, titleBarArea, func(ev driver.MouseEvent) {
+					if ev.Button != driver.MouseLeft {
 						return
 					}
 					state.IsDraggingModal = true
@@ -2017,8 +2017,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalDragBaseX = state.ModalOffsetX
 					state.ModalDragBaseY = state.ModalOffsetY
-					f.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					f.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							state.IsDraggingModal = false
 							return
 						}
@@ -2050,8 +2050,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				}
 
 				resizeHandleArea := cell.NewRect(cornerX, cornerY, 1, 1)
-				registerTargetClick(f, resizeHandleArea, func(ev backend.MouseEvent) {
-					if ev.Button != backend.MouseLeft {
+				registerTargetClick(f, resizeHandleArea, func(ev driver.MouseEvent) {
+					if ev.Button != driver.MouseLeft {
 						return
 					}
 					state.IsResizingModal = true
@@ -2059,8 +2059,8 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					state.DragMouseStartY = int(ev.Y)
 					state.ModalResizeBaseW = state.HelpDialogW
 					state.ModalResizeBaseH = state.HelpDialogH
-					f.CaptureMouse(func(dragEv backend.MouseEvent) {
-						if dragEv.Button == backend.MouseRelease {
+					f.CaptureMouse(func(dragEv driver.MouseEvent) {
+						if dragEv.Button == driver.MouseRelease {
 							state.IsResizingModal = false
 							return
 						}

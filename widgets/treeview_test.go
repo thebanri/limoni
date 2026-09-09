@@ -3,9 +3,9 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestTreeView_FlattenAndNavigation(t *testing.T) {
@@ -56,12 +56,12 @@ func TestTreeView_FlattenAndNavigation(t *testing.T) {
 	// Keyboard Navigation
 	state.Expand("src")
 	state.Select("src")
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowDown}, roots)
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown}, roots)
 	if state.SelectedID != "main.go" {
 		t.Errorf("expected selectedID main.go, got %s", state.SelectedID)
 	}
 
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowUp}, roots)
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowUp}, roots)
 	if state.SelectedID != "src" {
 		t.Errorf("expected selectedID src, got %s", state.SelectedID)
 	}

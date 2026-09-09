@@ -6,15 +6,15 @@ import (
 	"image/color"
 	"strconv"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
 
-func drawPlayground(t *terminal.Terminal, b *backend.Backend, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, bodyArea cell.Rect) {
+func drawPlayground(t *terminal.Terminal, b *driver.Backend, f *terminal.Frame, state *AppState, mainColor, accentColor cell.Color, bodyArea cell.Rect) {
 	f.BeginFocusScope("playground")
 	if state.PlaygroundMode == "VirtualList" {
 		f.BeginFocusScope("playground_virtual_list")
@@ -106,7 +106,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 		state.PlayDirectionState.Selected = 0
 	}
 	directionField := cell.NewRect(ctrlRows[1].X+1, ctrlRows[1].Y+1, ctrlRows[1].Width-2, 1)
-	registerTargetClick(f, directionField, func(backend.MouseEvent) {
+	registerTargetClick(f, directionField, func(driver.MouseEvent) {
 		if state.PlaygroundDir == layout.Horizontal {
 			state.PlaygroundDir = layout.Vertical
 			state.PlayDirectionState.Selected = 1
@@ -199,7 +199,7 @@ func drawPlaygroundControls(t *terminal.Terminal, f *terminal.Frame, state *AppS
 	}
 
 	modeField := cell.NewRect(ctrlRows[4].X+1, ctrlRows[4].Y+1, ctrlRows[4].Width-2, 1)
-	registerTargetClick(f, modeField, func(backend.MouseEvent) {
+	registerTargetClick(f, modeField, func(driver.MouseEvent) {
 		state.PlayModeState.Open = !state.PlayModeState.Open
 	})
 
@@ -437,7 +437,7 @@ func drawPlaygroundGrid(t *terminal.Terminal, f *terminal.Frame, state *AppState
 		profileClickArea = profileArea
 		profileClickArea.Height -= 3
 	}
-	registerTargetClick(f, profileClickArea, func(backend.MouseEvent) {
+	registerTargetClick(f, profileClickArea, func(driver.MouseEvent) {
 		switch state.ProfileFrame {
 		case "Rounded":
 			state.ProfileFrame = "Full"

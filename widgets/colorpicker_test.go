@@ -3,9 +3,9 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestColorPicker_HSVAndRGB(t *testing.T) {
@@ -53,8 +53,8 @@ func TestColorPicker_HandleKey(t *testing.T) {
 	state := NewColorPickerState(255, 255, 255)
 	state.ActiveMode = 0 // 2D Field
 
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowRight}, nil)
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyTab}, nil)
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowRight}, nil)
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyTab}, nil)
 	if state.ActiveMode != 1 { // Switched to Hue bar
 		t.Errorf("expected active mode 1, got %d", state.ActiveMode)
 	}

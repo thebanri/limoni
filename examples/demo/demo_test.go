@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/widgets"
 )
 
 func TestDemoRenderAndInteractions(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 100, 30)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 100, 30)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -56,31 +56,31 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 	renderFrame(term, state)
 
 	// 6. Test Key Handling
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'r'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'r'}, state)
 	if state.AutoRotate {
 		t.Errorf("Expected AutoRotate to toggle to false")
 	}
 
 	// Test 3D Mode cycling
 	origMode := state.RenderModeIndex
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'm'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'm'}, state)
 	if state.RenderModeIndex == origMode {
 		t.Errorf("Expected RenderModeIndex to cycle")
 	}
 
 	// Test Tab jumping with number keys
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: '1'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '1'}, state)
 	if state.ActiveTab != 0 {
 		t.Errorf("Expected ActiveTab=0 after pressing '1', got %d", state.ActiveTab)
 	}
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: '3'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '3'}, state)
 	if state.ActiveTab != 2 {
 		t.Errorf("Expected ActiveTab=2 after pressing '3', got %d", state.ActiveTab)
 	}
 
 	// Test Theme cycling
 	origTheme := state.ThemeIndex
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 't'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 't'}, state)
 	if state.ThemeIndex == origTheme {
 		t.Errorf("Expected ThemeIndex to cycle")
 	}
@@ -97,8 +97,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 	renderFrame(term, state)
 
 	// In 100x30, sidebar is X=0..23, Tab 1 is at Y=6..8. Click at (10, 7)
-	handled := term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled := term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      10,
 		Y:      7,
 	})
@@ -111,8 +111,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 
 	// 9. Test Mouse Click on Sidebar Tab 2 (Images) at (10, 10)
 	renderFrame(term, state)
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      10,
 		Y:      10,
 	})
@@ -128,8 +128,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 	// Search for the click region corresponding to cb_3d_rotate
 	// In Tab 0, cb_3d_rotate is rendered on the right panel at Y = header(3) + 1 + 1 = 5
 	// Checkbox is at X ~71, Y = 5
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      72,
 		Y:      5,
 	})
@@ -142,8 +142,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 
 	// Click it again to toggle back to true
 	renderFrame(term, state)
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      72,
 		Y:      5,
 	})
@@ -156,8 +156,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 	renderFrame(term, state)
 	// TreeView is rendered on left pane (cols[0])
 	// Clicking on root or first child should be handled
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      28,
 		Y:      6,
 	})
@@ -166,8 +166,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 	}
 
 	// 12. Verify MouseNone (hover motion) does NOT return handled=true, preventing render flood
-	hoverHandled := term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseNone,
+	hoverHandled := term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseNone,
 		X:      10,
 		Y:      7,
 	})
@@ -177,8 +177,8 @@ func TestDemoRenderAndInteractions(t *testing.T) {
 }
 
 func TestGLBLemonAndGopherColors(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 40)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 40)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -226,16 +226,16 @@ func TestGLBLemonAndGopherColors(t *testing.T) {
 }
 
 func TestDemoImageTabRendering(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 36)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 36)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
 	}
 
 	state := initAppState()
-	state.ActiveTab = 2        // Images Tab
-	state.ActiveImageIdx = 1   // Profile avatar
+	state.ActiveTab = 2         // Images Tab
+	state.ActiveImageIdx = 1    // Profile avatar
 	state.ImageHalfBlock = true // Test halfblock fallback
 
 	renderFrame(term, state)
@@ -267,8 +267,8 @@ func TestKittyNativeImagesTab(t *testing.T) {
 		t.Fatalf("Expected ProtocolKitty, got %v", proto)
 	}
 
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 36)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 36)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -302,23 +302,23 @@ func TestKittyTabSwitchingWithTerminalResponse(t *testing.T) {
 	state.ActiveTab = 0 // Start on Mascot
 
 	// 1. User presses '3' to switch to Native Images
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: '3'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '3'}, state)
 	if state.ActiveTab != 2 {
 		t.Fatalf("Expected ActiveTab=2, got %d", state.ActiveTab)
 	}
 
 	// 2. Terminal returns a Kitty APC acknowledgment on stdin: \x1b_Gi=12345;OK\x1b\
 	kittyAck := []byte("\x1b_Gi=12345;OK\x1b\\")
-	ev, consumed := backend.ParseEvent(kittyAck)
+	ev, consumed := driver.ParseEvent(kittyAck)
 	if consumed != len(kittyAck) {
 		t.Fatalf("Expected entire Kitty APC response to be consumed (%d bytes), got %d", len(kittyAck), consumed)
 	}
-	if ev.Type != backend.EventNone {
+	if ev.Type != driver.EventNone {
 		t.Fatalf("Expected EventNone for internal Kitty APC response, got %+v", ev)
 	}
 
 	// Verify that if EventNone is passed to handleKey or event loop, state.ActiveTab remains 2
-	if ev.Type == backend.EventKey {
+	if ev.Type == driver.EventKey {
 		handleKey(ev.Key, state)
 	}
 	if state.ActiveTab != 2 {
@@ -327,8 +327,8 @@ func TestKittyTabSwitchingWithTerminalResponse(t *testing.T) {
 }
 
 func TestExitDialogInteractionAndDragging(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 100, 30)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 100, 30)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -337,7 +337,7 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	state := initAppState()
 
 	// 1. Pressing 'q' opens the Exit Dialog
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'q'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'q'}, state)
 	if !state.ShowExitDialog {
 		t.Errorf("Expected ShowExitDialog=true after pressing 'q'")
 	}
@@ -351,7 +351,7 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	}
 
 	// 3. Pressing 'n' closes the Exit Dialog
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'n'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'n'}, state)
 	state.ExitDialogAnim.SetValue(0.0) // Complete closing animation
 	renderFrame(term, state)           // Trigger modal cleanup
 	if state.ShowExitDialog {
@@ -361,8 +361,8 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	// 4. Click '6. Exit' in sidebar opens the Exit Dialog
 	renderFrame(term, state)
 	// Sidebar chunk 5 (Y ~ 18-20)
-	handled := term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled := term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      10,
 		Y:      19,
 	})
@@ -374,8 +374,8 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 
 	// 5. Test dragging the dialog
 	// Title bar is at center (Y ~ 10, X ~ 50)
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		X:      50,
 		Y:      10,
 	})
@@ -384,8 +384,8 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	}
 
 	// Drag mouse by dx=5, dy=2
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseLeft,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseLeft,
 		Drag:   true,
 		X:      55,
 		Y:      12,
@@ -395,8 +395,8 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	}
 
 	// Release mouse
-	handled = term.RouteMouseEvent(backend.MouseEvent{
-		Button: backend.MouseRelease,
+	handled = term.RouteMouseEvent(driver.MouseEvent{
+		Button: driver.MouseRelease,
 		X:      55,
 		Y:      12,
 	})
@@ -408,25 +408,25 @@ func TestExitDialogInteractionAndDragging(t *testing.T) {
 	if state.ExitDialogSelectedBtn != 1 {
 		t.Errorf("Expected initial button selection to be 1 (No), got %d", state.ExitDialogSelectedBtn)
 	}
-	handleKey(backend.KeyEvent{Type: backend.KeyArrowLeft}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowLeft}, state)
 	if state.ExitDialogSelectedBtn != 0 {
 		t.Errorf("Expected button selection 0 (Yes) after ArrowLeft, got %d", state.ExitDialogSelectedBtn)
 	}
-	handleKey(backend.KeyEvent{Type: backend.KeyArrowRight}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowRight}, state)
 	if state.ExitDialogSelectedBtn != 1 {
 		t.Errorf("Expected button selection 1 (No) after ArrowRight, got %d", state.ExitDialogSelectedBtn)
 	}
 
 	// 7. Pressing 'y' confirms exit
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'y'}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'y'}, state)
 	if !state.ExitRequested {
 		t.Errorf("Expected ExitRequested=true after pressing 'y'")
 	}
 }
 
 func TestCommandPaletteFuzzySearch(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 100, 30)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 100, 30)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -435,14 +435,14 @@ func TestCommandPaletteFuzzySearch(t *testing.T) {
 	state := initAppState()
 
 	// 1. Pressing Ctrl+P opens the Command Palette
-	handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'p', Ctrl: true}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p', Ctrl: true}, state)
 	if state.CmdPalette == nil || !state.CmdPalette.IsOpen {
 		t.Fatalf("Expected CmdPalette.IsOpen=true after Ctrl+P")
 	}
 
 	// 2. Type "native" to fuzzy search for Native Images
 	for _, ch := range "native" {
-		handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: ch}, state)
+		handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: ch}, state)
 	}
 	if len(state.CmdPalette.Filtered) == 0 {
 		t.Fatalf("Expected fuzzy search to find matching commands for 'native'")
@@ -467,7 +467,7 @@ func TestCommandPaletteFuzzySearch(t *testing.T) {
 	}
 
 	// 4. Pressing Enter executes selected command
-	handleKey(backend.KeyEvent{Type: backend.KeyEnter}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyEnter}, state)
 	if state.CmdPalette.IsOpen {
 		t.Errorf("Expected CmdPalette to close after Enter")
 	}
@@ -477,8 +477,8 @@ func TestCommandPaletteFuzzySearch(t *testing.T) {
 }
 
 func TestCommandPalettePageNavigation(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 35)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 35)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -488,11 +488,11 @@ func TestCommandPalettePageNavigation(t *testing.T) {
 
 	// Helper to search and select via keyboard
 	selectCommand := func(query string) {
-		handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'p', Ctrl: true}, state)
+		handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p', Ctrl: true}, state)
 		for _, ch := range query {
-			handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: ch}, state)
+			handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: ch}, state)
 		}
-		handleKey(backend.KeyEvent{Type: backend.KeyEnter}, state)
+		handleKey(driver.KeyEvent{Type: driver.KeyEnter}, state)
 	}
 
 	// 1. From Images tab (2), search "ASCII" -> should navigate to 3D Mascot tab (0)
@@ -530,13 +530,13 @@ func TestCommandPalettePageNavigation(t *testing.T) {
 	state.ActiveTab = 0
 	state.CmdPalette.Open()
 	for _, ch := range "TreeView" {
-		handleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: ch}, state)
+		handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: ch}, state)
 	}
 	renderFrame(term, state)
 
 	// In 120x35: panelArea has startX=24, startY=4 (due to Top: 4), items start at y = startY+3 = 7
 	// Row 0 is "Tab: 2. TreeView" at y=7
-	clickEv := backend.MouseEvent{X: 30, Y: 7, Button: backend.MouseLeft}
+	clickEv := driver.MouseEvent{X: 30, Y: 7, Button: driver.MouseLeft}
 	handled := term.RouteMouseEvent(clickEv)
 	if !handled {
 		t.Errorf("Expected mouse click on command palette row to be handled")
@@ -549,7 +549,6 @@ func TestCommandPalettePageNavigation(t *testing.T) {
 	}
 }
 
-
 func TestCommandPaletteImageOcclusion(t *testing.T) {
 	// Set Kitty terminal env so native image protocol is active
 	origTerm := os.Getenv("TERM")
@@ -561,8 +560,8 @@ func TestCommandPaletteImageOcclusion(t *testing.T) {
 		os.Setenv("KITTY_WINDOW_ID", origKitty)
 	}()
 
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 35)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 35)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -596,8 +595,8 @@ func TestCommandPaletteImageOcclusion(t *testing.T) {
 }
 
 func TestExitDialogButtonSelectionAndHover(t *testing.T) {
-	memIO := backend.NewMemoryTerminalIO(nil, 100, 30)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 100, 30)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatalf("Failed to create terminal: %v", err)
@@ -615,31 +614,31 @@ func TestExitDialogButtonSelectionAndHover(t *testing.T) {
 	}
 
 	// 2. ArrowLeft selects 0 (Yes)
-	handleKey(backend.KeyEvent{Type: backend.KeyArrowLeft}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowLeft}, state)
 	if state.ExitDialogSelectedBtn != 0 {
 		t.Errorf("Expected selection 0 (Yes) after ArrowLeft, got %d", state.ExitDialogSelectedBtn)
 	}
 
 	// 3. ArrowRight selects 1 (No)
-	handleKey(backend.KeyEvent{Type: backend.KeyArrowRight}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowRight}, state)
 	if state.ExitDialogSelectedBtn != 1 {
 		t.Errorf("Expected selection 1 (No) after ArrowRight, got %d", state.ExitDialogSelectedBtn)
 	}
 
 	// 4. Tab toggles to 0 (Yes)
-	handleKey(backend.KeyEvent{Type: backend.KeyTab}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyTab}, state)
 	if state.ExitDialogSelectedBtn != 0 {
 		t.Errorf("Expected selection 0 (Yes) after Tab, got %d", state.ExitDialogSelectedBtn)
 	}
 
 	// 5. Tab toggles back to 1 (No)
-	handleKey(backend.KeyEvent{Type: backend.KeyTab}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyTab}, state)
 	if state.ExitDialogSelectedBtn != 1 {
 		t.Errorf("Expected selection 1 (No) after Tab, got %d", state.ExitDialogSelectedBtn)
 	}
 
 	// 6. Enter with 1 (No) cancels dialog
-	handleKey(backend.KeyEvent{Type: backend.KeyEnter}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyEnter}, state)
 	state.ExitDialogAnim.SetValue(0.0)
 	renderFrame(term, state)
 	if state.ShowExitDialog {
@@ -653,8 +652,8 @@ func TestExitDialogButtonSelectionAndHover(t *testing.T) {
 	openExitDialog(state, term)
 	state.ExitDialogAnim.SetValue(1.0)
 	renderFrame(term, state)
-	handleKey(backend.KeyEvent{Type: backend.KeyArrowLeft}, state)
-	handleKey(backend.KeyEvent{Type: backend.KeyEnter}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowLeft}, state)
+	handleKey(driver.KeyEvent{Type: driver.KeyEnter}, state)
 	if !state.ExitRequested {
 		t.Errorf("Expected ExitRequested=true after pressing Enter on 'Yes'")
 	}
@@ -670,8 +669,8 @@ func TestCloseOnImageTabKitty(t *testing.T) {
 		os.Setenv("KITTY_WINDOW_ID", origKitty)
 	}()
 
-	memIO := backend.NewMemoryTerminalIO(nil, 120, 35)
-	b := backend.NewPortableBackend(memIO)
+	memIO := driver.NewMemoryTerminalIO(nil, 120, 35)
+	b := driver.NewPortableBackend(memIO)
 	term, err := terminal.New(b)
 	if err != nil {
 		t.Fatal(err)
@@ -739,7 +738,3 @@ func TestCloseOnImageTabKitty(t *testing.T) {
 		}
 	}
 }
-
-
-
-

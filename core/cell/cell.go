@@ -68,23 +68,23 @@ const (
 	ModifierUndercurl       Modifier = 1 << 9
 )
 
-// Style terminal hücresinin stilini ve rengini tanımlar.
-// Bellek Hizalaması: 4 (Fg) + 4 (Bg) + 2 (Modifier) = 10 byte.
-// Go derleyicisi bunu 12 byte sınırına hizalar.
+// Style defines the color and visual styling of a terminal cell.
+// Memory Alignment: 4 (Fg) + 4 (Bg) + 2 (Modifier) = 10 bytes,
+// padded to 12 bytes by the Go compiler.
 type Style struct {
-	Fg       Color    // 4 byte
-	Bg       Color    // 4 byte
-	Modifier Modifier // 2 byte
+	Fg       Color    // 4 bytes
+	Bg       Color    // 4 bytes
+	Modifier Modifier // 2 bytes
 }
 
-// Reset stili varsayılan ayarlara getirir.
+// Reset restores the style to its default values.
 func (s *Style) Reset() {
 	s.Fg = NewColorDefault()
 	s.Bg = NewColorDefault()
 	s.Modifier = ModifierReset
 }
 
-// AddModifier stile yeni bir özellik ekler (akıcı API/fluet API için değer döndürür).
+// AddModifier adds a new modifier flag and returns the updated Style.
 func (s Style) AddModifier(m Modifier) Style {
 	s.Modifier |= m
 	return s

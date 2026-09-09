@@ -4,9 +4,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -75,23 +75,23 @@ func (cps *CommandPaletteState) Toggle() {
 
 // HandleKey, Command Palette açıkken gelen tuş olayını işler.
 // true döner ise olay tüketilmiştir, dış event loop'a yayılmamalıdır.
-func (cps *CommandPaletteState) HandleKey(ev backend.KeyEvent) bool {
+func (cps *CommandPaletteState) HandleKey(ev driver.KeyEvent) bool {
 	if !cps.IsOpen {
 		return false
 	}
 
 	// Ctrl+P, açık paleti de aynı kısayolla kapatır.
-	if ev.Type == backend.KeyRune && ev.Ch == 'p' && ev.Ctrl {
+	if ev.Type == driver.KeyRune && ev.Ch == 'p' && ev.Ctrl {
 		cps.Close()
 		return true
 	}
 
 	switch ev.Type {
-	case backend.KeyEsc:
+	case driver.KeyEsc:
 		cps.Close()
 		return true
 
-	case backend.KeyEnter:
+	case driver.KeyEnter:
 		if len(cps.Filtered) > 0 && cps.Selected >= 0 && cps.Selected < len(cps.Filtered) {
 			handler := cps.Filtered[cps.Selected].Handler
 			cps.Close()
@@ -104,7 +104,7 @@ func (cps *CommandPaletteState) HandleKey(ev backend.KeyEvent) bool {
 		}
 		return true
 
-	case backend.KeyArrowUp:
+	case driver.KeyArrowUp:
 		if cps.Selected > 0 {
 			cps.Selected--
 			// Scroll up if needed
@@ -114,7 +114,7 @@ func (cps *CommandPaletteState) HandleKey(ev backend.KeyEvent) bool {
 		}
 		return true
 
-	case backend.KeyArrowDown:
+	case driver.KeyArrowDown:
 		if cps.Selected < len(cps.Filtered)-1 {
 			cps.Selected++
 			// Scroll down if needed
@@ -560,12 +560,12 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			})
 		}
 		if ctx.RegisterMouse != nil {
-			ctx.RegisterMouse(rowArea, func(ev backend.MouseEvent) {
+			ctx.RegisterMouse(rowArea, func(ev driver.MouseEvent) {
 				if cp.State == nil {
 					return
 				}
 				switch ev.Button {
-				case backend.MouseLeft:
+				case driver.MouseLeft:
 					if cp.State != nil {
 						cp.State.Selected = itemIdx
 						cp.State.Close()
@@ -573,16 +573,16 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					if itemHandler != nil {
 						itemHandler()
 					}
-				case backend.MouseNone:
+				case driver.MouseNone:
 					cp.State.Selected = itemIdx
-				case backend.MouseScrollUp:
+				case driver.MouseScrollUp:
 					if cp.State.Selected > 0 {
 						cp.State.Selected--
 						if cp.State.Selected < cp.State.ScrollOffset {
 							cp.State.ScrollOffset = cp.State.Selected
 						}
 					}
-				case backend.MouseScrollDown:
+				case driver.MouseScrollDown:
 					if cp.State.Selected < len(cp.State.Filtered)-1 {
 						cp.State.Selected++
 						if cp.State.Selected >= cp.State.ScrollOffset+visibleCount {

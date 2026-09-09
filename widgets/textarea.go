@@ -3,9 +3,9 @@ package widgets
 import (
 	"strings"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/layout"
 )
 
@@ -24,50 +24,50 @@ func (s *TextAreaState) Value() string {
 }
 func (s *TextAreaState) SetValue(value string) { s.Text = []rune(value); s.Cursor = len(s.Text) }
 
-func (s *TextAreaState) HandleKey(ev backend.KeyEvent) bool {
+func (s *TextAreaState) HandleKey(ev driver.KeyEvent) bool {
 	if s == nil {
 		return false
 	}
 	switch ev.Type {
-	case backend.KeyRune:
+	case driver.KeyRune:
 		s.Text = append(s.Text, 0)
 		copy(s.Text[s.Cursor+1:], s.Text[s.Cursor:])
 		s.Text[s.Cursor] = ev.Ch
 		s.Cursor++
 		return true
-	case backend.KeyEnter:
+	case driver.KeyEnter:
 		s.Text = append(s.Text, 0)
 		copy(s.Text[s.Cursor+1:], s.Text[s.Cursor:])
 		s.Text[s.Cursor] = '\n'
 		s.Cursor++
 		return true
-	case backend.KeyBackspace:
+	case driver.KeyBackspace:
 		if s.Cursor == 0 {
 			return false
 		}
 		s.Text = append(s.Text[:s.Cursor-1], s.Text[s.Cursor:]...)
 		s.Cursor--
 		return true
-	case backend.KeyDelete:
+	case driver.KeyDelete:
 		if s.Cursor >= len(s.Text) {
 			return false
 		}
 		s.Text = append(s.Text[:s.Cursor], s.Text[s.Cursor+1:]...)
 		return true
-	case backend.KeyArrowLeft:
+	case driver.KeyArrowLeft:
 		if s.Cursor > 0 {
 			s.Cursor--
 			return true
 		}
-	case backend.KeyArrowRight:
+	case driver.KeyArrowRight:
 		if s.Cursor < len(s.Text) {
 			s.Cursor++
 			return true
 		}
-	case backend.KeyHome:
+	case driver.KeyHome:
 		s.Cursor = lineStart(s.Text, s.Cursor)
 		return true
-	case backend.KeyEnd:
+	case driver.KeyEnd:
 		s.Cursor = lineEnd(s.Text, s.Cursor)
 		return true
 	}

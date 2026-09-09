@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestDevTools_ToggleAndRecord(t *testing.T) {
@@ -15,7 +15,7 @@ func TestDevTools_ToggleAndRecord(t *testing.T) {
 		t.Fatal("expected DevTools to be disabled by default")
 	}
 
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyF12})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyF12})
 	if !state.Enabled {
 		t.Fatal("expected DevTools to be enabled after F12")
 	}
@@ -26,7 +26,7 @@ func TestDevTools_ToggleAndRecord(t *testing.T) {
 	}
 
 	// Tab through tabs
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyTab})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyTab})
 	if state.ActiveTab != 1 {
 		t.Errorf("expected active tab 1, got %d", state.ActiveTab)
 	}

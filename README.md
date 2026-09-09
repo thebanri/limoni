@@ -280,8 +280,8 @@ Limoni comes with an extensive suite of production-ready widgets:
                                           │ State & Views
                                           ▼
                       ┌────────────────────────────────────────┐
-                      │         Declarative UI / Widgets       │
-                      │   (Tables, Modals, 3D Canvas, Layout)  │
+                      │    Composable UI / Declarative Widgets │
+                      │   (VStack, Border, Pad, Tables, 3D)    │
                       └───────────────────┬────────────────────┘
                                           │ Draw to Grid
                                           ▼
@@ -305,9 +305,23 @@ Limoni comes with an extensive suite of production-ready widgets:
                                           │ Direct Write
                                           ▼
                       ┌────────────────────────────────────────┐
-                      │   Terminal TTY / Windows / macOS / SSH │
+                      │   Terminal Driver (Unix/Win/WASM/SSH)  │
                       └────────────────────────────────────────┘
 ```
+
+### 1. Zero-Allocation Rendering Pipeline
+- **Contiguous 1D Flat Matrix:** Screen state is stored in a single flat slice of `[]cell.Cell` instead of jagged 2D slices, maximizing CPU L1/L2 cache locality.
+- **Cache-Friendly 16-Byte Cell Alignment:** Every `cell.Cell` is exactly 16 bytes (`Content`: 4 bytes, `Style`: 12 bytes), fitting cleanly across 64-bit cache lines.
+- **Stack-Allocated Context:** Rendering parameters and cascading styles are passed by value on the call stack via `cell.Context`, generating zero heap escape.
+- **Pre-Allocated ANSI Diff Buffer:** `buffer.Diff` computes changes between double-buffered frame snapshots and writes minimal ANSI escape sequences into a reused byte slice (`writeBuf`), yielding **`0 B/op` and `0 allocs/op`** on hot rendering paths.
+
+### 2. Decoupled, Non-Dogmatic Concurrency & TEA
+- **Optional Elm Architecture (TEA):** Limoni includes a production-ready, typed Elm Architecture via `core/engine.Program` (`Model`, `Update`, `View`, `Cmd`, `Msg`) with redraw coalescing, background command worker pools, and panic recovery.
+- **Non-Dogmatic Freedom:** Unlike frameworks that mandate TEA for every task, Limoni allows you to choose the paradigm that best fits your project:
+  * **Composable Lego Trees:** Build declarative layouts with `limoni.VStack`, `limoni.HStack`, `limoni.Border`, and `limoni.Pad`.
+  * **Immediate-Mode Callbacks:** Write quick scripts or simple tools using `limoni.Run(func(f, ev) bool)`.
+  * **Multithreaded Goroutine Streaming:** Safely push background telemetry updates from arbitrary goroutines without bottlenecking the main loop.
+
 
 ---
 
@@ -377,6 +391,17 @@ Explore runnable demo applications inside the [`examples/`](./examples) director
 Check out our curated list of real-world apps, tools, and third-party widgets in [**AWESOME.md**](./AWESOME.md).
 
 > Built something cool with Limoni? Open a Pull Request and add your project to [AWESOME.md](./AWESOME.md)!
+
+## 💡 Engineering Philosophy & Acknowledgements
+
+Limoni was conceived to push the boundaries of terminal performance in Go, bringing Rust-grade latency and memory determinism to the Go ecosystem.
+
+### Transparency & Tooling
+In the spirit of modern open-source transparency:
+- **AI-Accelerated Scaffolding:** Modern AI developer tools (such as Claude and Gemini assistants) were utilized during development as high-velocity accelerators for generating boilerplate scaffolding, initial unit test cases, and draft documentation.
+- **Human Systems Architecture:** The low-level systems engineering—specifically the flat 1D contiguous cell grid, cache-aligned 16-byte structs, sub-microsecond ANSI differential encoder, stack-allocated context pipeline, zero-allocation layout negotiation, and native Unix/Windows terminal drivers—was conceived, profiled, benchmarked, and directed by the author.
+
+We believe that combining ambitious low-level systems engineering with modern development acceleration leads to more robust, performant, and well-tested software for the entire community.
 
 ---
 

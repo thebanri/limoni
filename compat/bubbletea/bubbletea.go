@@ -5,14 +5,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 )
 
 // Msg represents any Bubble Tea message.
-type Msg = runtime.Msg
+type Msg = engine.Msg
 
 // Cmd is an asynchronous operation that returns a message.
 type Cmd func() Msg
@@ -140,12 +140,12 @@ type WindowSizeMsg struct {
 	Height int
 }
 
-// adapterModel wraps a Bubble Tea Model to work with Limoni's native runtime.Model.
+// adapterModel wraps a Bubble Tea Model to work with Limoni's native engine.Model.
 type adapterModel struct {
 	inner Model
 }
 
-func (a *adapterModel) Init() []runtime.Cmd {
+func (a *adapterModel) Init() []engine.Cmd {
 	if a.inner == nil {
 		return nil
 	}
@@ -153,12 +153,12 @@ func (a *adapterModel) Init() []runtime.Cmd {
 	if cmd == nil {
 		return nil
 	}
-	return []runtime.Cmd{wrapCmd(cmd)}
+	return []engine.Cmd{wrapCmd(cmd)}
 }
 
-func (a *adapterModel) Update(msg runtime.Msg) runtime.UpdateResult {
+func (a *adapterModel) Update(msg engine.Msg) engine.UpdateResult {
 	if a.inner == nil {
-		return runtime.UpdateResult{}
+		return engine.UpdateResult{}
 	}
 
 	// Map Limoni runtime input messages to Bubble Tea messages
@@ -167,7 +167,7 @@ func (a *adapterModel) Update(msg runtime.Msg) runtime.UpdateResult {
 	nextModel, nextCmd := a.inner.Update(teaMsg)
 	a.inner = nextModel
 
-	var cmds []runtime.Cmd
+	var cmds []engine.Cmd
 	if nextCmd != nil {
 		cmds = append(cmds, wrapCmd(nextCmd))
 	}
@@ -177,7 +177,7 @@ func (a *adapterModel) Update(msg runtime.Msg) runtime.UpdateResult {
 		isQuit = true
 	}
 
-	return runtime.UpdateResult{
+	return engine.UpdateResult{
 		Commands: cmds,
 		Redraw:   true,
 		Quit:     isQuit,
@@ -197,8 +197,8 @@ func (a *adapterModel) View(frame *terminal.Frame) {
 	}
 }
 
-func wrapCmd(cmd Cmd) runtime.Cmd {
-	return func(ctx context.Context) runtime.Msg {
+func wrapCmd(cmd Cmd) engine.Cmd {
+	return func(ctx context.Context) engine.Msg {
 		if cmd == nil {
 			return nil
 		}
@@ -215,49 +215,49 @@ func wrapCmd(cmd Cmd) runtime.Cmd {
 	}
 }
 
-func mapMsg(msg runtime.Msg) Msg {
+func mapMsg(msg engine.Msg) Msg {
 	switch m := msg.(type) {
-	case runtime.KeyPressMsg:
+	case engine.KeyPressMsg:
 		if m.Key.Ctrl && m.Key.Ch == 'c' {
 			return KeyMsg{Type: KeyCtrlC, Ctrl: true, Runes: []rune{'c'}}
 		}
 		switch m.Key.Type {
-		case backend.KeyRune:
+		case driver.KeyRune:
 			return KeyMsg{Type: KeyRunes, Runes: []rune{m.Key.Ch}, Alt: m.Key.Alt, Ctrl: m.Key.Ctrl, Shift: m.Key.Shift}
-		case backend.KeyEnter:
+		case driver.KeyEnter:
 			return KeyMsg{Type: KeyEnter}
-		case backend.KeyBackspace:
+		case driver.KeyBackspace:
 			return KeyMsg{Type: KeyBackspace}
-		case backend.KeyTab:
+		case driver.KeyTab:
 			return KeyMsg{Type: KeyTab}
-		case backend.KeyEsc:
+		case driver.KeyEsc:
 			return KeyMsg{Type: KeyEsc}
-		case backend.KeyArrowUp:
+		case driver.KeyArrowUp:
 			return KeyMsg{Type: KeyUp}
-		case backend.KeyArrowDown:
+		case driver.KeyArrowDown:
 			return KeyMsg{Type: KeyDown}
-		case backend.KeyArrowLeft:
+		case driver.KeyArrowLeft:
 			return KeyMsg{Type: KeyLeft}
-		case backend.KeyArrowRight:
+		case driver.KeyArrowRight:
 			return KeyMsg{Type: KeyRight}
 		}
-	case runtime.ResizeMsg:
+	case engine.ResizeMsg:
 		return WindowSizeMsg{Width: int(m.Width), Height: int(m.Height)}
 	}
 	return msg
 }
 
-// Program wraps Limoni's runtime.Program to run Bubble Tea Models seamlessly.
+// Program wraps Limoni's engine.Program to run Bubble Tea Models seamlessly.
 type Program struct {
-	prog    *runtime.Program
-	backend *backend.Backend
+	prog    *engine.Program
+	backend *driver.Backend
 	term    *terminal.Terminal
 }
 
 // NewProgram creates a new Bubble Tea compatible Program running on Limoni.
 func NewProgram(m Model) *Program {
 	adapted := &adapterModel{inner: m}
-	p := runtime.New(runtime.WithModel(adapted))
+	p := engine.New(engine.WithModel(adapted))
 	return &Program{
 		prog: p,
 	}
@@ -279,7 +279,7 @@ func (p *Program) RunTerminal(ctx context.Context) error {
 		return nil
 	}
 	if p.backend == nil {
-		p.backend = backend.NewBackend(os.Stdin, os.Stdout)
+		p.backend = driver.NewBackend(os.Stdin, os.Stdout)
 	}
 	if p.term == nil {
 		term, err := terminal.New(p.backend)

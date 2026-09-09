@@ -5,9 +5,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // ToastLevel represents the severity and visual styling of a toast.
@@ -286,11 +286,11 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 }
 
 // HandleMouse processes mouse clicks on toast notification cards and close buttons.
-func (tm *ToastManager) HandleMouse(m backend.MouseEvent) bool {
+func (tm *ToastManager) HandleMouse(m driver.MouseEvent) bool {
 	if tm == nil || len(tm.Toasts) == 0 {
 		return false
 	}
-	if m.Button == backend.MouseLeft {
+	if m.Button == driver.MouseLeft {
 		for _, r := range tm.renderedRects {
 			if m.X >= r.rect.X && m.X < r.rect.X+r.rect.Width &&
 				m.Y >= r.rect.Y && m.Y < r.rect.Y+r.rect.Height {

@@ -3,8 +3,8 @@ package widgets
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestTextInputState(t *testing.T) {
@@ -14,8 +14,8 @@ func TestTextInputState(t *testing.T) {
 	}
 
 	// Karakter ekleme
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'a'})
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'b'})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'a'})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'b'})
 	if state.Value() != "ab" {
 		t.Errorf("Value() = %q; 'ab' bekleniyordu", state.Value())
 	}
@@ -24,7 +24,7 @@ func TestTextInputState(t *testing.T) {
 	}
 
 	// Geri silme (Backspace)
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyBackspace})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyBackspace})
 	if state.Value() != "a" {
 		t.Errorf("Value() = %q; 'a' bekleniyordu", state.Value())
 	}
@@ -33,13 +33,13 @@ func TestTextInputState(t *testing.T) {
 	}
 
 	// Yön tuşuyla sola gitme
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyArrowLeft})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyArrowLeft})
 	if state.Cursor != 0 {
 		t.Errorf("Cursor = %d; 0 bekleniyordu", state.Cursor)
 	}
 
 	// Araya karakter ekleme
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyRune, Ch: 'z'})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'z'})
 	if state.Value() != "za" {
 		t.Errorf("Value() = %q; 'za' bekleniyordu", state.Value())
 	}
@@ -49,7 +49,7 @@ func TestTextInputState(t *testing.T) {
 
 	// Delete tuşuyla sağdakini silme
 	state.Cursor = 0 // Başa al
-	state.HandleKey(backend.KeyEvent{Type: backend.KeyDelete})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyDelete})
 	if state.Value() != "a" {
 		t.Errorf("Value() = %q; 'a' bekleniyordu", state.Value())
 	}

@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/thebanri/limoni/core/accessibility"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -50,8 +50,8 @@ func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, the
 		f.RenderWidget(btn, cols[i])
 
 		tabName := tab
-		f.RegisterClickHandler(cols[i], func(ev backend.MouseEvent) {
-			if ev.Button == backend.MouseLeft && !ev.Drag {
+		f.RegisterClickHandler(cols[i], func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseLeft && !ev.Drag {
 				state.ReferenceActiveSubTab = tabName
 			}
 		})
@@ -103,8 +103,8 @@ func drawSubTabRuntime(f *terminal.Frame, state *AppState, theme widgets.Theme, 
 		PaddingLeft: 2, PaddingTop: 1, Child: referenceLabel{text: message, style: theme.RoleStyle("text")},
 	}, area)
 
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
+	f.RegisterClickHandler(area, func(ev driver.MouseEvent) {
+		if ev.Button == driver.MouseLeft && !ev.Drag {
 			state.ReferenceRuntimeMessages++
 		}
 	})
@@ -153,8 +153,8 @@ func drawSubTabLayout(f *terminal.Frame, state *AppState, theme widgets.Theme, a
 		PaddingLeft: 2, PaddingTop: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")},
 	}, area)
 
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
+	f.RegisterClickHandler(area, func(ev driver.MouseEvent) {
+		if ev.Button == driver.MouseLeft && !ev.Drag {
 			state.ReferenceLayoutPass = (state.ReferenceLayoutPass + 1) % 10
 			state.ReferenceLayoutLastAction = fmt.Sprintf("click at (%d,%d)", ev.X, ev.Y)
 		}
@@ -201,8 +201,8 @@ func drawSubTabAccessibility(f *terminal.Frame, state *AppState, theme widgets.T
 		PaddingLeft: 2, PaddingTop: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")},
 	}, area)
 
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
+	f.RegisterClickHandler(area, func(ev driver.MouseEvent) {
+		if ev.Button == driver.MouseLeft && !ev.Drag {
 			state.ReferenceAccessibilityASCII = !state.ReferenceAccessibilityASCII
 		}
 	})
@@ -303,8 +303,8 @@ func drawSubTabBenchmark(f *terminal.Frame, state *AppState, theme widgets.Theme
 		PaddingLeft: 2, PaddingTop: 1, Child: referenceLabel{text: text, style: theme.RoleStyle("text")},
 	}, area)
 
-	f.RegisterClickHandler(area, func(ev backend.MouseEvent) {
-		if ev.Button == backend.MouseLeft && !ev.Drag {
+	f.RegisterClickHandler(area, func(ev driver.MouseEvent) {
+		if ev.Button == driver.MouseLeft && !ev.Drag {
 			state.ReferenceBenchmarkRuns++
 		}
 	})

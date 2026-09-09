@@ -5,9 +5,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // DevToolsState records live performance metrics and active inspector state.
@@ -70,11 +70,11 @@ func (s *DevToolsState) RecordFrame(frameDuration time.Duration) {
 }
 
 // HandleKey processes F12 / shortcut keys and tab navigation.
-func (s *DevToolsState) HandleKey(ev backend.KeyEvent) bool {
+func (s *DevToolsState) HandleKey(ev driver.KeyEvent) bool {
 	if s == nil {
 		return false
 	}
-	if ev.Type == backend.KeyF12 {
+	if ev.Type == driver.KeyF12 {
 		s.Toggle()
 		return true
 	}
@@ -83,7 +83,7 @@ func (s *DevToolsState) HandleKey(ev backend.KeyEvent) bool {
 	}
 
 	switch ev.Type {
-	case backend.KeyTab:
+	case driver.KeyTab:
 		s.ActiveTab = (s.ActiveTab + 1) % 3
 		return true
 	}

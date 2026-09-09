@@ -3,9 +3,9 @@ package terminal
 import (
 	"testing"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func TestModalCenteringAndContains(t *testing.T) {
@@ -98,7 +98,7 @@ func TestRouteMouseEventWithModal(t *testing.T) {
 	insideTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
 		Area: cell.NewRect(25, 8, 5, 2),
-		Handler: func(ev backend.MouseEvent) {
+		Handler: func(ev driver.MouseEvent) {
 			insideTriggered = true
 		},
 	})
@@ -107,19 +107,19 @@ func TestRouteMouseEventWithModal(t *testing.T) {
 	outsideTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
 		Area: cell.NewRect(5, 5, 5, 2),
-		Handler: func(ev backend.MouseEvent) {
+		Handler: func(ev driver.MouseEvent) {
 			outsideTriggered = true
 		},
 	})
 
 	// 1. Modal içine tıklama
-	trm.RouteMouseEvent(backend.MouseEvent{X: 27, Y: 9, Button: backend.MouseLeft})
+	trm.RouteMouseEvent(driver.MouseEvent{X: 27, Y: 9, Button: driver.MouseLeft})
 	if !insideTriggered {
 		t.Errorf("Modal içi tıklama tetiklenmedi!")
 	}
 
 	// 2. Modal dışına tıklama (click-outside tetiklenmeli ve dışarıdaki handler engellenmeli)
-	trm.RouteMouseEvent(backend.MouseEvent{X: 6, Y: 6, Button: backend.MouseLeft})
+	trm.RouteMouseEvent(driver.MouseEvent{X: 6, Y: 6, Button: driver.MouseLeft})
 	if !outsideClicked {
 		t.Errorf("ClickOutside callback tetiklenmedi!")
 	}
@@ -196,7 +196,7 @@ func TestMultiLayerZOrdering(t *testing.T) {
 	highTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
 		Area:    cell.NewRect(25, 6, 10, 2),
-		Handler: func(ev backend.MouseEvent) { highTriggered = true },
+		Handler: func(ev driver.MouseEvent) { highTriggered = true },
 		LayerID: "layer_high",
 	})
 
@@ -204,12 +204,12 @@ func TestMultiLayerZOrdering(t *testing.T) {
 	lowTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
 		Area:    cell.NewRect(25, 6, 10, 2),
-		Handler: func(ev backend.MouseEvent) { lowTriggered = true },
+		Handler: func(ev driver.MouseEvent) { lowTriggered = true },
 		LayerID: "layer_low",
 	})
 
 	// Kesişim alanına tıklama: En üstteki katman (layer_high) yakalamalı
-	trm.RouteMouseEvent(backend.MouseEvent{X: 27, Y: 7, Button: backend.MouseLeft})
+	trm.RouteMouseEvent(driver.MouseEvent{X: 27, Y: 7, Button: driver.MouseLeft})
 	if !highTriggered {
 		t.Errorf("En üst katmandaki handler tetiklenmedi!")
 	}
@@ -218,7 +218,7 @@ func TestMultiLayerZOrdering(t *testing.T) {
 	}
 
 	// layer_high dışına tıklama → layer_high'ın ClickOutside tetiklenmeli
-	trm.RouteMouseEvent(backend.MouseEvent{X: 5, Y: 5, Button: backend.MouseLeft})
+	trm.RouteMouseEvent(driver.MouseEvent{X: 5, Y: 5, Button: driver.MouseLeft})
 	if !layer2Clicked {
 		t.Errorf("En üst katmanın ClickOutside tetiklenmedi!")
 	}
