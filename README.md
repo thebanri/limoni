@@ -237,7 +237,7 @@ func main() {
 
 ## 📚 Documentation
 
-Detailed guides and API references are available in the [`docs/`](./docs) directory and on our [**Interactive Documentation Website**](./docs/site):
+Detailed guides and API references are available in the [`docs/`](./docs) directory and on our [**Interactive Documentation Website**](https://limoni-docs.vercel.app/#quickstart):
 
 | Guide | Description |
 | :--- | :--- |
