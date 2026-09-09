@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Limoni Dokümantasyonu — Go TUI Kütüphanesi</title>
-    <meta name="description" content="Limoni resmi teknik dokümantasyonu. Sıfır bellek tahsisatlı 60+ FPS Go TUI kütüphanesi, widget kataloğu, canlı terminal çıktıları ve API referansı.">
+    <title>Limoni Documentation — Ultra-Fast Go TUI Library</title>
+    <meta name="description" content="Official Limoni technical documentation. Zero-allocation 60+ FPS Go TUI library, widget catalog with live terminal outputs, and core API reference.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="nav-left">
-            <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="Menü">
+            <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
             <a href="#quickstart" class="brand" onclick="switchDoc('quickstart')">
@@ -29,12 +29,19 @@
         <div class="nav-center">
             <div class="search-trigger" onclick="openSearch()">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <span class="search-text">Dokümantasyonda ara...</span>
+                <span class="search-text" id="search-placeholder-text">Search documentation...</span>
                 <kbd class="search-kbd">⌘K</kbd>
             </div>
         </div>
 
         <div class="nav-right">
+            <!-- Language Switcher -->
+            <div class="lang-switch">
+                <button class="lang-btn active" id="lang-btn-en" onclick="setLanguage('en')">EN</button>
+                <span class="lang-divider">/</span>
+                <button class="lang-btn" id="lang-btn-tr" onclick="setLanguage('tr')">TR</button>
+            </div>
+
             <a href="https://pkg.go.dev/github.com/thebanri/limoni" target="_blank" rel="noopener noreferrer" class="nav-link">GoDoc</a>
             <a href="https://github.com/thebanri/limoni" target="_blank" rel="noopener noreferrer" class="nav-github-btn">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -48,53 +55,53 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar" id="sidebar">
             <nav class="sidebar-nav">
-                <!-- Group: Başlangıç -->
+                <!-- Group: Start -->
                 <div class="nav-group">
-                    <div class="group-title">BAŞLANGIÇ</div>
+                    <div class="group-title" id="group-title-start">GETTING STARTED</div>
                     <ul class="nav-items">
-                        <li><a href="#quickstart" class="nav-item active" data-doc="quickstart" onclick="switchDoc('quickstart')">⚡ Hızlı Başlangıç</a></li>
-                        <li><a href="#architecture" class="nav-item" data-doc="architecture" onclick="switchDoc('architecture')">🏛️ Mimari & Sıfır-Tahsisat</a></li>
-                        <li><a href="#layout" class="nav-item" data-doc="layout" onclick="switchDoc('layout')">📐 Yerleşim (Flex & Grid)</a></li>
-                        <li><a href="#benchmarks" class="nav-item" data-doc="benchmarks" onclick="switchDoc('benchmarks')">📊 Benchmark Ölçümleri</a></li>
+                        <li><a href="#quickstart" class="nav-item active" data-doc="quickstart" onclick="switchDoc('quickstart')">⚡ Quickstart</a></li>
+                        <li><a href="#architecture" class="nav-item" data-doc="architecture" onclick="switchDoc('architecture')">🏛️ Architecture & Zero-Alloc</a></li>
+                        <li><a href="#layout" class="nav-item" data-doc="layout" onclick="switchDoc('layout')">📐 Layout (Flex & Grid)</a></li>
+                        <li><a href="#benchmarks" class="nav-item" data-doc="benchmarks" onclick="switchDoc('benchmarks')">📊 Benchmark Report</a></li>
                     </ul>
                 </div>
 
-                <!-- Group: Widget Kataloğu & Canlı Çıktılar -->
+                <!-- Group: Widgets & Live Outputs -->
                 <div class="nav-group">
-                    <div class="group-title">WİDGET'LAR (CANLI ÇIKTILAR)</div>
+                    <div class="group-title" id="group-title-widgets">WIDGETS (LIVE OUTPUTS)</div>
                     <ul class="nav-items">
                         <li><a href="#widget-block" class="nav-item" data-doc="widget-block" onclick="switchDoc('widget-block')">📦 Block & Container</a></li>
-                        <li><a href="#widget-table" class="nav-item" data-doc="widget-table" onclick="switchDoc('widget-table')">📊 Table & Veri Tablosu</a></li>
-                        <li><a href="#widget-dialog" class="nav-item" data-doc="widget-dialog" onclick="switchDoc('widget-dialog')">🪟 Dialog & Modallar</a></li>
+                        <li><a href="#widget-table" class="nav-item" data-doc="widget-table" onclick="switchDoc('widget-table')">📊 Table & Data Grid</a></li>
+                        <li><a href="#widget-dialog" class="nav-item" data-doc="widget-dialog" onclick="switchDoc('widget-dialog')">🪟 Dialog & Modals</a></li>
                         <li><a href="#widget-progress" class="nav-item" data-doc="widget-progress" onclick="switchDoc('widget-progress')">📈 ProgressBar & Sparkline</a></li>
-                        <li><a href="#widget-inputs" class="nav-item" data-doc="widget-inputs" onclick="switchDoc('widget-inputs')">✍️ Formlar & Girdi Kutuları</a></li>
+                        <li><a href="#widget-inputs" class="nav-item" data-doc="widget-inputs" onclick="switchDoc('widget-inputs')">✍️ Forms & Text Inputs</a></li>
                         <li><a href="#widget-slider" class="nav-item" data-doc="widget-slider" onclick="switchDoc('widget-slider')">🎚️ Slider & Select</a></li>
-                        <li><a href="#widget-treeview" class="nav-item" data-doc="widget-treeview" onclick="switchDoc('widget-treeview')">🌲 TreeView (Ağaç)</a></li>
+                        <li><a href="#widget-treeview" class="nav-item" data-doc="widget-treeview" onclick="switchDoc('widget-treeview')">🌲 TreeView (Hierarchical)</a></li>
                         <li><a href="#widget-viewer3d" class="nav-item" data-doc="widget-viewer3d" onclick="switchDoc('widget-viewer3d')">🧊 3D Viewer & Canvas</a></li>
-                        <li><a href="#widget-markdown" class="nav-item" data-doc="widget-markdown" onclick="switchDoc('widget-markdown')">📝 Markdown Görüntüleyici</a></li>
+                        <li><a href="#widget-markdown" class="nav-item" data-doc="widget-markdown" onclick="switchDoc('widget-markdown')">📝 Markdown Reader</a></li>
                         <li><a href="#widget-virtual" class="nav-item" data-doc="widget-virtual" onclick="switchDoc('widget-virtual')">⚡ VirtualDataView (1M+)</a></li>
                     </ul>
                 </div>
 
-                <!-- Group: Çekirdek API'ler -->
+                <!-- Group: Core APIs -->
                 <div class="nav-group">
-                    <div class="group-title">ÇEKİRDEK APİ'LER</div>
+                    <div class="group-title" id="group-title-core">CORE APIS</div>
                     <ul class="nav-items">
-                        <li><a href="#core-cell" class="nav-item" data-doc="core-cell" onclick="switchDoc('core-cell')">🟩 cell (Hücre & Stil)</a></li>
+                        <li><a href="#core-cell" class="nav-item" data-doc="core-cell" onclick="switchDoc('core-cell')">🟩 cell (Cells & Style)</a></li>
                         <li><a href="#core-buffer" class="nav-item" data-doc="core-buffer" onclick="switchDoc('core-buffer')">🟨 buffer & ANSI Diff</a></li>
-                        <li><a href="#core-terminal" class="nav-item" data-doc="core-terminal" onclick="switchDoc('core-terminal')">🟦 terminal & Odak</a></li>
+                        <li><a href="#core-terminal" class="nav-item" data-doc="core-terminal" onclick="switchDoc('core-terminal')">🟦 terminal & Focus</a></li>
                         <li><a href="#core-runtime" class="nav-item" data-doc="core-runtime" onclick="switchDoc('core-runtime')">🔄 runtime (TEA Engine)</a></li>
                     </ul>
                 </div>
 
-                <!-- Group: Rehberler -->
+                <!-- Group: Guides -->
                 <div class="nav-group">
-                    <div class="group-title">REHBERLER & ENTEGRASYON</div>
+                    <div class="group-title" id="group-title-guides">GUIDES & INTEGRATION</div>
                     <ul class="nav-items">
-                        <li><a href="#bubbletea" class="nav-item" data-doc="bubbletea" onclick="switchDoc('bubbletea')">🍵 Bubble Tea Geçişi</a></li>
-                        <li><a href="#a11y" class="nav-item" data-doc="a11y" onclick="switchDoc('a11y')">♿ Erişilebilirlik (A11y)</a></li>
-                        <li><a href="#platforms" class="nav-item" data-doc="platforms" onclick="switchDoc('platforms')">🌐 Sürücüler & WASM</a></li>
-                        <li><a href="#examples" class="nav-item" data-doc="examples" onclick="switchDoc('examples')">🚀 Örnekler & Demolar</a></li>
+                        <li><a href="#bubbletea" class="nav-item" data-doc="bubbletea" onclick="switchDoc('bubbletea')">🍵 Bubble Tea Migration</a></li>
+                        <li><a href="#a11y" class="nav-item" data-doc="a11y" onclick="switchDoc('a11y')">♿ Accessibility (A11y)</a></li>
+                        <li><a href="#platforms" class="nav-item" data-doc="platforms" onclick="switchDoc('platforms')">🌐 Drivers & WASM</a></li>
+                        <li><a href="#examples" class="nav-item" data-doc="examples" onclick="switchDoc('examples')">🚀 Examples & Demos</a></li>
                     </ul>
                 </div>
             </nav>
@@ -109,18 +116,18 @@
             <footer class="doc-footer">
                 <div class="footer-nav-buttons">
                     <button class="doc-nav-btn prev-btn" id="prev-btn" onclick="navPrev()">
-                        <span class="btn-sub">&larr; Önceki</span>
+                        <span class="btn-sub" id="prev-btn-sub">&larr; Previous</span>
                         <span class="btn-name" id="prev-btn-name">...</span>
                     </button>
                     <button class="doc-nav-btn next-btn" id="next-btn" onclick="navNext()">
-                        <span class="btn-sub">Sonraki &rarr;</span>
+                        <span class="btn-sub" id="next-btn-sub">Next &rarr;</span>
                         <span class="btn-name" id="next-btn-name">...</span>
                     </button>
                 </div>
 
                 <div class="footer-meta">
-                    <span>Limoni TUI — MIT Lisansı ile açık kaynak olarak geliştirilmektedir.</span>
-                    <a href="https://github.com/thebanri/limoni" target="_blank" rel="noopener noreferrer">GitHub'da Yıldızla ⭐</a>
+                    <span id="footer-license-text">Limoni TUI — Open-source under the MIT License.</span>
+                    <a href="https://github.com/thebanri/limoni" target="_blank" rel="noopener noreferrer" id="footer-star-link">Star on GitHub ⭐</a>
                 </div>
             </footer>
         </main>
@@ -128,7 +135,7 @@
         <!-- Right On-Page Navigation (TOC) -->
         <aside class="toc-area" id="toc-area">
             <div class="toc-wrapper">
-                <div class="toc-header">BU SAYFADA</div>
+                <div class="toc-header" id="toc-header-title">ON THIS PAGE</div>
                 <ul class="toc-nav" id="toc-nav">
                     <!-- Populated dynamically -->
                 </ul>
@@ -141,7 +148,7 @@
         <div class="search-modal-dialog">
             <div class="search-modal-input-wrapper">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="search-input" class="search-modal-input" placeholder="Konu, widget veya API ara... (Örn: Table, 3D, TEA, Buffer)" oninput="handleSearch(this.value)">
+                <input type="text" id="search-input" class="search-modal-input" placeholder="Search documentation... (e.g. Table, 3D, TEA, Buffer)" oninput="handleSearch(this.value)">
                 <button class="search-close-btn" onclick="closeSearch()">ESC</button>
             </div>
             <div class="search-results-list" id="search-results">
