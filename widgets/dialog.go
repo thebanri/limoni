@@ -241,16 +241,24 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		btnList := make([]btnLayout, len(di.Buttons))
 		totalBtnsW := 0
 
+		hasDialogFocus := false
+		for j := range di.Buttons {
+			if ctx.FocusedID == fmt.Sprintf("%s_btn_%d", di.ID, j) {
+				hasDialogFocus = true
+				break
+			}
+		}
+
 		for i, btn := range di.Buttons {
 			btnID := fmt.Sprintf("%s_btn_%d", di.ID, i)
 			if ctx.RegisterFocus != nil {
 				ctx.RegisterFocus(btnID)
 			}
-			isFocused := (ctx.FocusedID == btnID)
-			if ctx.FocusedID == "" && di.FocusedButton >= 0 {
+			isFocused := false
+			if hasDialogFocus {
+				isFocused = (ctx.FocusedID == btnID)
+			} else if di.FocusedButton >= 0 && di.FocusedButton < len(di.Buttons) {
 				isFocused = (di.FocusedButton == i)
-			} else if di.FocusedButton >= 0 && di.FocusedButton == i {
-				isFocused = true
 			}
 			btnText := fmt.Sprintf(" [ %s ] ", btn.Text)
 			btnW := displayWidth(btnText)

@@ -171,3 +171,37 @@ func BenchmarkMarkdownDraw(b *testing.B) {
 		md.Draw(ctx, buf)
 	}
 }
+
+func TestMarkdownBackgroundInheritanceAndNoTransparency(t *testing.T) {
+	bg := cell.NewColorRGB(25, 28, 36)
+	fg := cell.NewColorRGB(220, 225, 235)
+
+	md := &Markdown{
+		Content: "# Header\nThis is paragraph text with **bold** words.",
+		Style:   cell.Style{Fg: fg},
+	}
+
+	// 1. Call SizeHint first (simulating layout measurement with default styles)
+	w, h := md.SizeHint(cell.NewRect(0, 0, 40, 10))
+	if w == 0 || h == 0 {
+		t.Fatalf("SizeHint returned (%d, %d)", w, h)
+	}
+
+	// 2. Now Draw inside a container with background color `bg`
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 40, 10))
+	ctx := cell.NewContext(cell.NewRect(0, 0, 40, 10), cell.Style{Bg: bg})
+	md.Draw(ctx, buf)
+
+	// 3. Verify that text cells are NOT transparent (their Bg must equal `bg`, not ColorDefault)
+	for y := uint16(0); y < 10; y++ {
+		for x := uint16(0); x < 40; x++ {
+			c := buf.Get(x, y)
+			if c != nil && c.Content != ' ' && c.Content != 0 {
+				if c.Style.Bg != bg {
+					t.Fatalf("character '%c' at (%d, %d) has Bg = %v, want %v (text background is transparent!)",
+						c.Content, x, y, c.Style.Bg, bg)
+				}
+			}
+		}
+	}
+}

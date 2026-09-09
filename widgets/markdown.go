@@ -86,12 +86,13 @@ type rawSegment struct {
 }
 
 func (m *Markdown) parse(baseStyle cell.Style) {
-	if m.Content == m.lastContent && m.Style == m.lastStyle && m.cachedLines != nil {
+	if m.Content == m.lastContent && m.Style == m.lastStyle && baseStyle == m.lastBaseStyle && m.cachedLines != nil {
 		return
 	}
 
 	m.lastContent = m.Content
 	m.lastStyle = m.Style
+	m.lastBaseStyle = baseStyle
 	m.lastWidth = 0
 	m.cachedLines = nil
 	m.cachedRows = nil
@@ -177,6 +178,13 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if m.ID != "" && ctx.FocusedID == m.ID {
 		baseStyle = baseStyle.Merge(m.FocusedStyle)
 	}
+	if baseStyle.Bg.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+		if surf := ctx.ThemeStyle("surface"); surf.Bg.Type() != cell.ColorDefault {
+			baseStyle.Bg = surf.Bg
+		} else if base := ctx.ThemeStyle("base"); base.Bg.Type() != cell.ColorDefault {
+			baseStyle.Bg = base.Bg
+		}
+	}
 	m.parse(baseStyle)
 
 	y := ctx.Area.Y
@@ -225,14 +233,19 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	for row := 0; row < int(ctx.Area.Height); row++ {
 		contentRow := offset + row
-		if contentRow >= len(rows) {
-			break
+		var rowCells []cell.Cell
+		if contentRow < len(rows) {
+			rowCells = rows[contentRow]
 		}
-		for col, item := range rows[contentRow] {
-			if col >= int(ctx.Area.Width) {
-				break
+		for col := 0; col < int(ctx.Area.Width); col++ {
+			if col < len(rowCells) {
+				buf.SetCellDirect(ctx.Area.X+uint16(col), y+uint16(row), rowCells[col])
+			} else if baseStyle.Bg.Type() != cell.ColorDefault {
+				buf.SetCellDirect(ctx.Area.X+uint16(col), y+uint16(row), cell.Cell{
+					Content: ' ',
+					Style:   baseStyle,
+				})
 			}
-			buf.SetCellDirect(ctx.Area.X+uint16(col), y+uint16(row), item)
 		}
 	}
 }

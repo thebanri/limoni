@@ -136,3 +136,54 @@ func TestDialogSmallDimensions(t *testing.T) {
 		}
 	}
 }
+
+func TestDialogButtonSingleFocus(t *testing.T) {
+	unfocusedBg := cell.NewColorRGB(45, 45, 45)
+	focusedBg := cell.NewColorRGB(80, 220, 140) // green accent
+
+	dialog := Dialog{
+		ID:         "exit_dialog",
+		Title:      "SYSTEM EXIT",
+		Message:    "Exit?",
+		ButtonStyle: cell.Style{Fg: cell.NewColorRGB(220, 220, 220), Bg: unfocusedBg},
+		ButtonFocusedStyle: cell.Style{
+			Fg:       cell.NewColorRGB(255, 255, 255),
+			Bg:       focusedBg,
+			Modifier: cell.ModifierBold,
+		},
+		Buttons: []DialogButton{
+			{Text: "Yes"},
+			{Text: "No"},
+		},
+	}
+
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 50, 10))
+	ctx := cell.NewContext(cell.NewRect(2, 1, 46, 8), cell.Style{})
+	// Simulate FocusManager focusing "exit_dialog_btn_1" (No)
+	ctx.FocusedID = "exit_dialog_btn_1"
+
+	dialog.Draw(ctx, buf)
+
+	// Scan button line (btnY = 1 + 8 - 2 = 7)
+	btnY := uint16(7)
+	var yesBg, noBg cell.Color
+
+	// Find 'Y' of "Yes" and 'N' of "No"
+	for x := uint16(2); x < 48; x++ {
+		c := buf.Get(x, btnY)
+		if c != nil {
+			if c.Content == 'Y' {
+				yesBg = c.Style.Bg
+			} else if c.Content == 'N' {
+				noBg = c.Style.Bg
+			}
+		}
+	}
+
+	if yesBg != unfocusedBg {
+		t.Fatalf("Yes button background = %v; want unfocusedBg %v (both buttons should not be focused!)", yesBg, unfocusedBg)
+	}
+	if noBg != focusedBg {
+		t.Fatalf("No button background = %v; want focusedBg %v", noBg, focusedBg)
+	}
+}

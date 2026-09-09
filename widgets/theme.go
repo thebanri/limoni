@@ -59,8 +59,10 @@ func (t Theme) RoleStyle(role string) cell.Style {
 		return cell.Style{Fg: t.Colors.Secondary}
 	case "background":
 		return cell.Style{Fg: t.Colors.Text, Bg: t.Colors.Background}
-	case "surface":
+	case "surface", "block":
 		return cell.Style{Fg: t.Colors.Text, Bg: t.Colors.Surface}
+	case "base":
+		return t.Base
 	case "border":
 		return cell.Style{Fg: t.Colors.Border}
 	case "text":
