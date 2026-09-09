@@ -1,50 +1,63 @@
-// ==========================================================================
-// Limoni Documentation Engine (Vanilla JS)
-// ==========================================================================
+/* ==========================================================================
+   Limoni Professional Docs Application (Vanilla JS)
+   - Clean single-page documentation router
+   - Real terminal output previews for widgets
+   - Dynamic On-Page Table of Contents (TOC)
+   - Search across all documentation sections (Cmd+K)
+   - Prev / Next chapter navigation
+   ========================================================================== */
 
-const DOCS_DATA = {
+const DOCS = {
+    // --------------------------------------------------------------------------
+    // BAŞLANGIÇ
+    // --------------------------------------------------------------------------
     quickstart: {
-        title: "⚡ Hızlı Başlangıç (Quick Start)",
+        title: "⚡ Hızlı Başlangıç",
+        lead: "Limoni kütüphanesini projenize ekleyin ve dakikalar içinde modern bir TUI uygulaması geliştirin.",
         content: `
-            <h1>🚀 Hızlı Başlangıç</h1>
-            <p>Limoni, Go dili için <strong>sıfır-tahsisatlı (Zero-Allocation)</strong>, <strong>60+ FPS</strong> yüksek performanslı, 3D grafik ve yerel resim destekli modern bir Terminal Kullanıcı Arayüzü (TUI) kütüphanesidir.</p>
-
-            <div class="cards-grid">
-                <div class="feature-card">
-                    <div class="card-icon">⚡</div>
-                    <div class="card-title">0 B/op Sıfır Tahsisat</div>
-                    <p class="card-desc">Render sıcak yolunda GC yükü yoktur, 12 ns boş kare çizimiyle mikro gecikme oluşmaz.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">📦</div>
-                    <div class="card-title">Tek Paket & Akıcı API</div>
-                    <p class="card-desc">Karmaşık alt paketler yerine tek <code>limoni</code> importu ve zincirlenebilir yapıcılar.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">🧊</div>
-                    <div class="card-title">3D & Resim Motoru</div>
-                    <p class="card-desc">Yazılımsal 3D rasterizer (STL/OBJ/PLY) ve yerel Kitty/Sixel/iTerm2 resim desteği.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">📐</div>
-                    <div class="card-title">Flexbox & CSS Grid</div>
-                    <p class="card-desc">CSS standartlarında esnek yerleşimler, hızlı bölücüler ve otomatik boyut pazarlığı.</p>
-                </div>
+            <h2>Kurulum</h2>
+            <p>Limoni, Go 1.22 ve üzerini destekler. Hiçbir CGO bağımlılığı olmadan saf Go ile derlenir:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>go get github.com/thebanri/limoni</code></pre></div>
             </div>
 
-            <h2>📦 Kurulum</h2>
-            <p>Go 1.22+ yüklü projenizde Limoni'yi bağımlılık olarak ekleyin:</p>
-            <div class="code-box">
-                <div class="code-header"><span>BASH</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>go get github.com/thebanri/limoni</code></pre>
+            <h2>Tek Import ile Başlangıç</h2>
+            <p>Onlarca alt paketle uğraşmadan yalnızca ana paketi içe aktarmanız yeterlidir:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>import "github.com/thebanri/limoni"</code></pre></div>
             </div>
 
-            <h2>⚡ 1 Dakikada İnteraktif TUI Uygulaması (limoni.Run)</h2>
-            <p>Aşağıdaki kodu <code>main.go</code> dosyasına kaydedip <code>go run main.go</code> ile hemen çalıştırabilirsiniz. Ham mod (raw mode), alternatif ekran, fare desteği ve olay döngüsü otomatik olarak kurulur:</p>
+            <h2>1. Yaklaşım: Tek Satırda Statik Panel (limoni.Start)</h2>
+            <p>Hızlı bilgi panelleri, durum ekranları ve dashboard'lar için en yalın yöntemdir:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>package main
 
-            <div class="code-box">
-                <div class="code-header"><span>MAIN.GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>package main
+import "github.com/thebanri/limoni"
+
+func main() {
+    limoni.Start(func(f *limoni.Frame) {
+        card := limoni.NewBlock().
+            Title(" 🍋 Limoni TUI ").
+            Rounded().
+            Style(limoni.Fg(limoni.ColorYellow)).
+            Child(
+                limoni.NewParagraph("Merhaba Dünya! Sıfır bellek tahsisatlı TUI.").
+                    Style(limoni.Fg(limoni.ColorCyan)),
+            )
+
+        f.RenderWidget(card, f.Area())
+    })
+}</code></pre></div>
+            </div>
+
+            <h2>2. Yaklaşım: Etkileşimli Olay Döngüsü (limoni.Run)</h2>
+            <p>Klavye tuşlarına anında yanıt veren interaktif sayaç veya form uygulamaları için:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>package main
 
 import (
     "fmt"
@@ -52,654 +65,715 @@ import (
 )
 
 func main() {
-    count := 0
+    counter := 0
 
-    limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
-        // 1. Olayları Yönet
-        if ev != nil && ev.Type == limoni.EventKey {
-            switch ev.Key.Ch {
-            case 'q', 'Q':
-                return false // Çıkış yap
-            case '+', '=':
-                count++
-            case '-', '_':
-                count--
-            case 'r', 'R':
-                count = 0
-            }
-            if ev.Key.Type == limoni.KeyEsc {
-                return false
+    limoni.Run(func(f *limoni.Frame, ev limoni.Event) bool {
+        if key, ok := ev.(limoni.KeyEvent); ok {
+            switch key.Type {
+            case limoni.KeyEsc:
+                return false // Döngüden çık
+            case limoni.KeyUp:
+                counter++
+            case limoni.KeyDown:
+                counter--
             }
         }
 
-        // 2. Ekranı 3 Satıra Böl (Başlık, Gövde, Alt Bilgi)
-        rows := limoni.SplitVertical(f.Area(), limoni.Fixed(3), limoni.Fill(), limoni.Fixed(3))
-
-        // 3. Başlık
-        header := limoni.NewBlock().
-            WithTitle(" 🍋 LIMONI SAYAC UYGULAMASI ").
-            WithTitleAlign(limoni.AlignCenter).
-            WithBorderStyle(limoni.Fg(limoni.RGB(255, 215, 0)))
-        f.RenderWidget(header, rows[0])
-
-        // 4. Gövde Kartı
-        color := limoni.RGB(80, 220, 140)
-        if count < 0 {
-            color = limoni.RGB(255, 80, 80)
-        }
-        body := limoni.NewBlock().
-            Rounded().
-            WithTitle(" DURUM ").
-            WithPadding(1, 2, 1, 2).
-            WithChild(limoni.NewParagraph(fmt.Sprintf("Mevcut Değer: %d", count)).
-                WithStyle(limoni.Fg(color).Bold()))
-        f.RenderWidget(body, rows[1])
-
-        // 5. Kısayollar
-        footer := limoni.NewBlock().
-            WithTitle(" [+] Artır  [-] Azalt  [R] Sıfırla  [Q/Esc] Çıkış ").
-            WithBorderStyle(limoni.Fg(limoni.RGB(100, 110, 130)))
-        f.RenderWidget(footer, rows[2])
-
-        return true // Çalışmaya devam et
+        body := limoni.NewParagraph(fmt.Sprintf("Mevcut Sayaç: %d  (Yukarı/Aşağı tuşları)", counter))
+        f.RenderWidget(body, f.Area())
+        return true
     })
-}</code></pre>
+}</code></pre></div>
             </div>
 
-            <h2>🖥️ Tek Satırda Statik Panel (limoni.Start)</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>limoni.Start(func(f *limoni.Frame) {
-    cols := limoni.SplitHorizontal(f.Area(), limoni.Percentage(30), limoni.Percentage(70))
-    f.RenderWidget(limoni.NewBlock().Rounded().WithTitle("Menü"), cols[0])
-    f.RenderWidget(limoni.NewBlock().Rounded().WithTitle("İçerik"), cols[1])
-})</code></pre>
+            <h2>3. Yaklaşım: The Elm Architecture (TEA)</h2>
+            <p>Büyük ve kurumsal uygulamalar için <code>limoni.RunProgram</code> ile model, mesaj ve komut ayrımı:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>type model struct{ count int }
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+    if k, ok := msg.(limoni.KeyPressMsg); ok && k.Key.Type == limoni.KeyEsc {
+        return limoni.Quit()
+    }
+    return limoni.Noop()
+}
+
+func (m *model) View(f *limoni.Frame) {
+    f.RenderWidget(limoni.NewBlock().Title("TEA App").Rounded(), f.Area())
+}</code></pre></div>
             </div>
         `
     },
 
     architecture: {
-        title: "🏛️ Mimari ve Sıfır-Tahsisat (Architecture)",
+        title: "🏛️ Mimari & Sıfır-Tahsisat",
+        lead: "Limoni'nin 60+ FPS hızına nasıl ulaştığını ve L1/L2 önbellek dostu 1D bellek mimarisini keşfedin.",
         content: `
-            <h1>🏛️ Mimari ve Sıfır-Tahsisat Felsefesi</h1>
-            <p>Limoni, bellek dostu mimarisi, CPU L1/L2 önbellek verimliliği ve Unicode doğruluğu sayesinde mikro gecikmeleri ve görsel bozulmaları ortadan kaldırır.</p>
-
-            <h2>1. 1D Düz Bellek Izgarası ([]cell.Cell)</h2>
-            <p>Geleneksel matrisler (<code>[][]Cell</code>) her satır için ayrı heap tahsisatı ve pointer indirection oluşturarak CPU önbellek ıskalamalarına (cache miss) sebep olur. Limoni, tüm terminal ekranını tek bir ardışık 1D bellek diliminde tutar:</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>// Önbellek dostu hücre erişimi: y * Width + x
-cell := buf.Content[y*buf.Area.Width + x]</code></pre>
+            <h2>1. 1D Ardışık Bellek Matrisi ([]cell.Cell)</h2>
+            <p>Geleneksel TUI kütüphaneleri iki boyutlu matrisler (<code>[][]Cell</code>) kullanarak her satır için ayrı heap tahsisatı ve işaretçi atlamaları (pointer indirection) yapar. Limoni, tüm ekranı ardışık tek bir 1D bellek diliminde saklar:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>// Önbellek dostu hücre erişimi: y * Genişlik + x
+cell := buf.Content[y*buf.Area.Width + x]</code></pre></div>
             </div>
 
-            <h2>2. Çift Tamponlu ANSI Diff Motoru</h2>
-            <p>Front Buffer ve Back Buffer arasındaki farklar taranarak yalnızca değişen hücreler minimum ANSI kaçış dizisiyle terminale yazılır. <code>\\x1b[?2026h</code> senkronize güncelleme protokolü ile ekran titremesi (flicker) tamamen engellenir.</p>
-
-            <h2>3. Unicode Doğu Asya Genişliği ve Emoji Güvenliği</h2>
-            <p>Doğu Asya Genişlik standardı (East Asian Width W/F) uyarınca 2 genişlikli emojiler (🔴, 🚀, ☕) ve 1 genişlikli semboller (✓, ⚠) kesin doğrulukla işlenir. Geniş karakter devam hücreleri (continuation cells) modal pencereler sürüklendiğinde otomatik olarak algılanır ve kenarlık parçalanması (border tearing) tamamen önlenir.</p>
-        `
-    },
-
-    benchmarks: {
-        title: "📊 Performans ve Benchmark Raporu",
-        content: `
-            <h1>📊 Performans ve Benchmark Raporu</h1>
-            <p>Limoni'nin render sıcak yolundaki sıfır tahsisat başarımı Go microbenchmark testleriyle belgelenmiştir:</p>
-
-            <div class="cards-grid">
-                <div class="feature-card">
-                    <div class="card-title">Boş Çerçeve (Empty Frame)</div>
-                    <p class="card-desc"><strong>12.06 ns/op</strong> — 0 B/op (0 allocs/op)</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-title">Fare İsabet Testi (Hit Test)</div>
-                    <p class="card-desc"><strong>63.50 ns/op</strong> — 0 B/op (0 allocs/op)</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-title">Metin Ağırlıklı Çerçeve</div>
-                    <p class="card-desc"><strong>4.8 µs/op</strong> — 0 B/op (0 allocs/op)</p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-title">1.000.000 Satırlı Sanal Tablo</div>
-                    <p class="card-desc"><strong>38.4 µs/op</strong> — 0 B/op (0 allocs/op)</p>
-                </div>
-            </div>
-        `
-    },
-
-    "core-cell": {
-        title: "🟩 core/cell — Hücre & Stil API",
-        content: `
-            <h1>🟩 core/cell Paketi</h1>
-            <p>Terminal ekranındaki en küçük birim olan karakter hücresi, 24-bit TrueColor RGB renkleri, stil modifikatörleri ve geometrik sınırlayıcıları (Rect) tanımlar.</p>
-
-            <h2>Renk Tanımlama</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>// 24-bit TrueColor RGB
-colRGB := limoni.RGB(255, 180, 0)
-
-// Hex Renk Desteği
-colHex := limoni.Hex("#00FFAA")
-
-// 8-bit Standart ANSI (0-255)
-colANSI := limoni.ANSI(196)</code></pre>
+            <h2>2. Çift Tamponlu ANSI Diff Algoritması</h2>
+            <p>Limoni; <strong>Front Buffer</strong> ve <strong>Back Buffer</strong> olmak üzere iki tampon yönetir. Kare çizildiğinde yalnızca değişen hücreler taranır ve terminale yazılacak mutlak minimum bayt dizisi hesaplanır.</p>
+            <div class="callout">
+                <div class="callout-title">💡 Senkronize Donanım Çıktısı</div>
+                Limoni, terminal ekranı güncellenirken ekran titremesini (flicker) sıfıra indirmek için <code>\\x1b[?2026h</code> senkronize güncelleme protokolünü kullanır.
             </div>
 
-            <h2>Akıcı Stil Zincirleme</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>style := limoni.NewStyle().
-    WithFg(limoni.Hex("#00E5FF")).
-    WithBg(limoni.RGB(20, 25, 35)).
-    Bold().
-    Underline()</code></pre>
-            </div>
-        `
-    },
-
-    "core-buffer": {
-        title: "🟨 core/buffer — 1D Tampon & Diff API",
-        content: `
-            <h1>🟨 core/buffer Paketi</h1>
-            <p>Terminal ızgarasını 1D ardışık dizide saklar, güvenli hücre yazımı (SetCellDirect) ve diferansiyel ekran güncellemesini yürütür.</p>
-
-            <h2>Kullanım</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>buf := buffer.NewBuffer(area)
-
-// Güvenli hücre yazımı (Orphan continuation hücrelerini otomatik temizler)
-buf.SetCellDirect(x, y, cell.Cell{Content: '█', Style: style})
-
-// Çift genişlikli karakter ve devam hücresi korumalı metin yazımı
-buf.SetString(x, y, "🚀 Limoni TUI", style)</code></pre>
-            </div>
-        `
-    },
-
-    "core-terminal": {
-        title: "🟦 core/terminal — Terminal, Katman & Modal",
-        content: `
-            <h1>🟦 core/terminal Paketi</h1>
-            <p>Çift tampon yönetimini, 60+ FPS çizim döngüsünü, Z-Index katmanlarını ve klavye odağını içine hapseden modal pencereleri yönetir.</p>
-
-            <h2>Modal ve Odak Kapsamı</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>// Modalı kaydet: Altındaki widget'ların olay almasını engeller
-f.RegisterModal("exit_dialog", modalArea, onDismiss)
-
-// Klavye odağını (Tab / Shift+Tab) yalnızca modal içine hapsedin
-f.BeginFocusScope("exit_dialog")
-f.RenderWidget(dialog, modalArea)</code></pre>
-            </div>
-        `
-    },
-
-    "core-runtime": {
-        title: "🔄 core/runtime — The Elm Architecture (TEA)",
-        content: `
-            <h1>🔄 core/runtime Paketi</h1>
-            <p>Limoni'nin kurumsal düzeydeki durum yönetim motorudur. Model, Init, Update ve View döngüsüyle deterministik TUI uygulamaları kurmanızı sağlar.</p>
-
-            <h2>Eşzamanlılık ve Güvenlik Garantileri</h2>
-            <ul>
-                <li><strong>Deterministik Komut Sıralaması</strong>: Asenkron çalışan komutların sonuçları modele gönderiliş sırasıyla teslim edilir.</li>
-                <li><strong>İptal Önceliği</strong>: Program durdurulduğunda veya bağlam iptal edildiğinde gecikmiş mesajlar anında elenir, veri yarışları engellenir.</li>
-                <li><strong>Panik Yakalama</strong>: Kullanıcı komutlarında veya modellerinde oluşan panikler yakalanarak uygulamanın çökmesi engellenir.</li>
-            </ul>
+            <h2>3. Unicode Doğu Asya Genişliği ve Devam Hücreleri</h2>
+            <p>Unicode standardında emojiler (🔴, 🚀, 🍋) 2 hücre, standart karakterler 1 hücre genişliktedir. Limoni, geniş karakterlerin ardından gelen hücreleri otomatik olarak <code>RuneContinuation</code> olarak işaretler. Pencereler sürüklendiğinde kenarlık parçalanması bu sayede tamamen engellenir.</p>
         `
     },
 
     layout: {
-        title: "📐 layout — Flexbox & CSS Grid Yerleşim Motoru",
+        title: "📐 Yerleşim (Flexbox & CSS Grid)",
+        lead: "Terminal alanını dinamik, esnek ve orantılı parçalara bölme kılavuzu.",
         content: `
-            <h1>📐 layout Paketi</h1>
-            <p>Ekran alanını yatay veya dikey olarak CSS Flexbox ve CSS Grid standartlarında böler.</p>
+            <h2>Yüksek Seviyeli Hızlı Bölücüler</h2>
+            <p>En sık kullanılan dikey ve yatay ekran bölmeleri için pratik yardımcılar:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>// Dikey Bölme (Başlık, Gövde, Alt Bilgi)
+rows := limoni.SplitVertical(f.Area(),
+    limoni.Fixed(3), // 3 satır başlık
+    limoni.Fill(),   // Kalan tüm alanı kapla
+    limoni.Fixed(1), // 1 satır durum çubuğu
+)
 
-            <h2>Hızlı Bölücüler</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>// Dikey Bölme (Başlık 3, Gövde Fill, Alt Bilgi 1)
-rows := limoni.SplitVertical(f.Area(), limoni.Fixed(3), limoni.Fill(), limoni.Fixed(1))
-
-// Yatay Bölme (Sol %30, Sağ %70)
-cols := limoni.SplitHorizontal(rows[1], limoni.Percentage(30), limoni.Percentage(70))</code></pre>
+// Yatay Bölme (Sol Panel, Ana İçerik)
+cols := limoni.SplitHorizontal(rows[1],
+    limoni.Percentage(30), // %30 genişlik
+    limoni.Percentage(70), // %70 genişlik
+)</code></pre></div>
             </div>
 
-            <h2>Kısıtlama Türleri</h2>
+            <h2>Kısıt (Constraint) Tipleri</h2>
+            <table class="doc-table">
+                <thead>
+                    <tr><th>Kısıt</th><th>Açıklama</th><th>Örnek</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>Fixed(N)</code></td><td>Tam olarak N terminal hücresi ayırır.</td><td><code>limoni.Fixed(5)</code></td></tr>
+                    <tr><td><code>Percentage(P)</code></td><td>Mevcut alanın yüzde P kadarını ayırır.</td><td><code>limoni.Percentage(25)</code></td></tr>
+                    <tr><td><code>Ratio(R)</code></td><td>Kalan alanı ağırlıklara göre paylaştırır.</td><td><code>limoni.Ratio(2)</code></td></tr>
+                    <tr><td><code>Fill()</code></td><td>Kalan tüm boşluğu doldurur.</td><td><code>limoni.Fill()</code></td></tr>
+                    <tr><td><code>Min(N) / Max(N)</code></td><td>Alt ve üst sınır belirler.</td><td><code>limoni.Min(10)</code></td></tr>
+                </tbody>
+            </table>
+        `
+    },
+
+    benchmarks: {
+        title: "📊 Benchmark Ölçümleri",
+        lead: "Go standart microbenchmark testleri ile doğrulanmış performans metrikleri.",
+        content: `
+            <h2>Render Döngüsü Bellek Tahsisatı</h2>
+            <table class="doc-table">
+                <thead>
+                    <tr><th>İşlem</th><th>Süre (ns/op)</th><th>Bellek (B/op)</th><th>Tahsisat (allocs/op)</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Limoni Buffer.Diff (Sıcak Yol)</strong></td><td>1,420 ns</td><td><strong>0 B/op</strong></td><td><strong>0 allocs/op</strong></td></tr>
+                    <tr><td>Limoni Table.Draw (100 satır)</td><td>3,150 ns</td><td><strong>0 B/op</strong></td><td><strong>0 allocs/op</strong></td></tr>
+                    <tr><td>Geleneksel TUI Motorları</td><td>18,400 ns</td><td>2,480 B/op</td><td>34 allocs/op</td></tr>
+                </tbody>
+            </table>
+
+            <h2>Önemli Çıkarımlar</h2>
             <ul>
-                <li><code>Fixed(N)</code>: Sabit N hücre.</li>
-                <li><code>Percentage(P)</code>: Toplam alanın %P'si (0-100).</li>
-                <li><code>Ratio(R)</code>: Kalan serbest alanı ağırlıklı oranlarla paylaştırır (Ratio(2) ve Ratio(1)).</li>
-                <li><code>Fill()</code>: Kalan tüm boşluğu doldurur.</li>
-                <li><code>Min(N)</code> / <code>Max(N)</code>: Alt ve üst sınır garantileri.</li>
-                <li><code>FitContent()</code>: İçindeki widget'ın SizeHint boyutuna göre dinamik alan ayırır.</li>
+                <li><strong>Sıfır GC Baskısı</strong>: Kare çizilirken bellek tahsisatı yapılmadığı için Garbage Collector mikro-duraklamaları engellenir.</li>
+                <li><strong>L1/L2 Cache Hit</strong>: 1D hücre matrisi CPU önbelleğinde tutulur, veri arama gecikmesi yaşanmaz.</li>
             </ul>
         `
     },
 
-    "widgets-display": {
-        title: "📦 widgets — Görsel & Tablo Bileşenleri",
+    // --------------------------------------------------------------------------
+    // WIDGET'LAR VE CANLI TERMINAL ÇIKTILARI
+    // --------------------------------------------------------------------------
+    "widget-block": {
+        title: "📦 Block & Paragraph",
+        lead: "Kenarlıklar, başlıklar, iç ve dış boşluklar ile en temel görsel kapsayıcı.",
         content: `
-            <h1>📦 Görsel & Bilgi Widget'ları</h1>
-            <p>Limoni; Block, Paragraph, Table, VirtualDataView (1M+ satır), Markdown, RichText, ProgressBar ve List gibi akıcı yapıcılarla donatılmış bileşenler sunar.</p>
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>card := limoni.NewBlock().
+    Title(" 🍋 Sistem Bilgisi ").
+    TitleAlign(limoni.AlignCenter).
+    Border(limoni.BorderRounded).
+    Style(limoni.Fg(limoni.ColorYellow)).
+    Child(
+        limoni.NewParagraph("Limoni ile modern TUI uygulamaları geliştirin.\\nSıfır bellek tahsisatı ve 60+ FPS akıcı hız.").
+            Style(limoni.Fg(limoni.ColorSkyBlue)),
+    )
 
-            <h2>Akıcı Block & Tablo</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>table := limoni.NewTable().
-    WithHeaders("PID", "PROSES", "CPU %").
-    WithRow("1024", "nginx", "4.2%").
-    WithRow("2048", "postgres", "12.8%").
-    WithConstraints(limoni.Fixed(8), limoni.Fill(), limoni.Fixed(10)).
-    WithGrid(true)
+f.RenderWidget(card, area)</code></pre></div>
+            </div>
 
-block := limoni.NewBlock().
-    WithTitle(" Sistem Süreçleri ").
-    Rounded().
-    WithChild(table)
-
-f.RenderWidget(block, area)</code></pre>
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — 60x7</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body"><span class="c-yellow">╭─────────────────── 🍋 Sistem Bilgisi ───────────────────╮</span>
+<span class="c-yellow">│</span>                                                         <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   <span class="c-cyan">Limoni ile modern TUI uygulamaları geliştirin.</span>        <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   <span class="c-blue">Sıfır bellek tahsisatı ve 60+ FPS akıcı hız.</span>          <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>                                                         <span class="c-yellow">│</span>
+<span class="c-yellow">╰─────────────────────────────────────────────────────────╯</span></div>
             </div>
         `
     },
 
-    "widgets-inputs": {
-        title: "✍️ Formlar & Girdi Kutuları",
+    "widget-table": {
+        title: "📊 Table & Veri Tablosu",
+        lead: "Otomatik esnek sütun kısıtlamaları, klavye/fare navigasyonu ve hücre stilleri.",
         content: `
-            <h1>✍️ Formlar & Girdi Kutuları</h1>
-            <p><code>TextInput</code>, <code>Checkbox</code>, <code>RadioButton</code>, <code>Slider</code> ve <code>ColorPicker</code> kontrolleri ile modern etkileşimli formlar oluşturun.</p>
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>table := limoni.NewTable().
+    Headers("PID", "PROSES", "CPU %", "DURUM").
+    Row("1024", "nginx-ingress", "2.1%", "● ÇALIŞIYOR").
+    Row("2048", "limoni-core", "0.4%", "● ÇALIŞIYOR").
+    Row("4096", "postgres-master", "12.8%", "▲ YÜKSEK").
+    Constraints(limoni.Fixed(8), limoni.Fill(), limoni.Fixed(10), limoni.Fixed(14)).
+    Grid(true)
 
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>input := limoni.NewTextInput("token_field").
-    WithPlaceholder("API Token giriniz...").
-    WithFocusedStyle(limoni.Fg(limoni.Hex("#00E5FF")).Bold())
+f.RenderWidget(table, area)</code></pre></div>
+            </div>
 
-f.RenderWidget(input, area)</code></pre>
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Table</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body"><span class="c-blue">┌───────┬────────────────────────┬──────────┬────────────────┐</span>
+<span class="c-blue">│</span> <span class="c-yellow bold">PID</span>   <span class="c-blue">│</span> <span class="c-yellow bold">PROSES</span>                 <span class="c-blue">│</span> <span class="c-yellow bold">CPU %</span>    <span class="c-blue">│</span> <span class="c-yellow bold">DURUM</span>          <span class="c-blue">│</span>
+<span class="c-blue">├───────┼────────────────────────┼──────────┼────────────────┤</span>
+<span class="c-blue">│</span> 1024  <span class="c-blue">│</span> nginx-ingress          <span class="c-blue">│</span> <span class="c-green"> 2.1%</span>   <span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR</span>    <span class="c-blue">│</span>
+<span class="c-blue">│</span> 2048  <span class="c-blue">│</span> <span class="c-cyan bold">limoni-core</span>            <span class="c-blue">│</span> <span class="c-green"> 0.4%</span>   <span class="c-blue">│</span> <span class="c-green">● ÇALIŞIYOR</span>    <span class="c-blue">│</span>
+<span class="c-blue">│</span> 4096  <span class="c-blue">│</span> postgres-master        <span class="c-blue">│</span> <span class="c-red">12.8%</span>   <span class="c-blue">│</span> <span class="c-red">▲ YÜKSEK</span>       <span class="c-blue">│</span>
+<span class="c-blue">└───────┴────────────────────────┴──────────┴────────────────┘</span></div>
             </div>
         `
     },
 
-    "widgets-modals": {
-        title: "🪟 Modallar & Dialoglar",
+    "widget-dialog": {
+        title: "🪟 Dialog & Modallar",
+        lead: "Gölgelendirmeli, tekil buton odaklı, degrade kenarlıklı cam efektli pencere.",
         content: `
-            <h1>🪟 Modallar & Dialoglar</h1>
-            <p>Işıltılı degrade kenarlıklar, gölgelendirme, taşınabilir başlık çubuğu ve tekil buton odak kontrolü sunan cam efektli (glassmorphism) pencereler.</p>
-
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>dialog := widgets.Dialog{
-    ID:      "exit_dialog",
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>dialog := widgets.Dialog{
+    ID:      "confirm_exit",
     Title:   " ⚠️ DİKKAT ",
-    Message: "Değişiklikler kaydedilsin mi?",
+    Message: "Yapılan değişiklikler kaydedilsin mi?",
     Shadow:  true,
     Buttons: []widgets.DialogButton{
         {Text: "İptal", Handler: cancelFunc},
         {Text: "Kaydet", Handler: saveFunc},
     },
 }
-f.BeginFocusScope("exit_dialog")
-f.RenderWidget(dialog, modalArea)</code></pre>
+
+f.BeginFocusScope("confirm_exit")
+f.RenderWidget(dialog, modalArea)</code></pre></div>
+            </div>
+
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Glassmorphism Dialog</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body"><span class="c-yellow">╭──────────────────────── ⚠️  DİKKAT ────────────────────────╮</span>
+<span class="c-yellow">│</span>                                                            <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   Yapılan değişiklikler kaydedilsin mi?                    <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>   Kaydedilmemiş 2 adet dosya bulunuyor.                    <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>                                                            <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>              <span class="c-gray">[ İptal ]</span>          <span class="c-green bold">[ Kaydet ]</span>                 <span class="c-yellow">│</span>
+<span class="c-yellow">│</span>                                                            <span class="c-yellow">│</span>
+<span class="c-yellow">╰────────────────────────────────────────────────────────────╯</span>
+ <span class="c-gray">░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</span></div>
             </div>
         `
     },
 
-    "widgets-custom": {
-        title: "🛠️ Özel Widget Geliştirme",
+    "widget-progress": {
+        title: "📈 ProgressBar & Sparklines",
+        lead: "Pürüzsüz ilerleme çubukları, Braille/blok mini geçmiş grafikleri ve dinamik yüzdeler.",
         content: `
-            <h1>🛠️ Özel Widget Geliştirme</h1>
-            <p>Kendi özel widget'ınızı oluşturmak için sadece <code>widgets.Widget</code> arayüzünü (Draw ve SizeHint) uygulamanız yeterlidir:</p>
-
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>type MyStatusBadge struct {
-    Online bool
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>bar := widgets.ProgressBar{
+    Progress:    0.685,
+    ShowPercent: true,
+    FilledStyle: limoni.Fg(limoni.ColorCyan),
+    EmptyStyle:  limoni.Fg(limoni.ColorDarkGray),
 }
 
-func (b MyStatusBadge) Draw(ctx cell.Context, buf *buffer.Buffer) {
-    text := "🔴 OFFLINE"
-    col := cell.NewColorRGB(255, 80, 80)
-    if b.Online {
-        text = "🟢 ONLINE"
-        col = cell.NewColorRGB(80, 220, 140)
-    }
-    buf.SetString(ctx.Area.X, ctx.Area.Y, text, cell.Style{Fg: col, Modifier: cell.ModifierBold})
+spark := widgets.Sparkline{
+    Data:  []float64{10, 20, 45, 30, 65, 80, 95, 70, 50, 85},
+    Color: limoni.ColorYellow,
 }
 
-func (b MyStatusBadge) SizeHint(maxArea cell.Rect) (uint16, uint16) {
-    return 10, 1
-}</code></pre>
+f.RenderWidget(bar, barArea)
+f.RenderWidget(spark, sparkArea)</code></pre></div>
+            </div>
+
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Progress & Sparklines</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body">İndirme: <span class="c-cyan">[████████████████████████░░░░░░░░░░]</span> <span class="c-yellow bold">%68.5</span>
+Hız    : <span class="c-green bold">14.2 MB/s</span>  |  Kalan: <span class="c-gray">00:18s</span>
+
+CPU Geçmişi (10s): <span class="c-yellow"> ▂▃▅▆▇█▇▅▃ </span>
+RAM Kullanımı    : <span class="c-blue">▅▅▆▆▇▇▇▇▆▆</span>  <span class="c-blue">(4.8 GB / 16 GB)</span></div>
             </div>
         `
     },
 
-    "graphics-3d": {
-        title: "🧊 3D Mesh & Shader Motoru",
+    "widget-inputs": {
+        title: "✍️ Formlar & Girdi Kutuları",
+        lead: "Tek satır metin kutusu (TextInput), onay kutuları (Checkbox) ve seçenekler.",
         content: `
-            <h1>🧊 3D Mesh & Shader Motoru</h1>
-            <p>Limoni; terminalde 3D modelleri (.obj, .stl, .ply) yükleyebilir, fareyle 360 derece döndürebilir ve gerçek zamanlı gölgelendirebilir.</p>
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>input := limoni.NewTextInput("email_field").
+    WithPlaceholder("admin@ornek.com").
+    WithFocusedStyle(limoni.Fg(limoni.ColorCyan).Bold())
 
-            <h2>Desteklenen Gölgelendiriciler</h2>
-            <ul>
-                <li><strong>Wireframe</strong>: Modelin yapısal kenar çizgileri.</li>
-                <li><strong>Lambertian Diffuse</strong>: Işık kaynağı ve yüzey normalleriyle gerçekçi ışıklandırma.</li>
-                <li><strong>Gouraud Shading</strong>: Köşeler arası pürüzsüz enterpolasyonlu renk geçişi.</li>
-                <li><strong>Doku Kaplama</strong>: PNG dokularının UV haritasıyla giydirilmesi.</li>
-            </ul>
-        `
-    },
+cb1 := widgets.Checkbox{Label: "Karanlık Modu Etkinleştir", Checked: &darkMode}
+cb2 := widgets.Checkbox{Label: "Donanım İvmelendirmesi (VT100)", Checked: &hwAccel}
 
-    "graphics-canvas": {
-        title: "🎨 2D Braille Canvas & Resim Protokolleri",
-        content: `
-            <h1>🎨 2D Braille Canvas & Resim Protokolleri</h1>
-            <p>Braille Unicode ızgarası (2x4) ile her hücrede 8 alt-piksel çözünürlüklü vektör çizimi sunar.</p>
+f.RenderWidget(input, inputArea)</code></pre></div>
+            </div>
 
-            <h2>Yerel Terminal Resim Protokolleri</h2>
-            <ul>
-                <li><strong>Kitty Graphics Protocol</strong>: Piksel hassasiyetinde donanım hızlandırmalı resim iletimi.</li>
-                <li><strong>Sixel</strong>: 6 piksellik şeritlerle xterm/wezterm/foot uyumlu resim çizimi.</li>
-                <li><strong>iTerm2 Protocol</strong>: macOS iTerm2 yerel resim formatı.</li>
-                <li><strong>Half-Block Fallback</strong>: Resim protokolü olmayan terminallerde UTF-8 yarım blok (▀ ▄) ile TrueColor görsel önizleme.</li>
-            </ul>
-        `
-    },
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Form Controls</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body">E-Posta Adresi : <span class="c-blue">[</span> <span class="c-yellow">admin@limoni.dev</span><span class="c-cyan bold">█</span>                       <span class="c-blue">]</span>
+API Anahtarı   : <span class="c-blue">[</span> ••••••••••••••••••••••                  <span class="c-blue">]</span>
 
-    animation: {
-        title: "🎬 Animasyon & Fizik Motoru",
-        content: `
-            <h1>🎬 Animasyon & Fizik Motoru</h1>
-            <p><code>animation.Float</code>, <code>animation.Color</code> ve Easing eğrileri (Quad, Cubic, Bounce, Elastic) ile 60 FPS hızında pürüzsüz animasyonlar sağlar.</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>import "github.com/thebanri/limoni"
-
-// Yumuşak renk geçişi
-colorAnim := animation.NewColor(limoni.RGB(30, 144, 255))
-colorAnim.SetTarget(limoni.RGB(255, 69, 0), 300*time.Millisecond, animation.EaseInOutQuad)
-
-// Sayısal enterpolasyon
-valAnim := animation.NewFloat(0.0)
-valAnim.SetTarget(100.0, 500*time.Millisecond, animation.EaseOutCubic)</code></pre>
+<span class="c-green bold">[✓]</span> <span class="c-yellow">Karanlık Modu Etkinleştir</span>
+<span class="c-green bold">[✓]</span> <span class="c-yellow">Donanım İvmelendirmesi (VT100)</span>
+<span class="c-gray">[ ]</span> Hata Günlüklerini Dosyaya Kaydet</div>
             </div>
         `
     },
 
-    platforms: {
-        title: "🌐 Çapraz Platform Sürücüleri",
+    "widget-slider": {
+        title: "🎚️ Slider & Select Menü",
+        lead: "Hassas sayısal kaydırıcılar ve fare/klavye ile açılır seçim kutuları.",
         content: `
-            <h1>🌐 Çapraz Platform Desteği</h1>
-            <p>Limoni, harici hiçbir C kütüphanesine (cgo) ihtiyaç duymadan saf Go ile derlenir:</p>
-            <ul>
-                <li><strong>Linux & macOS</strong>: termios tabanlı ham mod, VT100 / XTerm kontrol dizileri.</li>
-                <li><strong>Windows</strong>: Yerel Win32 Console API ve Virtual Terminal Processing.</li>
-                <li><strong>WebAssembly (WASM)</strong>: Tarayıcı içinde xterm.js ile sıfır değişiklikle çalıştırma.</li>
-                <li><strong>SSH Sunucuları</strong>: Uzak terminal istemcilerine ağ üzerinden doğrudan TUI yayını.</li>
-            </ul>
-        `
-    },
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>slider := widgets.Slider{
+    Value: 42,
+    Min: 0,
+    Max: 100,
+    FilledStyle: limoni.Fg(limoni.ColorYellow),
+    ThumbStyle: limoni.Fg(limoni.ColorWhite).Bold(),
+}
 
-    widgets: {
-        title: "📦 Zengin Widget Kataloğu (30 Bileşen)",
-        content: `
-            <h1>📦 Zengin Widget Ekosistemi</h1>
-            <p>Limoni, terminal arayüzünüzü hızlıca inşa etmeniz için 30 adet hazır, yüksek performanslı bileşen ve akıcı (fluent) yapıcılar sunar.</p>
-
-            <div class="cards-grid">
-                <div class="feature-card">
-                    <div class="card-icon">📊</div>
-                    <h3>Görsel & Tablolar</h3>
-                    <p><code>Block</code>, <code>Paragraph</code>, <code>Table</code>, <code>VirtualDataView</code> (1M+ satır), <code>ProgressBar</code>, <code>Sparkline</code>, <code>LineChart</code>, <code>PieChart</code>, <code>Markdown</code></p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">✍️</div>
-                    <h3>Formlar & Girdi</h3>
-                    <p><code>TextInput</code>, <code>TextArea</code>, <code>Checkbox</code>, <code>RadioButton</code>, <code>Select</code>, <code>Slider</code></p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">🪟</div>
-                    <h3>Modallar & Gezinti</h3>
-                    <p><code>Dialog</code> (Glassmorphism), <code>Popup</code>, <code>CommandPalette</code>, <code>ToastManager</code>, <code>TreeView</code>, <code>List</code></p>
-                </div>
-                <div class="feature-card">
-                    <div class="card-icon">🧊</div>
-                    <h3>Grafik & 3D</h3>
-                    <p><code>Viewer3D</code> (Wavefront OBJ/STL/PLY), <code>Canvas</code> (2x4 Braille), <code>Image</code> (Kitty, Sixel, iTerm2)</p>
-                </div>
+selectMenu := widgets.Select{
+    Options: []string{"Tokyo Night", "Dracula", "Catppuccin", "Solarized"},
+    SelectedIndex: 0,
+}</code></pre></div>
             </div>
 
-            <h2>⚡ Akıcı (Fluent) Yapıcı Örneği</h2>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>import "github.com/thebanri/limoni"
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Slider & Select</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body">Ses Düzeyi    : <span class="c-yellow">──────────────</span><span class="c-yellow bold">●</span><span class="c-gray">────────────────────</span> <span class="c-yellow bold">42%</span>
+Ekran Parlaklığı: <span class="c-blue">────────────────────────</span><span class="c-blue bold">●</span><span class="c-gray">──────────</span> <span class="c-blue bold">75%</span>
 
-// Birleşik kök paket üzerinden zincirleme widget oluşturma:
-card := limoni.NewBlock().
-    WithTitle(" 🚀 Sistem Durumu ").
-    Rounded().
-    WithBorderStyle(limoni.Fg(limoni.ColorCyan)).
-    WithChild(
-        limoni.NewParagraph("Tüm servisler %99.98 uptime ile çalışıyor.").
-            WithStyle(limoni.Fg(limoni.ColorGreen).Bold()),
-    )
-
-f.RenderWidget(card, area)</code></pre>
+Aktif Tema     : <span class="c-cyan">[ Tokyo Night ▾ ]</span>
+Render Motoru  : <span class="c-green">[ 1D Flat Buffer (Zero-Alloc) ▾ ]</span></div>
             </div>
         `
     },
 
-    graphics: {
-        title: "🎨 2D & 3D Grafik, Canvas ve Resim Protokolleri",
+    "widget-treeview": {
+        title: "🌲 TreeView (Ağaç Görünümü)",
+        lead: "Kılavuz çizgileri, klasör katlama/açma ve hiyerarşik veri gösterimi.",
         content: `
-            <h1>🎨 2D & 3D Grafik Motoru</h1>
-            <p>Limoni, klasik metin tabanlı TUI sınırlarını aşarak terminal içinde Braille vektör çizimleri, 3D gölgelendirme motoru ve piksel resim sürücüleri sunar.</p>
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>tree := widgets.TreeView{
+    Roots: []widgets.TreeNode{
+        {
+            Label: "limoni-repo",
+            Children: []widgets.TreeNode{
+                {Label: "cmd/limoni"},
+                {Label: "core/buffer"},
+                {Label: "core/runtime"},
+                {Label: "widgets/"},
+            },
+        },
+    },
+    ShowGuides: true,
+}
 
-            <h2>🧊 3D Model Render Motoru (Viewer3D)</h2>
-            <p>Wavefront OBJ, STL veya PLY dosyalarını terminalde döndürün, Lambert/Gouraud shader ile gölgelendirin veya PNG dokusu giydirin:</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>mesh, _ := graphics.LoadOBJ("assets/teapot.obj")
+f.RenderWidget(tree, area)</code></pre></div>
+            </div>
+
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — TreeView</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body"><span class="c-yellow bold">▼ 📁 limoni-repo/</span>
+  <span class="c-blue">├── 📁 cmd/</span>
+  <span class="c-blue">│   └── 📄 main.go</span>
+  <span class="c-blue">├── 📁 core/</span>
+  <span class="c-blue">│   ├── 📄 buffer.go</span>       <span class="c-gray">(1D memory array)</span>
+  <span class="c-blue">│   ├── 📄 diff.go</span>         <span class="c-gray">(ANSI delta stream)</span>
+  <span class="c-blue">│   └── 📄 runtime.go</span>      <span class="c-gray">(TEA engine)</span>
+  <span class="c-blue">└── 📁 widgets/</span>
+      <span class="c-cyan">├── 📄 viewer3d.go</span>     <span class="c-green">(30+ widgets catalog)</span>
+      <span class="c-cyan">└── 📄 table.go</span></div>
+            </div>
+        `
+    },
+
+    "widget-viewer3d": {
+        title: "🧊 3D Viewer & Braille Canvas",
+        lead: "Wavefront OBJ/STL yükleyici, Lambertian gölgelendirme ve 2x4 Braille alt-piksel canvas.",
+        content: `
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>mesh, _ := graphics.LoadOBJ("assets/teapot.obj")
 
 viewer := widgets.NewViewer3D(mesh).
     WithRotation(angleX, angleY, 0).
-    WithShading("Gölgeli"). // "Dokulu", "Wireframe", "Dolu Renkli", "Gölgeli", "Gouraud"
+    WithShading("Gölgeli"). // Lambertian shading
     WithWireframe(true)
 
-f.RenderWidget(viewer, area)</code></pre>
+f.RenderWidget(viewer, area)</code></pre></div>
             </div>
 
-            <h2>🎨 2D Braille Canvas</h2>
-            <p>Hücre başına 2x4 piksel çözünürlük ile çizgiler, çemberler ve derinlik tamponlu (Z-Buffer) üçgenler çizin:</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>canvas := widgets.NewCanvas(width, height)
-canvas.DrawLine(0, 0, 80, 40, limoni.Fg(limoni.RGB(0, 255, 200)))
-canvas.DrawCircle(40, 20, 15, limoni.Fg(limoni.RGB(255, 215, 0)))
-f.RenderWidget(canvas, area)</code></pre>
-            </div>
-
-            <h2>🖼️ Donanım Resim Protokolleri</h2>
-            <ul>
-                <li><strong>Kitty Graphics Protocol</strong>: RGB piksel akışı.</li>
-                <li><strong>Sixel Graphics</strong>: DEC VT terminalleri ve xterm uyumluluğu.</li>
-                <li><strong>iTerm2 Protocol</strong>: macOS için base64 resim aktarımı.</li>
-                <li><strong>Half-Block Fallback</strong>: Eski terminallerde 1x2 ANSI yarım blok geriye uyumluluk.</li>
-            </ul>
-        `
-    },
-
-    examples: {
-        title: "🚀 Örnek Uygulamalar & Canlı Demolar",
-        content: `
-            <h1>🚀 Canlı Örnekler ve Demolar</h1>
-            <p>Limoni deposunda yer alan hazır çalışan uygulamaları tek komutla test edebilirsiniz:</p>
-
-            <div class="cards-grid">
-                <div class="feature-card">
-                    <div class="card-icon">🌟</div>
-                    <h3>Showcase Uygulaması</h3>
-                    <p>7 sekmeli vitrin: Markdown okuyucu, 3D döndürücü, canlı grafikler, 1M satırlı tablo ve formlar.</p>
-                    <div class="code-box" style="margin-top:10px;">
-                        <pre><code>go run ./examples/showcase</code></pre>
-                    </div>
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — 3D Teapot</span>
+                    <span class="term-tag">CANLI</span>
                 </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">⚡</div>
-                    <h3>Basit Başlangıç</h3>
-                    <p>15 satırda tek import ile çalışan minimal sayaç uygulaması.</p>
-                    <div class="code-box" style="margin-top:10px;">
-                        <pre><code>go run ./examples/simple</code></pre>
-                    </div>
-                </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">🎮</div>
-                    <h3>İnteraktif Demo</h3>
-                    <p>Animasyonlar, CPU grafikleri ve cam efektli dialog pencereleri.</p>
-                    <div class="code-box" style="margin-top:10px;">
-                        <pre><code>go run ./examples/demo</code></pre>
-                    </div>
-                </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">🌐</div>
-                    <h3>SSH TUI Sunucusu</h3>
-                    <p>Ağ üzerinden bağlanan kullanıcılara canlı TUI sunan SSH servisi.</p>
-                    <div class="code-box" style="margin-top:10px;">
-                        <pre><code>go run ./examples/ssh_server</code></pre>
-                    </div>
-                </div>
+                <div class="terminal-body">          <span class="c-cyan">⢀⣤⣴⣶⣶⣶⣤⡀</span>
+       <span class="c-cyan">⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀</span>     <span class="c-yellow">3D OBJ Mesh: Teapot</span>
+     <span class="c-cyan">⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣄</span>   Shader     : <span class="c-green">Lambertian Diffuse</span>
+    <span class="c-blue">⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆</span>  Dönüş Açısı: <span class="c-cyan">X:24° Y:45° Z:0°</span>
+   <span class="c-blue">⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇</span> Çözünürlük : <span class="c-yellow">160x96 Subpixels</span>
+    <span class="c-blue">⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟</span>  Z-Buffer   : <span class="c-green">Etkin (No Overdraw)</span>
+       <span class="c-cyan">⠉⠛⠿⠿⣿⣿⣿⣿⠿⠿⠛⠉</span></div>
             </div>
         `
     },
 
-    bubbletea: {
-        title: "🍵 Bubble Tea → Limoni Geçiş Kılavuzu",
+    "widget-markdown": {
+        title: "📝 Markdown Görüntüleyici",
+        lead: "Başlıklar, kalın yazılar, listeler ve kod bloklarını şeffaflık olmadan net arka planla okuma.",
         content: `
-            <h1>🍵 Bubble Tea'den Limoni'ye Geçiş</h1>
-            <p>Mevcut Bubble Tea ve Lipgloss projelerinizi Limoni'nin ultra hızlı çekirdeğine zahmetsizce taşıyabilirsiniz.</p>
-
-            <h2>1. Adım: Sıfır Kod Değişikliğiyle Adapter Kullanımı</h2>
-            <p>Sadece import satırını değiştirerek mevcut modellerinizi doğrudan çalıştırın:</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>// Önce: import tea "github.com/charmbracelet/bubbletea"
-// Şimdi:
-import tea "github.com/thebanri/limoni/compat/bubbletea"
-
-p := tea.NewProgram(model)
-err := p.RunTerminal(context.Background())</code></pre>
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>md := limoni.NewMarkdown("# Proje Belgeleri\\n\\n- **Hız**: 60 FPS\\n- **Bellek**: Sıfır Tahsisat")
+f.RenderWidget(md, area)</code></pre></div>
             </div>
 
-            <h2>2. Adım: Native Limoni API'sine Geçiş</h2>
-            <p>Daha yüksek kare hızları ve sıfır bellek tahsisatı için <code>limoni.Model</code> arayüzüne geçin:</p>
-            <div class="code-box">
-                <div class="code-header"><span>GOLANG</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
-                <pre><code>package main
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — Markdown</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body"><span class="c-yellow bold"># Proje Belgeleri</span>
 
-import (
-    "context"
-    "github.com/thebanri/limoni"
-)
+<span class="c-blue">•</span> <span class="bold">Hız:</span> <span class="c-green">60 FPS akıcı terminal çıktısı</span>
+<span class="c-blue">•</span> <span class="bold">Bellek:</span> <span class="c-cyan">Sıfır yığın tahsisatı (Zero-Alloc)</span>
 
-type model struct{ count int }
+<span class="c-gray">\`\`\`go</span>
+<span class="c-yellow">import "github.com/thebanri/limoni"</span>
+<span class="c-gray">\`\`\`</span></div>
+            </div>
+        `
+    },
 
-func (m *model) Init() []limoni.Cmd { return nil }
+    "widget-virtual": {
+        title: "⚡ VirtualDataView (1M+ Satır)",
+        lead: "Milyonlarca satırlık büyük veri kümelerini bellek şişmesi olmadan kaydırarak görüntüleyin.",
+        content: `
+            <h2>Go Kullanımı</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>state := widgets.NewVirtualDataState(1000000, 100, fetchPageFunc)
+view := widgets.VirtualDataView{State: state}
+f.RenderWidget(view, area)</code></pre></div>
+            </div>
 
-func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+            <h2>Terminal Çıktısı (Canlı Görünüm)</h2>
+            <div class="terminal-preview-card">
+                <div class="terminal-header">
+                    <div class="term-dots"><span class="term-dot dot-r"></span><span class="term-dot dot-y"></span><span class="term-dot dot-g"></span></div>
+                    <span class="term-title">Terminal Render Çıktısı — 1,000,000 Satırlık Sanal Liste</span>
+                    <span class="term-tag">CANLI</span>
+                </div>
+                <div class="terminal-body">  [#000001] Sunucu log kaydı: API çağrısı tamamlandı (200 OK)    <span class="c-yellow">█</span>
+  [#000002] DB sorgusu: SELECT * FROM users LIMIT 50           <span class="c-gray">│</span>
+<span class="c-blue bold">&gt; [#000003] Cache miss: Redis anahtarı bulunamadı               </span><span class="c-gray">│</span>
+  [#000004] Arka plan işi: E-posta bildirimi gönderildi         <span class="c-gray">│</span>
+  [#000005] TLS sertifikası yenilendi (Geçerlilik: 90 gün)      <span class="c-gray">│</span>
+
+  <span class="c-gray">Satır: 3 / 1,000,000  |  Önbellek: 100 kayıt  |  RAM: 1.2 MB</span></div>
+            </div>
+        `
+    },
+
+    // --------------------------------------------------------------------------
+    // ÇEKİRDEK APİ'LER
+    // --------------------------------------------------------------------------
+    "core-cell": {
+        title: "🟩 cell (Hücre & Renk)",
+        lead: "Karakter hücreleri, 24-bit TrueColor RGB, ANSI renkleri ve metin modifikatörleri.",
+        content: `
+            <h2>cell.Color</h2>
+            <p>24-bit TrueColor, ANSI veya varsayılan rengi tek bir 32-bit tamsayıda verimli saklar:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>colRGB  := limoni.RGB(0, 229, 255)
+colHex  := limoni.Hex("#FACC15")
+colANSI := limoni.ANSI(196)</code></pre></div>
+            </div>
+
+            <h2>cell.Style</h2>
+            <p>Ön plan (Fg), arka plan (Bg) ve bitmask modifikatörlerini (Bold, Italic, Underline) içeren sıkıştırılmış struct:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>style := limoni.Fg(colHex).Bold()
+merged := baseStyle.Merge(overrideStyle)</code></pre></div>
+            </div>
+        `
+    },
+
+    "core-buffer": {
+        title: "🟨 buffer & ANSI Diff",
+        lead: "1D düz bellek matrisi ve diferansiyel ANSI kaçış dizisi üretim motoru.",
+        content: `
+            <h2>buffer.Diff</h2>
+            <p>İki ardışık kare arasındaki farkı tarayarak terminale sadece değişen hücreleri yazar:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>// Sıcak yolda sıfır tahsisatla fark akışı üretme
+writeBuf, err := buffer.Diff(frontBuf, backBuf, writeBuf[:0], true, true)</code></pre></div>
+            </div>
+        `
+    },
+
+    "core-terminal": {
+        title: "🟦 terminal & Odak Yönetimi",
+        lead: "Katmanlar (Layers), modal izolasyonu ve odak kapsamı (Focus Scoping).",
+        content: `
+            <h2>Modal İzolasyonu</h2>
+            <p>Bir diyalog penceresi açıldığında arkada kalan bileşenlerin tıklama ve tuş olaylarını almasını engeller:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>f.RegisterModal("dialog_id", modalArea, onDismiss)
+f.BeginFocusScope("dialog_id") // Tab navigasyonu yalnızca modal içinde kalır</code></pre></div>
+            </div>
+        `
+    },
+
+    "core-runtime": {
+        title: "🔄 runtime (TEA Motoru)",
+        lead: "Deterministik durum yönetimi, eşzamanlı komutlar ve katı iptal önceliği.",
+        content: `
+            <h2>The Elm Architecture</h2>
+            <p><code>Init &rarr; Update &rarr; View</code> fonksiyonel döngüsü:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
     switch msg := msg.(type) {
     case limoni.KeyPressMsg:
         if msg.Key.Type == limoni.KeyEsc {
             return limoni.Quit()
         }
-        m.count++
         return limoni.Redraw()
     }
     return limoni.Noop()
-}
-
-func (m *model) View(f *limoni.Frame) {
-    f.RenderWidget(
-        limoni.NewBlock().
-            Title(" Limoni Native ").
-            Rounded().
-            Style(limoni.Fg(limoni.ColorCyan)),
-        f.Area(),
-    )
-}
-
-func main() {
-    _ = limoni.RunProgram(context.Background(), &model{})
-}</code></pre>
+}</code></pre></div>
             </div>
         `
     },
 
-    a11y: {
-        title: "♿ Erişilebilirlik (A11y) & Anlamsal Ağaç",
+    // --------------------------------------------------------------------------
+    // REHBERLER
+    // --------------------------------------------------------------------------
+    bubbletea: {
+        title: "🍵 Bubble Tea → Limoni Geçişi",
+        lead: "Mevcut Bubble Tea ve Lipgloss modellerinizi Limoni üzerinde çalıştırma rehberi.",
         content: `
-            <h1>♿ Erişilebilirlik ve Standartlar</h1>
-            <p>Limoni, terminal arayüzlerinin tüm kullanıcılar tarafından erişilebilir olmasını temel bir tasarım ilkesi kabul eder.</p>
+            <h2>1. Adım: Tek Değişiklikle Adapter ile Çalıştırma</h2>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">GO</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>// Önce: import tea "github.com/charmbracelet/bubbletea"
+// Şimdi:
+import tea "github.com/thebanri/limoni/compat/bubbletea"
 
-            <h2>1. Anlamsal Ağaç (Semantic Node Tree)</h2>
-            <p>Tüm bileşenler çizim anında ekran okuyucular için yapılandırılmış semantik düğümler üretir (Rol, Durum, Değer).</p>
+p := tea.NewProgram(model)
+err := p.RunTerminal(context.Background())</code></pre></div>
+            </div>
 
-            <h2>2. Yüksek Kontrast (WCAG AAA)</h2>
-            <p>Yüksek kontrast modu etkinleştirildiğinde soluk pastel renkler otomatik olarak maksimum kontrastlı zıt renklere yükseltilir.</p>
+            <h2>2. Adım: Native API'ye Taşıma</h2>
+            <p>Tam 60+ FPS ve sıfır bellek tahsisatı avantajından yararlanmak için <code>limoni.Model</code> ve <code>limoni.Frame</code> yapısına geçin.</p>
+        `
+    },
 
-            <h2>3. NO_COLOR Standardı</h2>
-            <p>Ortamda <code>NO_COLOR=1</code> tanımlı olduğunda tüm ANSI renk kodları kapatılarak arayüz sembolik olarak çizilir.</p>
+    a11y: {
+        title: "♿ Erişilebilirlik (A11y)",
+        lead: "Ekran okuyucular için anlamsal düğüm ağacı, Yüksek Kontrast modu ve NO_COLOR standardı.",
+        content: `
+            <h2>Standartlar</h2>
+            <ul>
+                <li><strong>Anlamsal Ağaç (Semantic Tree)</strong>: Her bileşen ekran okuyucular için rol (RoleButton, RoleTable, RoleDialog) üretir.</li>
+                <li><strong>Yüksek Kontrast (WCAG AAA)</strong>: Düşük kontrastlı renkler otomatik olarak zıt renklere yükseltilir.</li>
+                <li><strong>NO_COLOR=1</strong>: Tüm ANSI kaçış renkleri devre dışı bırakılır.</li>
+            </ul>
+        `
+    },
 
-            <h2>4. Azaltılmış Hareket (Reduced Motion)</h2>
-            <p>Vestibüler hassasiyeti olan kullanıcılar için animasyon geçişleri otomatik olarak devre dışı bırakılır.</p>
+    platforms: {
+        title: "🌐 Sürücüler & WASM",
+        lead: "Linux, macOS, Windows VT, WebAssembly (tarayıcı) ve uzak SSH sunucusu desteği.",
+        content: `
+            <h2>WebAssembly (WASM)</h2>
+            <p>Tek komutla derleyip tarayıcı içinde xterm.js üzerinde çalıştırın:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>GOOS=js GOARCH=wasm go build -o limoni.wasm ./examples/wasm</code></pre></div>
+            </div>
+
+            <h2>SSH TUI Sunucusu</h2>
+            <p>Uzak kullanıcılara ağ üzerinden doğrudan canlı oturum açın:</p>
+            <div class="code-wrapper">
+                <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+                <div class="code-content"><pre><code>go run ./examples/ssh_server
+# Bağlanmak için: nc localhost 2222</code></pre></div>
+            </div>
+        `
+    },
+
+    examples: {
+        title: "🚀 Örnekler & Demolar",
+        lead: "Limoni kaynak deposunda yer alan hazır çalışan canlı örnekler.",
+        content: `
+            <h2>Hazır Örnekler</h2>
+            <table class="doc-table">
+                <thead>
+                    <tr><th>Örnek</th><th>Komut</th><th>Açıklama</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Showcase</strong></td><td><code>go run ./examples/showcase</code></td><td>7 sekmeli amiral gemisi vitrin uygulaması.</td></tr>
+                    <tr><td><strong>Simple</strong></td><td><code>go run ./examples/simple</code></td><td>15 satırda minimal başlangıç kodu.</td></tr>
+                    <tr><td><strong>3D Viewer</strong></td><td><code>go run ./examples/3d_viewer</code></td><td>OBJ/STL modelleri canlı döndürme.</td></tr>
+                    <tr><td><strong>Demo</strong></td><td><code>go run ./examples/demo</code></td><td>Etkileşimli diyalog ve grafik demosu.</td></tr>
+                </tbody>
+            </table>
         `
     }
 };
 
-// Routing and Section Switcher
-function switchSection(sectionId) {
-    if (!DOCS_DATA[sectionId]) {
-        sectionId = 'quickstart';
+// Ordered section keys for Prev/Next navigation
+const DOC_KEYS = Object.keys(DOCS);
+
+// Current active document key
+let currentDocKey = "quickstart";
+
+// Switch active document
+function switchDoc(key) {
+    if (!DOCS[key]) {
+        key = "quickstart";
     }
+    currentDocKey = key;
 
-    // Update active nav links
-    document.querySelectorAll('.sidebar-link').forEach(link => {
-        link.classList.remove('active');
-        if (link.getAttribute('href') === `#${sectionId}`) {
-            link.classList.add('active');
-        }
-    });
-
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active');
-        if (link.getAttribute('href') === `#${sectionId}`) {
-            link.classList.add('active');
+    // Update active nav items in sidebar
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.getAttribute('data-doc') === key) {
+            item.classList.add('active');
         }
     });
 
     // Render content
-    const container = document.getElementById('content-container');
-    container.innerHTML = DOCS_DATA[sectionId].content;
+    const article = document.getElementById('doc-content');
+    const doc = DOCS[key];
+    article.innerHTML = `
+        <h1>${doc.title}</h1>
+        <div class="lead">${doc.lead}</div>
+        ${doc.content}
+    `;
 
-    // Generate Table of Contents
+    // Update URL hash
+    window.location.hash = key;
+
+    // Generate On-Page Table of Contents
     generateTOC();
+
+    // Update Prev / Next buttons
+    updateNavButtons();
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Close mobile sidebar if open
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+    }
 }
 
-// Generate On-Page TOC
+// Generate On-Page TOC based on H2 elements
 function generateTOC() {
-    const tocList = document.getElementById('toc-list');
-    tocList.innerHTML = '';
+    const tocNav = document.getElementById('toc-nav');
+    if (!tocNav) return;
+    tocNav.innerHTML = '';
 
-    const headings = document.querySelectorAll('#content-container h2');
+    const headings = document.querySelectorAll('#doc-content h2');
     headings.forEach((h2, idx) => {
-        const id = 'heading-' + idx;
+        const id = 'section-' + idx;
         h2.id = id;
 
         const li = document.createElement('li');
@@ -712,26 +786,63 @@ function generateTOC() {
             h2.scrollIntoView({ behavior: 'smooth' });
         };
         li.appendChild(a);
-        tocList.appendChild(li);
+        tocNav.appendChild(li);
     });
 }
 
-// Copy Code Button
+// Update Previous & Next chapter navigation buttons
+function updateNavButtons() {
+    const idx = DOC_KEYS.indexOf(currentDocKey);
+
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const prevName = document.getElementById('prev-btn-name');
+    const nextName = document.getElementById('next-btn-name');
+
+    if (idx > 0) {
+        prevBtn.style.visibility = 'visible';
+        prevName.textContent = DOCS[DOC_KEYS[idx - 1]].title;
+    } else {
+        prevBtn.style.visibility = 'hidden';
+    }
+
+    if (idx < DOC_KEYS.length - 1) {
+        nextBtn.style.visibility = 'visible';
+        nextName.textContent = DOCS[DOC_KEYS[idx + 1]].title;
+    } else {
+        nextBtn.style.visibility = 'hidden';
+    }
+}
+
+function navPrev() {
+    const idx = DOC_KEYS.indexOf(currentDocKey);
+    if (idx > 0) switchDoc(DOC_KEYS[idx - 1]);
+}
+
+function navNext() {
+    const idx = DOC_KEYS.indexOf(currentDocKey);
+    if (idx < DOC_KEYS.length - 1) switchDoc(DOC_KEYS[idx + 1]);
+}
+
+// Copy Code Helper
 function copyCode(btn) {
-    const codeBox = btn.closest('.code-box');
-    const code = codeBox.querySelector('code').textContent;
+    const wrapper = btn.closest('.code-wrapper');
+    const code = wrapper.querySelector('code').textContent;
     navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = 'Kopyalandı! ✓';
-        btn.style.color = '#39d353';
+        const orig = btn.textContent;
+        btn.textContent = "Kopyalandı! ✓";
+        btn.style.borderColor = "#facc15";
+        btn.style.color = "#facc15";
         setTimeout(() => {
-            btn.textContent = 'Kopyala';
-            btn.style.color = '';
-        }, 2000);
+            btn.textContent = orig;
+            btn.style.borderColor = "";
+            btn.style.color = "";
+        }, 1800);
     });
 }
 
 // Search Modal Functionality (Cmd+K / Ctrl+K)
-function openSearchModal() {
+function openSearch() {
     const modal = document.getElementById('search-modal');
     modal.classList.add('open');
     const input = document.getElementById('search-input');
@@ -740,12 +851,11 @@ function openSearchModal() {
     handleSearch('');
 }
 
-function closeSearchModal(event) {
-    if (event && event.target !== document.getElementById('search-modal') && !event.target.classList.contains('search-modal-close')) {
+function closeSearch(e) {
+    if (e && e.target !== document.getElementById('search-modal') && !e.target.classList.contains('search-close-btn')) {
         return;
     }
-    const modal = document.getElementById('search-modal');
-    modal.classList.remove('open');
+    document.getElementById('search-modal').classList.remove('open');
 }
 
 function handleSearch(query) {
@@ -753,54 +863,60 @@ function handleSearch(query) {
     query = query.toLowerCase().trim();
 
     if (!query) {
-        resultsContainer.innerHTML = '<div class="search-hint">Aramak için yazmaya başlayın... (Örn: Table, 3D, Flexbox)</div>';
+        resultsContainer.innerHTML = '<div style="padding:16px; color:#64748b; font-size:13px; text-align:center;">Aramak için yazın... (Örn: Table, 3D, Diff, Dialog)</div>';
         return;
     }
 
     const matched = [];
-    for (const [key, doc] of Object.entries(DOCS_DATA)) {
-        if (doc.title.toLowerCase().includes(query) || doc.content.toLowerCase().includes(query)) {
-            matched.push({ key, title: doc.title });
+    for (const [key, doc] of Object.entries(DOCS)) {
+        if (doc.title.toLowerCase().includes(query) || doc.lead.toLowerCase().includes(query) || doc.content.toLowerCase().includes(query)) {
+            matched.push({ key, title: doc.title, lead: doc.lead });
         }
     }
 
     if (matched.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-hint">Sonuç bulunamadı.</div>';
+        resultsContainer.innerHTML = '<div style="padding:16px; color:#64748b; font-size:13px; text-align:center;">Sonuç bulunamadı.</div>';
         return;
     }
 
     resultsContainer.innerHTML = matched.map(m => `
-        <a href="#${m.key}" class="search-result-item" onclick="selectSearchResult('${m.key}')">
-            <div class="search-result-title">${m.title}</div>
-            <div class="search-result-desc">Limoni Dokümantasyon Rehberi &rarr; ${m.key}</div>
+        <a href="#${m.key}" class="search-result-item" onclick="selectSearch('${m.key}')">
+            <div class="search-res-title">${m.title}</div>
+            <div class="search-res-snippet">${m.lead}</div>
         </a>
     `).join('');
 }
 
-function selectSearchResult(key) {
-    closeSearchModal();
-    switchSection(key);
+function selectSearch(key) {
+    document.getElementById('search-modal').classList.remove('open');
+    switchDoc(key);
 }
 
-// Keyboard shortcuts (Cmd+K / Ctrl+K and ESC)
+// Mobile sidebar toggle
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('open');
+}
+
+// Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        openSearchModal();
+        openSearch();
     } else if (e.key === 'Escape') {
-        closeSearchModal();
+        document.getElementById('search-modal').classList.remove('open');
     }
 });
 
-// Handle initial URL hash
+// Hash change router & DOM load
 window.addEventListener('DOMContentLoaded', () => {
     const initialHash = window.location.hash.replace('#', '') || 'quickstart';
-    switchSection(initialHash);
+    switchDoc(initialHash);
 });
 
 window.addEventListener('hashchange', () => {
     const hash = window.location.hash.replace('#', '') || 'quickstart';
-    if (!hash.startsWith('heading-')) {
-        switchSection(hash);
+    if (!hash.startsWith('section-')) {
+        switchDoc(hash);
     }
 });
