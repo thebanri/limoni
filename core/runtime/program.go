@@ -246,6 +246,11 @@ func (p *Program) Run(ctx context.Context) error {
 	pending := make(map[uint64]commandResult)
 	var nextSequence uint64
 	for {
+		if err := ctx.Err(); err != nil {
+			p.Stop()
+			p.workers.Wait()
+			return err
+		}
 		select {
 		case <-ctx.Done():
 			p.Stop()
@@ -256,6 +261,18 @@ func (p *Program) Run(ctx context.Context) error {
 			p.workers.Wait()
 			return nil
 		case message := <-p.messages:
+			if err := ctx.Err(); err != nil {
+				p.Stop()
+				p.workers.Wait()
+				return err
+			}
+			select {
+			case <-p.stop:
+				cancel()
+				p.workers.Wait()
+				return nil
+			default:
+			}
 			if p.update(ctx, message) {
 				cancel()
 				p.Stop()
@@ -263,6 +280,18 @@ func (p *Program) Run(ctx context.Context) error {
 				return nil
 			}
 		case result := <-p.commandResults:
+			if err := ctx.Err(); err != nil {
+				p.Stop()
+				p.workers.Wait()
+				return err
+			}
+			select {
+			case <-p.stop:
+				cancel()
+				p.workers.Wait()
+				return nil
+			default:
+			}
 			pending[result.sequence] = result
 			for {
 				ready, ok := pending[nextSequence]
@@ -338,6 +367,13 @@ func (p *Program) schedule(parent context.Context, command Cmd) {
 			}()
 			result.message = command(commandCtx)
 		}()
+		select {
+		case <-commandCtx.Done():
+			return
+		case <-p.stop:
+			return
+		default:
+		}
 		select {
 		case p.commandResults <- result:
 		case <-p.stop:
