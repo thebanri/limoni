@@ -121,6 +121,9 @@ const RuneContinuation rune = 0xFFFE
 // RuneImage marks cells covered by native Sixel/Kitty image graphics.
 const RuneImage rune = 0xFFFF
 
+// RuneInvalid marks cells dirty/uninitialized during full redraw invalidations.
+const RuneInvalid rune = 0x10FFFF
+
 // RuneWidth calculates the terminal display column width of a rune.
 func RuneWidth(r rune) int {
 	// 1. Control characters and unprintable C0/C1

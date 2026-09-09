@@ -1302,7 +1302,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 			// aşağıda ayrıca animasyonlu olarak çizilir.
 			f.RegisterModal("exit_dialog", dialogArea, func() {
 				state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
-				t.ForceFullRedraw()
 			})
 		}
 		if state.ShowHelpDialog {
@@ -1949,18 +1948,7 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 					})
 				})
 
-				if animatedArea.Width > 0 && animatedArea.Height > 0 {
-					shadowBackdrop := cell.NewRect(
-						animatedArea.X,
-						animatedArea.Y,
-						animatedArea.Width+2,
-						animatedArea.Height+1,
-					)
-					f.RenderWidget(widgets.Block{
-						Style:  cell.Style{Bg: cell.NewColorRGB(18, 20, 24)},
-						Opaque: true,
-					}, shadowBackdrop)
-
+				if animatedArea.Width >= 6 && animatedArea.Height >= 3 {
 					exitDialog := widgets.Dialog{
 						ID:          "exit_dialog",
 						Title:       " ⚠️ SYSTEM EXIT ",
@@ -1989,7 +1977,6 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 								Text: "No",
 								Handler: func() {
 									state.ExitDialogAnim.AnimateTo(0.0, 200*time.Millisecond, animation.EaseInCubic)
-									t.ForceFullRedraw()
 								},
 							},
 						},
@@ -2141,7 +2128,15 @@ func drawApp(t *terminal.Terminal, b *backend.Backend, state *AppState, fps floa
 				State:    state.CmdPalette,
 				Position: &widgets.CommandPalettePosition{Bottom: 2},
 			}
+			palArea := palette.DebugArea(f.Buffer.Area)
+			if palArea.Width > 0 && palArea.Height > 0 {
+				f.RegisterModal("command_palette", palArea, func() {
+					state.CmdPalette.Close()
+				})
+			}
+			f.BeginLayer("command_palette")
 			f.RenderWidget(palette, f.Buffer.Area)
+			f.EndLayer()
 		}
 
 		// 8. Toast Notifications

@@ -4,7 +4,8 @@ package backend
 type EventType uint8
 
 const (
-	EventKey EventType = iota
+	EventNone EventType = iota
+	EventKey
 	EventMouse
 	EventResize
 	EventFocus

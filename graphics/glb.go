@@ -435,25 +435,18 @@ func buildModelFromGLTF(doc *gltfJSON, buffers [][]byte, sourcePath string) (Mod
 				}
 
 				indices := make([]int, 0, idxAcc.Count)
-				r := bytes.NewReader(idxBytes)
-
-				for i := 0; i < idxAcc.Count; i++ {
-					switch idxAcc.ComponentType {
-					case compTypeUnsignedByte:
-						var b uint8
-						if err := binary.Read(r, binary.LittleEndian, &b); err == nil {
-							indices = append(indices, int(b))
-						}
-					case compTypeUnsignedShort:
-						var s uint16
-						if err := binary.Read(r, binary.LittleEndian, &s); err == nil {
-							indices = append(indices, int(s))
-						}
-					case compTypeUnsignedInt:
-						var u uint32
-						if err := binary.Read(r, binary.LittleEndian, &u); err == nil {
-							indices = append(indices, int(u))
-						}
+				switch idxAcc.ComponentType {
+				case compTypeUnsignedByte:
+					for i := 0; i < idxAcc.Count && i < len(idxBytes); i++ {
+						indices = append(indices, int(idxBytes[i]))
+					}
+				case compTypeUnsignedShort:
+					for i := 0; i < idxAcc.Count && (i+1)*2 <= len(idxBytes); i++ {
+						indices = append(indices, int(binary.LittleEndian.Uint16(idxBytes[i*2:])))
+					}
+				case compTypeUnsignedInt:
+					for i := 0; i < idxAcc.Count && (i+1)*4 <= len(idxBytes); i++ {
+						indices = append(indices, int(binary.LittleEndian.Uint32(idxBytes[i*4:])))
 					}
 				}
 

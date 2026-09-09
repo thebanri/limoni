@@ -182,14 +182,8 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	for y := area.Y; y < area.Y+area.Height; y++ {
 		for x := area.X; x < area.X+area.Width; x++ {
 			if c := buf.Get(x, y); c != nil {
-				if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault {
-					c.Content = '█'
-					c.Style = blockStyle
-					c.Style.Fg = blockStyle.Bg
-				} else {
-					c.Content = ' '
-					c.Style = blockStyle
-				}
+				c.Content = ' '
+				c.Style = blockStyle
 			}
 		}
 	}

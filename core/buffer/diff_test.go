@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -346,3 +347,46 @@ func TestDiffSanitizesControlCharacters(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffRuneImageNeedsErase(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// 1. Back has dialog text, front has RuneImage -> must emit ECH to erase old text
+	for x := uint16(0); x < 10; x++ {
+		back.SetCell(x, 0, cell.Cell{Content: 'X'})
+		front.SetCell(x, 0, cell.Cell{Content: cell.RuneImage})
+	}
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff error: %v", err)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "10X") {
+		t.Errorf("Expected ECH erase command '10X' in output, got: %q", outStr)
+	}
+
+	// 2. Back is already RuneImage, front is RuneImage -> must emit NOTHING (zero ECH)
+	out, err = Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff error: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("Expected zero diff bytes when both front and back are RuneImage, got %d bytes: %q", len(out), string(out))
+	}
+
+	// 3. Back is RuneInvalid (after ForceFullRedraw / buffer invalidation), front is RuneImage -> must emit ECH to clear any physical hardware artifacts
+	front.Invalidate()
+	for x := uint16(0); x < 10; x++ {
+		back.SetCell(x, 0, cell.Cell{Content: cell.RuneInvalid})
+	}
+	out, err = Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff error: %v", err)
+	}
+	if !strings.Contains(string(out), "10X") {
+		t.Errorf("Expected ECH '10X' when back is RuneInvalid, got: %q", string(out))
+	}
+}
+

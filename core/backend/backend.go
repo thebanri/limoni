@@ -350,10 +350,12 @@ func (b *Backend) StartEventLoop() {
 						ev, consumed = ParseEvent(readBuf)
 					}
 					if consumed > 0 {
-						select {
-						case b.events <- ev:
-						case <-b.done:
-							return
+						if ev.Type != EventNone {
+							select {
+							case b.events <- ev:
+							case <-b.done:
+								return
+							}
 						}
 						readBuf = readBuf[consumed:]
 					} else {

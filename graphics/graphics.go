@@ -10,6 +10,7 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -41,7 +42,7 @@ const (
 
 // DetectProtocol, terminal ortam değişkenlerini inceleyerek en uygun resim protokolünü otomatik seçer.
 func DetectProtocol() Protocol {
-	switch os.Getenv("LIMONI_GRAPHICS") {
+	switch strings.ToLower(os.Getenv("LIMONI_GRAPHICS")) {
 	case "kitty":
 		return ProtocolKitty
 	case "sixel":
@@ -51,27 +52,39 @@ func DetectProtocol() Protocol {
 	case "halfblock":
 		return ProtocolHalfBlock
 	}
-	termProg := os.Getenv("TERM_PROGRAM")
+
+	termProg := strings.ToLower(os.Getenv("TERM_PROGRAM"))
 	switch termProg {
-	case "Ghostty", "kitty", "WezTerm":
+	case "ghostty", "kitty", "wezterm", "rio":
 		return ProtocolKitty
-	case "iTerm.app":
+	case "iterm.app", "iterm":
 		return ProtocolIterm2
-	case "Alacritty":
+	case "foot", "mlterm":
+		return ProtocolSixel
+	case "alacritty":
 		return ProtocolHalfBlock
 	}
 
-	if os.Getenv("KITTY_WINDOW_ID") != "" || os.Getenv("WEZTERM_PANE") != "" || os.Getenv("GHOSTTY_BIN_DIR") != "" {
+	if os.Getenv("KITTY_WINDOW_ID") != "" || os.Getenv("KITTY_PID") != "" || os.Getenv("KITTY_INSTALLATION_DIR") != "" {
 		return ProtocolKitty
+	}
+	if os.Getenv("WEZTERM_PANE") != "" {
+		return ProtocolKitty
+	}
+	if os.Getenv("GHOSTTY_BIN_DIR") != "" || os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
+		return ProtocolKitty
+	}
+
+	term := strings.ToLower(os.Getenv("TERM"))
+	if term == "xterm-kitty" || term == "xterm-ghostty" || term == "wezterm" {
+		return ProtocolKitty
+	}
+	if strings.HasPrefix(term, "foot") || term == "mlterm" || strings.Contains(term, "sixel") {
+		return ProtocolSixel
 	}
 
 	if os.Getenv("ALACRITTY_WINDOW_ID") != "" {
 		return ProtocolHalfBlock
-	}
-
-	term := os.Getenv("TERM")
-	if term == "xterm-kitty" {
-		return ProtocolKitty
 	}
 
 	// Bilinmeyen terminallerde escape sequence basıp ekranı bozmak yerine
@@ -361,7 +374,7 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 	pngBytes := pngBuf.Bytes()
 	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
-	controlKeys := fmt.Sprintf("f=100,a=T,t=d,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
+	controlKeys := fmt.Sprintf("q=2,f=100,a=T,t=d,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
 	return chunkKittyPayload(controlKeys, b64Data)
 }
 

@@ -375,3 +375,59 @@ func TestComputeMatchPositions_EmptyQuery(t *testing.T) {
 		t.Fatalf("boş sorgu için positions uzunluğu = %d; 0 bekleniyordu", len(positions))
 	}
 }
+
+func TestCommandPaletteMouseClickAndHover(t *testing.T) {
+	state := NewCommandPaletteState()
+	executed := -1
+	state.AllItems = []CommandItem{
+		{Label: "Item 0", Handler: func() { executed = 0 }},
+		{Label: "Item 1", Handler: func() { executed = 1 }},
+		{Label: "Item 2", Handler: func() { executed = 2 }},
+	}
+	state.Open()
+
+	area := cell.NewRect(0, 0, 100, 30)
+	ctx := cell.NewContext(area, cell.Style{})
+
+	var clickedRowRect cell.Rect
+	var clickHandler func()
+	ctx.RegisterClick = func(r cell.Rect, fn func()) {
+		// Capture the last registered row click
+		clickedRowRect = r
+		clickHandler = fn
+	}
+
+	var mouseHandler func(backend.MouseEvent)
+	ctx.RegisterMouse = func(r cell.Rect, fn func(backend.MouseEvent)) {
+		mouseHandler = fn
+	}
+
+	palette := CommandPalette{ID: "cmd_pal", State: state}
+	buf := buffer.NewBuffer(area)
+	palette.Draw(ctx, buf)
+
+	if clickHandler == nil {
+		t.Fatal("Expected row click handler to be registered")
+	}
+	if clickedRowRect.Width == 0 || clickedRowRect.Height == 0 {
+		t.Fatalf("Expected valid clickedRowRect, got: %+v", clickedRowRect)
+	}
+
+	// 1. Simulate mouse hover
+	if mouseHandler != nil {
+		mouseHandler(backend.MouseEvent{Button: backend.MouseNone})
+		if state.Selected != 2 {
+			t.Errorf("Expected Selected=2 on hover of item 2, got: %d", state.Selected)
+		}
+	}
+
+	// 2. Simulate mouse click
+	clickHandler()
+	if executed != 2 {
+		t.Errorf("Expected handler 2 to execute, got: %d", executed)
+	}
+	if state.IsOpen {
+		t.Error("Expected CommandPalette to close after item click")
+	}
+}
+

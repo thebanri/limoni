@@ -7,6 +7,7 @@ import (
 	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/graphics"
 )
 
 // CommandItem, Komut Paleti'nde gösterilecek bir komutu temsil eder.
@@ -281,6 +282,31 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		bgStyle.Bg = cell.NewColorRGB(30, 30, 40)
 		bgStyle.Fg = cell.NewColorRGB(220, 220, 230)
 	}
+
+	// Arka plandaki yerel grafiklerin (Kitty/Sixel/iTerm2) sızmasını engellemek için
+	// palet ve gölge alanına z = -2 seviyesinde solid arka plan resmi kaydet:
+	if ctx.RegisterImage != nil {
+		proto := graphics.DetectProtocol()
+		if proto != graphics.ProtocolHalfBlock {
+			backdropW := uint16(paletW + 2)
+			backdropH := uint16(paletH + 1)
+			if uint16(startX)+backdropW > area.X+area.Width {
+				backdropW = area.X + area.Width - uint16(startX)
+			}
+			if uint16(startY)+backdropH > area.Y+area.Height {
+				backdropH = area.Y + area.Height - uint16(startY)
+			}
+			shadowBackdrop := cell.NewRect(
+				uint16(startX),
+				uint16(startY),
+				backdropW,
+				backdropH,
+			)
+			solidImg := getSolidImage(bgStyle.Bg)
+			ctx.RegisterImage(shadowBackdrop, solidImg, -2, false)
+		}
+	}
+
 	for dy := 0; dy < paletH; dy++ {
 		for dx := 0; dx < paletW; dx++ {
 			if c := buf.Get(uint16(startX+dx), uint16(startY+dy)); c != nil {
@@ -516,6 +542,55 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					}
 				}
 			}
+		}
+
+		// Fare tıklama ve üzerine gelme (hover) olaylarını kaydet
+		rowArea := cell.NewRect(uint16(startX+1), uint16(y), uint16(paletW-2), 1)
+		itemIdx := idx
+		itemHandler := item.Handler
+		if ctx.RegisterClick != nil {
+			ctx.RegisterClick(rowArea, func() {
+				if cp.State != nil {
+					cp.State.Selected = itemIdx
+					cp.State.Close()
+				}
+				if itemHandler != nil {
+					itemHandler()
+				}
+			})
+		}
+		if ctx.RegisterMouse != nil {
+			ctx.RegisterMouse(rowArea, func(ev backend.MouseEvent) {
+				if cp.State == nil {
+					return
+				}
+				switch ev.Button {
+				case backend.MouseLeft:
+					if cp.State != nil {
+						cp.State.Selected = itemIdx
+						cp.State.Close()
+					}
+					if itemHandler != nil {
+						itemHandler()
+					}
+				case backend.MouseNone:
+					cp.State.Selected = itemIdx
+				case backend.MouseScrollUp:
+					if cp.State.Selected > 0 {
+						cp.State.Selected--
+						if cp.State.Selected < cp.State.ScrollOffset {
+							cp.State.ScrollOffset = cp.State.Selected
+						}
+					}
+				case backend.MouseScrollDown:
+					if cp.State.Selected < len(cp.State.Filtered)-1 {
+						cp.State.Selected++
+						if cp.State.Selected >= cp.State.ScrollOffset+visibleCount {
+							cp.State.ScrollOffset = cp.State.Selected - visibleCount + 1
+						}
+					}
+				}
+			})
 		}
 	}
 

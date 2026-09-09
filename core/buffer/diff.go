@@ -89,7 +89,7 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 			// Eğer bu hücre bir native resim hücresi ise:
 			// Önceki karede bu hücrede bir diyalog/metin karakteri varsa,
 			// \x1b[0m ile stili sıfırlayıp ECMA-48 ECH (\x1b[<count>X) ile eski karakterleri
-			// tek hamlede sil. Böylece resmin üzerinde hiçbir hayalet çizgi kalmaz.
+			// tek hamlede sil. Böylece resmin üzerinde hiçbir hayalet çizgi/artık kalmaz.
 			if frontCell.Content == cell.RuneImage {
 				spanEnd := x
 				needsErase := false
@@ -99,7 +99,8 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 						break
 					}
 					spanEnd = checkX
-					if back.Content[cIdx].Content != cell.RuneImage {
+					prevContent := back.Content[cIdx].Content
+					if prevContent != cell.RuneImage {
 						needsErase = true
 					}
 				}

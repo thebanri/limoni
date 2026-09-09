@@ -200,6 +200,12 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	keyLightDir = keyLightDir.Normalize()
 	fillLightDir := graphics.Vector3D{X: 0.55, Y: 0.25, Z: 0.50}.Normalize()
+	viewDir := graphics.Vector3D{X: 0, Y: 0, Z: 1}
+	halfDir := graphics.Vector3D{
+		X: keyLightDir.X + viewDir.X,
+		Y: keyLightDir.Y + viewDir.Y,
+		Z: keyLightDir.Z + viewDir.Z,
+	}.Normalize()
 
 	// Animation calculations
 	time := a.Time
@@ -355,14 +361,22 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 			v0, v1, v2 := rotatedVerts[idx0], rotatedVerts[idx1], rotatedVerts[idx2]
 			normal := graphics.CalculateNormal(v0, v1, v2)
-
-			// 3D View-space backface culling (normal.Z > 0 for front-facing surfaces)
 			if normal.Z <= 0.0 {
 				continue
 			}
 
 			denom := (p1.y-p2.y)*(p0.x-p2.x) + (p2.x-p1.x)*(p0.y-p2.y)
 			if math.Abs(denom) < 1e-6 {
+				continue
+			}
+
+			// Triangle bounding box in sub-cell space
+			minX := int(math.Max(0, math.Floor(math.Min(p0.x, math.Min(p1.x, p2.x)))))
+			maxX := int(math.Min(float64(subW-1), math.Ceil(math.Max(p0.x, math.Max(p1.x, p2.x)))))
+			minY := int(math.Max(0, math.Floor(math.Min(p0.y, math.Min(p1.y, p2.y)))))
+			maxY := int(math.Min(float64(subH-1), math.Ceil(math.Max(p0.y, math.Max(p1.y, p2.y)))))
+
+			if minX > maxX || minY > maxY {
 				continue
 			}
 
@@ -378,14 +392,7 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				diffFill = 0
 			}
 
-			// Specular (Blinn-Phong)
-			viewDir := graphics.Vector3D{X: 0, Y: 0, Z: 1}
-			halfDir := graphics.Vector3D{
-				X: keyLightDir.X + viewDir.X,
-				Y: keyLightDir.Y + viewDir.Y,
-				Z: keyLightDir.Z + viewDir.Z,
-			}.Normalize()
-
+			// Specular (Blinn-Phong) using precomputed halfDir
 			specDot := normal.Dot(halfDir)
 			if specDot < 0 {
 				specDot = 0
@@ -394,12 +401,6 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 			ambient := 0.35 * envIntensity
 			diffuseTotal := (diffKey*0.70 + diffFill*0.30) * envIntensity
-
-			// Triangle bounding box in sub-cell space
-			minX := int(math.Max(0, math.Floor(math.Min(p0.x, math.Min(p1.x, p2.x)))))
-			maxX := int(math.Min(float64(subW-1), math.Ceil(math.Max(p0.x, math.Max(p1.x, p2.x)))))
-			minY := int(math.Max(0, math.Floor(math.Min(p0.y, math.Min(p1.y, p2.y)))))
-			maxY := int(math.Min(float64(subH-1), math.Ceil(math.Max(p0.y, math.Max(p1.y, p2.y)))))
 
 			invDenom := 1.0 / denom
 

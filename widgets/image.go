@@ -37,9 +37,12 @@ type Image struct {
 	FocusedStyle cell.Style
 
 	// Cache fields
-	lastImg     image.Image
-	lastArea    cell.Rect
-	cachedCells []cell.Cell
+	lastImg       image.Image
+	lastArea      cell.Rect
+	cachedCells   []cell.Cell
+	lastSrcImg    image.Image
+	lastCircle    bool
+	lastMaskedImg image.Image
 }
 
 // Draw, çizim alanındaki hücrelerin içeriğini boşluk karakteriyle temizler
@@ -63,7 +66,17 @@ func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	img := im.Img
 	if im.CircleMask {
-		img = graphics.ApplyCircleMask(img)
+		if im.Img == im.lastSrcImg && im.lastCircle && im.lastMaskedImg != nil {
+			img = im.lastMaskedImg
+		} else {
+			img = graphics.ApplyCircleMask(im.Img)
+			im.lastSrcImg = im.Img
+			im.lastCircle = true
+			im.lastMaskedImg = img
+		}
+	} else {
+		im.lastCircle = false
+		im.lastMaskedImg = nil
 	}
 	if im.OpacitySet && im.Opacity < 1.0 {
 		img = graphics.ApplyOpacity(img, im.Opacity)
@@ -153,12 +166,23 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 			// Üst piksel (Background rengi olacak)
 			topCol := resized.At(int(cx), int(2*cy))
 			_, _, _, ta := topCol.RGBA()
-			bgColor := blendColor(topCol, bgCol)
 
 			// Alt piksel (Foreground rengi olacak)
 			botCol := resized.At(int(cx), int(2*cy+1))
 			_, _, _, ba := botCol.RGBA()
-			fgColor := blendColor(botCol, bgCol)
+
+			const alphaMin = 4000 // ~6% alpha threshold to filter transparent compression noise
+			topOpaque := ta >= alphaMin
+			botOpaque := ba >= alphaMin
+
+			bgColor := bgCol
+			if topOpaque {
+				bgColor = blendColor(topCol, bgCol)
+			}
+			fgColor := bgCol
+			if botOpaque {
+				fgColor = blendColor(botCol, bgCol)
+			}
 
 			// Hücreyi güncelle
 			cellX := ctx.Area.X + cx
@@ -166,16 +190,17 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 			if c := buf.Get(cellX, cellY); c != nil {
 				c.Style.Modifier = cell.ModifierReset
 
-				if ta == 0 && ba == 0 {
+				if !topOpaque && !botOpaque {
 					// Her iki piksel de şeffaf -> Boşluk karakteri
 					c.Content = ' '
+					c.Style.Fg = cell.NewColorDefault()
 					c.Style.Bg = bgCol
-				} else if ta > 0 && ba == 0 {
+				} else if topOpaque && !botOpaque {
 					// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
 					c.Content = '▀'
 					c.Style.Fg = bgColor
 					c.Style.Bg = bgCol
-				} else if ta == 0 && ba > 0 {
+				} else if !topOpaque && botOpaque {
 					// Üst şeffaf, alt dolu -> Alt yarım blok (▄)
 					c.Content = '▄'
 					c.Style.Fg = fgColor
@@ -203,10 +228,10 @@ func (im *Image) SizeHint(maxArea cell.Rect) (width, height uint16) {
 // konteyner arka plan rengiyle alfa-harmanlama (alpha blending) formülüyle birleştirir.
 func blendColor(fgColor color.Color, bg cell.Color) cell.Color {
 	r, g, b, a := fgColor.RGBA()
-	if a == 0 {
+	if a < 4000 {
 		return bg
 	}
-	if a == 65535 {
+	if a >= 65000 || bg.Type() == cell.ColorDefault {
 		return cell.NewColorRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))
 	}
 

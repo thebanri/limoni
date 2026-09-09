@@ -4,14 +4,18 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/graphics"
 )
 
 // DialogButton represents a button in the dialog.
 type DialogButton struct {
-	Text    string
-	Handler func()
+	Text         string
+	Handler      func()
+	Style        cell.Style
+	FocusedStyle cell.Style
 }
 
 // Dialog is a premium, modern glassmorphism dialog widget with glowing gradient borders and blended shadows.
@@ -28,6 +32,8 @@ type Dialog struct {
 	ButtonFocusedStyle cell.Style
 	BorderSymbols      BorderSymbols
 	Shadow             bool
+	FocusedButton      int
+	OnButtonHover      func(index int)
 }
 
 // Draw renders the premium glassmorphism dialog inside ctx.Area.
@@ -55,6 +61,20 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		fgCol = di.Style.Fg
 	}
 	baseStyle := cell.Style{Fg: fgCol, Bg: bgCol}
+
+	// Opaque backdrop for native image protocols (Kitty, Sixel, iTerm2):
+	if ctx.RegisterImage != nil {
+		proto := graphics.DetectProtocol()
+		if proto != graphics.ProtocolHalfBlock {
+			backdropArea := ctx.Area
+			if di.Shadow {
+				backdropArea.Width += 2
+				backdropArea.Height += 1
+			}
+			solidImg := getSolidImage(bgCol)
+			ctx.RegisterImage(backdropArea, solidImg, -2, false)
+		}
+	}
 
 	for dy := uint16(0); dy < boxH; dy++ {
 		by := y + dy
@@ -236,6 +256,11 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				ctx.RegisterFocus(btnID)
 			}
 			isFocused := (ctx.FocusedID == btnID)
+			if ctx.FocusedID == "" && di.FocusedButton >= 0 {
+				isFocused = (di.FocusedButton == i)
+			} else if di.FocusedButton >= 0 && di.FocusedButton == i {
+				isFocused = true
+			}
 			btnText := fmt.Sprintf(" [ %s ] ", btn.Text)
 			btnW := displayWidth(btnText)
 
@@ -248,6 +273,9 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			if di.ButtonStyle.Bg.Type() != cell.ColorDefault {
 				bStyle.Bg = di.ButtonStyle.Bg
+			}
+			if btn.Style.Fg.Type() != cell.ColorDefault || btn.Style.Bg.Type() != cell.ColorDefault {
+				bStyle = btn.Style
 			}
 			if isFocused {
 				factor := 0.5
@@ -262,6 +290,9 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 				if di.ButtonFocusedStyle.Bg.Type() != cell.ColorDefault {
 					bStyle.Bg = di.ButtonFocusedStyle.Bg
+				}
+				if btn.FocusedStyle.Fg.Type() != cell.ColorDefault || btn.FocusedStyle.Bg.Type() != cell.ColorDefault {
+					bStyle = btn.FocusedStyle
 				}
 			}
 
@@ -283,7 +314,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			curBtnX = int(x) + 1 + (innerW-totalBtnsW)/2
 		}
 
-		for _, item := range btnList {
+		for i, item := range btnList {
 			if curBtnX >= int(x+boxW-1) {
 				break
 			}
@@ -298,19 +329,39 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			drawnW := cell.StringWidth(textToDraw)
 			buf.SetString(uint16(curBtnX), btnY, textToDraw, item.style)
 
-			// Register click handler strictly within dialog inner bounds
-			if ctx.RegisterClick != nil && drawnW > 0 {
+			// Register hover and click handlers strictly within dialog inner bounds
+			if drawnW > 0 {
 				btnArea := cell.NewRect(uint16(curBtnX), btnY, uint16(drawnW), 1)
 				handler := item.btn.Handler
 				btnID := item.btnID
-				ctx.RegisterClick(btnArea, func() {
-					if ctx.SetFocus != nil {
-						ctx.SetFocus(btnID)
-					}
-					if handler != nil {
-						handler()
-					}
-				})
+				btnIndex := i
+
+				// Mouse hover callback
+				if ctx.RegisterMouse != nil {
+					ctx.RegisterMouse(btnArea, func(ev backend.MouseEvent) {
+						if ctx.SetFocus != nil {
+							ctx.SetFocus(btnID)
+						}
+						if di.OnButtonHover != nil {
+							di.OnButtonHover(btnIndex)
+						}
+					})
+				}
+
+				// Click callback
+				if ctx.RegisterClick != nil {
+					ctx.RegisterClick(btnArea, func() {
+						if ctx.SetFocus != nil {
+							ctx.SetFocus(btnID)
+						}
+						if di.OnButtonHover != nil {
+							di.OnButtonHover(btnIndex)
+						}
+						if handler != nil {
+							handler()
+						}
+					})
+				}
 			}
 
 			curBtnX += item.width + spacing

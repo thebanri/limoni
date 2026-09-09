@@ -180,3 +180,33 @@ func TestBackendCloseIdempotentAndConcurrent(t *testing.T) {
 		t.Errorf("Expected reset code \\x1b[0m in restore output: %q", out)
 	}
 }
+
+func TestParseStringSequencesKittyAPCAndOSC(t *testing.T) {
+	// Kitty Graphics APC ACK response: \x1b_Gi=389104712;OK\x1b\
+	kittyAck := []byte("\x1b_Gi=389104712;OK\x1b\\")
+	ev, consumed := ParseEvent(kittyAck)
+	if consumed != len(kittyAck) {
+		t.Fatalf("Expected consumed=%d for Kitty APC, got %d", len(kittyAck), consumed)
+	}
+	if ev.Type != EventNone {
+		t.Fatalf("Expected EventNone for internal Kitty APC response, got %+v", ev)
+	}
+
+	// OSC query response terminated with BEL: \x1b]11;rgb:1234/5678/9abc\x07
+	oscBel := []byte("\x1b]11;rgb:1234/5678/9abc\x07")
+	ev, consumed = ParseEvent(oscBel)
+	if consumed != len(oscBel) {
+		t.Fatalf("Expected consumed=%d for OSC BEL, got %d", len(oscBel), consumed)
+	}
+	if ev.Type != EventNone {
+		t.Fatalf("Expected EventNone for OSC query response, got %+v", ev)
+	}
+
+	// Incomplete APC sequence should return consumed=0 (wait for ST)
+	incomplete := []byte("\x1b_Gi=123")
+	ev, consumed = ParseEvent(incomplete)
+	if consumed != 0 {
+		t.Fatalf("Expected consumed=0 for incomplete APC sequence, got %d", consumed)
+	}
+}
+

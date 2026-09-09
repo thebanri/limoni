@@ -193,24 +193,47 @@ func getWidgetTypeName(w widgets.Widget) string {
 
 func (f *Frame) initClosures() {
 	f.clickClosure = func(clickArea cell.Rect, handler func()) {
+		layerID := f.currentLayerID
 		if f.currentIsOutsideModal {
-			return
+			topModal := f.TopmostModal()
+			if topModal != nil && ContainsRect(topModal.Area, clickArea) {
+				layerID = topModal.ID
+			} else if f.ActiveModal != nil && ContainsRect(f.ActiveModal.Area, clickArea) {
+				layerID = f.ActiveModal.ID
+			} else {
+				return
+			}
 		}
 		f.RegisterClickHandlerInLayer(clickArea, func(ev backend.MouseEvent) {
 			handler()
-		}, f.currentLayerID)
+		}, layerID)
 	}
 
 	f.mouseClosure = func(mouseArea cell.Rect, handler func(ev backend.MouseEvent)) {
+		layerID := f.currentLayerID
 		if f.currentIsOutsideModal {
-			return
+			topModal := f.TopmostModal()
+			if topModal != nil && ContainsRect(topModal.Area, mouseArea) {
+				layerID = topModal.ID
+			} else if f.ActiveModal != nil && ContainsRect(f.ActiveModal.Area, mouseArea) {
+				layerID = f.ActiveModal.ID
+			} else {
+				return
+			}
 		}
-		f.registerMouseHandler(mouseArea, handler, f.currentLayerID)
+		f.registerMouseHandler(mouseArea, handler, layerID)
 	}
 
 	f.eventClosure = func(eventArea cell.Rect, phase backend.EventPhase, handler func(*backend.EventContext)) {
 		if f.currentIsOutsideModal {
-			return
+			topModal := f.TopmostModal()
+			if topModal != nil && ContainsRect(topModal.Area, eventArea) {
+				// Modal içindeki olaylara izin ver
+			} else if f.ActiveModal != nil && ContainsRect(f.ActiveModal.Area, eventArea) {
+				// Modal içindeki olaylara izin ver
+			} else {
+				return
+			}
 		}
 		f.RegisterEventHandler(eventArea, phase, handler)
 	}
@@ -749,13 +772,17 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Katman durumunu belirle: Widget, herhangi bir katmanın içinde mi?
 	isInsideLayer := f.activeLayerID != ""
 	isOutsideModal := false
+	currentLayerID := f.activeLayerID
 
 	// Z-Index / Modal Stack Sandboxing
 	topModal := f.TopmostModal()
 	if topModal != nil {
 		allowed := false
-		if ContainsRect(topModal.Area, area) {
+		if ContainsRect(topModal.Area, area) || (debugArea.Width > 0 && ContainsRect(topModal.Area, debugArea)) {
 			allowed = true
+			if currentLayerID == "" {
+				currentLayerID = topModal.ID
+			}
 		} else if isInsideLayer {
 			var widgetLayerZIndex int
 			for _, l := range f.Layers {
@@ -771,7 +798,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 		if !allowed {
 			isOutsideModal = true
 		}
-	} else if f.ActiveModal != nil && !ContainsRect(f.ActiveModal.Area, area) {
+	} else if f.ActiveModal != nil && !ContainsRect(f.ActiveModal.Area, area) && !(debugArea.Width > 0 && ContainsRect(f.ActiveModal.Area, debugArea)) {
 		// Eski modal sistemi ile geriye dönük uyumluluk
 		isOutsideModal = true
 	} else if len(f.Layers) > 0 && f.ActiveModal == nil {
@@ -782,7 +809,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Update pre-allocated closures state parameters
 	f.currentArea = area
 	f.currentIsOutsideModal = isOutsideModal
-	f.currentLayerID = f.activeLayerID
+	f.currentLayerID = currentLayerID
 
 	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
 	ctx := cell.NewContext(area, defStyle)

@@ -209,11 +209,15 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 			if imagesChanged {
 				if proto == graphics.ProtocolKitty {
-					t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+					t.backend.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
 				}
 
 				for _, reg := range imageRegions {
-					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, reg.ZIndex, reg.Transparent)
+					zIndex := reg.ZIndex
+					if proto == graphics.ProtocolKitty && zIndex == 0 {
+						zIndex = -1
+					}
+					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, zIndex, reg.Transparent)
 					if escSeq != "" {
 						moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
 						t.backend.Write([]byte(moveCursor + escSeq))
@@ -227,7 +231,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		} else {
 			if t.lastImageCount > 0 {
 				if proto == graphics.ProtocolKitty {
-					t.backend.Write([]byte("\x1b_Ga=d,d=A\x1b\\"))
+					t.backend.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
 				}
 				t.lastImageCount = 0
 				t.lastDrawnImages = nil
@@ -286,6 +290,14 @@ func (t *Terminal) clippedImageRegions() []ImageRegion {
 		return nil
 	}
 	return t.frame.ImageRegions
+}
+
+// LastImageRegions returns a copy of image regions registered during the last frame.
+func (t *Terminal) LastImageRegions() []ImageRegion {
+	if t == nil || t.frame == nil {
+		return nil
+	}
+	return t.frame.ImageRegionsSnapshot()
 }
 
 // SetTransitionProgress, dither-fade geçiş ilerlemesini (0.0 - 1.0) ayarlar.
@@ -600,7 +612,7 @@ func (t *Terminal) layersHash() string {
 func (t *Terminal) ForceFullRedraw() {
 	if t.back != nil {
 		for i := range t.back.Content {
-			t.back.Content[i].Content = 0xFFFF
+			t.back.Content[i].Content = cell.RuneInvalid
 			t.back.Content[i].Style = cell.Style{}
 		}
 		t.back.Invalidate()
@@ -608,4 +620,33 @@ func (t *Terminal) ForceFullRedraw() {
 	if t.front != nil {
 		t.front.Invalidate()
 	}
+	t.lastDrawnImages = nil
+	t.lastLayersHash = ""
 }
+
+// FrontBuffer returns the current front buffer (useful for inspection and testing).
+func (t *Terminal) FrontBuffer() *buffer.Buffer {
+	return t.front
+}
+
+// ClickRegions returns the registered click regions of the current frame.
+func (t *Terminal) ClickRegions() []ClickRegion {
+	if t.frame == nil {
+		return nil
+	}
+	regions := make([]ClickRegion, len(t.frame.ClickRegions))
+	copy(regions, t.frame.ClickRegions)
+	return regions
+}
+
+// Layers returns the registered layers of the current frame.
+func (t *Terminal) Layers() []Layer {
+	if t.frame == nil {
+		return nil
+	}
+	layers := make([]Layer, len(t.frame.Layers))
+	copy(layers, t.frame.Layers)
+	return layers
+}
+
+
