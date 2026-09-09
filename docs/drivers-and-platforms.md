@@ -1,6 +1,6 @@
 # 🌐 Çapraz Platform ve Ağ Sürücüleri (Drivers & Platforms)
 
-Limoni, işletim sistemi ve donanım bağımsızlığı sağlamak için sürücü katmanını (`core/backend`) soyutlamıştır.
+Limoni, işletim sistemi ve donanım bağımsızlığı sağlamak için sürücü katmanını (`core/driver`) soyutlamıştır.
 
 ---
 
@@ -8,11 +8,11 @@ Limoni, işletim sistemi ve donanım bağımsızlığı sağlamak için sürüc�
 
 | Platform | Sürücü Dosyası | Mekanizma |
 | :--- | :--- | :--- |
-| **Linux & BSD** | `core/backend/termios_linux.go` | `ioctl` TCGETS/TCSETS, Epoll / Non-blocking TTY I/O |
-| **macOS (Darwin)** | `core/backend/termios_darwin.go` | Darwin `termios` CGO'suz Syscall & Kqueue |
-| **Windows** | `core/backend/backend_windows.go` | Windows Console Virtual Terminal Sequences (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`) |
-| **WebAssembly** | `core/backend/backend_wasm.go` | `syscall/js` ile tarayıcı xterm.js köprüsü |
-| **Uzak Ağ / SSH** | `core/backend/ssh.go` | `net.Conn` veya `crypto/ssh.Session` üzerinde doğrudan izole ANSI diff akışı |
+| **Linux & BSD** | `core/driver/termios_linux.go` | `ioctl` TCGETS/TCSETS, Epoll / Non-blocking TTY I/O |
+| **macOS (Darwin)** | `core/driver/termios_darwin.go` | Darwin `termios` CGO'suz Syscall & Kqueue |
+| **Windows** | `core/driver/backend_windows.go` | Windows Console Virtual Terminal Sequences (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`) |
+| **WebAssembly** | `core/driver/backend_wasm.go` | `syscall/js` ile tarayıcı xterm.js köprüsü |
+| **Uzak Ağ / SSH** | `core/driver/ssh.go` | `net.Conn` veya `crypto/ssh.Session` üzerinde doğrudan izole ANSI diff akışı |
 
 ---
 

@@ -101,7 +101,7 @@ Owns the terminal lifecycle, double buffers, frame generation, and input routing
 
 ---
 
-## 5. `core/runtime` — The Elm Architecture (TEA)
+## 5. `core/engine` — The Elm Architecture (TEA)
 
 Provides a predictable, functional state management loop:
 
@@ -122,7 +122,7 @@ Provides a predictable, functional state management loop:
 
 ---
 
-## 6. `core/backend` — Cross-Platform VT & Raw Terminal Engine
+## 6. `core/driver` — Cross-Platform VT & Raw Terminal Engine
 
 Communicates directly with the operating system terminal driver:
 

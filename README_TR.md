@@ -124,23 +124,23 @@ package main
 
 import (
 	"os"
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/widgets"
 )
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
-	b.Setup()
-	defer b.Close()
+	d := driver.NewDriver(os.Stdin, os.Stdout)
+	d.Setup()
+	defer d.Close()
 
-	t, err := terminal.New(b)
+	t, err := terminal.New(d)
 	if err != nil {
 		panic(err)
 	}
 
-	b.StartEventLoop()
+	d.StartEventLoop()
 
 	t.Draw(func(f *terminal.Frame) {
 		f.RenderWidget(widgets.Block{
@@ -151,8 +151,8 @@ func main() {
 		}, f.Buffer.Area)
 	})
 
-	for ev := range b.Events() {
-		if ev.Type == backend.EventKey && ev.Key.Type == backend.KeyEsc {
+	for ev := range d.Events() {
+		if ev.Type == driver.EventKey && ev.Key.Type == driver.KeyEsc {
 			return
 		}
 	}

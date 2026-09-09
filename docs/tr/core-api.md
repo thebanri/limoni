@@ -101,7 +101,7 @@ Terminal yaşam döngüsünü, çift tamponlamayı, kare üretimini ve girdi yö
 
 ---
 
-## 5. `core/runtime` — The Elm Architecture (TEA)
+## 5. `core/engine` — The Elm Architecture (TEA)
 
 Öngörülebilir, fonksiyonel durum yönetim döngüsü:
 
@@ -122,7 +122,7 @@ Terminal yaşam döngüsünü, çift tamponlamayı, kare üretimini ve girdi yö
 
 ---
 
-## 6. `core/backend` — Çapraz Platform VT & Ham Terminal Motoru
+## 6. `core/driver` — Çapraz Platform VT & Ham Terminal Motoru
 
 İşletim sistemi terminal sürücüsüyle doğrudan iletişim kurar:
 

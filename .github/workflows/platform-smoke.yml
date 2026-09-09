@@ -40,7 +40,7 @@ jobs:
       - name: Race tests
         if: runner.os != 'Windows'
         shell: bash
-        run: go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend
+        run: go test -race . ./component ./core/engine ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/driver
 
       - name: Build examples
         shell: bash
@@ -51,7 +51,7 @@ jobs:
 
       - name: Compile platform adapter packages
         shell: bash
-        run: go test -run '^$' ./core/backend ./core/terminal ./testkit
+        run: go test -run '^$' ./core/driver ./core/terminal ./testkit
 
       - name: Upload test logs
         if: always()

@@ -35,7 +35,7 @@ jobs:
       - name: Race Detection
         if: runner.os != 'Windows'
         shell: bash
-        run: go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend ./compat/bubbletea
+        run: go test -race . ./component ./core/engine ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/driver ./compat/bubbletea
 
       - name: Verify Zero-Allocation Hot Paths
         if: runner.os == 'Linux'
@@ -74,6 +74,8 @@ jobs:
         run: |
           mkdir -p bin
           go build -o bin/limoni-cli ./cmd/limoni
+          go build -o bin/simple ./examples/simple
+          go build -o bin/showcase ./examples/showcase
           go build -o bin/demo ./examples/demo
           go build -o bin/anim ./examples/animation
           go build -o bin/ascii3d ./examples/ascii3d
@@ -89,4 +91,5 @@ jobs:
           go build -o bin/table_virtual ./examples/table_virtual
           go build -o bin/ssh_server ./examples/ssh_server
           go build -o bin/custom_widget ./examples/custom_widget
+          go build -o bin/composable ./examples/composable
           GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm

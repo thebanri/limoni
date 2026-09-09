@@ -139,9 +139,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thebanri/limoni/core/backend"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/runtime"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
@@ -151,52 +151,50 @@ type AppModel struct {
 	count int
 }
 
-func (m *AppModel) Init() []runtime.Cmd {
+func (m *AppModel) Init() []engine.Cmd {
 	return nil
 }
 
-func (m *AppModel) Update(msg runtime.Msg) runtime.UpdateResult {
+func (m *AppModel) Update(msg engine.Msg) engine.UpdateResult {
 	switch msg := msg.(type) {
-	case runtime.KeyPressMsg:
+	case engine.KeyPressMsg:
 		switch msg.Key.Type {
-		case backend.KeyEsc:
-			return runtime.UpdateResult{Quit: true}
-		case backend.KeyRune:
+		case driver.KeyEsc:
+			return engine.UpdateResult{Quit: true}
+		case driver.KeyRune:
 			switch msg.Key.Ch {
 			case 'q', 'Q':
-				return runtime.UpdateResult{Quit: true}
+				return engine.UpdateResult{Quit: true}
 			case '+', '=':
 				m.count++
-				return runtime.UpdateResult{Redraw: true}
+				return engine.UpdateResult{Redraw: true}
 			case '-', '_':
 				m.count--
-				return runtime.UpdateResult{Redraw: true}
+				return engine.UpdateResult{Redraw: true}
 			}
 		}
 	}
-	return runtime.UpdateResult{}
+	return engine.UpdateResult{}
 }
 
 func (m *AppModel) View(frame *terminal.Frame) {
 	area := frame.Area()
-	chunks := layout.FlexLayout{
-		Direction: layout.Vertical,
-		Constraints: []layout.Constraint{
-			layout.Fixed(3),
-			layout.Fill(),
-			layout.Fixed(3),
-		},
-	}.Split(area)
+
+	// 3-Row Vertical Layout: Header, Counter, Footer
+	chunks := layout.NewFlexLayout(layout.Vertical, 0,
+		layout.Fixed(3),
+		layout.Fill(),
+		layout.Fixed(3),
+	).Split(area)
 
 	// Header
 	frame.RenderWidget(widgets.Block{
-		Title:       " 🍋 Limoni Quickstart ",
-		BorderStyle: cell.Style{Fg: cell.NewColorRGB(255, 215, 0)},
-		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
+		Title:       " 🍋 Limoni Counter Application ",
+		BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 255, 200)},
 	}, chunks[0])
 
-	// Body
-	text := fmt.Sprintf("Counter: %d  (Press '+' / '-' to change, 'q' to quit)", m.count)
+	// Counter Body
+	text := fmt.Sprintf("Current Counter Value: %d\n\nPress '+' to increment, '-' to decrement.", m.count)
 	p := &widgets.Paragraph{
 		Text:  text,
 		Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 200), Modifier: cell.ModifierBold},
@@ -211,25 +209,25 @@ func (m *AppModel) View(frame *terminal.Frame) {
 }
 
 func main() {
-	b := backend.NewBackend(os.Stdin, os.Stdout)
-	if err := b.Setup(); err != nil {
+	d := driver.NewDriver(os.Stdin, os.Stdout)
+	if err := d.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
 		os.Exit(1)
 	}
-	defer b.Close()
+	defer d.Close()
 
-	term, err := terminal.New(b)
+	term, err := terminal.New(d)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Terminal failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	app := runtime.New(
-		runtime.WithModel(&AppModel{}),
-		runtime.WithFPS(60),
+	app := engine.New(
+		engine.WithModel(&AppModel{}),
+		engine.WithFPS(60),
 	)
 
-	if err := app.RunTerminal(context.Background(), term, b); err != nil {
+	if err := app.RunTerminal(context.Background(), term, d); err != nil {
 		panic(err)
 	}
 }

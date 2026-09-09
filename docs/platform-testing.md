@@ -10,7 +10,7 @@ Run from the repository root:
 ```bash
 go test ./...
 go vet ./...
-go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/backend ./benchmarks
+go test -race ./core/engine ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/driver ./benchmarks
 go test ./benchmarks -run '^$' -bench . -benchmem
 ```
 
