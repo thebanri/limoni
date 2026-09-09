@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/thebanri/limoni.svg)](https://pkg.go.dev/github.com/thebanri/limoni)
+
 <p align="center">
   <img src="assets/logo.png" alt="Limoni Logo" width="180" />
 </p>
