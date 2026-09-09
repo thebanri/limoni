@@ -209,9 +209,10 @@ func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
 
 // SetStringWithin writes a string starting at the specified coordinate with the given style,
 // strictly clipping text within maxWidth columns and buffer boundaries.
-func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWidth uint16) {
+// It returns the number of columns actually written.
+func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWidth uint16) uint16 {
 	if y >= b.Area.Height || x >= b.Area.Width || maxWidth == 0 {
-		return
+		return 0
 	}
 
 	limitX := x + maxWidth
@@ -260,14 +261,16 @@ func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWid
 		currX += uint16(w)
 		input = input[size:]
 	}
+	return currX - x
 }
 
 // SetString writes a string starting at the specified coordinate with the given style.
-func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) {
+// It returns the number of columns actually written.
+func (b *Buffer) SetString(x, y uint16, s string, style cell.Style) uint16 {
 	if x >= b.Area.Width {
-		return
+		return 0
 	}
-	b.SetStringWithin(x, y, s, style, b.Area.Width-x)
+	return b.SetStringWithin(x, y, s, style, b.Area.Width-x)
 }
 
 // index maps 2D coordinates to the 1D flat slice index. Returns -1 if out of bounds.

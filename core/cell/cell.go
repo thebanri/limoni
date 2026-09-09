@@ -96,6 +96,59 @@ func (s Style) RemoveModifier(m Modifier) Style {
 	return s
 }
 
+// NewStyle returns an empty default Style.
+func NewStyle() Style {
+	return Style{}
+}
+
+// WithFg sets the foreground color.
+func (s Style) WithFg(c Color) Style {
+	s.Fg = c
+	return s
+}
+
+// WithBg sets the background color.
+func (s Style) WithBg(c Color) Style {
+	s.Bg = c
+	return s
+}
+
+// Bold adds the bold modifier.
+func (s Style) Bold() Style {
+	s.Modifier |= ModifierBold
+	return s
+}
+
+// Dim adds the dim modifier.
+func (s Style) Dim() Style {
+	s.Modifier |= ModifierDim
+	return s
+}
+
+// Italic adds the italic modifier.
+func (s Style) Italic() Style {
+	s.Modifier |= ModifierItalic
+	return s
+}
+
+// Underline adds the underline modifier.
+func (s Style) Underline() Style {
+	s.Modifier |= ModifierUnderline
+	return s
+}
+
+// Blink adds the blink modifier.
+func (s Style) Blink() Style {
+	s.Modifier |= ModifierBlink
+	return s
+}
+
+// Reverse adds the reverse (inverted colors) modifier.
+func (s Style) Reverse() Style {
+	s.Modifier |= ModifierReverse
+	return s
+}
+
 // HasModifier checks whether the modifier flag is set on the style.
 func (s Style) HasModifier(m Modifier) bool {
 	return (s.Modifier & m) != 0
@@ -168,6 +221,44 @@ func RuneWidth(r rune) int {
 		(r >= 0xFE30 && r <= 0xFE6F) ||
 		(r >= 0xFF01 && r <= 0xFF60) ||
 		(r >= 0xFFE0 && r <= 0xFFE6) {
+		return 2
+	}
+
+	// - BMP Wide Emojis, Symbols and Dingbats (Strict Unicode East Asian Width 'W' / 'F')
+	if (r >= 0x231A && r <= 0x231B) || // ⌚..⌛
+		(r >= 0x23E9 && r <= 0x23EC) || // ⏩..⏬
+		(r == 0x23F0 || r == 0x23F3) || // ⏰, ⏳
+		(r >= 0x25FD && r <= 0x25FE) || // ◽..◾
+		(r >= 0x2614 && r <= 0x2615) || // ☔..☕
+		(r >= 0x2630 && r <= 0x2637) || // ☰..☷
+		(r >= 0x2648 && r <= 0x2653) || // ♈..♓
+		r == 0x267F || // ♿
+		(r >= 0x268A && r <= 0x268F) || // ⚊..⚏
+		r == 0x2693 || // ⚓
+		r == 0x26A1 || // ⚡
+		(r >= 0x26AA && r <= 0x26AB) || // ⚪..⚫
+		(r >= 0x26BD && r <= 0x26BE) || // ⚽..⚾
+		(r >= 0x26C4 && r <= 0x26C5) || // ⛄..⛅
+		r == 0x26CE || // ⛎
+		r == 0x26D4 || // ⛔
+		r == 0x26EA || // ⛪
+		(r >= 0x26F2 && r <= 0x26F3) || // ⛲..⛳
+		r == 0x26F5 || // ⛵
+		r == 0x26FA || // ⛺
+		r == 0x26FD || // ⛽
+		r == 0x2705 || // ✅
+		(r >= 0x270A && r <= 0x270B) || // ✊..✋
+		r == 0x2728 || // ✨
+		r == 0x274C || // ❌
+		r == 0x274E || // ❎
+		(r >= 0x2753 && r <= 0x2755) || // ❓..❕
+		r == 0x2757 || // ❗
+		(r >= 0x2795 && r <= 0x2797) || // ➕..➗
+		r == 0x27B0 || // ➰
+		r == 0x27BF || // ➿
+		(r >= 0x2B1B && r <= 0x2B1C) || // ⬛..⬜
+		(r == 0x2B50 || r == 0x2B55) || // ⭐, ⭕
+		(r >= 0x3297 && r <= 0x3299) { // ㊗, ㊙
 		return 2
 	}
 

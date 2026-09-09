@@ -16,6 +16,11 @@ type Span struct {
 	OnClick func()
 }
 
+// NewSpan creates a new styled Span.
+func NewSpan(text string, style cell.Style) Span {
+	return Span{Text: text, Style: style}
+}
+
 // Line is an ordered collection of styled spans.
 type Line struct{ Spans []Span }
 
@@ -37,6 +42,43 @@ type Text struct {
 	FocusedStyle cell.Style
 	Wrap         bool
 	Alignment    TextAlignment
+}
+
+// NewText creates a new Text (RichText) widget with the given lines.
+func NewText(lines ...Line) *Text {
+	return &Text{
+		Lines: lines,
+	}
+}
+
+// WithWrap sets the wrap behavior.
+func (t *Text) WithWrap(wrap bool) *Text {
+	t.Wrap = wrap
+	return t
+}
+
+// WithAlignment sets the text alignment.
+func (t *Text) WithAlignment(align TextAlignment) *Text {
+	t.Alignment = align
+	return t
+}
+
+// WithStyle sets the default style.
+func (t *Text) WithStyle(style cell.Style) *Text {
+	t.Style = style
+	return t
+}
+
+// WithFocusedStyle sets the style applied when focused.
+func (t *Text) WithFocusedStyle(style cell.Style) *Text {
+	t.FocusedStyle = style
+	return t
+}
+
+// WithID sets the focus and event ID.
+func (t *Text) WithID(id string) *Text {
+	t.ID = id
+	return t
 }
 
 func (t Text) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -89,7 +131,10 @@ func (t Text) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				handler := span.OnClick
 				ctx.RegisterClick(cell.NewRect(clickX, y, clickWidth, 1), handler)
 			}
-			buf.SetString(uint16(x), y, span.Text, style)
+			remWidth := int(ctx.Area.X+ctx.Area.Width) - x
+			if remWidth > 0 {
+				buf.SetStringWithin(uint16(x), y, span.Text, style, uint16(remWidth))
+			}
 			x += spanWidth
 		}
 	}

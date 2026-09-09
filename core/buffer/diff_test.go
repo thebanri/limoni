@@ -390,3 +390,111 @@ func TestDiffRuneImageNeedsErase(t *testing.T) {
 	}
 }
 
+func TestDiffWideCharactersPartialRedraw(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Frame 1: Write wide emoji and text
+	front.SetString(0, 0, "🚀ABC", cell.Style{})
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff Frame 1 error: %v", err)
+	}
+	if !bytes.Contains(out, []byte("🚀")) || !bytes.Contains(out, []byte("ABC")) {
+		t.Fatalf("Frame 1 missing expected content: %q", string(out))
+	}
+
+	// Frame 2: Only change the last character ('C' -> 'Z')
+	front.SetCell(4, 0, cell.Cell{Content: 'Z'})
+	out, err = Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff Frame 2 error: %v", err)
+	}
+
+	// It should ONLY position to (5, 1) and emit 'Z', no continuation chars or garbage
+	if bytes.Contains(out, []byte{0xFE, 0xFF}) || bytes.Contains(out, []byte("🚀")) {
+		t.Errorf("Frame 2 output shouldn't re-emit emoji or continuation: %q", string(out))
+	}
+	if !bytes.Contains(out, []byte("Z")) {
+		t.Errorf("Frame 2 output should contain 'Z': %q", string(out))
+	}
+
+	// Frame 3: Replace the wide character with another wide character ("🔥")
+	front.SetString(0, 0, "🔥", cell.Style{})
+	out, err = Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff Frame 3 error: %v", err)
+	}
+	if !bytes.Contains(out, []byte("🔥")) {
+		t.Errorf("Frame 3 output should contain '🔥': %q", string(out))
+	}
+	// Must not emit 0xFFFE
+	if bytes.Contains(out, []byte("\xef\xbf\xbe")) {
+		t.Errorf("Frame 3 must not emit 0xFFFE continuation bytes: %q", string(out))
+	}
+}
+
+func TestDiffSkipAvoidsWideRune(t *testing.T) {
+	area := cell.NewRect(0, 0, 10, 1)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Fill buffer with "A🔥B"
+	front.SetString(0, 0, "A🔥B", cell.Style{})
+	_, _ = Diff(front, back, nil, true, true)
+
+	// Change cell 0 ('A' -> 'X') and cell 3 ('B' -> 'Y')
+	front.SetCell(0, 0, cell.Cell{Content: 'X'})
+	front.SetCell(3, 0, cell.Cell{Content: 'Y'})
+
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff error: %v", err)
+	}
+
+	// It must NOT print the continuation or re-print 🔥 as single char in skip
+	if bytes.Contains(out, []byte("\xef\xbf\xbe")) {
+		t.Errorf("Diff must never emit RuneContinuation (0xFFFE): %q", string(out))
+	}
+}
+
+func TestDiffContinuationRestorationOnModalDrag(t *testing.T) {
+	area := cell.NewRect(0, 0, 20, 2)
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Step 1: Draw a wide character at x=5,6 ("🔴")
+	front.SetString(5, 0, "🔴", cell.Style{})
+	_, _ = Diff(front, back, nil, true, true)
+
+	// Step 2: Overlay dialog border directly at continuation cell x=6
+	c := front.Get(6, 0)
+	c.Content = '│'
+	c.Style = cell.Style{Fg: cell.NewColorRGB(255, 0, 0)}
+	_, _ = Diff(front, back, nil, true, true)
+
+	if back.Get(6, 0).Content != '│' {
+		t.Fatalf("back[6] = %q; want '│'", back.Get(6, 0).Content)
+	}
+
+	// Step 3: Remove dialog: redraw background. Wide rune is back at x=5,6
+	front = NewBuffer(area)
+	front.SetString(5, 0, "🔴", cell.Style{})
+
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff restore error: %v", err)
+	}
+
+	// The diff MUST emit "🔴" at column 6 (1-based), completely replacing the dialog border '│'
+	if !bytes.Contains(out, []byte("🔴")) {
+		t.Fatalf("Diff output must contain wide rune 🔴 to overwrite dialog border: %q", string(out))
+	}
+	if back.Get(6, 0).Content != cell.RuneContinuation {
+		t.Fatalf("back[6] after restore = %q; want RuneContinuation", back.Get(6, 0).Content)
+	}
+}
+
+
+

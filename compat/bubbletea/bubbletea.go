@@ -190,17 +190,10 @@ func (a *adapterModel) View(frame *terminal.Frame) {
 	}
 	content := a.inner.View()
 	lines := strings.Split(content, "\n")
-	w := frame.Buffer.Area.Width
 	h := frame.Buffer.Area.Height
 
 	for y := 0; y < int(h) && y < len(lines); y++ {
-		lineRunes := []rune(lines[y])
-		for x := 0; x < int(w) && x < len(lineRunes); x++ {
-			frame.Buffer.SetCell(uint16(x), uint16(y), cell.Cell{
-				Content: lineRunes[x],
-				Style:   cell.Style{},
-			})
-		}
+		frame.Buffer.SetString(0, uint16(y), lines[y], cell.Style{})
 	}
 }
 

@@ -117,3 +117,47 @@ func TestBlockMarginAndPaddingBoxModel(t *testing.T) {
 		t.Fatalf("child area = %+v; want %+v", probe.area, want)
 	}
 }
+
+func TestBlockFluentBuilder(t *testing.T) {
+	b := NewBlock().
+		WithTitle("İşlem Paneli 🚀").
+		WithTitleAlign(AlignCenter).
+		Rounded().
+		WithPadding(1, 1, 1, 1)
+
+	if b.Title != "İşlem Paneli 🚀" {
+		t.Fatalf("unexpected title: %s", b.Title)
+	}
+	if b.BorderSymbols != SymbolsRounded {
+		t.Fatalf("expected SymbolsRounded")
+	}
+	if b.Padding.Top != 1 {
+		t.Fatalf("expected padding top 1")
+	}
+}
+
+func TestBlockTitleWideRunesAndTurkish(t *testing.T) {
+	area := cell.NewRect(0, 0, 20, 3)
+	buf := buffer.NewBuffer(area)
+
+	// Block with Turkish characters and emoji
+	block := NewBlock().WithTitle("Türkçe 🚀").WithTitleAlign(AlignLeft)
+	block.Draw(cell.NewContext(area, cell.Style{}), buf)
+
+	// Left corner must be '╭', right corner '╮'
+	if c := buf.Get(0, 0); c == nil || c.Content != '╭' {
+		t.Fatalf("expected top-left '╭', got %c", c.Content)
+	}
+	if c := buf.Get(19, 0); c == nil || c.Content != '╮' {
+		t.Fatalf("expected top-right '╮', got %c", c.Content)
+	}
+
+	// Bottom line must be intact
+	if c := buf.Get(0, 2); c == nil || c.Content != '╰' {
+		t.Fatalf("expected bottom-left '╰', got %c", c.Content)
+	}
+	if c := buf.Get(19, 2); c == nil || c.Content != '╯' {
+		t.Fatalf("expected bottom-right '╯', got %c", c.Content)
+	}
+}
+

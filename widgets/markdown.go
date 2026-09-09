@@ -28,6 +28,45 @@ type Markdown struct {
 	cachedRows    [][]cell.Cell
 }
 
+// NewMarkdown creates a new Markdown widget.
+func NewMarkdown(content string) *Markdown {
+	return &Markdown{
+		Content: content,
+	}
+}
+
+// WithStyle sets the default markdown text style.
+func (m *Markdown) WithStyle(s cell.Style) *Markdown {
+	m.Style = s
+	return m
+}
+
+// WithFocusedStyle sets the focused markdown style.
+func (m *Markdown) WithFocusedStyle(s cell.Style) *Markdown {
+	m.FocusedStyle = s
+	return m
+}
+
+// WithID sets the markdown widget ID.
+func (m *Markdown) WithID(id string) *Markdown {
+	m.ID = id
+	return m
+}
+
+// WithScrollOffset binds an external scroll offset pointer.
+func (m *Markdown) WithScrollOffset(offset *int) *Markdown {
+	m.ScrollOffset = offset
+	return m
+}
+
+func runesWidth(runes []rune) int {
+	w := 0
+	for _, r := range runes {
+		w += cell.RuneWidth(r)
+	}
+	return w
+}
+
 type markdownLine struct {
 	isDivider bool
 	isHeader  bool
@@ -193,7 +232,7 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if col >= int(ctx.Area.Width) {
 				break
 			}
-			buf.SetCell(ctx.Area.X+uint16(col), y+uint16(row), item)
+			buf.SetCellDirect(ctx.Area.X+uint16(col), y+uint16(row), item)
 		}
 	}
 }
@@ -228,17 +267,22 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 		if line.prefix != "" {
 			prefixStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)})
 			for _, r := range []rune(line.prefix) {
+				rw := cell.RuneWidth(r)
 				row = append(row, cell.Cell{Content: r, Style: prefixStyle})
+				if rw == 2 {
+					row = append(row, cell.Cell{Content: cell.RuneContinuation, Style: prefixStyle})
+				}
 			}
 			indent = len(row)
 		}
 		for _, seg := range line.segments {
 			for index, word := range seg.WordRunes {
+				wordWidth := runesWidth(word)
 				space := 0
 				if index > 0 {
 					space = 1
 				}
-				if len(row)+space+len(word) >= int(width) && len(row) > indent {
+				if len(row)+space+wordWidth >= int(width) && len(row) > indent {
 					for len(row) < indent {
 						row = append(row, cell.Cell{Content: ' ', Style: baseStyle})
 					}
@@ -252,10 +296,17 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 					row = append(row, cell.Cell{Content: ' ', Style: seg.Style})
 				}
 				for _, r := range word {
-					if len(row) >= int(width) {
+					rw := cell.RuneWidth(r)
+					if rw == 0 {
+						continue
+					}
+					if len(row)+rw > int(width) {
 						break
 					}
 					row = append(row, cell.Cell{Content: r, Style: seg.Style})
+					if rw == 2 {
+						row = append(row, cell.Cell{Content: cell.RuneContinuation, Style: seg.Style})
+					}
 				}
 			}
 		}
@@ -283,13 +334,13 @@ func (m *Markdown) visualLineCount(width uint16) int {
 		lineWidth := 0
 		indent := 0
 		if line.prefix != "" {
-			lineWidth = len([]rune(line.prefix))
+			lineWidth = runesWidth([]rune(line.prefix))
 			indent = lineWidth
 		}
 		rows := 1
 		for _, segment := range line.segments {
 			for index, word := range segment.WordRunes {
-				wordWidth := len(word)
+				wordWidth := runesWidth(word)
 				space := 0
 				if index > 0 {
 					space = 1
@@ -322,13 +373,13 @@ func markdownLineRows(line markdownLine, width uint16) int {
 	lineWidth := 0
 	indent := 0
 	if line.prefix != "" {
-		lineWidth = len([]rune(line.prefix))
+		lineWidth = runesWidth([]rune(line.prefix))
 		indent = lineWidth
 	}
 	rows := 1
 	for _, segment := range line.segments {
 		for index, word := range segment.WordRunes {
-			wordWidth := len(word)
+			wordWidth := runesWidth(word)
 			space := 0
 			if index > 0 {
 				space = 1

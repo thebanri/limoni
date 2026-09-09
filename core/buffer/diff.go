@@ -54,10 +54,23 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 		for x := 0; x < int(width); x++ {
 			idx := rowOffset + x
 			if front.Content[idx] != back.Content[idx] {
-				if first == -1 {
-					first = x
+				start := x
+				end := x
+				if x > 0 && (front.Content[idx].Content == cell.RuneContinuation || back.Content[idx].Content == cell.RuneContinuation) {
+					start = x - 1
+					back.Content[rowOffset+x-1] = cell.Cell{}
 				}
-				last = x
+				wFront := cell.RuneWidth(front.Content[idx].Content)
+				wBack := cell.RuneWidth(back.Content[idx].Content)
+				if (wFront == 2 || wBack == 2) && x+1 < int(width) {
+					end = x + 1
+				}
+				if first == -1 || start < first {
+					first = start
+				}
+				if end > last {
+					last = end
+				}
 			}
 		}
 		if first == -1 {
@@ -75,14 +88,11 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 			}
 
 			// Eğer bu hücre bir geniş karakterin devamı (continuation) ise terminale yazma,
-			// ancak durum eşitlemesi için backCell'i güncelle ve cursor'ı ilerlet.
+			// ancak durum eşitlemesi için backCell'i güncelle.
 			if frontCell.Content == cell.RuneContinuation {
 				*backCell = *frontCell
-				cursorX++
-				if cursorX >= width {
-					cursorX = 9999
-					cursorY = 9999
-				}
+				cursorX = 9999
+				cursorY = 9999
 				continue
 			}
 
@@ -133,26 +143,9 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 
 			// İmleç doğru konumda değilse konumlandır
 			if cursorX != x || cursorY != y {
-				if cursorY == y && x > cursorX && (x-cursorX) < 4 {
-					for skipX := cursorX; skipX < x; skipX++ {
-						skipIdx := int(y)*int(width) + int(skipX)
-						skipCell := &front.Content[skipIdx]
-						if skipCell.Style != currentStyle {
-							out, currentStyle = appendStyle(out, currentStyle, skipCell.Style, trueColor, colors256, front.StyleCache)
-						}
-						if skipCell.Content == ' ' || skipCell.Content == 0 {
-							out = append(out, ' ')
-						} else {
-							out = utf8.AppendRune(out, skipCell.Content)
-						}
-						back.Content[skipIdx] = *skipCell
-					}
-					cursorX = x
-				} else {
-					out = appendCursor(out, x, y)
-					cursorX = x
-					cursorY = y
-				}
+				out = appendCursor(out, x, y)
+				cursorX = x
+				cursorY = y
 			}
 
 			// Stil güncellenmeli mi?
@@ -161,14 +154,19 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 			}
 
 			// Karakteri yaz
+			w := 1
 			if frontCell.Content == ' ' || frontCell.Content == 0 || frontCell.Content < 32 || frontCell.Content == 0x7F {
 				out = append(out, ' ')
 			} else {
 				out = utf8.AppendRune(out, frontCell.Content)
+				w = cell.RuneWidth(frontCell.Content)
+				if w <= 0 {
+					w = 1
+				}
 			}
 
-			// İmleç pozisyonunu güncelle (terminal karakter yazdıktan sonra sağa kayar)
-			cursorX++
+			// İmleç pozisyonunu güncelle (terminal karakter yazdıktan sonra w kadar sağa kayar)
+			cursorX += uint16(w)
 			if cursorX >= width {
 				// Satır sonuna ulaşıldığında otomatik wrap riskini önlemek için imleç takibini geçersiz kıl
 				cursorX = 9999
@@ -177,6 +175,12 @@ func Diff(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]byte, e
 
 			// Back hücresini güncelle ki bir sonraki karede fark olmasın
 			*backCell = *frontCell
+
+			// Eğer bu hücre 2 sütunlu geniş bir karakterse, sağındaki devam (continuation)
+			// hücresini de hemen back tamponuyla eşitle.
+			if w == 2 && x+1 < width {
+				back.Content[idx+1] = front.Content[idx+1]
+			}
 		}
 	}
 

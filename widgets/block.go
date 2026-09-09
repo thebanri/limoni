@@ -161,6 +161,98 @@ type Block struct {
 	Opaque bool
 }
 
+// NewBlock, BorderAll ve SymbolsRounded ile hazır bir Block oluşturur.
+func NewBlock() *Block {
+	return &Block{
+		Borders:       BorderAll,
+		BorderSymbols: SymbolsRounded,
+	}
+}
+
+// WithTitle başlık metnini belirler.
+func (b *Block) WithTitle(title string) *Block {
+	b.Title = title
+	return b
+}
+
+// WithTitleAlign başlık metninin hizalamasını belirler.
+func (b *Block) WithTitleAlign(align Alignment) *Block {
+	b.TitleAlignment = align
+	return b
+}
+
+// WithTitleStyle başlık stilini belirler.
+func (b *Block) WithTitleStyle(style cell.Style) *Block {
+	b.TitleStyle = style
+	return b
+}
+
+// WithBorders hangi kenarlıkların çizileceğini belirler.
+func (b *Block) WithBorders(borders uint8) *Block {
+	b.Borders = borders
+	return b
+}
+
+// Rounded yuvarlatılmış köşeli kenarlık sembollerini seçer.
+func (b *Block) Rounded() *Block {
+	b.BorderSymbols = SymbolsRounded
+	return b
+}
+
+// Single standart ince kenarlık sembollerini seçer.
+func (b *Block) Single() *Block {
+	b.BorderSymbols = SymbolsSingle
+	return b
+}
+
+// Double çift çizgili kenarlık sembollerini seçer.
+func (b *Block) Double() *Block {
+	b.BorderSymbols = SymbolsDouble
+	return b
+}
+
+// Thick kalın kenarlık sembollerini seçer.
+func (b *Block) Thick() *Block {
+	b.BorderSymbols = SymbolsThick
+	return b
+}
+
+// BlockBorder dolu blok elemanlı kenarlık sembollerini seçer.
+func (b *Block) BlockBorder() *Block {
+	b.BorderSymbols = SymbolsBlock
+	return b
+}
+
+// WithBorderStyle kenarlık çizgisi stilini belirler.
+func (b *Block) WithBorderStyle(style cell.Style) *Block {
+	b.BorderStyle = style
+	return b
+}
+
+// WithStyle bloğun genel arka plan stilini belirler.
+func (b *Block) WithStyle(style cell.Style) *Block {
+	b.Style = style
+	return b
+}
+
+// WithPadding bloğun CSS benzeri iç boşluklarını ayarlar.
+func (b *Block) WithPadding(top, right, bottom, left uint16) *Block {
+	b.Padding = Insets{Top: top, Right: right, Bottom: bottom, Left: left}
+	return b
+}
+
+// WithMargin bloğun CSS benzeri dış boşluklarını ayarlar.
+func (b *Block) WithMargin(top, right, bottom, left uint16) *Block {
+	b.Margin = Insets{Top: top, Right: right, Bottom: bottom, Left: left}
+	return b
+}
+
+// WithChild bloğun içine yerleştirilecek alt bileşeni atar.
+func (b *Block) WithChild(child Widget) *Block {
+	b.Child = child
+	return b
+}
+
 // Draw, bloğu ve kenarlıklarını çizer, arka planını doldurur ve alt bileşenin (Child) çizimini tetikler.
 func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	area := insetRect(ctx.Area, b.Margin)
@@ -181,10 +273,7 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// 1. Aşama: Bloğun arka planını doldur
 	for y := area.Y; y < area.Y+area.Height; y++ {
 		for x := area.X; x < area.X+area.Width; x++ {
-			if c := buf.Get(x, y); c != nil {
-				c.Content = ' '
-				c.Style = blockStyle
-			}
+			buf.SetCellDirect(x, y, cell.Cell{Content: ' ', Style: blockStyle})
 		}
 	}
 
@@ -211,63 +300,39 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Yatay çizgileri çiz
 	if hasT {
 		for x := area.X + 1; x < area.X+area.Width-1; x++ {
-			if c := buf.Get(x, area.Y); c != nil {
-				c.Content = sym.Horizontal
-				c.Style = borderStyle
-			}
+			buf.SetCellDirect(x, area.Y, cell.Cell{Content: sym.Horizontal, Style: borderStyle})
 		}
 	}
 	if hasB {
 		for x := area.X + 1; x < area.X+area.Width-1; x++ {
-			if c := buf.Get(x, area.Y+area.Height-1); c != nil {
-				c.Content = sym.Horizontal
-				c.Style = borderStyle
-			}
+			buf.SetCellDirect(x, area.Y+area.Height-1, cell.Cell{Content: sym.Horizontal, Style: borderStyle})
 		}
 	}
 
 	// Dikey çizgileri çiz
 	if hasL {
 		for y := area.Y + 1; y < area.Y+area.Height-1; y++ {
-			if c := buf.Get(area.X, y); c != nil {
-				c.Content = sym.Vertical
-				c.Style = borderStyle
-			}
+			buf.SetCellDirect(area.X, y, cell.Cell{Content: sym.Vertical, Style: borderStyle})
 		}
 	}
 	if hasR {
 		for y := area.Y + 1; y < area.Y+area.Height-1; y++ {
-			if c := buf.Get(area.X+area.Width-1, y); c != nil {
-				c.Content = sym.Vertical
-				c.Style = borderStyle
-			}
+			buf.SetCellDirect(area.X+area.Width-1, y, cell.Cell{Content: sym.Vertical, Style: borderStyle})
 		}
 	}
 
 	// Köşe birleşimlerini çiz
 	if hasT && hasL {
-		if c := buf.Get(area.X, area.Y); c != nil {
-			c.Content = sym.TopLeft
-			c.Style = borderStyle
-		}
+		buf.SetCellDirect(area.X, area.Y, cell.Cell{Content: sym.TopLeft, Style: borderStyle})
 	}
 	if hasT && hasR {
-		if c := buf.Get(area.X+area.Width-1, area.Y); c != nil {
-			c.Content = sym.TopRight
-			c.Style = borderStyle
-		}
+		buf.SetCellDirect(area.X+area.Width-1, area.Y, cell.Cell{Content: sym.TopRight, Style: borderStyle})
 	}
 	if hasB && hasL {
-		if c := buf.Get(area.X, area.Y+area.Height-1); c != nil {
-			c.Content = sym.BottomLeft
-			c.Style = borderStyle
-		}
+		buf.SetCellDirect(area.X, area.Y+area.Height-1, cell.Cell{Content: sym.BottomLeft, Style: borderStyle})
 	}
 	if hasB && hasR {
-		if c := buf.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
-			c.Content = sym.BottomRight
-			c.Style = borderStyle
-		}
+		buf.SetCellDirect(area.X+area.Width-1, area.Y+area.Height-1, cell.Cell{Content: sym.BottomRight, Style: borderStyle})
 	}
 
 	// 3. Aşama: Başlığı üst kenarlığa çiz
@@ -304,12 +369,15 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		buf.SetCell(curX, area.Y, cell.Cell{Content: ' ', Style: titleStyle})
 		curX++
 		if titleWidth > 2 {
-			buf.SetStringWithin(curX, area.Y, b.Title, titleStyle, titleWidth-2)
-			curX += min(rawTitleWidth, titleWidth-2)
+			written := buf.SetStringWithin(curX, area.Y, b.Title, titleStyle, titleWidth-2)
+			curX += written
 		}
-		if curX < titleX+titleWidth {
+		closingX := titleX + titleWidth - 1
+		for curX < closingX {
 			buf.SetCell(curX, area.Y, cell.Cell{Content: ' ', Style: titleStyle})
+			curX++
 		}
+		buf.SetCell(closingX, area.Y, cell.Cell{Content: ' ', Style: titleStyle})
 	}
 
 	// 4. Aşama: Alt bileşeni (Child) çiz
@@ -373,9 +441,6 @@ func insetRect(area cell.Rect, insets Insets) cell.Rect {
 func (b Block) Inner(area cell.Rect) cell.Rect {
 	area = insetRect(area, b.Margin)
 	borders := b.Borders
-	if borders == 0 {
-		borders = BorderAll
-	}
 	var offsetL, offsetR, offsetT, offsetB uint16
 	if (borders & BorderLeft) != 0 {
 		offsetL = 1

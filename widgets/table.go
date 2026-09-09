@@ -316,6 +316,80 @@ type Table struct {
 	Scrollbar     bool                                              // Sağ kenarda dikey kaydırma çubuğu çizer.
 }
 
+// NewTable creates a new Table with default grid enabled.
+func NewTable() *Table {
+	return &Table{
+		DrawGrid: true,
+	}
+}
+
+// WithID sets the table's focus ID.
+func (t *Table) WithID(id string) *Table {
+	t.ID = id
+	return t
+}
+
+// WithHeaders sets the table headers from string slices.
+func (t *Table) WithHeaders(headers ...string) *Table {
+	row := NewRow(headers...)
+	t.Header = &row
+	return t
+}
+
+// WithRow appends a single row to the table.
+func (t *Table) WithRow(cells ...string) *Table {
+	t.Rows = append(t.Rows, NewRow(cells...))
+	return t
+}
+
+// WithRows sets the rows of the table.
+func (t *Table) WithRows(rows ...TableRow) *Table {
+	t.Rows = rows
+	return t
+}
+
+// WithConstraints sets column width constraints.
+func (t *Table) WithConstraints(constraints ...TableConstraint) *Table {
+	t.Constraints = constraints
+	return t
+}
+
+// WithDrawGrid enables or disables grid lines.
+func (t *Table) WithDrawGrid(drawGrid bool) *Table {
+	t.DrawGrid = drawGrid
+	return t
+}
+
+// WithState sets the TableState.
+func (t *Table) WithState(state *TableState) *Table {
+	t.State = state
+	return t
+}
+
+// WithSelectedStyle sets the style for the selected row.
+func (t *Table) WithSelectedStyle(style cell.Style) *Table {
+	t.SelectedStyle = style
+	return t
+}
+
+// WithGridStyle sets the style for grid lines.
+func (t *Table) WithGridStyle(style cell.Style) *Table {
+	t.GridStyle = style
+	return t
+}
+
+// WithStickyColumns sets the number of sticky frozen columns.
+func (t *Table) WithStickyColumns(n int) *Table {
+	t.StickyColumns = n
+	return t
+}
+
+// WithScrollbar enables or disables the vertical scrollbar.
+func (t *Table) WithScrollbar(enabled bool) *Table {
+	t.Scrollbar = enabled
+	return t
+}
+
 func (t Table) columnX(area cell.Rect, widths []uint16, column int) uint16 {
 	sticky := t.StickyColumns
 	if sticky < 0 {

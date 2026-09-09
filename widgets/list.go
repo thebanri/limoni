@@ -30,6 +30,20 @@ func (s *ListState) Select(index int) {
 	s.Selected = index
 }
 
+// Next moves the selection to the next item.
+func (s *ListState) Next() {
+	s.Selected++
+}
+
+// Previous moves the selection to the previous item.
+func (s *ListState) Previous() {
+	if s.Selected > 0 {
+		s.Selected--
+	} else {
+		s.Selected = 0
+	}
+}
+
 // ScrollTo, seçili olan öğenin (Selected) listenin görünür yüksekliği (height) içerisinde
 // her zaman görünür kalmasını garanti eder. Seçilen öğe ekran dışına taşarsa, Offset değerini otomatik kaydırır.
 //
@@ -96,6 +110,67 @@ type List struct {
 
 	// State, listenin seçili indeksi ve kaydırma durumunu tutan işaretçidir (pointer).
 	State *ListState
+}
+
+// NewList creates a new List widget with the given items.
+func NewList(items ...string) *List {
+	return &List{
+		Items: items,
+	}
+}
+
+// WithID sets the widget focus and event ID.
+func (l *List) WithID(id string) *List {
+	l.ID = id
+	return l
+}
+
+// WithItems sets the items of the list.
+func (l *List) WithItems(items ...string) *List {
+	l.Items = items
+	return l
+}
+
+// WithProvider sets a virtual data provider.
+func (l *List) WithProvider(p ListProvider) *List {
+	l.Provider = p
+	return l
+}
+
+// WithState sets the ListState pointer.
+func (l *List) WithState(state *ListState) *List {
+	l.State = state
+	return l
+}
+
+// WithHighlightSymbol sets the prefix symbol for the selected item.
+func (l *List) WithHighlightSymbol(sym string) *List {
+	l.HighlightSymbol = sym
+	return l
+}
+
+// WithScrollbar enables or disables the scrollbar.
+func (l *List) WithScrollbar(enable bool) *List {
+	l.Scrollbar = enable
+	return l
+}
+
+// WithStyle sets the default list style.
+func (l *List) WithStyle(style cell.Style) *List {
+	l.Style = style
+	return l
+}
+
+// WithSelectedStyle sets the selected item style.
+func (l *List) WithSelectedStyle(style cell.Style) *List {
+	l.SelectedStyle = style
+	return l
+}
+
+// WithFocusedStyle sets the focused list style.
+func (l *List) WithFocusedStyle(style cell.Style) *List {
+	l.FocusedStyle = style
+	return l
 }
 
 // Draw, listeyi belirtilen alana çizer. Görünür öğeleri hesaplar, seçili öğeyi vurgular
@@ -212,10 +287,7 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Satırın arka planını temizle ve doldur
 		for x := area.X; x < area.X+area.Width; x++ {
-			if c := buf.Get(x, currY); c != nil {
-				c.Content = ' '
-				c.Style = c.Style.Merge(itemStyle)
-			}
+			buf.SetCellDirect(x, currY, cell.Cell{Content: ' ', Style: itemStyle})
 		}
 
 		// Metni çiz (allocation-free string rendering)

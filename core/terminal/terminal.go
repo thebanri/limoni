@@ -86,6 +86,35 @@ func New(b *backend.Backend) (*Terminal, error) {
 	}, nil
 }
 
+// Close restores the terminal state and closes the underlying backend.
+func (t *Terminal) Close() error {
+	if t.backend != nil {
+		return t.backend.Close()
+	}
+	return nil
+}
+
+// Backend returns the underlying backend instance.
+func (t *Terminal) Backend() *backend.Backend {
+	return t.backend
+}
+
+// Events returns the channel of incoming events from the backend.
+func (t *Terminal) Events() <-chan backend.Event {
+	if t.backend == nil {
+		return nil
+	}
+	return t.backend.Events()
+}
+
+// PollEvent waits for and returns the next event from the backend.
+func (t *Terminal) PollEvent() backend.Event {
+	if t.backend == nil {
+		return backend.Event{}
+	}
+	return <-t.backend.Events()
+}
+
 // LastFrameDuration returns the rendering and draw duration of the last frame.
 func (t *Terminal) LastFrameDuration() time.Duration {
 	return t.lastFrameDuration

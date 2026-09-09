@@ -80,10 +80,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		by := y + dy
 		for dx := uint16(0); dx < boxW; dx++ {
 			bx := x + dx
-			if c := buf.Get(bx, by); c != nil {
-				c.Content = ' '
-				c.Style = baseStyle
-			}
+			buf.SetCellDirect(bx, by, cell.Cell{Content: ' ', Style: baseStyle})
 		}
 	}
 
@@ -124,17 +121,18 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			factor = float64(dx) / float64(boxW-1)
 		}
 		gColor := getGradientColor(factor)
-		if c := buf.Get(col, y); c != nil {
-			if dx == 0 {
-				c.Content = sym.TopLeft
-			} else if dx == boxW-1 {
-				c.Content = sym.TopRight
-			} else {
-				c.Content = sym.Horizontal
-			}
-			c.Style.Fg = gColor
-			c.Style.Bg = bgCol
+		var content rune
+		if dx == 0 {
+			content = sym.TopLeft
+		} else if dx == boxW-1 {
+			content = sym.TopRight
+		} else {
+			content = sym.Horizontal
 		}
+		buf.SetCellDirect(col, y, cell.Cell{
+			Content: content,
+			Style:   cell.Style{Fg: gColor, Bg: bgCol},
+		})
 	}
 
 	// Bottom border (if boxH >= 2)
@@ -146,17 +144,18 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				factor = float64(dx) / float64(boxW-1)
 			}
 			gColor := getGradientColor(factor)
-			if c := buf.Get(col, y+boxH-1); c != nil {
-				if dx == 0 {
-					c.Content = sym.BottomLeft
-				} else if dx == boxW-1 {
-					c.Content = sym.BottomRight
-				} else {
-					c.Content = sym.Horizontal
-				}
-				c.Style.Fg = gColor
-				c.Style.Bg = bgCol
+			var content rune
+			if dx == 0 {
+				content = sym.BottomLeft
+			} else if dx == boxW-1 {
+				content = sym.BottomRight
+			} else {
+				content = sym.Horizontal
 			}
+			buf.SetCellDirect(col, y+boxH-1, cell.Cell{
+				Content: content,
+				Style:   cell.Style{Fg: gColor, Bg: bgCol},
+			})
 		}
 	}
 
@@ -166,17 +165,10 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			row := y + dy
 			factor := float64(dy) / float64(boxH-1)
 			gColor := getGradientColor(factor)
-			if c := buf.Get(x, row); c != nil {
-				c.Content = sym.Vertical
-				c.Style.Fg = gColor
-				c.Style.Bg = bgCol
-			}
+			st := cell.Style{Fg: gColor, Bg: bgCol}
+			buf.SetCellDirect(x, row, cell.Cell{Content: sym.Vertical, Style: st})
 			if boxW >= 2 {
-				if c := buf.Get(x+boxW-1, row); c != nil {
-					c.Content = sym.Vertical
-					c.Style.Fg = gColor
-					c.Style.Bg = bgCol
-				}
+				buf.SetCellDirect(x+boxW-1, row, cell.Cell{Content: sym.Vertical, Style: st})
 			}
 		}
 	}
@@ -218,11 +210,10 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			col := x + dx
 			factor := float64(dx) / float64(boxW)
 			gColor := getGradientColor(factor)
-			if c := buf.Get(col, sepY); c != nil {
-				c.Content = '─'
-				c.Style.Fg = blendWithColor(gColor, bgCol, 0.5)
-				c.Style.Bg = bgCol
-			}
+			buf.SetCellDirect(col, sepY, cell.Cell{
+				Content: '─',
+				Style:   cell.Style{Fg: blendWithColor(gColor, bgCol, 0.5), Bg: bgCol},
+			})
 		}
 	}
 

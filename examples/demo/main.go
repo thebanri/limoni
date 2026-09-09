@@ -134,10 +134,10 @@ type AppState struct {
 	AccessibilityActive bool
 
 	// Navigation & System
-	ActiveTab      int
-	Tabs           []string
-	ThemeIndex     int
-	LastMousePos   cell.Point
+	ActiveTab             int
+	Tabs                  []string
+	ThemeIndex            int
+	LastMousePos          cell.Point
 	ExitRequested         bool
 	ShowExitDialog        bool
 	ExitDialogAnim        *animation.Float
@@ -174,7 +174,7 @@ func main() {
 
 	state := initAppState()
 
-	ticker := time.NewTicker(25 * time.Millisecond) // ~40 FPS smooth tick
+	ticker := time.NewTicker(16666 * time.Microsecond) // ~40 FPS smooth tick
 	defer ticker.Stop()
 
 	draw := func() {
@@ -225,8 +225,7 @@ func main() {
 					if term.FocusManager() != nil {
 						term.FocusManager().Clear()
 					}
-					draw()
-				} else if handled || ev.Mouse.Button == backend.MouseLeft || ev.Mouse.Button == backend.MouseScrollUp || ev.Mouse.Button == backend.MouseScrollDown || ev.Mouse.Drag {
+				} else if ev.Mouse.Button == backend.MouseLeft || ev.Mouse.Button == backend.MouseScrollUp || ev.Mouse.Button == backend.MouseScrollDown || ev.Mouse.Drag {
 					draw()
 				}
 

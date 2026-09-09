@@ -114,6 +114,44 @@ type TextInput struct {
 	FocusedStyle     cell.Style
 }
 
+// NewTextInput creates a new TextInput widget with the specified ID.
+func NewTextInput(id string) *TextInput {
+	return &TextInput{
+		ID:    id,
+		State: NewTextInputState(),
+	}
+}
+
+// WithState sets the TextInputState.
+func (ti *TextInput) WithState(state *TextInputState) *TextInput {
+	ti.State = state
+	return ti
+}
+
+// WithPlaceholder sets the placeholder text.
+func (ti *TextInput) WithPlaceholder(ph string) *TextInput {
+	ti.Placeholder = ph
+	return ti
+}
+
+// WithStyle sets the default box style.
+func (ti *TextInput) WithStyle(style cell.Style) *TextInput {
+	ti.Style = style
+	return ti
+}
+
+// WithPlaceholderStyle sets the style for the placeholder text.
+func (ti *TextInput) WithPlaceholderStyle(style cell.Style) *TextInput {
+	ti.PlaceholderStyle = style
+	return ti
+}
+
+// WithFocusedStyle sets the style when the input is focused.
+func (ti *TextInput) WithFocusedStyle(style cell.Style) *TextInput {
+	ti.FocusedStyle = style
+	return ti
+}
+
 // Draw, metin kutusunu çizer, tıklandığında odak almasını sağlar ve aktif odaklıysa software cursor gösterir.
 func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ti.ID == "" || ti.State == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
@@ -161,7 +199,11 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Eğer odaklıysa software cursor (Reverse style) çiz
 	if isFocused {
-		cursorX := ctx.Area.X + uint16(ti.State.Cursor)
+		cursorCol := 0
+		for i := 0; i < ti.State.Cursor && i < len(ti.State.Text); i++ {
+			cursorCol += cell.RuneWidth(ti.State.Text[i])
+		}
+		cursorX := ctx.Area.X + uint16(cursorCol)
 		if cursorX < ctx.Area.X+ctx.Area.Width {
 			if c := buf.Get(cursorX, ctx.Area.Y); c != nil {
 				c.Style.Modifier |= cell.ModifierReverse

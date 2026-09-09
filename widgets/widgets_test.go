@@ -156,3 +156,31 @@ func readLine(buf *buffer.Buffer, y uint16, length uint16) string {
 	}
 	return res
 }
+
+func TestParagraphLongWordWrap(t *testing.T) {
+	area := cell.NewRect(0, 0, 5, 4)
+	buf := buffer.NewBuffer(area)
+
+	// An unbroken word of 10 chars wrapped in width 5
+	p := NewParagraph("ABCDEFGHIJ").WithWrap(true)
+	p.Draw(cell.NewContext(area, cell.Style{}), buf)
+
+	// Row 0 should have "ABCDE"
+	r0 := readLine(buf, 0, 5)
+	if r0 != "ABCDE" {
+		t.Fatalf("row 0 want 'ABCDE', got %q", r0)
+	}
+	// Row 1 should have "FGHIJ"
+	r1 := readLine(buf, 1, 5)
+	if r1 != "FGHIJ" {
+		t.Fatalf("row 1 want 'FGHIJ', got %q", r1)
+	}
+}
+
+func TestParagraphFluentBuilder(t *testing.T) {
+	p := NewParagraph("Merhaba").WithWrap(true).WithID("p1")
+	if p.Text != "Merhaba" || !p.Wrap || p.ID != "p1" {
+		t.Fatalf("unexpected paragraph fields: %+v", p)
+	}
+}
+

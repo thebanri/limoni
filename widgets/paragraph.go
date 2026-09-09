@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"strings"
+
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/layout"
@@ -25,6 +27,38 @@ type Paragraph struct {
 	lastWidth   uint16
 	lastWrap    bool
 	cachedLines []string
+}
+
+// NewParagraph creates a new Paragraph widget with wrapping enabled by default.
+func NewParagraph(text string) *Paragraph {
+	return &Paragraph{
+		Text: text,
+		Wrap: true,
+	}
+}
+
+// WithWrap enables or disables word-wrapping.
+func (p *Paragraph) WithWrap(wrap bool) *Paragraph {
+	p.Wrap = wrap
+	return p
+}
+
+// WithStyle sets the paragraph text style.
+func (p *Paragraph) WithStyle(style cell.Style) *Paragraph {
+	p.Style = style
+	return p
+}
+
+// WithFocusedStyle sets the style applied when focused.
+func (p *Paragraph) WithFocusedStyle(style cell.Style) *Paragraph {
+	p.FocusedStyle = style
+	return p
+}
+
+// WithID sets the widget focus and event ID.
+func (p *Paragraph) WithID(id string) *Paragraph {
+	p.ID = id
+	return p
 }
 
 // Draw, metni çözümler, gerekliyse satır genişliğine göre böler ve terminal tamponuna çizer.
@@ -143,9 +177,27 @@ func wrapText(text string, width uint16) []string {
 		var currentLine string
 
 		for _, word := range words {
+			wordW := cell.StringWidth(word)
+			// Kelimenin kendisi tek başına satır genişliğini aşıyorsa, kelimeyi harf harf böl
+			if wordW > int(width) {
+				chunks := breakWord(word, int(width))
+				for _, chunk := range chunks {
+					chunkW := cell.StringWidth(chunk)
+					if len(currentLine) == 0 {
+						currentLine = chunk
+					} else if cell.StringWidth(currentLine)+1+chunkW <= int(width) {
+						currentLine += " " + chunk
+					} else {
+						wrappedLines = append(wrappedLines, currentLine)
+						currentLine = chunk
+					}
+				}
+				continue
+			}
+
 			if len(currentLine) == 0 {
 				currentLine = word
-			} else if cell.StringWidth(currentLine)+1+cell.StringWidth(word) <= int(width) {
+			} else if cell.StringWidth(currentLine)+1+wordW <= int(width) {
 				currentLine += " " + word
 			} else {
 				wrappedLines = append(wrappedLines, currentLine)
@@ -158,6 +210,30 @@ func wrapText(text string, width uint16) []string {
 	}
 
 	return wrappedLines
+}
+
+func breakWord(word string, width int) []string {
+	if width <= 0 {
+		return nil
+	}
+	var chunks []string
+	var current strings.Builder
+	currentW := 0
+
+	for _, r := range word {
+		rw := cell.RuneWidth(r)
+		if currentW+rw > width && current.Len() > 0 {
+			chunks = append(chunks, current.String())
+			current.Reset()
+			currentW = 0
+		}
+		current.WriteRune(r)
+		currentW += rw
+	}
+	if current.Len() > 0 {
+		chunks = append(chunks, current.String())
+	}
+	return chunks
 }
 
 // splitLines, metni yeni satır (\n) karakterine göre ham satırlara ayırır (Windows \r\n dahil temizlenir).
