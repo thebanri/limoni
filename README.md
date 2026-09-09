@@ -27,6 +27,7 @@
 </p>
 
 <p align="center">
+  <a href="#-whats-new">What's New</a> •
   <a href="#-why-limoni">Why Limoni?</a> •
   <a href="#-showcase--demos">Showcase</a> •
   <a href="#-key-features">Key Features</a> •
@@ -45,6 +46,22 @@
 **Limoni** is a modern, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and responsive terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.
 
 By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **optimized differential ANSI engine**, Limoni achieves ultra-smooth 60+ FPS rendering without triggering Go's Garbage Collector.
+
+---
+
+## 🆕 What's New & Recent Updates
+
+* 🧱 **Composable Lego-Like Component Architecture (`component` package)**:
+  Build rich, responsive interfaces declaratively using composable view trees (`limoni.VStack`, `limoni.HStack`, `limoni.Border`, `limoni.Pad`, `limoni.Center`, `limoni.Flex`, `limoni.FixedSize`). The underlying stack solver allocates zero heap memory on the hot rendering path while retaining full interoperability with monolithic widgets via `limoni.AsComponent`.
+* 🔄 **Package Reorganization & Idiomatic Go Naming**:
+  - `core/engine`: The Elm Architecture (TEA) application loop, message scheduling, cancellation precedence, and panic recovery (renamed from `core/runtime` to eliminate collisions with Go's standard library `runtime`).
+  - `core/driver`: Cross-platform VT driver abstraction, raw mode termios, epoll/kqueue event loop, Windows VT, WebAssembly bridge, and SSH PTY streams (renamed from `core/backend` to clearly reflect responsibilities).
+* 🛑 **Configurable Signal & Ctrl+C Handling**:
+  Configure process termination behavior with `limoni.WithCatchCtrlC(bool)` and `limoni.WithoutDefaultQuitKeys()`, enabling applications to intercept Ctrl+C for modal confirmations, subshell escapes, or custom shutdown routines.
+* ⚡ **Zero-Allocation Hot-Path Verification**:
+  Continuous benchmark enforcement in CI ensuring `0 B/op` and `0 allocs/op` on buffer diffing, widget drawing, and component stack layout.
+* 🧪 **Comprehensive Cross-Platform CI**:
+  Full automated verification on Linux, macOS, and Windows with active data race detection (`-race`) across the entire codebase.
 
 ---
 
@@ -129,7 +146,65 @@ go run ./examples/charts
 go get github.com/thebanri/limoni
 ```
 
-### 1. Minimal TEA (The Elm Architecture) Example
+### 1. Composable Lego-Style UI Example (Zero Allocation)
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/widgets"
+)
+
+func main() {
+	err := limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
+		if ev != nil && ev.Type == limoni.EventKey && ev.Key.Type == limoni.KeyEsc {
+			return false // Exit
+		}
+
+		// Declarative layout composition with zero heap allocations on hot path:
+		view := limoni.VStack(
+			// Header (Fixed height 3 rows)
+			limoni.FixedSize(0, 3, limoni.Border(
+				limoni.Center(limoni.Label("🍋 Limoni Composable Architecture", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+				widgets.SymbolsRounded,
+				limoni.Fg(limoni.Hex("#00FFAA")),
+			)),
+
+			// Body (Flex 1): 2-Column Split
+			limoni.Flex(1, limoni.HStack(
+				limoni.Flex(1, limoni.Border(
+					limoni.Label("Left Sidebar\n- Fast\n- Zero-Alloc\n- Thread-Safe", limoni.Fg(limoni.Hex("#FFCC00"))),
+					widgets.SymbolsSingle,
+					limoni.Fg(limoni.Hex("#FFCC00")),
+				)),
+				limoni.Flex(2, limoni.Border(
+					limoni.Center(limoni.Label("Main Content Area\nPress ESC to exit.", limoni.Fg(limoni.Hex("#FFFFFF")))),
+					widgets.SymbolsDouble,
+					limoni.Fg(limoni.Hex("#3399FF")),
+				)),
+			)),
+
+			// Footer (Fixed height 3 rows)
+			limoni.FixedSize(0, 3, limoni.Border(
+				limoni.Center(limoni.Label("ESC: Quit | 60+ FPS ANSI Diff", limoni.Fg(limoni.Hex("#888888")))),
+				widgets.SymbolsSingle,
+				limoni.Fg(limoni.Hex("#666666")),
+			)),
+		)
+
+		f.RenderComponent(view, f.Area())
+		return true
+	})
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+}
+```
+
+### 2. Interactive TEA (The Elm Architecture) Example
 
 ```go
 package main
@@ -375,6 +450,8 @@ Explore runnable demo applications inside the [`examples/`](./examples) director
 | **[`colors_and_styles`](./examples/colors_and_styles)** | 24-bit TrueColor gradients, 256-color ANSI palettes, text modifiers & A11y themes. | `go run ./examples/colors_and_styles` |
 | **[`ssh_server`](./examples/ssh_server)** | Remote terminal server streaming interactive 60 FPS Limoni sessions over network/SSH sockets. | `go run ./examples/ssh_server` |
 | **[`custom_widget`](./examples/custom_widget)** | Developer guide for implementing custom `widgets.Widget` components (Analog Meter / Gauge). | `go run ./examples/custom_widget` |
+| **[`composable`](./examples/composable)** | Declarative Lego-style UI composition with `VStack`, `HStack`, `Border`, and zero-alloc flex solvers. | `go run ./examples/composable` |
+| **[`simple`](./examples/simple)** | Minimal 50-line starting boilerplate with direct rendering and keyboard navigation. | `go run ./examples/simple` |
 | **[`demo`](./examples/demo)** | **Interactive 3D Lemon Model (GLB/ASCII/Braille/Half-Block) & Feature Trailer.** | `go run ./examples/demo` |
 | **[`showcase`](./examples/showcase)** | Full multi-tab suite with matrix rain, forms, 3D models, DevTools HUD (`F12`), and command palette. | `go run ./examples/showcase` |
 | **[`wasm`](./examples/wasm)** | In-browser WebAssembly demo running on xterm.js. | `go run ./examples/wasm` |
@@ -393,6 +470,9 @@ Check out our curated list of real-world apps, tools, and third-party widgets in
 ## 💡 Engineering Philosophy & Acknowledgements
 
 Limoni was conceived to push the boundaries of terminal performance in Go, bringing Rust-grade latency and memory determinism to the Go ecosystem.
+
+> [!NOTE]
+> AI tools were used for generating initial boilerplates, documentation drafts, and test cases, while the core architecture, memory layout, and debugging were directed and implemented by the author.
 
 ### Transparency & Tooling
 In the spirit of modern open-source transparency:

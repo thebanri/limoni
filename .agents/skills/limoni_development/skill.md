@@ -14,7 +14,7 @@ and benchmark packages. Before adding a new feature, run:
 ```bash
 go test ./...
 go vet ./...
-go test -race ./core/runtime ./core/terminal ./testkit ./widgets ./layout ./core/accessibility
+go test -race . ./component ./core/engine ./core/terminal ./testkit ./widgets ./layout ./core/accessibility ./core/driver
 ```
 
 Useful deterministic APIs include:
@@ -283,7 +283,8 @@ The following technical decisions and performance requirements **MUST** be prese
    - Capability profiles for TrueColor, 256 colors, mouse, paste, and graphics.
    - A frame profiler, widget render-time measurements, allocation benchmarks, and a widget showcase.
 4. **Phase 30–41: Runtime Core, Interaction 2.0, Virtual Data, A11y, Benchmarks & Compatibility [COMPLETED]**
-   - `core/runtime`: Elm architecture (Model, Msg, Cmd, Program), message queue, cancellation, and redraw coalescing.
+   - `core/engine`: Elm architecture (Model, Msg, Cmd, Program), message queue, cancellation, and redraw coalescing.
+   - `core/driver`: Multi-platform terminal drivers (Linux, Darwin, ConPTY, WASM, SSH).
    - `compat/bubbletea`: Bubble Tea & Lipgloss migration adapter (`Model`, `Cmd`, `Msg`, `Program`, `Style`).
    - `testkit`: Deterministic testing harness with golden files, snapshots, and event traces.
    - `benchmarks`: Cross-implementation benchmark suite comparing Limoni, Bubble Tea, and Ratatui.

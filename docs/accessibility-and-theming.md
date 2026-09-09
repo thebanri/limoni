@@ -1,23 +1,23 @@
-# ♿ Erişilebilirlik (A11y) ve Temalar (Accessibility & Theming)
+# ♿ Accessibility (A11y) and Theming
 
-Limoni, erişilebilirliği sonradan eklenen bir yama değil, çekirdek motorun temel bir bileşeni olarak ele alır (`core/accessibility`).
-
----
-
-## 1. Ekran Okuyucu Semantik Ağacı (Semantic A11y Tree)
-
-Tüm widget'lar çizim anında terminal hücresinin ötesinde semantik bir düğüm (Node) üretir:
-- Rol (`RoleButton`, `RoleTable`, `RoleInput`, `RoleDialog`)
-- Değer, başlık ve durum (Örn: "Seçili", "Devre Dışı", "%60 Tamamlandı")
-- Ekran okuyucu yazılımlar terminal metinlerini rastgele okumak yerine bu yapılandırılmış ağacı tüketebilir.
+Limoni treats accessibility as a foundational component of the core engine rather than an afterthought (`core/accessibility`).
 
 ---
 
-## 2. Standart A11y Modları
+## 1. Semantic Accessibility Tree (`accessibility.Tree`)
 
-1. **Yüksek Kontrast Modu (High Contrast)**:
-   - Düşük kontrastlı gri veya pastel tonları otomatik olarak WCAG AAA uyumlu zıt renklere (Siyah-Beyaz-Sarı) yükseltir.
-2. **`NO_COLOR` Standardı**:
-   - Ortam değişkeni `NO_COLOR=1` olduğunda veya açıkça aktif edildiğinde tüm ANSI renk kaçış kodları devre dışı bırakılır; arayüz sembolik olarak çizilir.
-3. **Azaltılmış Hareket Modu (Reduced Motion)**:
-   - Vestibüler bozukluğu olan kullanıcılar için animasyon süreleri 0'a çekilir; arayüz anında nihai haline geçer.
+When widgets are rendered, they register structured semantic nodes alongside terminal cells:
+- **Role**: `RoleButton`, `RoleTable`, `RoleInput`, `RoleDialog`, `RoleProgress`, etc.
+- **Attributes**: Label, current value, description, and state (e.g., "Selected", "Disabled", "60% Complete").
+- Screen reader software and automated testing agents can inspect this structured tree directly rather than attempting to heuristically parse raw screen text.
+
+---
+
+## 2. Standard A11y Modes
+
+1. **High Contrast Mode (`accessibility.ModeHighContrast`)**:
+   - Automatically remaps low-contrast pastel or muted tones to WCAG AAA compliant high-contrast color pairs (e.g., stark black, white, and yellow).
+2. **`NO_COLOR` Specification**:
+   - Respects the standard `NO_COLOR=1` environment variable. When active, color escape codes are completely stripped, and semantic visual states fall back to high-contrast unicode symbols and formatting modifiers (bold, underline).
+3. **Reduced Motion (`accessibility.ModeReducedMotion`)**:
+   - Automatically scales animation durations and physics steps to zero for users with vestibular sensitivities, instantly snapping components to their final states.

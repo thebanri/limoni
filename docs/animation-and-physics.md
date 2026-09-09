@@ -1,25 +1,25 @@
-# 🎬 Animasyon ve Fizik Motoru (Animation & Physics)
+# 🎬 Animation and Physics Engine
 
-Limoni, 60 FPS akıcı arayüz geçişleri, yay tabanlı fizik animasyonları ve renk geçişleri için `animation` paketini içerir.
+Limoni includes the `animation` package for fluid 60 FPS UI transitions, spring-based physics, and smooth color interpolations.
 
 ---
 
-## 1. Sayısal ve Renk Enterpolasyonu
+## 1. Numeric and Color Interpolation
 
 ### `animation.Float`
-Hedef değere yumuşak easing eğrileriyle yaklaşan sayısal animasyon değişkenidir.
+A continuous numeric animation variable that smoothly approaches a target value using configurable easing functions:
 
 ```go
 anim := animation.NewFloat(0.0)
 anim.SetTarget(100.0, 500*time.Millisecond, animation.EaseOutCubic)
 
-// Her render karesinde:
+// On each render frame:
 anim.Update(deltaTime)
 currentVal := anim.Value()
 ```
 
 ### `animation.Color`
-İki RGB renk arasında algısal olarak pürüzsüz geçiş (Linear RGB / HSV Lerp) sağlar.
+Provides perceptually uniform color interpolation between two RGB color points (Linear RGB / HSV Lerp):
 
 ```go
 import "github.com/thebanri/limoni"
@@ -30,11 +30,11 @@ colAnim.SetTarget(limoni.RGB(255, 69, 0), 300*time.Millisecond, animation.EaseIn
 
 ---
 
-## 2. Easing Eğrileri
+## 2. Easing Functions
 
-Limoni aşağıdaki standart easing eğrilerini içerir:
+Limoni includes standard easing curves:
 - `animation.Linear`
 - `animation.EaseInQuad` / `animation.EaseOutQuad` / `animation.EaseInOutQuad`
 - `animation.EaseInCubic` / `animation.EaseOutCubic` / `animation.EaseInOutCubic`
-- `animation.EaseOutBounce` (Sekme efekti)
-- `animation.EaseOutElastic` (Yay efekti)
+- `animation.EaseOutBounce` (Realistic bounce effect)
+- `animation.EaseOutElastic` (Spring / elastic overshoot effect)

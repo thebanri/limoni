@@ -1,12 +1,10 @@
-# Bubble Tea → Limoni Geçiş Kılavuzu
+# Bubble Tea → Limoni Migration Guide
 
-`compat/bubbletea` paketi, mevcut Bubble Tea modellerinizi tek satır değişiklikle
-Limoni runtime'ı üzerinde çalıştırmanızı sağlar. Bu kılavuz, kademeli geçiş
-(adapter ile çalıştır → native API'ye taşı) yolunu anlatır.
+The `compat/bubbletea` package allows you to run existing Bubble Tea models on top of Limoni's high-performance runtime with minimal changes. This guide outlines the incremental migration path: from running via the compatibility adapter to transitioning to Limoni's native API.
 
-## 1. Adım: Adapter ile çalıştırma
+## Step 1: Running with the Adapter
 
-Bubble Tea arayüzü aynen korunur:
+The standard Bubble Tea interface is fully preserved:
 
 ```go
 type Model interface {
@@ -16,50 +14,43 @@ type Model interface {
 }
 ```
 
-Tek değişiklik import ve program oluşturma:
+The only change is the import path and program instantiation:
 
 ```go
-// önce
+// Before:
 // import tea "github.com/charmbracelet/bubbletea"
 // p := tea.NewProgram(model)
 // _, err := p.Run()
 
-// sonra
+// After:
 import tea "github.com/thebanri/limoni/compat/bubbletea"
 
 p := tea.NewProgram(model)
 err := p.RunTerminal(context.Background())
 ```
 
-- `Program.RunTerminal(ctx)` → backend kurulumunu, olay döngüsünü ve kare çizimini
-  Limoni runtime'ına devreder (gerçek TTY gerekir).
-- `Program.Run(ctx)` → terminal bağlamadan yalnızca Init/Update döngüsünü çalıştırır;
-  headless testler için uygundur.
+- `Program.RunTerminal(ctx)` → Delegates terminal driver setup, raw mode event loop, and frame rendering to Limoni's engine (requires an active TTY).
+- `Program.Run(ctx)` → Executes only the Init/Update loop without binding to a physical terminal; ideal for headless unit tests.
 
-## 2. Adım: Mesaj eşlemesi
+## Step 2: Message Mapping
 
-Limoni mesajları Bubble Tea muadillerine otomatik çevrilir:
+Limoni messages are automatically translated into their Bubble Tea equivalents:
 
-| Limoni (`core/runtime`) | Bubble Tea uyumlu (`compat/bubbletea`) |
+| Limoni (`core/engine` / `limoni.*`) | Bubble Tea Compatible (`compat/bubbletea`) |
 | --- | --- |
-| `runtime.KeyPressMsg` | `KeyMsg{Type, Runes, Alt, Ctrl, Shift}` |
-| `runtime.ResizeMsg` | `WindowSizeMsg{Width, Height}` |
-| diğer tüm mesajlar | değiştirilmeden iletilir |
+| `engine.KeyPressMsg` | `KeyMsg{Type, Runes, Alt, Ctrl, Shift}` |
+| `engine.ResizeMsg` | `WindowSizeMsg{Width, Height}` |
+| All other messages | Passed through without modification |
 
-Otomatik çevrilen tuşlar: `KeyRunes`, `KeyEnter`, `KeyBackspace`, `KeyTab`,
-`KeyEsc`, `KeyUp`, `KeyDown`, `KeyLeft`, `KeyRight` ve `Ctrl+C`.
-`KeyPgUp`, `KeyPgDown`, `KeyHome`, `KeyEnd`, `KeyDelete`, `KeySpace` ve
-`KeyCtrlA`…`KeyCtrlZ` sabitleri tanımlıdır ancak şu an otomatik eşlemeye dahil
-değildir; bu tuşları `runtime.KeyPressMsg` üzerinden okuyabilirsiniz.
-`KeyMsg.String()` Bubble Tea'deki gibi `"ctrl+c"`, `"enter"`, `"up"` üretir.
+Automatically translated keys include: `KeyRunes`, `KeyEnter`, `KeyBackspace`, `KeyTab`, `KeyEsc`, `KeyUp`, `KeyDown`, `KeyLeft`, `KeyRight`, and `Ctrl+C`.
+`KeyPgUp`, `KeyPgDown`, `KeyHome`, `KeyEnd`, `KeyDelete`, `KeySpace`, and `KeyCtrlA`...`KeyCtrlZ` constants are defined.
+`KeyMsg.String()` produces standard Bubble Tea representations such as `"ctrl+c"`, `"enter"`, and `"up"`.
 
-`Ctrl+C` her zaman `KeyMsg{Type: KeyCtrlC}` olarak gelir; `Quit()` komutu
-`QuitMsg` üretir ve adapter bunu `runtime.UpdateResult{Quit: true}`'a çevirir.
+`Ctrl+C` is delivered as `KeyMsg{Type: KeyCtrlC}`. Calling `Quit()` returns `QuitMsg`, which the adapter maps to `engine.UpdateResult{Quit: true}`.
 
-## 3. Adım: Lipgloss stilleri
+## Step 3: Lipgloss Styles
 
-`compat/bubbletea` içindeki `Style`, Lipgloss zincirleme API'sinin bir alt kümesini
-sunar:
+`compat/bubbletea` provides a `Style` builder that supports a core subset of Lipgloss's fluent API:
 
 ```go
 style := tea.NewStyle().
@@ -67,18 +58,15 @@ style := tea.NewStyle().
 	Bold(true).
 	Padding(1, 2)
 
-out := style.Render("Merhaba")       // ANSI'li string
-cs := style.ToCellStyle()            // native cell.Style'a köprü
+out := style.Render("Hello")       // ANSI-escaped string
+cs := style.ToCellStyle()          // Bridge to native cell.Style
 ```
 
-`ToCellStyle()`, geçiş sırasında Lipgloss stillerini native widget'lara
-(`Block.BorderStyle`, `Paragraph.Style` vb.) taşımak için köprüdür.
+`ToCellStyle()` serves as a migration bridge for transferring Lipgloss styles to native Limoni widgets (`Block.BorderStyle`, `Paragraph.Style`, etc.).
 
-## 4. Adım: Native API'ye taşıma
+## Step 4: Moving to the Native API
 
-Adapter `View() string` çıktısını satır satır tampona basar; bu, stil ve
-kısmi güncelleme (diff) avantajlarını sınırlar. Kademeli geçiş için modeli
-modern `limoni.Model` arayüzüne çevirin (tek `import "github.com/thebanri/limoni"` yeterlidir):
+The adapter renders string output from `View() string` line-by-line into the cell buffer. While functional, migrating to the native `limoni.Model` interface unlocks full differential buffer rendering, zero-allocation cell styling, and declarative layout (with a single import `"github.com/thebanri/limoni"`):
 
 ```go
 package main
@@ -128,28 +116,25 @@ func main() {
 }
 ```
 
-Karşılıklar:
+### Feature Equivalents
 
 | Bubble Tea | Limoni Native (`limoni.*`) |
 | --- | --- |
 | `Init() Cmd` | `Init() []limoni.Cmd` |
 | `Update(Msg) (Model, Cmd)` | `Update(limoni.Msg) limoni.UpdateResult` |
-| `View() string` | `View(*limoni.Frame)` (sıfır-tahsisatlı hücre tamponu) |
+| `View() string` | `View(*limoni.Frame)` (zero-alloc contiguous cell buffer) |
 | `tea.Batch(a, b)` | `[]limoni.Cmd{a, b}` |
-| `tea.Quit` | `limoni.Quit()` veya `limoni.UpdateResult{Quit: true}` |
-| String birleştirme ile layout | `limoni.SplitVertical` / `limoni.FlexLayout` + akıcı widget'lar |
+| `tea.Quit` | `limoni.Quit()` or `limoni.UpdateResult{Quit: true}` |
+| String concatenation layout | `limoni.SplitVertical` / `limoni.FlexLayout` / `component.VStack` |
 
-Yeni proje iskeleti için:
+To scaffold a new project:
 
 ```bash
 go run github.com/thebanri/limoni/cmd/limoni@latest new myapp
 ```
 
-## Bilinen sınırlar
+## Known Limitations
 
-- `View() string` yolunda stil bilgisi taşınmaz; hücreler varsayılan stille yazılır.
-  Renk gerekiyorsa native `View(*terminal.Frame)` yoluna geçin.
-- `tea.Batch` içindeki komutlar sırayla çalıştırılır ve dönüş mesajları yutulur;
-  paralel komut davranışı için `runtime.Cmd` listesi kullanın.
-- Fare olayları adapter tarafından `KeyMsg`'e çevrilmez; `runtime.MousePressMsg`
-  mesajları modele olduğu gibi iletilir.
+- `View() string` does not carry rich per-cell RGB style metadata across string boundaries; text is rendered using default styles. For rich styling, migrate to `View(*terminal.Frame)`.
+- Commands in `tea.Batch` execute sequentially. For concurrent command execution, return a slice of `engine.Cmd`.
+- Mouse events are not mapped to `KeyMsg`; `engine.MousePressMsg` events are passed through directly to the model.

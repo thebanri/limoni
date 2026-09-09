@@ -1,30 +1,30 @@
-# 🌐 Çapraz Platform ve Ağ Sürücüleri (Drivers & Platforms)
+# 🌐 Cross-Platform and Network Drivers
 
-Limoni, işletim sistemi ve donanım bağımsızlığı sağlamak için sürücü katmanını (`core/driver`) soyutlamıştır.
+Limoni abstracts the driver layer (`core/driver`) to achieve complete operating system and hardware independence.
 
 ---
 
-## 1. Desteklenen Platformlar
+## 1. Supported Platforms
 
-| Platform | Sürücü Dosyası | Mekanizma |
+| Platform | Driver File | Mechanism |
 | :--- | :--- | :--- |
 | **Linux & BSD** | `core/driver/termios_linux.go` | `ioctl` TCGETS/TCSETS, Epoll / Non-blocking TTY I/O |
-| **macOS (Darwin)** | `core/driver/termios_darwin.go` | Darwin `termios` CGO'suz Syscall & Kqueue |
+| **macOS (Darwin)** | `core/driver/termios_darwin.go` | Darwin `termios` CGO-free Syscall & Kqueue |
 | **Windows** | `core/driver/backend_windows.go` | Windows Console Virtual Terminal Sequences (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`) |
-| **WebAssembly** | `core/driver/backend_wasm.go` | `syscall/js` ile tarayıcı xterm.js köprüsü |
-| **Uzak Ağ / SSH** | `core/driver/ssh.go` | `net.Conn` veya `crypto/ssh.Session` üzerinde doğrudan izole ANSI diff akışı |
+| **WebAssembly** | `core/driver/backend_wasm.go` | `syscall/js` with browser xterm.js bridge |
+| **Remote Network / SSH** | `core/driver/ssh.go` | Direct isolated ANSI diff stream over `net.Conn` or `crypto/ssh.Session` |
 
 ---
 
-## 2. WebAssembly (WASM) ile Tarayıcıda Çalıştırma
+## 2. Running in the Browser with WebAssembly (WASM)
 
-Limoni uygulamaları doğrudan WebAssembly olarak derlenip herhangi bir web sayfasında çalıştırılabilir:
+Limoni applications can be directly compiled to WebAssembly and run in any web browser:
 
 ```bash
 GOOS=js GOARCH=wasm go build -o limoni.wasm ./examples/wasm
 ```
 
-HTML tarafında:
+In your HTML page:
 ```html
 <div id="terminal"></div>
 <script src="wasm_exec.js"></script>
@@ -38,14 +38,15 @@ HTML tarafında:
 
 ---
 
-## 3. SSH / Uzak Terminal Sunucusu
+## 3. SSH / Remote Terminal Server
 
-`backend.NewSSHBackend` sayesinde tek bir Go ikili dosyası ile yüzlerce eşzamanlı kullanıcıya interaktif TUI oturumları sunulabilir:
+Using `driver.NewSSHDriver` (or `driver.NewSSHBackend`), a single Go binary can serve interactive TUI sessions to hundreds of concurrent users:
 
 ```bash
 go run ./examples/ssh_server
 ```
-Bağlanmak için:
+
+To connect:
 ```bash
 nc localhost 2222
 ```

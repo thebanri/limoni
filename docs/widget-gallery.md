@@ -1,9 +1,8 @@
-# Widget Galerisi ve API Referansı
+# Widget Gallery and API Reference
 
-Bu dosya `widgets` paketindeki kaynak koddan üretilmiştir; her bileşen `Widget`
-arayüzünü (`Draw(cell.Context, *buffer.Buffer)`) uygular.
+This document is generated from source code in the `widgets` package; each component implements the `Widget` interface (`Draw(cell.Context, *buffer.Buffer)`).
 
-| Widget | Alıcı tipi | Alan sayısı |
+| Widget | Receiver Type | Field Count |
 | --- | --- | --- |
 | [Ascii3D](#ascii3d) | `Ascii3D` | 32 |
 | [BarChart](#barchart) | `BarChart` | 12 |
@@ -40,9 +39,9 @@ arayüzünü (`Draw(cell.Context, *buffer.Buffer)`) uygular.
 
 Ascii3D (or AsciiObject) is a high-performance 3D vector-to-ASCII terminal renderer.
 
-`RenderWidget` çağrısında kullanılacak tip: `Ascii3D`
+Type to pass to `RenderWidget`: `Ascii3D`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `Model` | `graphics.Model3D` | 3D Model geometry or file path |
 | `Src` | `string` |  |
@@ -81,9 +80,9 @@ Ascii3D (or AsciiObject) is a high-performance 3D vector-to-ASCII terminal rende
 
 BarChart renders vertical and horizontal bar charts with customizable symbols and labels.
 
-`RenderWidget` çağrısında kullanılacak tip: `BarChart`
+Type to pass to `RenderWidget`: `BarChart`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Data` | `[]BarData` |  |
@@ -100,43 +99,43 @@ BarChart renders vertical and horizontal bar charts with customizable symbols an
 
 ## Block
 
-Block, terminal ekranında kenarlık çizebilen, arka plan dolgusu yapabilen ve üstüne başlık (Title) yerleştirebilen en temel kapsayıcı (container) widget'tır.
+Block is the foundational container widget capable of rendering borders, filling backgrounds, and hosting titles.
 
-`RenderWidget` çağrısında kullanılacak tip: `Block`
+Type to pass to `RenderWidget`: `Block`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `Title` | `string` | Title, bloğun üst kenarında gösterilecek olan başlık metnidir. |
-| `TitleAlignment` | `Alignment` | TitleAlignment, başlık metninin kenarlık üzerindeki hizasını belirler (Left, Center, Right). |
-| `TitleStyle` | `cell.Style` | TitleStyle, başlık metninin rengini ve stil özelliklerini belirler. |
-| `Borders` | `uint8` | Borders, hangi kenarların çizileceğini belirleyen maske alanıdır (örn. |
-| `BorderSymbols` | `BorderSymbols` | BorderSymbols, kenarlık çiziminde kullanılacak olan glif sembolleridir (örn. |
-| `BorderStyle` | `cell.Style` | BorderStyle, kenarlık çizgilerinin rengini ve stilini belirler. |
-| `Margin` | `Insets` | Margin, bloğun dışındaki CSS benzeri boşluktur. |
-| `Padding` | `Insets` | Padding, içerik ile kenarlık arasındaki CSS benzeri iç boşluktur. |
+| `Title` | `string` | Title is the title string displayed on the top border of the block. |
+| `TitleAlignment` | `Alignment` | TitleAlignment sets the horizontal alignment of the title on the border (Left, Center, Right). |
+| `TitleStyle` | `cell.Style` | TitleStyle defines the color and style modifiers for the title text. |
+| `Borders` | `uint8` | Borders bitmask determining which edges are rendered (e.g. BorderAll). |
+| `BorderSymbols` | `BorderSymbols` | BorderSymbols defines the glyph set used for border rendering. |
+| `BorderStyle` | `cell.Style` | BorderStyle defines the color and style of the border lines. |
+| `Margin` | `Insets` | Margin is the CSS-like outer spacing around the block. |
+| `Padding` | `Insets` | Padding is the CSS-like inner spacing between content and borders. |
 | `PaddingLeft` | `uint16` |  |
 | `PaddingRight` | `uint16` |  |
 | `PaddingTop` | `uint16` |  |
 | `PaddingBottom` | `uint16` |  |
-| `Style` | `cell.Style` | Style, bloğun arka plan dolgu rengini ve varsayılan genel stilini belirler. |
-| `Child` | `Widget` | Child, bloğun içerisine çizilecek olan alt görsel bileşendir. |
-| `Opaque` | `bool` | Opaque, true ise bloğun arkasına yerel resimlerin sızmasını engellemek için solid renkli resim katmanı ekler. |
+| `Style` | `cell.Style` | Style defines the background fill color and default styling for the block. |
+| `Child` | `Widget` | Child is the subordinate visual component rendered within the block. |
+| `Opaque` | `bool` | Opaque, if true, adds a solid color layer to prevent background terminal graphics from leaking through. |
 
 ## Canvas
 
-Canvas, hücre başına 2x4 sanal piksel çözünürlüğünde (Braille karakterleri kullanarak) terminal üzerinde yüksek çözünürlüklü vektör çizimleri yapmayı sağlayan görsel bileşendir.
+Canvas is a visual component enabling high-resolution vector rendering on the terminal at 2x4 virtual sub-pixels per cell using Braille glyphs.
 
-`RenderWidget` çağrısında kullanılacak tip: `*Canvas`
+Type to pass to `RenderWidget`: `*Canvas`
 
-_Alanı yok._
+_No fields._
 
 ## Checkbox
 
-Checkbox, işaretlenebilir interaktif bir onay kutusudur.
+Checkbox is an interactive check box widget.
 
-`RenderWidget` çağrısında kullanılacak tip: `Checkbox`
+Type to pass to `RenderWidget`: `Checkbox`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Checked` | `*bool` |  |
@@ -148,9 +147,9 @@ Checkbox, işaretlenebilir interaktif bir onay kutusudur.
 
 ColorPicker is a rich, KDE / desktop-style 2D HSV graphical color picker.
 
-`RenderWidget` çağrısında kullanılacak tip: `ColorPicker`
+Type to pass to `RenderWidget`: `ColorPicker`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*ColorPickerState` |  |
@@ -160,11 +159,11 @@ ColorPicker is a rich, KDE / desktop-style 2D HSV graphical color picker.
 
 ## CommandPalette
 
-CommandPalette, Komut Paleti overlay widget'ıdır.
+CommandPalette is an interactive command palette overlay widget.
 
-`RenderWidget` çağrısında kullanılacak tip: `CommandPalette`
+Type to pass to `RenderWidget`: `CommandPalette`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*CommandPaletteState` |  |
@@ -179,9 +178,9 @@ CommandPalette, Komut Paleti overlay widget'ıdır.
 
 DevTools renders the in-terminal developer inspection dashboard.
 
-`RenderWidget` çağrısında kullanılacak tip: `DevTools`
+Type to pass to `RenderWidget`: `DevTools`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `State` | `*DevToolsState` |  |
 | `Style` | `cell.Style` |  |
@@ -190,9 +189,9 @@ DevTools renders the in-terminal developer inspection dashboard.
 
 Dialog is a premium, modern glassmorphism dialog widget with glowing gradient borders and blended shadows.
 
-`RenderWidget` çağrısında kullanılacak tip: `Dialog`
+Type to pass to `RenderWidget`: `Dialog`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Title` | `string` |  |
@@ -211,31 +210,31 @@ Dialog is a premium, modern glassmorphism dialog widget with glowing gradient bo
 
 ## Image
 
-Image, terminalde yerel görsel protokolleri (Kitty, Sixel, iTerm2) kullanarak PNG/JPG gibi gerçek resimleri çizebilen TUI bileşenidir.
+Image is a TUI component capable of rendering true images (PNG/JPG) using native terminal graphics protocols (Kitty, Sixel, iTerm2).
 
-`RenderWidget` çağrısında kullanılacak tip: `*Image`
+Type to pass to `RenderWidget`: `*Image`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `ID` | `string` | ID, widget odak kimliğidir. |
-| `Img` | `image.Image` | Img, gösterilecek olan ham resim nesnesidir. |
-| `ZIndex` | `int` | ZIndex, resmin dikey katman yerleşim sırasıdır. |
-| `ForceHalfBlock` | `bool` | ForceHalfBlock, aktif edilirse donanımsal protokoller yerine hücre tabanlı half-block yöntemini zorlar. |
-| `CircleMask` | `bool` | CircleMask, resmi daire şeklinde kırpar (avatar). |
+| `ID` | `string` | ID is the widget focus identifier. |
+| `Img` | `image.Image` | Img is the raw image object to display. |
+| `ZIndex` | `int` | ZIndex is the vertical layer stacking order of the image. |
+| `ForceHalfBlock` | `bool` | ForceHalfBlock, if enabled, forces cell-based half-block rendering instead of hardware protocols. |
+| `CircleMask` | `bool` | CircleMask clips the image into a circular mask (e.g. for avatars). |
 | `OpaqueBackground` | `bool` | OpaqueBackground composites transparency over Background before native rendering. |
 | `Background` | `cell.Color` |  |
-| `Transparent` | `bool` | Transparent, resmin şeffaf piksellerinin korunup korunmayacağını belirtir. |
-| `Opacity` | `float64` | Opacity, resmin opaklık değeridir (0.0 ile 1.0 arasında). |
-| `OpacitySet` | `bool` | OpacitySet, Opacity alanının bilinçli olarak ayarlandığını belirtir. |
-| `FocusedStyle` | `cell.Style` | FocusedStyle, odaklandığında uygulanacak kenar/vurgu stilidir. |
+| `Transparent` | `bool` | Transparent specifies whether transparent pixels of the image should be preserved. |
+| `Opacity` | `float64` | Opacity is the opacity value of the image (between 0.0 and 1.0). |
+| `OpacitySet` | `bool` | OpacitySet indicates that the Opacity field has been explicitly configured. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle is the border/highlight style applied when focused. |
 
 ## LineChart
 
 LineChart renders smooth Braille-based multi-series line graphs with labeled axes.
 
-`RenderWidget` çağrısında kullanılacak tip: `LineChart`
+Type to pass to `RenderWidget`: `LineChart`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Datasets` | `[]LineDataset` |  |
@@ -250,57 +249,57 @@ LineChart renders smooth Braille-based multi-series line graphs with labeled axe
 
 ## List
 
-List, terminal ekranında liste şeklinde dikey öğeler çizen interaktif widget'tır.
+List is an interactive widget rendering vertical items in a list format.
 
-`RenderWidget` çağrısında kullanılacak tip: `List`
+Type to pass to `RenderWidget`: `List`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `ID` | `string` | ID, listenin odaklanma ve kimlik belirleme kimliğidir. |
-| `Items` | `[]string` | Items, listede gösterilecek olan metin dizilimleridir. |
-| `Provider` | `ListProvider` | Provider, sanal liste (virtual scrolling) için veri sağlayıcıdır. |
-| `Scrollbar` | `bool` | Scrollbar, aktif edilirse listenin sağ kenarında bir dikey kaydırma çubuğu çizer. |
-| `ScrollbarTrackStyle` | `cell.Style` | ScrollbarTrackStyle, kaydırma çubuğu rayının (track) stilidir. |
-| `ScrollbarThumbStyle` | `cell.Style` | ScrollbarThumbStyle, kaydırma çubuğu kaydırıcısının (thumb) stilidir. |
-| `Style` | `cell.Style` | Style, listenin genel rengini ve yazı stilini belirtir. |
-| `FocusedStyle` | `cell.Style` | FocusedStyle, liste odağa sahip olduğunda uygulanacak stildir. |
-| `SelectedStyle` | `cell.Style` | SelectedStyle, seçili olan öğenin vurgulanacağı stildir. |
-| `HighlightSymbol` | `string` | HighlightSymbol, seçili olan öğenin soluna yerleştirilecek semboldür (örn: "> "). |
-| `State` | `*ListState` | State, listenin seçili indeksi ve kaydırma durumunu tutan işaretçidir (pointer). |
+| `ID` | `string` | ID is the focus and identification ID of the list. |
+| `Items` | `[]string` | Items are the string items displayed in the list. |
+| `Provider` | `ListProvider` | Provider is the data provider for virtual scrolling. |
+| `Scrollbar` | `bool` | Scrollbar, if enabled, renders a vertical scrollbar on the right edge of the list. |
+| `ScrollbarTrackStyle` | `cell.Style` | ScrollbarTrackStyle is the style for the scrollbar track. |
+| `ScrollbarThumbStyle` | `cell.Style` | ScrollbarThumbStyle is the style for the scrollbar thumb. |
+| `Style` | `cell.Style` | Style defines the overall color and typography of the list. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle is the style applied when the list is focused. |
+| `SelectedStyle` | `cell.Style` | SelectedStyle is the style used to highlight the currently selected item. |
+| `HighlightSymbol` | `string` | HighlightSymbol is the symbol placed to the left of the selected item (e.g. "> "). |
+| `State` | `*ListState` | State is the pointer maintaining the selected index and scroll offset of the list. |
 
 ## Markdown
 
-`RenderWidget` çağrısında kullanılacak tip: `*Markdown`
+Type to pass to `RenderWidget`: `*Markdown`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
-| `Content` | `string` | Content, parse edilip çizilecek olan ham markdown metnidir. |
-| `Style` | `cell.Style` | Style, varsayılan metin stilini tanımlar. |
+| `Content` | `string` | Content is the raw markdown string to parse and render. |
+| `Style` | `cell.Style` | Style defines the default text style. |
 | `FocusedStyle` | `cell.Style` |  |
 | `ScrollOffset` | `*int` |  |
 
 ## Paragraph
 
-Paragraph, çok satırlı metinleri gösteren görsel bileşendir.
+Paragraph is a visual component for displaying multi-line text.
 
-`RenderWidget` çağrısında kullanılacak tip: `*Paragraph`
+Type to pass to `RenderWidget`: `*Paragraph`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `ID` | `string` | ID, widget odak kimliğidir. |
-| `Text` | `string` | Text, gösterilecek olan metin içeriğidir. |
-| `Style` | `cell.Style` | Style, metnin yazı rengi, arka planı ve modifikatör stillerini belirler. |
-| `FocusedStyle` | `cell.Style` | FocusedStyle, paragraf odaklandığında uygulanacak stildir. |
-| `Wrap` | `bool` | Wrap, metnin sınır genişliğine göre otomatik olarak alt satıra kaydırılıp kaydırılmayacağını belirler. |
+| `ID` | `string` | ID is the widget focus identifier. |
+| `Text` | `string` | Text is the text content to display. |
+| `Style` | `cell.Style` | Style determines text color, background color, and modifier styles. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle is the style applied when the paragraph is focused. |
+| `Wrap` | `bool` | Wrap determines whether text is automatically wrapped to fit bounded width. |
 
 ## PieChart
 
 PieChart renders pie and donut charts using Braille subpixels and color legends.
 
-`RenderWidget` çağrısında kullanılacak tip: `PieChart`
+Type to pass to `RenderWidget`: `PieChart`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Data` | `[]PieSlice` |  |
@@ -311,30 +310,30 @@ PieChart renders pie and donut charts using Braille subpixels and color legends.
 
 ## Popup
 
-Popup, açılır menü (dropdown) widget'ıdır.
+Popup is an interactive dropdown menu widget.
 
-`RenderWidget` çağrısında kullanılacak tip: `Popup`
+Type to pass to `RenderWidget`: `Popup`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `ID` | `string` | ID, popup'ın benzersiz tanımlayıcısıdır. |
-| `Label` | `string` | Label, buton üzerindeki başlangıç metnidir. |
-| `Items` | `[]PopupItem` | Items, menüdeki öğelerin listesidir. |
-| `State` | `*PopupState` | State, popup'ın açık/kapalı ve seçim durumunu yönetir. |
-| `Style` | `cell.Style` | Style, buton ve menü arka plan stilini belirler. |
-| `ItemStyle` | `cell.Style` | ItemStyle, menü öğelerinin normal stilini belirler. |
-| `SelectedStyle` | `cell.Style` | SelectedStyle, menü öğesinin fare sobre kaldığında/klavye ile seçili olduğundaki stilidir. |
-| `DisabledStyle` | `cell.Style` | DisabledStyle, devre dışı bırakılmış menü öğelerinin stilidir. |
-| `BorderStyle` | `cell.Style` | BorderStyle, menü kenarlığının stilini belirler. |
-| `BorderSymbols` | `BorderSymbols` | BorderSymbols, menü kenarlık sembollerini belirler. |
+| `ID` | `string` | ID is the unique identifier of the popup. |
+| `Label` | `string` | Label is the initial text displayed on the button. |
+| `Items` | `[]PopupItem` | Items is the list of items in the dropdown menu. |
+| `State` | `*PopupState` | State manages the open/closed state and selection of the popup. |
+| `Style` | `cell.Style` | Style defines the button and menu background style. |
+| `ItemStyle` | `cell.Style` | ItemStyle defines the default style for menu items. |
+| `SelectedStyle` | `cell.Style` | SelectedStyle is the style applied when a menu item is hovered or selected via keyboard. |
+| `DisabledStyle` | `cell.Style` | DisabledStyle is the style for disabled menu items. |
+| `BorderStyle` | `cell.Style` | BorderStyle defines the border style of the menu. |
+| `BorderSymbols` | `BorderSymbols` | BorderSymbols defines the border glyph set. |
 
 ## ProgressBar
 
 ProgressBar renders a bounded horizontal progress indicator.
 
-`RenderWidget` çağrısında kullanılacak tip: `ProgressBar`
+Type to pass to `RenderWidget`: `ProgressBar`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Value` | `float64` |  |
@@ -348,11 +347,11 @@ ProgressBar renders a bounded horizontal progress indicator.
 
 ## RadioButton
 
-RadioButton, çoklu seçenek gruplarında tekil seçim yapmayı sağlayan radyo butonudur.
+RadioButton is a widget for selecting a single option from a group of choices.
 
-`RenderWidget` çağrısında kullanılacak tip: `RadioButton`
+Type to pass to `RenderWidget`: `RadioButton`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Selected` | `*string` |  |
@@ -365,9 +364,9 @@ RadioButton, çoklu seçenek gruplarında tekil seçim yapmayı sağlayan radyo 
 
 Select is a keyboard- and mouse-interactive dropdown field.
 
-`RenderWidget` çağrısında kullanılacak tip: `Select`
+Type to pass to `RenderWidget`: `Select`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Options` | `[]string` |  |
@@ -386,9 +385,9 @@ Select is a keyboard- and mouse-interactive dropdown field.
 
 Slider is a horizontal mouse- and keyboard-controlled numeric slider.
 
-`RenderWidget` çağrısında kullanılacak tip: `Slider`
+Type to pass to `RenderWidget`: `Slider`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*SliderState` |  |
@@ -405,23 +404,23 @@ Slider is a horizontal mouse- and keyboard-controlled numeric slider.
 
 ## Sparkline
 
-`RenderWidget` çağrısında kullanılacak tip: `Sparkline`
+Type to pass to `RenderWidget`: `Sparkline`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
-| `ID` | `string` | ID, widget odak kimliğidir. |
-| `Data` | `[]float64` | Data, çizilecek veri geçmişini temsil eden sayılar dizisidir. |
-| `Style` | `cell.Style` | Style, varsayılan hücre stilini tanımlar. |
-| `FocusedStyle` | `cell.Style` | FocusedStyle, odaklandığında uygulanacak stildir. |
-| `Color` | `cell.Color` | Color, barların rengini belirler. |
+| `ID` | `string` | ID is the widget focus identifier. |
+| `Data` | `[]float64` | Data is a slice of numerical values representing historical data trend. |
+| `Style` | `cell.Style` | Style defines the default cell style. |
+| `FocusedStyle` | `cell.Style` | FocusedStyle is the style applied when focused. |
+| `Color` | `cell.Color` | Color sets the color of the sparkline bars. |
 
 ## Table
 
-Table, interaktif, esnek sütunlu, dikey kaydırılabilir ve hücre birleştirme destekli tablo bileşenidir.
+Table is an interactive, flex-column, vertically scrollable table component with cell-spanning support.
 
-`RenderWidget` çağrısında kullanılacak tip: `Table`
+Type to pass to `RenderWidget`: `Table`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Header` | `*TableRow` |  |
@@ -444,9 +443,9 @@ Table, interaktif, esnek sütunlu, dikey kaydırılabilir ve hücre birleştirme
 
 Text renders multiple rich-text lines with optional cell-aware wrapping.
 
-`RenderWidget` çağrısında kullanılacak tip: `Text`
+Type to pass to `RenderWidget`: `Text`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Lines` | `[]Line` |  |
@@ -459,9 +458,9 @@ Text renders multiple rich-text lines with optional cell-aware wrapping.
 
 TextArea is a multiline focusable text editor.
 
-`RenderWidget` çağrısında kullanılacak tip: `TextArea`
+Type to pass to `RenderWidget`: `TextArea`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*TextAreaState` |  |
@@ -470,11 +469,11 @@ TextArea is a multiline focusable text editor.
 
 ## TextInput
 
-TextInput, tek satırlı bir metin girişi kutusudur.
+TextInput is an interactive single-line text input field.
 
-`RenderWidget` çağrısında kullanılacak tip: `TextInput`
+Type to pass to `RenderWidget`: `TextInput`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*TextInputState` |  |
@@ -487,9 +486,9 @@ TextInput, tek satırlı bir metin girişi kutusudur.
 
 ToastManager manages a stack of auto-dismissing toast notifications.
 
-`RenderWidget` çağrısında kullanılacak tip: `*ToastManager`
+Type to pass to `RenderWidget`: `*ToastManager`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `Toasts` | `[]*ToastItem` |  |
 | `Position` | `ToastPosition` |  |
@@ -497,9 +496,9 @@ ToastManager manages a stack of auto-dismissing toast notifications.
 
 ## Transducer
 
-`RenderWidget` çağrısında kullanılacak tip: `Transducer`
+Type to pass to `RenderWidget`: `Transducer`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `Child` | `Widget` |  |
 | `Type` | `TransducerType` |  |
@@ -509,9 +508,9 @@ ToastManager manages a stack of auto-dismissing toast notifications.
 
 TreeView renders a hierarchical collapsible tree with guide lines and selection.
 
-`RenderWidget` çağrısında kullanılacak tip: `TreeView`
+Type to pass to `RenderWidget`: `TreeView`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `Roots` | `[]TreeNode` |  |
@@ -527,9 +526,9 @@ TreeView renders a hierarchical collapsible tree with guide lines and selection.
 
 Viewer3D is a high-level widget that renders 3D models with rotation, lighting, shading (Wireframe, Solid, Lambertian, Gouraud), and texture mapping.
 
-`RenderWidget` çağrısında kullanılacak tip: `*Viewer3D`
+Type to pass to `RenderWidget`: `*Viewer3D`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` | ID is the widget focus identifier. |
 | `Model` | `graphics.Model3D` | Model is the 3D geometry to render. |
@@ -540,7 +539,7 @@ Viewer3D is a high-level widget that renders 3D models with rotation, lighting, 
 | `RotZ` | `float64` |  |
 | `Distance` | `float64` | Distance is the camera distance from the object (default: 3.5). |
 | `Scale` | `float64` | Scale is the zoom/scale multiplier (default: 1.0). |
-| `Shading` | `string` | Shading mode: "Dokulu" (Texture mapped), "Wireframe", "Dolu Renkli" (Flat), "Gölgeli" (Lambertian), "Gouraud" (Smooth interpolated). |
+| `Shading` | `string` | Shading mode: "textured" (Texture mapped), "wireframe", "solid" (Flat), "shaded" (Lambertian), "gouraud" (Smooth interpolated). |
 | `Wireframe` | `bool` | Wireframe overlays edges on top of shaded faces. |
 | `WireframeStyle` | `cell.Style` | WireframeStyle is the cell style for wireframe lines. |
 | `FocusedStyle` | `cell.Style` | FocusedStyle is applied to wireframe/highlight when the viewer is focused. |
@@ -551,9 +550,9 @@ Viewer3D is a high-level widget that renders 3D models with rotation, lighting, 
 
 VirtualDataView renders the visible portion of a VirtualDataState cache.
 
-`RenderWidget` çağrısında kullanılacak tip: `VirtualDataView`
+Type to pass to `RenderWidget`: `VirtualDataView`
 
-| Alan | Tip | Açıklama |
+| Field | Type | Description |
 | --- | --- | --- |
 | `ID` | `string` |  |
 | `State` | `*VirtualDataState` |  |

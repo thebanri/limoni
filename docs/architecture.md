@@ -1,102 +1,102 @@
-# 🏛️ Mimari ve Sıfır-Tahsisat Felsefesi (Architecture)
+# 🏛️ Architecture and Zero-Allocation Philosophy
 
-Limoni, piyasadaki geleneksel TUI kütüphanelerinin (Bubble Tea, Tview vb.) karşılaştığı iki temel darboğazı çözmek üzere sıfırdan tasarlanmıştır:
-1. **Garbage Collector (GC) Yükü ve Bellek Tahsisatı**: Her render karesinde yüzlerce string ve slice tahsis edilmesi terminalde mikro takılmalara yol açar.
-2. **Bant Genişliği ve ANSI Kaçış Kodu Şişkinliği**: Tüm ekranı her karede baştan çizmek, uzaktan (SSH/PTY) veya yüksek çözünürlüklü terminallerde yüksek gecikme yaratır.
+Limoni is built from the ground up to solve two fundamental bottlenecks common in traditional TUI libraries (Bubble Tea, Tview, etc.):
+1. **Garbage Collector (GC) Overhead & Heap Allocations**: Allocating hundreds of strings, closures, and slices on every frame causes noticeable micro-stuttering and unpredictable GC pauses.
+2. **Bandwidth and ANSI Escape Sequence Bloat**: Redrawing the entire terminal frame on every tick incurs high latency, especially over remote sessions (SSH/PTY) or on high-resolution displays.
 
 ---
 
-## 1. 1D Düz Bellek Izgarası (`1D Flat Slice []cell.Cell`)
+## 1. 1D Contiguous Memory Grid (`1D Flat Slice []cell.Cell`)
 
-Geleneksel matris yaklaşımları `[][]Cell` (slice of slices) kullanarak her satır için ayrı bir pointer ve heap tahsisi gerektirir. Bu durum CPU önbelleğinde (L1/L2 Cache) sürekli **Cache Miss** yaratır.
+Conventional matrix implementations often use `[][]Cell` (slice of slices), requiring separate heap allocations and pointers for each row. This layout causes frequent CPU cache misses (L1/L2) due to scattered memory addresses.
 
-Limoni, tüm ekranı ardışık ve düz bir `[]cell.Cell` dizisi olarak saklar:
+Limoni stores the entire screen buffer as a single, contiguous `[]cell.Cell` array:
 
 ```
-Bellek Düzeni:
+Memory Layout:
 [ (0,0), (1,0), (2,0), ... (W-1,0), (0,1), (1,1), ... (W-1, H-1) ]
 ```
 
-- **İndeksleme Formülü**: `Index = y * Width + x`
-- **CPU Verimliliği**: Ardışık bellek erişimi sayesinde CPU donanımsal önceden yükleyicisi (Hardware Prefetcher) hücreleri doğrudan L1 önbelleğine aktarır.
+- **Indexing Formula**: `Index = y * Width + x`
+- **CPU Cache Line Efficiency**: Contiguous sequential memory access enables hardware prefetchers to stream cells directly into L1 CPU cache lines with zero indirection.
 
 ---
 
-## 2. Hücre Yapısı ve Bellek Hizalaması (`cell.Cell`)
+## 2. Cell Structure and Memory Alignment (`cell.Cell`)
 
-Her bir hücre (`cell.Cell`), bellek ayak izini minimumda tutmak için 16 baytlık optimize bir veri yapısına sahiptir:
+Each `cell.Cell` is optimized into an exact 16-byte aligned data structure to minimize memory footprint:
 
 ```go
 type Cell struct {
-    Content rune    // 4 bayt: Unicode karakter (UTF-32)
-    Style   Style   // 10 bayt: (4 bayt Fg + 4 bayt Bg + 2 bayt Modifier)
-                    // + 2 bayt Go derleyici hizalaması (Alignment padding) = Toplam 16 bayt.
+    Content rune    // 4 bytes: Unicode code point (UTF-32)
+    Style   Style   // 10 bytes: (4 bytes Fg + 4 bytes Bg + 2 bytes Modifier)
+                    // + 2 bytes compiler alignment padding = 16 bytes total.
 }
 ```
 
-- 120 sütun x 40 satırlık standart bir terminal penceresi (`4,800 hücre`) bellekte yalnızca **76.8 KB** yer kaplar.
+- A standard terminal window of 120 columns x 40 rows (`4,800 cells`) requires only **76.8 KB** of memory.
 
 ---
 
-## 3. Çift Tamponlu Senkronize ANSI Diff Motoru (`buffer.Diff`)
+## 3. Double-Buffered Synchronized ANSI Diff Engine (`buffer.Diff`)
 
-Limoni, grafik kartlarının çalışma mantığına benzer şekilde iki tampon tutar:
-- **Front Buffer**: Mevcut karede widget'ların üzerine çizim yaptığı aktif tampon.
-- **Back Buffer**: Terminal ekranında o an fiziksel olarak çizili duran tampon.
+Operating similarly to modern graphics pipelines, Limoni maintains two dedicated buffers:
+- **Front Buffer**: The active buffer where widgets and components render during the current frame.
+- **Back Buffer**: The snapshot representing the exact physical state currently displayed on the terminal.
 
 ```mermaid
 sequenceDiagram
-    participant W as Widgets (Draw)
+    participant W as Widgets / Components (Draw)
     participant F as Front Buffer
     participant D as Diff Engine
     participant T as Real Terminal (stdout/SSH)
     participant B as Back Buffer
 
-    W->>F: Hücreleri Yaz (SetCell / SetString)
-    F->>D: Karşılaştır (buffer.Diff)
-    D->>D: Yalnızca Değişen Hücreleri Bul
-    D->>T: Minimum ANSI Kaçış Kodlarını Gönder
-    D->>B: Back Buffer'ı Güncelle (Copy)
+    W->>F: Write Cells (SetCell / SetString)
+    F->>D: Compare (buffer.Diff)
+    D->>D: Identify Changed Cells Only
+    D->>T: Emit Minimal ANSI Escape Sequences
+    D->>B: Synchronize Back Buffer (Copy)
 ```
 
-### Senkronize Ekran Yenileme (`?2026h`)
-Modern terminallerin (Alacritty, Kitty, WezTerm, Ghostty, iTerm2, Windows Terminal) desteklediği **Synchronized Output Mode (`\x1b[?2026h`)** protokolü sayesinde ekranda hiçbir yırtılma (tearing) veya titreme (flicker) yaşanmaz.
+### Synchronized Output Protocol (`?2026h`)
+Terminals supporting the **Synchronized Output Mode (`\x1b[?2026h`)** protocol (such as Alacritty, Kitty, WezTerm, Ghostty, iTerm2, and Windows Terminal) render frame updates atomically, completely eliminating screen tearing and flickering.
 
 ---
 
-## 4. Sıfır-Tahsisat (Zero-Alloc) Benchmark İspatı
+## 4. Zero-Allocation Benchmark Evidence
 
-Limoni'nin render sıcak yolunda (Hot Path) bellek tahsisatı yapmadığı mikrosaniye düzeyinde doğrulanmıştır:
+Limoni's rendering hot paths are rigorously benchmarked to verify zero heap allocations per frame:
 
-| İş Yükü | Limoni Gecikmesi | Bellek / İşlem | Tahsisat / İşlem |
+| Workload | Limoni Latency | Memory / Op | Allocations / Op |
 | :--- | :--- | :--- | :--- |
-| **Boş Çerçeve (Empty Frame)** | `11.5 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **Metin Ağırlıklı Çerçeve (Text Frame)** | `4.8 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **10.000 Satırlı Sanal Tablo** | `41.2 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **100 Katmanlı Z-Index Modal Derinliği** | `40.1 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **Fare Tıklama & Hit-Testing** | `63.5 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
-| **Asenkron Update Burst (1000 Event)** | `204.0 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **Empty Frame** | `11.5 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **Text-Heavy Frame** | `4.8 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **10,000-Row Virtual Table** | `41.2 µs/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **100-Layer Z-Index Modal Stack** | `40.1 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **Mouse Hit-Testing** | `63.5 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
+| **Async Update Burst (1000 Events)** | `204.0 ns/op` | **`0 B/op`** | **`0 allocs/op`** |
 
 ---
 
-## 5. Unicode Doğu Asya Genişliği & İmleç Senkronizasyonu
+## 5. Unicode East Asian Width & Hardware Cursor Sync
 
-Terminallerde emojiler (`🔴`, `🚀`, `☕`) ve Doğu Asya karakterleri 2 sütun kaplarken, dar semboller (`✓`, `⚠`) 1 sütun kaplar. Yanlış genişlik hesaplamaları donanım imlecinin kütüphanedeki imleç takibinden kopmasına ve satırın devamındaki dikey kenarlıkların (`│`) sola kaymasına yol açar:
+Emojis (`🔴`, `🚀`, `☕`) and fullwidth characters take up 2 terminal columns, while narrow glyphs take 1 column. Incorrect width calculations can misalign the hardware cursor and shift vertical borders (`│`):
 
-- **Kesin EAW Standardı**: `core/cell/cell.go` tablosu Unicode East Asian Width (`W`/`F`) standardına göre çalışır.
-- **Devam Hücresi Koruması (`RuneContinuation`)**: Geniş karakterlerin sağ yarısı `RuneContinuation` hücresiyle işaretlenir.
-- **Modal Sürükleme İptali**: Modal veya dialog pencereleri geniş karakterlerin üzerinden geçerken oluşan yetim devam hücreleri `buf.SetCellDirect` ile temizlenir; pencere sürüklendiğinde `diff.go` tarayıcısı geniş karakteri zorla terminale yeniden çizdirerek hayalet kenarlık (ghost border) kalıntılarını sıfırlar.
-
----
-
-## 6. Runtime Güvenliği & Deterministik Komut Döngüsü
-
-- **Deterministik Sıralama**: `Cmd` komutları çalışan goroutine'lerde asenkron yürütülür, ancak sonuçları modele kesin gönderiliş sırasıyla teslim edilir.
-- **İptal Önceliği**: Bağlam iptal edildiğinde (`ctx.Done()`) veya program durdurulduğunda gecikmiş komut sonuçları hemen elenir; modelin kapatılmış durumda güncellenmesi engellenir.
-- **Panik Yalıtımı**: Kullanıcı komutlarındaki panikler yakalanarak ana uygulamanın çökmesi önlenir.
+- **Strict EAW Standard**: Character width resolution adheres to the Unicode East Asian Width (`W`/`F`) specification.
+- **Continuation Cell Protection (`RuneContinuation`)**: The right half of fullwidth characters is tagged with a `RuneContinuation` marker.
+- **Modal Overlap Protection**: When floating windows or dialogs move across fullwidth characters, orphan continuation cells are safely cleared. The diff engine forces full redraw of bisected characters, preventing ghost border artifacts.
 
 ---
 
-## 7. Kök Paket Cephesi (`github.com/thebanri/limoni`)
+## 6. Engine Safety & Deterministic Command Dispatch
 
-Geliştiricilerin çoklu paket bağımlılığıyla uğraşmasını önlemek için tüm çekirdek türler, akıcı widget yapıcıları, yerleşim fonksiyonları ve başlatıcılar tek bir kök paket (`package limoni`) altında toplanmıştır.
+- **Deterministic Ordering**: `Cmd` commands execute asynchronously across worker goroutines, but their results are buffered and delivered to `Update` in strict dispatch sequence order.
+- **Strict Cancellation Precedence**: When context cancellation (`ctx.Done()`) or shutdown occurs, pending command results and queued messages are immediately discarded, preventing state mutation after termination.
+- **Panic Isolation**: Panics in user commands or models are intercepted via `WithPanicHandler`, keeping the host application resilient.
+
+---
+
+## 7. Unified Root Facade (`github.com/thebanri/limoni`)
+
+To eliminate complex nested package imports for everyday development, core primitives, widget builders, layout engines, and runtime launchers are re-exported through the root `package limoni`.

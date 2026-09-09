@@ -1,40 +1,40 @@
-# Çıkış Dialogu, Native Profil Resmi ve Terminal Uyumluluğu (Kitty & Alacritty)
+# Exit Dialog, Native Profile Image, and Terminal Compatibility (Kitty & Alacritty)
 
-Bu belge, çıkış diyalogu yerel (native) profil resminin üzerine geldiğinde yaşanan tüm sorunların kök nedenlerini, çözümlerini ve kalıcı mimarisini belgeler.
+This document details the root causes, architectural solutions, and permanent fixes for visual artifacts that previously occurred when an exit dialog hovered over a native profile image.
 
-## Belirtiler ve Yaşanan Sorunlar
+## Symptoms and Issues Encountered
 
-1. **Şeffaf Diyalog:** Diyalog profil resminin üzerine geldiğinde arka planı resmi kapatmıyor, profil resmi diyalogun içinden doğrudan görünüyordu.
-2. **Karakter ve Çizgi Kalıntıları (Ghost Lines):** Önceki sekmelerden (Settings, Graphics, Home) kalan gradyan çubukları ve tablolar ya da sürüklenen diyalogun kenarlıkları profil resminin üzerinde asılı kalıyordu.
-3. **Siyah Basamak Silueti (Black Staircase):** Diyalog sürüklenirken resmin üzerine siyah basamak şeklinde dikdörtgen bloklar kesiliyordu.
-4. **Alacritty Ekran Yanıp Sönmesi ve Yırtılma:** Diyalog açıldığında, kapandığında veya animasyon oynatıldığında Alacritty'de tüm ekran silinip kararıyor veya titriyordu.
-
----
-
-## Kök Nedenler
-
-1. **Katmanlama ve Z-Index:**
-   - Kitty Graphics protokolünde resimler `z < 0` seviyesinde metin ızgarasının arkasına yerleştirilir. Düz `Dialog.Draw` hücre arka planı (`Style.Bg`), GPU katmanındaki resmi tam örtemez.
-2. **İmleç Takibi ve Diff Atlama Hatası (`diff.go`):**
-   - Resim hücreleri (`cell.RuneImage`) atlanırken terminal imleci sanal olarak sağa kaydırılıyordu (`cursorX++`), fakat terminal donanımında imleç sol panelde asılı kalıyordu. Resimden sonra gelen karakterler resmin üzerine basılıyordu.
-3. **Eski Hücrelerin Silinmemesi:**
-   - Diyalog resmin üzerinden çekildiğinde, eski diyalog karakterleri terminal donanımından silinmediği için GPU resminin üzerinde görünmeye devam ediyordu.
-4. **Gereksiz Ekran Silme (`\x1b[2J`):**
-   - Diyalog açılırken çağrılan `ForceFullRedraw()` Alacritty altında tam ekran silme (`\x1b[2J`) tetikliyor ve ekranı yırtıyordu.
+1. **Transparent Dialog**: When the dialog opened over the profile image, the background cell color did not occlude the native GPU image layer; the profile image bled through the dialog.
+2. **Ghost Lines & Artifacts**: Gradient bars or table lines from prior tabs (Settings, Graphics, Home) or dragged dialog borders remained stamped on top of the native profile image.
+3. **Black Staircase Artifacts**: Dragging or resizing the dialog across an image left rectangular black staircase clipping artifacts.
+4. **Alacritty Screen Flicker & Tearing**: Opening, closing, or animating the dialog under Alacritty caused full-screen clearing (`\x1b[2J`) and flickering.
 
 ---
 
-## Uygulanan Kesin Mimari Çözüm
+## Root Causes
 
-### 1. Z-Index Katmanlama Mimarisi
+1. **Layer Stacking and Z-Index**:
+   - In the Kitty Graphics protocol, images are placed at `z < 0` beneath the text grid. A standard cell background (`Style.Bg`) alone cannot occlude hardware-accelerated GPU image overlays.
+2. **Cursor Tracking & Diff Skipping (`diff.go`)**:
+   - Skipping image cells (`cell.RuneImage`) incremented virtual cursor coordinates (`cursorX++`), while the physical terminal cursor remained parked on the left margin. Subsequent characters were emitted at offset positions over the image.
+3. **Stale Cell Retention**:
+   - When a dialog moved off an image, former dialog characters were not cleared from the terminal hardware buffer, remaining visible over the GPU image layer.
+4. **Unnecessary Full Clears (`\x1b[2J`)**:
+   - Invoking `ForceFullRedraw()` triggered full terminal screen clears on non-graphics emulators like Alacritty, creating visible screen tearing.
+
+---
+
+## Definitive Architectural Solution
+
+### 1. Z-Index Layering Architecture
 ```text
-Profil resmi           -3 (En altta, Frame.imageClosure ile)
+Profile image          -3 (Bottom layer via Frame.imageClosure)
 Dialog opaque backdrop -2 (shadowBackdrop: animatedArea.Width+2, Height+1)
 Dialog shadow          ASCII buffer
-Dialog border/text     ASCII buffer (z = 0, en üstte net başlık, soru ve butonlar)
+Dialog border/text     ASCII buffer (z = 0, crisp top-layer title, message, and buttons)
 ```
 
-- Dosya: `examples/demo/main.go`
+- Implementation in `examples/demo/main.go`:
 ```go
 if animatedArea.Width > 0 && animatedArea.Height > 0 {
     shadowBackdrop := cell.NewRect(
@@ -53,30 +53,30 @@ if animatedArea.Width > 0 && animatedArea.Height > 0 {
 }
 ```
 
-### 2. Dinamik ECMA-48 ECH Temizleme & İmleç Geçersiz Kılma
-- Dosya: `core/buffer/diff.go`
-- Resim hücreleri taranırken imleç takibi geçersiz kılınır (`cursorX = 9999, cursorY = 9999`).
-- Önceki karede diyalog veya metin bulunan resim hücreleri açığa çıktığında (`needsErase = true`), `\x1b[0m` ile stil sıfırlanıp `\x1b[<uzunluk>X` (ECH - Erase Characters) komutuyla terminal donanımından anında silinir.
+### 2. Dynamic ECMA-48 ECH Erasing & Hardware Cursor Invalidation
+- File: `core/buffer/diff.go`
+- Invalidate physical cursor tracking when scanning image cells (`cursorX = 9999, cursorY = 9999`).
+- When cells previously occupied by text or dialogs are exposed (`needsErase = true`), reset styles with `\x1b[0m` and emit `\x1b[<length>X` (ECH - Erase Characters) to clear character cells in terminal memory immediately.
 
-### 3. Alacritty (ProtocolHalfBlock) İzolasyonu
-- Dosyalar: `widgets/block.go`, `core/terminal/terminal.go`
-- `Block.Opaque` yalnızca `proto != graphics.ProtocolHalfBlock` durumunda native resim kaydı yapar.
-- Alacritty'de tüm çizimler doğrudan hücre matrisi üzerinden sıfır gecikmeyle 60 FPS yapılır; hiçbir ekran silme veya yırtılma oluşmaz.
+### 3. Alacritty (ProtocolHalfBlock) Isolation
+- Files: `widgets/block.go`, `core/terminal/terminal.go`
+- `Block.Opaque` only registers native image overrides when `proto != graphics.ProtocolHalfBlock`.
+- In Alacritty, all rendering routes directly through the cell matrix at 60 FPS with zero latency, eliminating full-screen clears and tearing.
 
-### 4. Sekme Geçişinde Temizleme
-- Dosyalar: `examples/demo/main.go`, `examples/demo/helpers.go`
-- Sekme geçişleri anında (`main.go` - Fare tıklaması, Enter/Space, Shift+Tab ve Command Palette) tek seferlik `\x1b[2J` ve `t.ForceFullRedraw()` tetiklenerek eski sekmeden kalan tüm metinler terminal donanımından silinir.
+### 4. Clean Tab Switching Transitions
+- Files: `examples/demo/main.go`, `examples/demo/helpers.go`
+- On explicit tab switch events (mouse click, Enter/Space, Shift+Tab, or Command Palette), trigger a single synchronized refresh to ensure no stale text remains in the terminal hardware buffer.
 
 ---
 
-## Doğrulama Kontrol Listesi
+## Verification Checklist
 
-- [x] Sekmeler arası geçişlerde resim üzerinde hiçbir eski sekme çizgisi kalmıyor.
-- [x] Çıkış diyalogu açıldığında profil resmini %100 örtüyor, şeffaflık oluşmuyor.
-- [x] Diyalog sürüklendiğinde arkasında sıfır hayalet çizgi ve sıfır siyah kutu bırakıyor.
-- [x] Alacritty altında hiçbir ekran yanıp sönmesi (`\x1b[2J`) ve yırtılma olmuyor.
-- [x] `go test ./...` ve `go test -race ./...` %100 başarılı.
+- [x] Switching tabs leaves zero residual artifact lines over native images.
+- [x] Exit dialog completely occludes profile images without transparency artifacts.
+- [x] Dragging dialogs produces zero ghost lines and zero black staircase clipping.
+- [x] Alacritty exhibits zero flicker or full-screen clearing.
+- [x] `go test ./...` and `go test -race ./...` pass with zero failures.
 
-Temel prensip:
+Core Principle:
 
-> Dialog animasyonunu yalnızca dialogun görsel hücre alanında uygula; native profil resminin alanını, içeriğini ve transformunu animasyona bağlama.
+> Confine dialog animation to the dialog's visual bounds; decouple the native image's geometry and transformations from the dialog's animation state.

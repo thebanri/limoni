@@ -201,6 +201,7 @@ go test ./benchmarks -run '^$' -bench . -benchmem
 
 | Dizin | Başlık | Çalıştırma |
 | :--- | :--- | :--- |
+| **[`examples/composable`](examples/composable)** | **Lego Mimarisi Composable UI (VStack, HStack, Border, Sıfır Allokasyon)** | `go run ./examples/composable` |
 | **[`examples/3d_viewer`](examples/3d_viewer)** | **3D Model & Shader Viewer** | `go run ./examples/3d_viewer` |
 | **[`examples/paint`](examples/paint)** | **Noktasal Paint & Çizim Stüdyosu** | `go run ./examples/paint` |
 | **[`examples/dashboard`](examples/dashboard)** | **Sistem Telemetri Paneli** | `go run ./examples/dashboard` |
@@ -220,6 +221,15 @@ Detaylı Türkçe rehberler için [docs/tr/ dizinine](docs/tr/README.md) göz at
 - [Çekirdek Motor API Referansı](docs/tr/core-api.md)
 - [Widget Kataloğu & Kullanım Kılavuzu](docs/tr/widgets-reference.md)
 - [Örnek Uygulamalar Rehberi](docs/tr/examples.md)
+
+---
+
+## 💡 Mühendislik Felsefesi & Teşekkür
+
+Limoni, Go ekosisteminde terminal performansının sınırlarını zorlamak ve Rust seviyesinde gecikme ve bellek determinizmini Go'ya kazandırmak amacıyla geliştirilmiştir.
+
+> [!NOTE]
+> AI tools were used for generating initial boilerplates, documentation drafts, and test cases, while the core architecture, memory layout, and debugging were directed and implemented by the author.
 
 ---
 

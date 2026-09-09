@@ -1,12 +1,12 @@
-# Limoni `benchmark-results` Klasörü — Uygulama Planı
+# Limoni `benchmark-results` Directory — Implementation Plan
 
-> Bu belge, `/home/thebanri/Projects/Limoni/benchmark-results` klasöründeki benchmark artifact'larını güvenilir, tekrarlanabilir ve yapay zekâ/kod ajanı tarafından uygulanabilir hale getirmek için hazırlanmıştır.
+> This document establishes the guidelines for making benchmark artifacts in `/home/thebanri/Projects/Limoni/benchmark-results` dependable, reproducible, and verifiable by automated workflows and coding agents.
 
-## 1. Kapsam ve mevcut durum
+## 1. Scope and Current Status
 
-Bu plan sonuç klasörünü, sonuç üretim akışını, dashboard doğruluğunu ve CI regression kontrolünü kapsar. Üretim kodu optimizasyonları, sonuç artifact'ları güvenilir hale getirildikten sonra yapılmalıdır.
+This plan covers the results directory, artifact generation pipeline, dashboard accuracy, and CI regression checks. Production code optimizations should only be performed once result artifacts are trustworthy and reproducible.
 
-Mevcut dosyalar:
+Existing files:
 
 - `README.txt`
 - `go-benchmark.txt`
@@ -16,198 +16,194 @@ Mevcut dosyalar:
 - `dashboard.html`
 - `limoni-baseline.json`
 
-### Kritik sorun
+### Critical Issue
 
-`/home/thebanri/Projects/Limoni/benchmark-results/limoni-baseline.json` dosyası 0 byte'tır. Geçerli JSON değildir ve baseline olarak kullanılamaz.
+The `/home/thebanri/Projects/Limoni/benchmark-results/limoni-baseline.json` file must not be 0 bytes or invalid JSON. A valid baseline or fallback must be in place so CI regression checks do not fail prematurely.
 
-İlk görev bu dosyayı gerçek baseline ile doldurmak veya yanlışlıkla oluşturulduysa silmektir. Boş baseline dosyası CI veya regresyon karşılaştırmasını bozmamalıdır.
+## 2. Interpretation of Current Benchmark Results
 
-## 2. Mevcut sonuçların yorumu
+### Strong Limoni Workloads
 
-### Güçlü Limoni workload'ları
+- `text-heavy-120x40`: ~16.6 µs p50
+- `unicode-emoji`: ~7.3 µs p50
+- `table-10000`: ~90 µs p50
+- `async-update-burst`: ~190 ns p50
+- `mouse-hit-test` and `hundred-layers`
 
-- `text-heavy-120x40`: yaklaşık 16.6 µs p50
-- `unicode-emoji`: yaklaşık 7.3 µs p50
-- `table-10000`: yaklaşık 90 µs p50
-- `async-update-burst`: yaklaşık 190 ns p50
-- `mouse-hit-test` ve `hundred-layers`
+### Priority Workloads
 
-### Öncelikli workload'lar
-
-| Workload | Limoni p50 | Öncelik | Yorum |
+| Workload | Limoni p50 | Priority | Notes |
 |---|---:|---:|---|
-| `empty-frame` | 2.67 µs | P1 | Bubble Tea'nın 50 ns değeri aynı işi ölçüyor mu doğrulanmalı |
-| `single-cell-update` | 8.45 µs | P1 | Dirty-region avantajı yeterince görünmüyor |
-| `full-redraw-120x40` | 29.64 µs | P2 | Buffer fill, diff ve encoding ayrılmalı |
-| `virtual-1000000` | yaklaşık 34.46 µs | P1 | Bubble Tea'dan yaklaşık 4.8× yavaş |
-| `resize` | 21.67 µs | P2 | Message-only ve gerçek resize ayrılmalı |
+| `empty-frame` | 2.67 µs | P1 | Verify whether Bubble Tea's 50 ns measures equivalent scope |
+| `single-cell-update` | 8.45 µs | P1 | Ensure dirty-region optimization is visible |
+| `full-redraw-120x40` | 29.64 µs | P2 | Profile buffer fill, diffing, and ANSI encoding separately |
+| `virtual-1000000` | ~34.46 µs | P1 | Investigate performance relative to baseline |
+| `resize` | 21.67 µs | P2 | Distinguish message-only handling from full reflow/redraw |
 
-### Karşılaştırma uyarısı
+### Comparison Caveats
 
-Üç runner aynı `manifest_hash` kullanıyor olsa da aynı isimli workload'lar aynı kod yolunu çalıştırmıyor olabilir:
+Even when all three runners report the same `manifest_hash`, identically named workloads may execute different code paths:
 
-- Limoni gerçek buffer/widget/diff yolunu ölçüyor.
-- Bubble Tea model/view ve string üretimini ölçüyor.
-- Ratatui bazı workload'larda farklı buffer/table işlemleri yapıyor.
-- Ratatui allocation değerlerinin bazı sonuçlarda `0` olması, Limoni ile aynı metodolojinin kullanılmadığını gösterir.
-- `native-image-capability`, `mouse-hit-test`, `resize` ve `async-update-burst` implementation-specific olarak ayrıca raporlanmalıdır.
+- Limoni benchmarks the real contiguous buffer, widget layout, and differential engine.
+- Bubble Tea benchmarks model updates and string generation.
+- Ratatui executes framework-specific buffer and table primitives.
+- If a runner reports `0` allocations due to lack of allocation profiling, it must not be conflated with zero-allocation memory guarantees.
+- `native-image-capability`, `mouse-hit-test`, `resize`, and `async-update-burst` should be reported with implementation-specific annotations.
 
-Dashboard tek bir koşulsuz `VALID COMPARISON` mesajı yerine workload bazlı status göstermelidir.
+The dashboard should present workload-specific comparison statuses rather than an unconditional `VALID COMPARISON` banner.
 
-## 3. Faz P0 — Artifact temizliği ve baseline standardı
+## 3. Phase P0 — Artifact Hygiene and Baseline Standards
 
-**Amaç:** Klasörde yalnızca geçerli, açıklanabilir ve kullanılabilir sonuçlar bulundurmak.
+**Goal:** Ensure the results directory contains only valid, documented, and reproducible data.
 
-### Hedef dosyalar
+### Target Files
 
 - `/home/thebanri/Projects/Limoni/benchmark-results/limoni-baseline.json`
 - `/home/thebanri/Projects/Limoni/benchmark-results/README.txt`
 - `/home/thebanri/Projects/Limoni/.github/workflows/benchmarks.yml`
 
-### Görevler
+### Tasks
 
-- [ ] `limoni-baseline.json` dosyasının 0 byte olma nedenini belirle.
-- [ ] Geçerli baseline üret veya dosyayı kaldır; boş dosyayı repository'de bırakma.
-- [ ] Baseline şemasını güncel runner JSON şemasıyla aynı yap.
-- [ ] Baseline metadata'sına commit, manifest hash, timestamp, OS, architecture, CPU, runtime/compiler, runner version, warmup ve iterations ekle.
-- [ ] `README.txt` dosyasını klasördeki her artifact'ın amacını açıklayacak şekilde güncelle.
-- [ ] Artifact üretim tarihini ve commit bilgisini görünür yap.
-- [ ] CI'da boş, geçersiz veya eksik JSON dosyalarını reddet.
+- [ ] Ensure `limoni-baseline.json` is non-empty and contains valid JSON.
+- [ ] Align baseline schema with current runner JSON output.
+- [ ] Include commit hash, manifest hash, timestamp, OS, architecture, CPU, runtime/compiler, runner version, warmup count, and iterations in metadata.
+- [ ] Update `README.txt` describing the role of each artifact.
+- [ ] Reject missing or corrupted JSON files during CI validation.
 
-### Kabul kriterleri
+### Acceptance Criteria
 
-- `benchmark-results/*.json` içindeki tüm dosyalar geçerli JSON'dır.
-- Boş baseline dosyası yoktur.
-- Baseline ve güncel sonuçlar aynı şemayı kullanır.
-- Her artifact hangi commit, manifest ve host üzerinde üretildiğini gösterir.
+- All files in `benchmark-results/*.json` are valid JSON.
+- No empty or unparseable baseline files exist.
+- Baselines and current results adhere to identical schemas.
+- Every artifact reflects its generating commit, manifest, and host environment.
 
-## 4. Faz P0 — JSON schema ve klasör validation
+## 4. Phase P0 — JSON Schema and Directory Validation
 
-**Amaç:** Eksik veya birbirinden farklı sonuçların dashboard'a ulaşmasını engellemek.
+**Goal:** Prevent malformed or mismatched benchmark reports from reaching the dashboard.
 
-### Zorunlu alanlar ve kontroller
+### Mandatory Fields and Checks
 
-- `implementation`, `environment`, `valid` ve `workloads` mevcut olmalı.
-- `manifest_hash`, `git_commit` ve `runner_version` mevcut olmalı.
-- Workload sayısı 12 olmalı.
-- Workload spec alanları bütün runner'larda aynı olmalı.
-- `Frames >= Iterations` olmalı.
-- `P50 <= P95 <= P99` olmalı.
-- Summary metrikleri negatif olmamalı.
+- `implementation`, `environment`, `valid`, and `workloads` must be present.
+- `manifest_hash`, `git_commit`, and `runner_version` must be defined.
+- Workload count must equal 12.
+- Workload spec definitions must be identical across all runners.
+- `Frames >= Iterations`.
+- `P50 <= P95 <= P99`.
+- Summary metrics must be non-negative.
 
-### Görevler
+### Tasks
 
-- [ ] JSON schema veya eşdeğer Go validation fonksiyonu ekle.
-- [ ] Workload adı, boyutu, rows, unicode, full_draw, mouse, async_burst, output mode, color mode ve iterations değerlerini karşılaştır.
-- [ ] Manifest hash uyuşmazlığında CI'ı başarısız yap.
-- [ ] CPU, OS, architecture, runtime ve build mode farklarını baseline karşılaştırmasında kontrol et.
-- [ ] Validation hatalarını dosya ve workload bilgisiyle yazdır.
+- [ ] Implement JSON schema or Go validation routines.
+- [ ] Verify workload name, dimensions, row counts, Unicode flags, full_draw, mouse, async_burst, output mode, color mode, and iterations.
+- [ ] Fail CI if runner manifest hashes do not match.
+- [ ] Flag CPU, OS, architecture, runtime, or build mode discrepancies during baseline comparisons.
+- [ ] Emit structured validation errors identifying the offending file and workload.
 
-### Kabul kriterleri
+### Acceptance Criteria
 
-- Eksik metadata CI'ı başarısız yapar.
-- Workload sayısı veya sırası farklıysa CI başarısız olur.
-- Spec alanlarından biri farklıysa açıklayıcı hata üretilir.
-- Geçersiz JSON dashboard üretiminden önce reddedilir.
+- Missing metadata causes immediate CI failure.
+- Differing workload counts or orders fail validation.
+- Mismatched spec fields generate actionable error messages.
+- Invalid JSON is rejected before dashboard generation begins.
 
-## 5. Faz P1 — Dashboard karşılaştırma doğruluğu
+## 5. Phase P1 — Dashboard Comparison Accuracy
 
-### Önerilen status değerleri
+### Recommended Status Values
 
-- `VALID`: equivalent workload
-- `WARNING`: implementation-specific workload
-- `INVALID`: mismatched workload
+- `VALID`: Equivalent workload and comparable measurement scope.
+- `WARNING`: Implementation-specific workload or divergent execution path.
+- `INVALID`: Mismatched workload specification.
 
-### Görevler
+### Tasks
 
-- [ ] Genel `VALID COMPARISON` mesajını workload bazlı status ile değiştir.
-- [ ] `mouse-hit-test`, `hundred-layers`, `resize`, `async-update-burst` ve `native-image-capability` workload'larını implementation-specific olarak etiketle.
-- [ ] Her runner'ın workload başına ölçüm scope'unu rapora ekle.
-- [ ] Allocation ölçülmeyen runner'larda `0` yerine `N/A` veya `not_measured` göster.
-- [ ] Dashboard'a manifest hash, commit, CPU, runtime, runner version, warmup ve iterations bilgilerini ekle.
-- [ ] JSON ve HTML dashboard değerlerinin aynı olduğunu test et.
-- [ ] Warning açıklamasını workload satırında göster.
+- [ ] Replace global `VALID COMPARISON` banner with granular per-workload badges.
+- [ ] Tag `mouse-hit-test`, `hundred-layers`, `resize`, `async-update-burst`, and `native-image-capability` as implementation-specific.
+- [ ] Record measurement scope per workload in each runner.
+- [ ] Display `N/A` or `not_measured` instead of `0` when allocations are not profiled.
+- [ ] Display manifest hash, commit, CPU, runtime, runner version, warmup, and iterations in the dashboard header.
+- [ ] Validate consistency between JSON data and HTML dashboard output.
+- [ ] Display warning explanations inline on the corresponding workload row.
 
-Önerilen scope değerleri: `render-only`, `buffer-write`, `diff-only`, `output-encode`, `model-update`, `layout`, `input-routing`, `runtime`, `allocation`.
+Recommended scope descriptors: `render-only`, `buffer-write`, `diff-only`, `output-encode`, `model-update`, `layout`, `input-routing`, `runtime`, `allocation`.
 
-### Kabul kriterleri
+### Acceptance Criteria
 
-- Dashboard yalnızca gerçekten eşdeğer workload'ları `VALID` gösterir.
-- Implementation-specific workload'lar ayrı bölümde listelenir.
-- Ölçülmeyen allocation değeri yanlışlıkla sıfır gibi yorumlanmaz.
-- Dashboard metadata'sı kaynak JSON ile birebir eşleşir.
+- Only strictly equivalent workloads receive a `VALID` badge.
+- Implementation-specific workloads are grouped and annotated.
+- Unmeasured metrics are clearly distinguished from zero-overhead runs.
+- Dashboard metadata matches source JSON files.
 
-## 6. Faz P1 — Baseline ve regression karşılaştırması
+## 6. Phase P1 — Baseline and Regression Analysis
 
-### Hesaplanacak alanlar
+### Calculated Metrics
 
 - `current_p50_ns`, `baseline_p50_ns`, `p50_delta_ns`, `p50_delta_percent`
 - `current_p95_ns`, `baseline_p95_ns`, `p95_delta_ns`, `p95_delta_percent`
 - `current_alloc_bytes`, `baseline_alloc_bytes`, `allocation_delta_percent`
 
-### Görevler
+### Tasks
 
-- [ ] Baseline formatını tanımla.
-- [ ] Baseline ile güncel sonucu yalnızca aynı manifest hash ve uyumlu environment varsa karşılaştır.
-- [ ] CPU veya build mode farklıysa sonucu `not comparable` olarak işaretle.
-- [ ] p50, p95, p99 ve allocation farklarını hesapla.
-- [ ] Baseline bulunamadığında açık hata üret.
-- [ ] Dashboard'a regression değerlerini ve status badge'lerini ekle.
+- [ ] Formalize the baseline data schema.
+- [ ] Compare current results against baseline only when manifest hash and environment match.
+- [ ] Mark comparisons as `not comparable` if CPU or build mode differs.
+- [ ] Calculate p50, p95, p99, and memory allocation deltas.
+- [ ] Emit an explicit error if baseline data is missing.
+- [ ] Render regression metrics and status indicators in the dashboard.
 
-Başlangıç eşikleri:
+Initial Regression Thresholds:
 
 - p50 regression > 5%: warning
 - p95 regression > 10%: failure
 - p99 regression > 15%: warning
 - allocation/frame regression > 10%: failure
-- manifest mismatch, missing baseline veya invalid report: failure
+- manifest mismatch, missing baseline, or invalid report: failure
 
-## 7. Faz P2 — `go-benchmark.txt` sonuçlarını ayırma
+## 7. Phase P2 — Separating `go-benchmark.txt` Results
 
-Klasörde iki farklı benchmark sistemi vardır:
+The repository maintains two benchmark reporting mechanisms:
 
-1. `/home/thebanri/Projects/Limoni/benchmark-results/go-benchmark.txt`
-2. `limoni.json`, `bubbletea.json`, `ratatui.json`
+1. `/home/thebanri/Projects/Limoni/benchmark-results/go-benchmark.txt` (Standard Go `testing.B`)
+2. `limoni.json`, `bubbletea.json`, `ratatui.json` (Structured cross-framework runners)
 
-Go benchmark çıktısı `BenchmarkEmptyFrame`, `BenchmarkTextHeavyFrame`, `BenchmarkTenThousandRowTable`, `BenchmarkMouseHitTest`, `BenchmarkHundredLayers` ve `BenchmarkAsyncUpdateBurst` testlerini içerir.
+Go benchmark output contains `BenchmarkEmptyFrame`, `BenchmarkTextHeavyFrame`, `BenchmarkTenThousandRowTable`, `BenchmarkMouseHitTest`, `BenchmarkHundredLayers`, and `BenchmarkAsyncUpdateBurst`.
 
-### Görevler
+### Tasks
 
-- [ ] `go-benchmark.txt` için machine-readable JSON veya parse edilebilir ayrı format üret.
-- [ ] Go native benchmark sonuçlarını cross-implementation sonuçlarından ayrı sınıflandır.
-- [ ] `ns/op`, `B/op` ve `allocs/op` değerlerini ayrı metrikler olarak raporla.
-- [ ] CPU ve Go version metadata'sını native benchmark özetine ekle.
-- [ ] Dashboard'da native Go benchmark ve cross-implementation bölümlerini ayır.
-- [ ] Text parsing başarısız olduğunda CI'ı sessizce başarılı yapma.
+- [ ] Generate structured JSON or parsed output for `go-benchmark.txt`.
+- [ ] Clearly separate native Go microbenchmarks from cross-implementation suites.
+- [ ] Report `ns/op`, `B/op`, and `allocs/op` as discrete metrics.
+- [ ] Include CPU and Go toolchain version in native benchmark summaries.
+- [ ] Display native Go benchmarks and cross-framework comparisons in dedicated sections.
+- [ ] Ensure text parsing failures do not silently succeed in CI.
 
-### Kabul kriterleri
+### Acceptance Criteria
 
-- Go benchmark sonucu manuel text okumadan işlenebilir.
-- Native Go ve cross-implementation sonuçları aynı tabloya karıştırılmaz.
-- Her sonuç hangi benchmark sistemine ait olduğunu belirtir.
+- Go benchmark output can be consumed programmatically without manual text parsing.
+- Native Go microbenchmarks and cross-framework comparisons remain unmixed.
+- Each result identifies its source benchmark harness.
 
-## 8. Faz P2 — Measurement scope ve runner eşdeğerliği
+## 8. Phase P2 — Measurement Scope and Runner Parity
 
-### Görevler
+### Tasks
 
-- [ ] Her runner için workload başına `measurement_scope` alanı ekle.
-- [ ] Limoni'nin buffer/diff, Bubble Tea'nın view/string ve Ratatui'nin terminal buffer yolunu dokümante et.
-- [ ] Ratatui'de `table_rows.clone()` gibi benchmark içine dahil edilen işlemleri belirt.
-- [ ] Native image workload'unun gerçek image encoding yapıp yapmadığını doğrula.
-- [ ] Async workload için queue write, update processing ve end-to-end latency'yi ayır.
-- [ ] Resize workload'unu message-only, buffer-resize ve resize+layout+redraw olarak ayır.
-- [ ] Eşdeğer olmayan workload'ları `framework-specific` olarak işaretle.
+- [ ] Add `measurement_scope` fields per workload across all runners.
+- [ ] Document Limoni's buffer/diff pipeline, Bubble Tea's view string generation, and Ratatui's terminal buffer loop.
+- [ ] Explicitly annotate operations like `table_rows.clone()` included inside Ratatui benchmark loops.
+- [ ] Verify whether native image workloads execute real encoding or stub logic.
+- [ ] Dissect async workloads into queue dispatch, update processing, and round-trip latency.
+- [ ] Separate resize benchmarks into message dispatch, buffer resize, and full reflow+redraw.
+- [ ] Mark non-equivalent workloads as `framework-specific`.
 
-### Kabul kriterleri
+### Acceptance Criteria
 
-- Her JSON sonucu hangi kod yolunu ölçtüğünü belirtir.
-- Aynı scope'a sahip sonuçlar karşılaştırılır.
-- Farklı scope'lar dashboard'da ayrı bölümlerde görünür.
-- `VALID` statüsü yalnızca savunulabilir karşılaştırmalarda kullanılır.
+- Each JSON artifact identifies the exact execution path under measurement.
+- Only workloads sharing equivalent scopes are directly compared.
+- Divergent scopes are partitioned into separate dashboard views.
+- `VALID` status is reserved strictly for defensible head-to-head comparisons.
 
-## 9. Faz P3 — Artifact arşivleme ve klasör düzeni
+## 9. Phase P3 — Artifact Archival and Layout
 
-Önerilen yapı:
+Recommended directory structure:
 
 ```text
 benchmark-results/
@@ -230,61 +226,61 @@ benchmark-results/
     └── metadata.json
 ```
 
-### Görevler
+### Tasks
 
-- [ ] `latest`, `baseline` ve `history` stratejisinden birini seç.
-- [ ] CI her çalıştırmayı commit ve manifest hash ile ilişkilendirsin.
-- [ ] Full history'yi GitHub Actions artifact olarak saklamayı değerlendir.
-- [ ] Repository'de yalnızca güncel özet ve kontrollü baseline tutmayı değerlendir.
-- [ ] Baseline güncellemesini kontrollü workflow ile yap.
-- [ ] Aynı commit artifact'larının birbirini ezmesini engelle.
+- [ ] Formalize artifact layout strategy (`latest`, `baseline`, and `history`).
+- [ ] Associate each CI run with its commit hash and manifest hash.
+- [ ] Store full historical records as downloadable GitHub Actions artifacts.
+- [ ] Retain latest summaries and vetted baselines in the repository.
+- [ ] Automate baseline updates through dedicated, controlled workflows.
+- [ ] Prevent concurrent runs on the same commit from overwriting artifacts.
 
-## 10. CI uygulama planı
+## 10. CI Implementation Plan
 
-Workflow hedefi: `/home/thebanri/Projects/Limoni/.github/workflows/benchmarks.yml`
+Target workflow: `/home/thebanri/Projects/Limoni/.github/workflows/benchmarks.yml`
 
-### CI adımları
+### Workflow Steps
 
-- [ ] Benchmark çalıştırmadan önce output klasörünü temizle.
-- [ ] Üç runner'ı ortak manifest ile çalıştır.
-- [ ] JSON schema ve metadata validation çalıştır.
-- [ ] Workload spec/hash eşleşmesini doğrula.
-- [ ] Dashboard üret.
-- [ ] Dashboard ve JSON consistency testini çalıştır.
-- [ ] Baseline regression karşılaştırmasını çalıştır.
-- [ ] JSON, dashboard, native benchmark ve metadata artifact'larını upload et.
-- [ ] Invalid report veya eşik aşan regression durumunda warning/failure üret.
+- [ ] Clean output directory prior to benchmark execution.
+- [ ] Execute all three runners using a shared workload manifest.
+- [ ] Run JSON schema and metadata validation.
+- [ ] Verify workload spec and hash parity.
+- [ ] Generate HTML dashboard.
+- [ ] Verify consistency between JSON data and HTML output.
+- [ ] Run baseline regression checks.
+- [ ] Upload JSON, dashboard, native benchmark, and metadata artifacts.
+- [ ] Fail or warn on invalid reports or regressions exceeding thresholds.
 
-## 11. Yapay zekâ/kod ajanı çalışma protokolü
+## 11. AI / Agent Operational Protocol
 
-1. Hedef dosyaları ve mevcut testleri oku.
-2. `benchmark-results` içindeki güncel artifact'ları kontrol et.
-3. Baseline'ın geçerli olduğunu doğrula.
-4. Değişiklikten önce ilgili benchmark'ı çalıştır ve baseline kaydet.
-5. Tek bir hipotez veya validation hedefi seç.
-6. Küçük ve geri alınabilir bir değişiklik yap.
-7. İlgili unit testleri çalıştır.
-8. İlgili benchmark'ı en az `-count=5` ile tekrar çalıştır.
-9. p50, p95, p99, bytes/frame, allocs/frame ve validity farkını karşılaştır.
-10. Başarılı değişiklik için regression veya validation test ekle.
-11. Sonunda `go test ./...`, `go vet ./...` ve ilgili race testlerini çalıştır.
-12. Değiştirilen dosyaları yeniden oku.
-13. `git diff --check` ve `git status` ile çalışma ağacını doğrula.
+1. Read target files and existing tests.
+2. Verify existing artifacts in `benchmark-results`.
+3. Confirm baseline validity.
+4. Execute benchmark and record baseline prior to modifying code.
+5. Focus on a single hypothesis or validation target at a time.
+6. Make small, reversible changes.
+7. Run affected unit tests.
+8. Re-run benchmarks with at least `-count=5`.
+9. Evaluate changes across p50, p95, p99, memory/frame, allocs/frame, and schema validity.
+10. Add regression or validation tests for successful enhancements.
+11. Run `go test ./...`, `go vet ./...`, and relevant race detectors.
+12. Review modified files.
+13. Verify clean git state with `git diff --check` and `git status`.
 
-## 12. Genel başarı ölçütleri
+## 12. Overall Success Metrics
 
-- `benchmark-results` içinde boş veya geçersiz JSON bulunmaz.
-- Baseline geçerli, metadata içeren ve güncel sonuçla karşılaştırılabilir durumdadır.
-- Tüm raporlar aynı manifest hash'ini veya açıkça farklı manifest status'ünü taşır.
-- Dashboard tüm sonuçları koşulsuz `VALID COMPARISON` göstermez.
-- Implementation-specific workload'lar ayrı etiketlenir.
-- Allocation ölçülmeyen runner'lar `0` olarak yorumlanmaz.
-- Native Go benchmark sonuçları cross-implementation sonuçlarından ayrıdır.
-- Baseline regression otomatik hesaplanır.
-- CPU, OS, architecture, runtime ve build mode uyumsuzlukları görünürdür.
-- Artifact'ların hangi commit ve host üzerinde üretildiği anlaşılır.
+- Zero empty or invalid JSON files in `benchmark-results`.
+- Baseline is valid, complete with metadata, and comparable to latest runs.
+- All reports share matching manifest hashes or explicit mismatch indicators.
+- Dashboard does not display unconditional `VALID COMPARISON` banners.
+- Implementation-specific workloads are clearly segregated.
+- Unmeasured allocations are never presented as zero allocations.
+- Native Go microbenchmarks remain distinct from cross-implementation suites.
+- Baseline regressions are automatically flagged.
+- Host, OS, architecture, runtime, and build mode divergences are visible.
+- Full provenance (commit, host, timestamp) is preserved for all artifacts.
 
-Son doğrulama:
+Final verification:
 
 ```bash
 cd /home/thebanri/Projects/Limoni
@@ -293,11 +289,11 @@ go vet ./...
 git diff --check
 ```
 
-## 13. Plan dışı bırakılanlar
+## 13. Non-Goals
 
-- Benchmark kanıtı olmadan genel API redesign.
-- Yeni dış bağımlılık eklemek.
-- Yalnızca tek p50 sonucu ile performans kararı vermek.
-- Eşdeğer olmayan runner workload'larını pazarlama karşılaştırması olarak sunmak.
-- Gerçek terminal I/O ölçmeden kullanıcı deneyimi hakkında kesin iddia yapmak.
-- Baseline host/CPU uyumsuzken regression sonucu üretmek.
+- Unsubstantiated general API redesigns without benchmark backing.
+- Adding unnecessary third-party dependencies.
+- Making architectural decisions based on a single p50 measurement.
+- Presenting non-equivalent runner workloads as direct head-to-head marketing comparisons.
+- Making definitive claims about end-user perception without measuring real terminal I/O.
+- Running regression comparisons across incompatible baseline host environments.
