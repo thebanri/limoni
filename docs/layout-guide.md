@@ -139,3 +139,64 @@ func drawDashboard(f *limoni.Frame) {
         WithStyle(limoni.Fg(limoni.RGB(140, 150, 165))), mainRows[2])
 }
 ```
+
+---
+
+## 6. Composable Lego-Like Component Architecture (VStack, HStack & Decorators)
+
+Limoni provides a modern, composable, Lego-style component layer in the root package (`github.com/thebanri/limoni`) and `component` package (`github.com/thebanri/limoni/component`).
+
+Instead of calculating manual slice splits and passing rectangles by hand, you declare your UI as a nested tree of lightweight components. The layout solver executes on the stack with **zero heap allocations (`0 B/op, 0 allocs/op`)** on hot rendering paths.
+
+### Core Primitives & Decorators
+
+| Function | Description | Example |
+| :--- | :--- | :--- |
+| **`limoni.VStack(children...)`** | Linear top-to-bottom stack layout | `limoni.VStack(header, body, footer)` |
+| **`limoni.HStack(children...)`** | Linear left-to-right stack layout | `limoni.HStack(sidebar, content)` |
+| **`limoni.Flex(weight, child)`** | Proportional flex expansion inside a stack | `limoni.Flex(2, mainContent)` |
+| **`limoni.FixedSize(w, h, child)`** | Enforces fixed dimensions on a component | `limoni.FixedSize(0, 3, header)` |
+| **`limoni.Border(child, symbols, style)`** | Wraps any component with border lines | `limoni.Border(child, widgets.SymbolsRounded, style)` |
+| **`limoni.Pad(child, t, r, b, l)`** | Adds custom inner padding | `limoni.Pad(child, 1, 2, 1, 2)` |
+| **`limoni.PadAll(child, padding)`** | Adds uniform padding on all 4 sides | `limoni.PadAll(child, 1)` |
+| **`limoni.Center(child)`** | Centers a component horizontally & vertically | `limoni.Center(limoni.Label("Centered"))` |
+| **`limoni.AlignComponent(child, h, v)`** | Aligns component (Left/Center/Right, Top/Middle/Bottom) | `limoni.AlignComponent(child, limoni.AlignRight, limoni.AlignTop)` |
+| **`limoni.Label(text, style...)`** | Ultra-lightweight inline text component | `limoni.Label("Status: OK", limoni.Bold())` |
+| **`limoni.AsComponent(widget)`** | Adapts any existing `widgets.Widget` into a composable `Component` | `limoni.AsComponent(table)` |
+
+### Declarative Example
+
+```go
+view := limoni.VStack(
+    // Fixed height header
+    limoni.FixedSize(0, 3, limoni.Border(
+        limoni.Center(limoni.Label("🚀 CLOUD METRICS DASHBOARD", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+        widgets.SymbolsRounded,
+        limoni.Fg(limoni.Hex("#00FFAA")),
+    )),
+
+    // Flex body split 1:2
+    limoni.Flex(1, limoni.HStack(
+        limoni.Flex(1, limoni.Border(
+            limoni.AsComponent(sidebarList),
+            widgets.SymbolsSingle,
+            limoni.Fg(limoni.Hex("#FFCC00")),
+        )),
+        limoni.Flex(2, limoni.Border(
+            limoni.AsComponent(mainTable),
+            widgets.SymbolsDouble,
+            limoni.Fg(limoni.Hex("#3399FF")),
+        )),
+    )),
+
+    // Fixed height footer
+    limoni.FixedSize(0, 3, limoni.Border(
+        limoni.Center(limoni.Label("ESC: Exit | 0 B/op Zero Heap Allocations", limoni.Fg(limoni.Hex("#888888")))),
+        widgets.SymbolsSingle,
+        limoni.Fg(limoni.Hex("#666666")),
+    )),
+)
+
+// Render directly into the frame area:
+f.RenderComponent(view, f.Area())
+```

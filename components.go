@@ -23,6 +23,10 @@ type HAlign = component.HAlign
 type VAlign = component.VAlign
 
 const (
+	HAlignLeft   = component.AlignLeft
+	HAlignCenter = component.AlignCenter
+	HAlignRight  = component.AlignRight
+
 	AlignTop    = component.AlignTop
 	AlignMiddle = component.AlignMiddle
 	AlignBottom = component.AlignBottom

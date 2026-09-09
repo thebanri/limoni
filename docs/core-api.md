@@ -15,6 +15,7 @@ import "github.com/thebanri/limoni"
 The root package re-exports:
 - **Core Types**: `Frame`, `Terminal`, `Rect`, `Style`, `Color`, `Event`, `KeyEvent`, `MouseEvent`.
 - **High-Level Runners**: `limoni.Start()`, `limoni.Run()`, `limoni.NewProgram()`.
+- **Composable Lego Primitives**: `limoni.VStack()`, `limoni.HStack()`, `limoni.Pad()`, `limoni.PadAll()`, `limoni.PadAxis()`, `limoni.Border()`, `limoni.Center()`, `limoni.AlignComponent()`, `limoni.Flex()`, `limoni.FixedSize()`, `limoni.Label()`, `limoni.AsComponent()`.
 - **Layout Splitters**: `limoni.SplitVertical()`, `limoni.SplitHorizontal()`, `limoni.Fixed()`, `limoni.Percentage()`, `limoni.Fill()`, `limoni.Ratio()`.
 - **Fluent Builders**: `limoni.NewBlock()`, `limoni.NewParagraph()`, `limoni.NewTable()`, `limoni.NewList()`, `limoni.NewTextInput()`, `limoni.NewMarkdown()`.
 - **Color & Style Helpers**: `limoni.RGB()`, `limoni.Hex()`, `limoni.ANSI()`, `limoni.Fg()`, `limoni.Bg()`, `limoni.Bold()`, `limoni.Italic()`.
@@ -129,3 +130,44 @@ Communicates directly with the operating system terminal driver:
 - **Linux / macOS**: Configures `termios` for raw mode, enables alternate screen buffer (`\x1b[?1049h`), mouse tracking (`\x1b[?1006h`), and bracketed paste.
 - **Windows**: Uses native Win32 Console API (`GetConsoleMode`, `SetConsoleMode`) with `ENABLE_VIRTUAL_TERMINAL_PROCESSING` and native event loop input decoding.
 - **Signal Handling**: Listens for `SIGWINCH` on Unix and console resize events on Windows to trigger instantaneous window reflows.
+
+---
+
+## 7. `component` — Composable Lego Block Architecture
+
+Inspired by composable libraries like `pony` and `glyph`, the `component` package provides a lightweight, modular alternative to monolithic widget structures while retaining Limoni's strict **0 heap allocations on the hot path**.
+
+### Unified `Component` Interface
+Every composable block implements:
+```go
+type Component interface {
+    Draw(ctx cell.Context, buf *buffer.Buffer)
+    LayoutInfo(maxArea cell.Rect) LayoutProps
+    SizeHint(maxArea cell.Rect) (width, height uint16)
+}
+```
+Because it implements `Draw` and `SizeHint`, every `Component` natively satisfies `widgets.Widget`.
+
+### Decorators & Wrappers
+Instead of bloating individual widgets with border, margin, and alignment properties, layout features are applied externally via decorators:
+- `limoni.Border(child, symbols, style)`: Encloses any component inside a decorative border.
+- `limoni.Pad(child, t, r, b, l)`: Adds inner spacing.
+- `limoni.Center(child)` / `limoni.AlignComponent(child, h, v)`: Centers or aligns components within their bounds.
+- `limoni.Flex(weight, child)`: Allocates dynamic space according to flex ratios.
+- `limoni.FixedSize(w, h, child)`: Enforces exact width and height constraints.
+- `limoni.AsComponent(w)`: Adapts any existing monolithic `Widget` (Table, List, Block) into the composable tree.
+
+### Rendering
+```go
+view := limoni.VStack(
+    limoni.FixedSize(0, 3, limoni.Border(limoni.Center(limoni.Label("Header")), widgets.SymbolsRounded, limoni.Fg(limoni.ColorCyan))),
+    limoni.Flex(1, limoni.HStack(
+        limoni.Flex(1, limoni.AsComponent(sidebar)),
+        limoni.Flex(2, limoni.AsComponent(mainContent)),
+    )),
+    limoni.FixedSize(0, 1, limoni.Label("Status: Ready")),
+)
+
+f.RenderComponent(view, f.Area())
+```
+

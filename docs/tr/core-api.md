@@ -15,6 +15,7 @@ import "github.com/thebanri/limoni"
 Kök paket şunları doğrudan dışa aktarır:
 - **Temel Tipler**: `Frame`, `Terminal`, `Rect`, `Style`, `Color`, `Event`, `KeyEvent`, `MouseEvent`.
 - **Yüksek Seviyeli Çalıştırıcılar**: `limoni.Start()`, `limoni.Run()`, `limoni.NewProgram()`, `limoni.RunProgram()`.
+- **Composable Lego Blokları**: `limoni.VStack()`, `limoni.HStack()`, `limoni.Pad()`, `limoni.PadAll()`, `limoni.PadAxis()`, `limoni.Border()`, `limoni.Center()`, `limoni.AlignComponent()`, `limoni.Flex()`, `limoni.FixedSize()`, `limoni.Label()`, `limoni.AsComponent()`.
 - **Yerleşim Bölücüleri**: `limoni.SplitVertical()`, `limoni.SplitHorizontal()`, `limoni.Fixed()`, `limoni.Percentage()`, `limoni.Fill()`, `limoni.Ratio()`.
 - **Akıcı Yapıcılar (Fluent Builders)**: `limoni.NewBlock()`, `limoni.NewParagraph()`, `limoni.NewTable()`, `limoni.NewList()`, `limoni.NewTextInput()`, `limoni.NewMarkdown()`.
 - **Renk ve Stil Yardımcıları**: `limoni.RGB()`, `limoni.Hex()`, `limoni.ANSI()`, `limoni.Fg()`, `limoni.Bg()`, `limoni.Bold()`, `limoni.Italic()`.
@@ -129,3 +130,44 @@ Terminal yaşam döngüsünü, çift tamponlamayı, kare üretimini ve girdi yö
 - **Linux / macOS**: `termios` ile ham moda geçer, alternatif ekran tamponunu (`\x1b[?1049h`), fare takibini (`\x1b[?1006h`) ve parantezli yapıştırmayı (bracketed paste) açar.
 - **Windows**: `ENABLE_VIRTUAL_TERMINAL_PROCESSING` ile yerel Win32 Console API'sini (`GetConsoleMode`, `SetConsoleMode`) ve yerel olay döngüsü girdi çözücüsünü kullanır.
 - **Sinyal Yönetimi**: Unix'te `SIGWINCH`, Windows'ta konsol yeniden boyutlandırma olaylarını dinleyerek ekranın anında yeniden hesaplanmasını sağlar.
+
+---
+
+## 7. `component` — Composable Lego Blok Mimarisi
+
+`pony` ve `glyph` gibi modern kütüphanelerden esinlenen `component` paketi; monolitik widget yapılarına alternatif olarak hafif, modüler ve fonksiyonel bir bileşen ağacı sunar. Limoni'nin **çizim sıcak yolunda (hot path) 0 bellek tahsisatı (zero-alloc)** garantisini aynen muhafaza eder.
+
+### Birleşik `Component` Arayüzü
+Her composable blok şu arayüzü uygular:
+```go
+type Component interface {
+    Draw(ctx cell.Context, buf *buffer.Buffer)
+    LayoutInfo(maxArea cell.Rect) LayoutProps
+    SizeHint(maxArea cell.Rect) (width, height uint16)
+}
+```
+`Draw` ve `SizeHint` fonksiyonlarını sağladığı için her `Component` doğrudan `widgets.Widget` ile uyumludur.
+
+### Dekoratörler ve Sarmalayıcılar (Wrappers)
+Kenarlık, dolgu ve hizalama gibi özellikler widget'ların içine gömülmek yerine harici dekoratörlerle sarılır:
+- `limoni.Border(child, symbols, style)`: Bileşeni dekoratif bir kenarlıkla sarar.
+- `limoni.Pad(child, t, r, b, l)`: Bileşene iç dolgu (padding) ekler.
+- `limoni.Center(child)` / `limoni.AlignComponent(child, h, v)`: Bileşeni ayrılan alan içinde ortalar veya hizalar.
+- `limoni.Flex(weight, child)`: Yığın içinde dinamik oranlı esneme katsayısı tanımlar.
+- `limoni.FixedSize(w, h, child)`: Bileşene sabit genişlik ve yükseklik kısıtı atar.
+- `limoni.AsComponent(w)`: Var olan monolitik widget'ları (`Table`, `List`, `Block`) composable ağaca bağlar.
+
+### Çizim (Rendering)
+```go
+view := limoni.VStack(
+    limoni.FixedSize(0, 3, limoni.Border(limoni.Center(limoni.Label("Başlık")), widgets.SymbolsRounded, limoni.Fg(limoni.ColorCyan))),
+    limoni.Flex(1, limoni.HStack(
+        limoni.Flex(1, limoni.AsComponent(sidebar)),
+        limoni.Flex(2, limoni.AsComponent(mainContent)),
+    )),
+    limoni.FixedSize(0, 1, limoni.Label("Durum: Hazır")),
+)
+
+f.RenderComponent(view, f.Area())
+```
+

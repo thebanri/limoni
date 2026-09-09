@@ -141,3 +141,87 @@ func drawDashboard(f *limoni.Frame) {
         WithStyle(limoni.Fg(limoni.RGB(140, 150, 165))), mainRows[2])
 }
 ```
+
+---
+
+## 6. Composable Lego Blok Bileşen Mimarisi (VStack, HStack ve Dekoratörler)
+
+Limoni, geleneksel monolitik widget ve manuel alan bölme (Split) mimarisine ek olarak; **modern, fonksiyonel ve composable (Lego blokları gibi birleştirilebilir)** bir bileşen katmanı sunar.
+
+Bu katman, `pony` ve `glyph` gibi modern UI kütüphanelerinden esinlenmiş olup, Limoni'nin sıfır bellek tahsisli (0 allocs/op) 1D hücre tamponu (contiguous cell buffer) mantığını bozmadan çalışır.
+
+### Temel Prensipler
+
+1. **Birleşik Arayüz (`Component`)**:
+   Her bileşen yalnızca kendini çizmeyi ve boyut kısıtlarını (`LayoutInfo`) bildirmeyi bilir. Aynı zamanda `widgets.Widget` ile %100 uyumludur.
+2. **Dekoratör Sarmalayıcılar**:
+   Kenarlık (`Border`), dolgu (`Pad`), hizalama (`Center`, `AlignComponent`) gibi özellikler monolitik widget alanları yerine harici sarmalayıcı (wrapper) olarak uygulanır.
+3. **Esnek Yığınlar (`VStack` / `HStack`)**:
+   Çocuk bileşenler ağırlıklı esneme (`Flex(n)`) veya sabit boyut (`FixedSize(w, h)`) kurallarıyla otomatik olarak paylaştırılır.
+4. **Sıfır Bellek Tahsisi (Hot Path Zero-Alloc)**:
+   Yığın yerleşim hesaplamaları stack üzerinde (`[32]uint16`) yürütülür, render anında heap allokasyonu yapılmaz.
+
+### Composable Lego Fonksiyonları
+
+| Fonksiyon | Açıklama |
+| :--- | :--- |
+| `limoni.VStack(children...)` | Çocuk bileşenleri yukarıdan aşağıya dikey dizer. |
+| `limoni.HStack(children...)` | Çocuk bileşenleri soldan sağa yatay dizer. |
+| `limoni.Pad(child, top, right, bottom, left)` | Bileşenin etrafına iç dolgu (padding) ekler. |
+| `limoni.PadAll(child, p)` | 4 tarafa eşit dolgu uygular. |
+| `limoni.PadAxis(child, h, v)` | Yatay ve dikey simetrik dolgu uygular. |
+| `limoni.Border(child, sym, style)` | Herhangi bir bileşeni dekoratif kenarlıkla sarar. |
+| `limoni.Center(child)` | Bileşeni tahsis edilen alanda hem yatay hem dikey ortalar. |
+| `limoni.AlignComponent(child, h, v)` | Bileşeni kurallara göre hizalar (`AlignLeft`, `AlignCenter`, `AlignRight`, `AlignTop`, `AlignMiddle`, `AlignBottom`). |
+| `limoni.Flex(weight, child)` | Yığın içinde dinamik genişleme katsayısı belirler (CSS flex-grow). |
+| `limoni.FixedSize(w, h, child)` | Bileşene sabit genişlik ve yükseklik atar. |
+| `limoni.Label(text, styles...)` | Hafif satır içi metin bileşeni oluşturur. |
+| `limoni.AsComponent(widget)` | Var olan monolitik widget'ları (`Table`, `Block`, `List`) anında composable sisteme adapte eder. |
+
+### Bildirimsel (Declarative) Dashboard Örneği
+
+```go
+package main
+
+import (
+    "github.com/thebanri/limoni"
+    "github.com/thebanri/limoni/widgets"
+)
+
+func renderComposableUI(f *limoni.Frame, sidebarList, mainTable limoni.Widget) {
+    // Lego blokları gibi iç içe kurulmuş bildirimsel görünüm ağacı:
+    view := limoni.VStack(
+        // Sabit yükseklikte başlık çubuğu
+        limoni.FixedSize(0, 3, limoni.Border(
+            limoni.Center(limoni.Label("🚀 BULUT İZLEME PANELİ", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+            widgets.SymbolsRounded,
+            limoni.Fg(limoni.Hex("#00FFAA")),
+        )),
+
+        // 1:2 oranında esneyen gövde alanı
+        limoni.Flex(1, limoni.HStack(
+            limoni.Flex(1, limoni.Border(
+                limoni.AsComponent(sidebarList),
+                widgets.SymbolsSingle,
+                limoni.Fg(limoni.Hex("#FFCC00")),
+            )),
+            limoni.Flex(2, limoni.Border(
+                limoni.AsComponent(mainTable),
+                widgets.SymbolsDouble,
+                limoni.Fg(limoni.Hex("#3399FF")),
+            )),
+        )),
+
+        // Sabit yükseklikte alt bilgi çubuğu
+        limoni.FixedSize(0, 3, limoni.Border(
+            limoni.Center(limoni.Label("ESC: Çıkış | 0 B/op Sıfır Bellek Tahsisi", limoni.Fg(limoni.Hex("#888888")))),
+            widgets.SymbolsSingle,
+            limoni.Fg(limoni.Hex("#666666")),
+        )),
+    )
+
+    // Kare alanına doğrudan render et:
+    f.RenderComponent(view, f.Area())
+}
+```
+

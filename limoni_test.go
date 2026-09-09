@@ -143,3 +143,26 @@ func TestLimoniUnicodeWidths(t *testing.T) {
 		}
 	}
 }
+
+func TestLimoniComposableLego(t *testing.T) {
+	// Test creating composable components directly via root package `limoni`
+	label := Label("Hello Lego", Bold())
+	padded := PadAll(label, 1)
+	bordered := Border(padded, SymbolsRounded, Fg(ColorCyan))
+
+	table := NewTable().WithHeaders("A", "B").WithRow("1", "2")
+	adaptedTable := AsComponent(table)
+
+	stack := VStack(
+		FixedSize(20, 3, bordered),
+		Flex(1, adaptedTable),
+		Center(Label("Centered Footer")),
+		AlignComponent(Label("Right aligned"), AlignRight, AlignMiddle),
+		AlignComponent(Label("HAlignRight test"), HAlignRight, AlignBottom),
+	).WithGap(0)
+
+	props := stack.LayoutInfo(NewRect(0, 0, 80, 24))
+	if props.MinWidth == 0 {
+		t.Fatalf("expected non-zero min width for composable stack")
+	}
+}

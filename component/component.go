@@ -38,13 +38,13 @@ type Component interface {
 // 2. Alignment Types
 // ---------------------------------------------------------------------
 
-// HAlign defines horizontal alignment.
-type HAlign uint8
+// HAlign defines horizontal alignment (compatible with widgets.Alignment).
+type HAlign = widgets.Alignment
 
 const (
-	AlignLeft HAlign = iota
-	AlignCenter
-	AlignRight
+	AlignLeft   = widgets.AlignLeft
+	AlignCenter = widgets.AlignCenter
+	AlignRight  = widgets.AlignRight
 )
 
 // VAlign defines vertical alignment.
