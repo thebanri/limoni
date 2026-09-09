@@ -112,6 +112,13 @@ func (t *Terminal) Events() <-chan driver.Event {
 	return t.driver.Events()
 }
 
+// StartEventLoop starts the underlying driver event loop if not already started.
+func (t *Terminal) StartEventLoop() {
+	if t.driver != nil {
+		t.driver.StartEventLoop()
+	}
+}
+
 // PollEvent waits for and returns the next event from the driver.
 func (t *Terminal) PollEvent() driver.Event {
 	if t.driver == nil {

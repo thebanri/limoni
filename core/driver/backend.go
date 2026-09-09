@@ -23,6 +23,7 @@ type Backend struct {
 	sigWinch   chan os.Signal
 	width      uint16 // cached for portable mode
 	height     uint16 // cached for portable mode
+	startOnce  sync.Once
 	closeOnce  sync.Once
 	closeErr   error
 	mu         sync.RWMutex
@@ -146,6 +147,12 @@ func (b *Backend) Events() <-chan Event {
 
 // StartEventLoop starts the asynchronous event loop polling keyboard, mouse, focus, and resize events.
 func (b *Backend) StartEventLoop() {
+	b.startOnce.Do(func() {
+		b.startEventLoop()
+	})
+}
+
+func (b *Backend) startEventLoop() {
 	if b.portableIO != nil {
 		inputChan := make(chan []byte, 32)
 		go func() {
@@ -153,6 +160,7 @@ func (b *Backend) StartEventLoop() {
 			for {
 				n, err := b.portableIO.Read(buf)
 				if err != nil {
+					close(inputChan)
 					return
 				}
 				if n > 0 {
@@ -206,7 +214,10 @@ func (b *Backend) StartEventLoop() {
 						}
 					}
 
-				case chunk := <-inputChan:
+				case chunk, ok := <-inputChan:
+					if !ok {
+						return
+					}
 					readBuf = append(readBuf, chunk...)
 					if escTimer != nil {
 						escTimer.Stop()
@@ -309,6 +320,7 @@ func (b *Backend) StartEventLoop() {
 			n, err := b.in.Read(buf)
 			if err != nil {
 				// Hata durumunda veya dosya kapandığında okuyucu goroutine sonlanır
+				close(inputChan)
 				return
 			}
 			if n > 0 {
@@ -337,7 +349,10 @@ func (b *Backend) StartEventLoop() {
 				}
 				return
 
-			case chunk := <-inputChan:
+			case chunk, ok := <-inputChan:
+				if !ok {
+					return
+				}
 				readBuf = append(readBuf, chunk...)
 
 				// Eğer ESC zamanlayıcı aktifse durdur (yeni karakter geldi, escape sequence devam ediyor olabilir)

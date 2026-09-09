@@ -40,6 +40,7 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 		return err
 	}
 	defer term.Close()
+	term.StartEventLoop()
 
 	running := true
 	// Initial render

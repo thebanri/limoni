@@ -21,6 +21,7 @@ type Backend struct {
 	done       chan struct{}
 	width      uint16
 	height     uint16
+	startOnce  sync.Once
 	closeOnce  sync.Once
 	closeErr   error
 }
@@ -123,6 +124,12 @@ func (b *Backend) Events() <-chan Event {
 
 // StartEventLoop Windows konsolunda girdi ve olay döngüsünü başlatır.
 func (b *Backend) StartEventLoop() {
+	b.startOnce.Do(func() {
+		b.startEventLoop()
+	})
+}
+
+func (b *Backend) startEventLoop() {
 	inputChan := make(chan []byte, 32)
 	go func() {
 		buf := make([]byte, 512)
