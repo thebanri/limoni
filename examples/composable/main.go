@@ -9,31 +9,31 @@ import (
 
 func main() {
 	listState := limoni.NewListState()
-	listState.Select(0) // Varsayılan olarak ilk öğe seçili
+	listState.Select(0)
 
 	inputState := limoni.NewTextInputState()
 	inputState.SetValue("Limoni Lego UI")
 
 	menuItems := []string{
-		"🧱 Unified Component",
-		"🎨 Pad, Border, Align",
-		"📐 VStack & HStack (Flex)",
-		"🥞 ZStack (Depth-Axis)",
-		"🎯 Overlay (Compositor)",
-		"⚡ Transform (Live Text)",
-		"🔲 Border Presets Explained",
-		"❓ Conditionals (When/Match)",
-		"🎭 Style Cascading",
-		"🖱️ Interactive & Events",
-		"⚡ Zero-Alloc Performance",
+		"[01] Unified Component",
+		"[02] Pad, Border, Align",
+		"[03] VStack & HStack (Flex)",
+		"[04] ZStack (Depth-Axis)",
+		"[05] Overlay (Compositor)",
+		"[06] Transform (Live Text)",
+		"[07] Border Presets",
+		"[08] Conditionals (When/Match)",
+		"[09] Style Cascading",
+		"[10] Interactive & Events",
+		"[11] Zero-Alloc Benchmarks",
 	}
 
 	list := limoni.NewList(menuItems...).
 		WithState(listState).
-		WithHighlightSymbol("👉 ").
+		WithHighlightSymbol("> ").
 		WithSelectedStyle(limoni.Fg(limoni.Hex("#000000")).WithBg(limoni.Hex("#00FFAA")).Bold())
 
-	// Performans tablosu (10. öğe için)
+	// Performance benchmark table (for item 10)
 	table := limoni.NewTable().
 		WithHeaders("PRIMITIVE", "STATUS", "LATENCY", "ALLOCS").
 		WithRow("VStack / HStack Draw", "PASS", "660 ns", "0 B/op (0 allocs)").
@@ -63,11 +63,11 @@ func main() {
 
 	showModal := false
 	clickCount := 0
-	modes := []string{"monitoring", "debug", "production"}
+	modes := []string{"MONITORING", "DEBUG", "PRODUCTION"}
 	modeIdx := 0
 
 	err := limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
-		// Klavye olayları
+		// Keyboard input routing
 		if ev != nil && ev.Type == limoni.EventKey {
 			switch ev.Key.Type {
 			case limoni.KeyEsc:
@@ -102,18 +102,18 @@ func main() {
 
 		currentMode := modes[modeIdx]
 
-		// Mode rozeti (Match fonksiyonu ile)
+		// Mode badge via Match
 		modeBadge := limoni.Match(currentMode, map[string]limoni.Component{
-			"monitoring": limoni.WithForeground(limoni.Hex("#00FFAA"), limoni.Label("🟢 MONITORING")),
-			"debug":      limoni.WithForeground(limoni.Hex("#FFCC00"), limoni.Label("🟡 DEBUG")),
-			"production": limoni.WithForeground(limoni.Hex("#FF5555"), limoni.Label("🔴 PROD")),
-		}, limoni.Label("⚪ UNKNOWN"))
+			"MONITORING": limoni.WithForeground(limoni.Hex("#00FFAA"), limoni.Label("[MONITORING]")),
+			"DEBUG":      limoni.WithForeground(limoni.Hex("#FFCC00"), limoni.Label("[DEBUG]")),
+			"PRODUCTION": limoni.WithForeground(limoni.Hex("#FF5555"), limoni.Label("[PRODUCTION]")),
+		}, limoni.Label("[UNKNOWN]"))
 
-		// Tıklanabilir buton
+		// Clickable button
 		clickBtn := limoni.OnClick(
 			limoni.Border(
 				limoni.Pad(
-					limoni.Label(fmt.Sprintf("🖱️ Clicks: %d", clickCount), limoni.Bold().WithFg(limoni.Hex("#FF77AA"))),
+					limoni.Label(fmt.Sprintf("Clicks: %d", clickCount), limoni.Bold().WithFg(limoni.Hex("#FF77AA"))),
 					0, 1, 0, 1,
 				),
 				widgets.SymbolsRounded,
@@ -125,7 +125,7 @@ func main() {
 		)
 
 		// -----------------------------------------------------------------
-		// Sol Sütun: Menü Listesi + Overlay Rozeti
+		// Left Column: Menu List + Overlay Badge
 		// -----------------------------------------------------------------
 		listColumn := limoni.Overlay(
 			limoni.Border(
@@ -133,14 +133,14 @@ func main() {
 				widgets.SymbolsRounded,
 				limoni.Fg(limoni.Hex("#5588EE")),
 			),
-			limoni.FixedSize(14, 1,
-				limoni.Label(" 🧱 MODÜLLER ", limoni.Bold().WithFg(limoni.Hex("#000000")).WithBg(limoni.Hex("#5588EE"))),
+			limoni.FixedSize(13, 1,
+				limoni.Label(" [MODULES] ", limoni.Bold().WithFg(limoni.Hex("#000000")).WithBg(limoni.Hex("#5588EE"))),
 			),
 			3, 0,
 		)
 
 		// -----------------------------------------------------------------
-		// Sağ Sütun: Seçili Menüye Göre Dinamik İçerik
+		// Right Column: Dynamic Detail View by Selected Menu Item
 		// -----------------------------------------------------------------
 		selectedIndex := listState.Selected
 		if selectedIndex < 0 {
@@ -150,22 +150,22 @@ func main() {
 		var detailContent limoni.Component
 
 		switch selectedIndex {
-		case 0: // 🧱 Unified Component
+		case 0: // Unified Component
 			detailContent = limoni.VStack(
-				limoni.Label("🧱 Unified Component Interface", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Tüm görsel elemanlar aynı Component arayüzünü uygular:", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("  • Draw(ctx, buf)        -> Çizim tamponuna doğrudan çizim (0 B/op)", limoni.Fg(limoni.Hex("#CCCCCC"))),
-				limoni.Label("  • LayoutInfo(maxArea)   -> Flex/Min/Max kısıtlarını bildirir", limoni.Fg(limoni.Hex("#CCCCCC"))),
-				limoni.Label("  • SizeHint(maxArea)     -> Boyut ipucunu döner", limoni.Fg(limoni.Hex("#CCCCCC"))),
+				limoni.Label("Unified Component Interface", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("All visual elements implement the minimal Component interface:", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("  - Draw(ctx, buf)      -> Zero-allocation draw directly into cell buffer", limoni.Fg(limoni.Hex("#CCCCCC"))),
+				limoni.Label("  - LayoutInfo(maxArea) -> Returns flex weights, min/max dimensions", limoni.Fg(limoni.Hex("#CCCCCC"))),
+				limoni.Label("  - SizeHint(maxArea)   -> Returns preferred width and height", limoni.Fg(limoni.Hex("#CCCCCC"))),
 				limoni.Label(""),
-				limoni.Label("Canlı Örnek: İç İçe Sarmalama (Nesting)", limoni.Bold().WithFg(limoni.Hex("#FFCC00"))),
+				limoni.Label("Live Demo: Arbitrary Nesting", limoni.Bold().WithFg(limoni.Hex("#FFCC00"))),
 				limoni.Border(
 					limoni.Pad(
 						limoni.VStack(
-							limoni.Label("Dış Kutu: Border(Cyan) -> Pad()", limoni.Fg(limoni.Hex("#00FFFF"))),
+							limoni.Label("Outer Container: Border(Cyan) -> Pad()", limoni.Fg(limoni.Hex("#00FFFF"))),
 							limoni.Border(
 								limoni.Pad(
-									limoni.Label("İç Kutu: Border(Pink) -> Pad() -> Label", limoni.Fg(limoni.Hex("#FF77AA"))),
+									limoni.Label("Inner Child: Border(Pink) -> Pad() -> Label", limoni.Fg(limoni.Hex("#FF77AA"))),
 									0, 1, 0, 1,
 								),
 								widgets.SymbolsRounded,
@@ -179,14 +179,14 @@ func main() {
 				),
 			)
 
-		case 1: // 🎨 Pad, Border, Align
+		case 1: // Pad, Border, Align
 			detailContent = limoni.VStack(
-				limoni.Label("🎨 Pad, Border ve Align Düzenleyicileri", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Bileşenleri sıfır bellek tahsisiyle sarmalayan dekoratörler:", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Padding, Borders & Alignment Decorators", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Decorators wrap any component with zero heap allocation overhead:", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(
-						limoni.Pad(limoni.Center(limoni.Label("Center()\nOrtalanmış")), 1, 1, 1, 1),
+						limoni.Pad(limoni.Center(limoni.Label("Center()\nCentered text")), 1, 1, 1, 1),
 						widgets.SymbolsRounded,
 						limoni.Fg(limoni.Hex("#00FFAA")),
 					)),
@@ -203,33 +203,33 @@ func main() {
 				),
 			)
 
-		case 2: // 📐 VStack & HStack (Flex)
+		case 2: // VStack & HStack (Flex)
 			detailContent = limoni.VStack(
-				limoni.Label("📐 Flexbox Yığınları (VStack & HStack)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Flex ağırlıkları, JustifyContent ve AlignItems ile tam flexbox düzeni.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Flexbox Stacks (VStack & HStack)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Supports flex ratios, fixed sizing, gap spacing, and alignment.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
-				limoni.Label("Orantılı Genişlikler (Flex 1 : Flex 2 : Flex 1):", limoni.Fg(limoni.Hex("#FFFF00"))),
+				limoni.Label("Proportional Sizing (Flex 1 : Flex 2 : Flex 1):", limoni.Fg(limoni.Hex("#FFFF00"))),
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(limoni.Center(limoni.Label("Flex(1) - 25%")), widgets.SymbolsRounded, limoni.Fg(limoni.Hex("#00FFAA")))),
 					limoni.Flex(2, limoni.Border(limoni.Center(limoni.Label("Flex(2) - 50%")), widgets.SymbolsRounded, limoni.Fg(limoni.Hex("#3399FF")))),
 					limoni.Flex(1, limoni.Border(limoni.Center(limoni.Label("Flex(1) - 25%")), widgets.SymbolsRounded, limoni.Fg(limoni.Hex("#00FFAA")))),
 				),
 				limoni.Label(""),
-				limoni.Label("Hizalama: SpaceBetween / Center ile boşluk dağıtımı.", limoni.Fg(limoni.Hex("#888888"))),
+				limoni.Label("Alignment: SpaceBetween, Center, Start, End for flexible layouts.", limoni.Fg(limoni.Hex("#888888"))),
 			)
 
-		case 3: // 🥞 ZStack (Depth)
+		case 3: // ZStack (Depth)
 			detailContent = limoni.VStack(
-				limoni.Label("🥞 ZStack (Derinlik / Ressam Algoritması)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Bileşenleri arka plandan ön plana üst üste çizer. Ara bellek (buffer) tahsis etmez.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("ZStack (Depth-Axis / Painter's Algorithm)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Layers children back-to-front into the same buffer without extra allocations.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.Border(
 					limoni.Pad(
 						limoni.ZStack(
-							limoni.Label(". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. Arka plan katmanı (Z-0) . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .", limoni.Fg(limoni.Hex("#444444"))),
+							limoni.Label(". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. Background Layer (Z-Index 0) . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .", limoni.Fg(limoni.Hex("#444444"))),
 							limoni.Center(
 								limoni.Border(
-									limoni.Pad(limoni.Label("Ön Plan Kartı (Z-1)", limoni.Bold().WithFg(limoni.Hex("#FFFFFF"))), 0, 2, 0, 2),
+									limoni.Pad(limoni.Label("Foreground Card (Z-Index 1)", limoni.Bold().WithFg(limoni.Hex("#FFFFFF"))), 0, 2, 0, 2),
 									widgets.SymbolsDouble,
 									limoni.Fg(limoni.Hex("#FFCC00")),
 								),
@@ -240,22 +240,22 @@ func main() {
 					widgets.SymbolsRounded,
 					limoni.Fg(limoni.Hex("#666666")),
 				),
-				limoni.Label("💡 İpucu: Tam ekran modalı açmak için [?] veya [h] tuşuna basabilirsiniz.", limoni.Fg(limoni.Hex("#FFD700"))),
+				limoni.Label("Tip: Press [?] or [h] to open the full-screen modal overlay.", limoni.Fg(limoni.Hex("#FFD700"))),
 			)
 
-		case 4: // 🎯 Overlay
+		case 4: // Overlay
 			detailContent = limoni.VStack(
-				limoni.Label("🎯 Overlay (Mutlak Koordinat Bindirici)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Bir bileşenin üzerine (X, Y) koordinatıyla başka bir bileşeni bindirir.", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("Sol menünün üstündeki rozet 'Overlay' ile yerleştirilmiştir.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Overlay (Absolute Offset Compositor)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Positions an overlay on top of a base at exact (X, Y) coordinates.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("The '[MODULES]' badge on the left menu is placed using Overlay.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.Overlay(
 					limoni.Border(
 						limoni.Pad(
 							limoni.VStack(
-								limoni.Label("Ana Panel (Base)", limoni.Bold().WithFg(limoni.Hex("#FFFFFF"))),
-								limoni.Label("Bu panelin sol üst veya sağ üst köşesine"),
-								limoni.Label("Overlay ile rozet, bildirim veya ipucu eklenebilir."),
+								limoni.Label("Base Card Surface", limoni.Bold().WithFg(limoni.Hex("#FFFFFF"))),
+								limoni.Label("An overlay can be pinned to any corner or coordinate."),
+								limoni.Label("Mouse events are automatically translated to local space."),
 							),
 							1, 2, 1, 2,
 						),
@@ -263,26 +263,26 @@ func main() {
 						limoni.Fg(limoni.Hex("#3399FF")),
 					),
 					limoni.FixedSize(14, 1,
-						limoni.Label(" ★ BİLDİRİM ", limoni.Bold().WithFg(limoni.Hex("#000000")).WithBg(limoni.Hex("#FF5599"))),
+						limoni.Label(" [NOTIFICATION] ", limoni.Bold().WithFg(limoni.Hex("#000000")).WithBg(limoni.Hex("#FF5599"))),
 					),
-					3, 0, // X: 3, Y: 0 (Üst kenarlık hizası)
+					3, 0,
 				),
 			)
 
-		case 5: // ⚡ Transform
+		case 5: // Transform
 			inputValue := inputState.Value()
 			if inputValue == "" {
-				inputValue = "Merhaba Dunya"
+				inputValue = "Hello World"
 			}
 			detailContent = limoni.VStack(
-				limoni.Label("⚡ Transform (Yerinde Hücre Dönüştürücü)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("String kopyalaması yapmadan tampon üzerindeki hücreleri anında dönüştürür.", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("Aşağıdaki kutuya bir şeyler yazın ve anlık değişimi izleyin:", limoni.Fg(limoni.Hex("#FFFF00"))),
+				limoni.Label("Transform (In-Place Cell Pipeline)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Post-processes rendered buffer cells directly without string allocations.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Type in the bottom input bar to see real-time transformations:", limoni.Fg(limoni.Hex("#FFFF00"))),
 				limoni.Label(""),
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(
 						limoni.VStack(
-							limoni.Label("Orijinal Metin:", limoni.Fg(limoni.Hex("#888888"))),
+							limoni.Label("Original:", limoni.Fg(limoni.Hex("#888888"))),
 							limoni.Label(inputValue, limoni.Fg(limoni.Hex("#FFFFFF"))),
 						),
 						widgets.SymbolsRounded,
@@ -290,7 +290,7 @@ func main() {
 					)),
 					limoni.Flex(1, limoni.Border(
 						limoni.VStack(
-							limoni.Label("Uppercase(Metin):", limoni.Fg(limoni.Hex("#888888"))),
+							limoni.Label("Uppercase(text):", limoni.Fg(limoni.Hex("#888888"))),
 							limoni.Uppercase(limoni.Label(inputValue, limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
 						),
 						widgets.SymbolsRounded,
@@ -300,7 +300,7 @@ func main() {
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(
 						limoni.VStack(
-							limoni.Label("Lowercase(Metin):", limoni.Fg(limoni.Hex("#888888"))),
+							limoni.Label("Lowercase(text):", limoni.Fg(limoni.Hex("#888888"))),
 							limoni.Lowercase(limoni.Label(inputValue, limoni.Fg(limoni.Hex("#3399FF")))),
 						),
 						widgets.SymbolsRounded,
@@ -308,8 +308,8 @@ func main() {
 					)),
 					limoni.Flex(1, limoni.Border(
 						limoni.VStack(
-							limoni.Label("Mask(Metin, '•'):", limoni.Fg(limoni.Hex("#888888"))),
-							limoni.Mask(limoni.Label(inputValue, limoni.Fg(limoni.Hex("#FF77AA"))), '•'),
+							limoni.Label("Mask(text, '*'):", limoni.Fg(limoni.Hex("#888888"))),
+							limoni.Mask(limoni.Label(inputValue, limoni.Fg(limoni.Hex("#FF77AA"))), '*'),
 						),
 						widgets.SymbolsRounded,
 						limoni.Fg(limoni.Hex("#FF77AA")),
@@ -317,70 +317,69 @@ func main() {
 				),
 			)
 
-		case 6: // 🔲 Border Presets Explained
+		case 6: // Border Presets Explained
 			detailContent = limoni.VStack(
-				limoni.Label("🔲 Kenarlık Çeşitleri & Half-Block Farkı", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Half-Block (Yarım Blok) kenarlıklar Unicode yarım blok karakterlerini (▀ ▄ ▌ ▐ ▛ ▜ ▙ ▟)", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("kullanır. Bazı terminal yazı tiplerinde bu karakterler kalın veya pikselli görünebilir.", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("Temiz hatlar için Rounded veya Double tercih edilebilir:", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Border Styles Comparison (Standard vs Half-Block)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Half-Block borders use Unicode block elements (top/bottom/side half blocks).", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Some fonts render them chunky or with subpixel gaps. Standard borders use box-drawing glyphs.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("Rounded\n╭───╮\n╰───╯")),
+						limoni.Center(limoni.Label("Rounded")),
 						widgets.SymbolsRounded,
 						limoni.Fg(limoni.Hex("#00FFAA")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("Double\n╔═══╗\n╚═══╝")),
+						limoni.Center(limoni.Label("Double")),
 						widgets.SymbolsDouble,
 						limoni.Fg(limoni.Hex("#3399FF")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("Thick\n┏━━━┓\n┗━━━┛")),
+						limoni.Center(limoni.Label("Thick")),
 						widgets.SymbolsThick,
 						limoni.Fg(limoni.Hex("#FFCC00")),
 					)),
 				),
 				limoni.HStack(
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("Single\n┌───┐\n└───┘")),
+						limoni.Center(limoni.Label("Single")),
 						widgets.SymbolsSingle,
 						limoni.Fg(limoni.Hex("#AAAAAA")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("OuterHalfBlock\n▛▀▀▀▜\n▙▄▄▄▟")),
+						limoni.Center(limoni.Label("OuterHalfBlock")),
 						widgets.SymbolsOuterHalfBlock,
 						limoni.Fg(limoni.Hex("#FF77AA")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.Center(limoni.Label("InnerHalfBlock\n▗▄▄▄▖\n▘▀▀▀▝")),
+						limoni.Center(limoni.Label("InnerHalfBlock")),
 						widgets.SymbolsInnerHalfBlock,
 						limoni.Fg(limoni.Hex("#FFAA88")),
 					)),
 				),
 			)
 
-		case 7: // ❓ Conditionals (When/Match)
+		case 7: // Conditionals (When/Match)
 			detailContent = limoni.VStack(
-				limoni.Label("❓ Koşullu Çizim (When & Match)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Koşul sağlanmadığında DOM'a boş bileşen vererek sıfır maliyet sağlar.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Conditional Rendering (When & Match)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Unmatched branches are skipped with zero cost (no DOM/allocation overhead).", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
-				limoni.Label("Klavye [m] tuşuna basarak modu değiştirin:", limoni.Fg(limoni.Hex("#FFFF00"))),
+				limoni.Label("Press [m] to cycle application mode:", limoni.Fg(limoni.Hex("#FFFF00"))),
 				limoni.Border(
 					limoni.Pad(
 						limoni.VStack(
 							limoni.HStack(
-								limoni.Label("Şu anki mod: "),
+								limoni.Label("Current Active Mode: "),
 								modeBadge,
 							),
-							limoni.When(currentMode == "monitoring",
-								limoni.Label("📊 Sistem metrikleri izleniyor... Her şey yolunda.", limoni.Fg(limoni.Hex("#00FFAA"))),
+							limoni.When(currentMode == "MONITORING",
+								limoni.Label("Status: Collecting real-time engine telemetry...", limoni.Fg(limoni.Hex("#00FFAA"))),
 							),
-							limoni.When(currentMode == "debug",
-								limoni.Label("🐛 Debug logları aktif: Ayrıntılı bellek izleme açık.", limoni.Fg(limoni.Hex("#FFCC00"))),
+							limoni.When(currentMode == "DEBUG",
+								limoni.Label("Status: Verbose debug logging active (allocation tracking on).", limoni.Fg(limoni.Hex("#FFCC00"))),
 							),
-							limoni.When(currentMode == "production",
-								limoni.Label("🚀 Production modu: Maksimum performans kilidi açık.", limoni.Fg(limoni.Hex("#FF5555"))),
+							limoni.When(currentMode == "PRODUCTION",
+								limoni.Label("Status: Production mode, maximum throughput enabled.", limoni.Fg(limoni.Hex("#FF5555"))),
 							),
 						),
 						1, 2, 1, 2,
@@ -390,21 +389,20 @@ func main() {
 				),
 			)
 
-		case 8: // 🎭 Style Cascading
+		case 8: // Style Cascading
 			detailContent = limoni.VStack(
-				limoni.Label("🎭 Stil Kalıtımı (Cascading Styles)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Üst bileşenin stilleri alt bileşenlere otomatik aktarılır.", limoni.Fg(limoni.Hex("#AAAAAA"))),
-				limoni.Label("Alt bileşen sadece değiştirmek istediği özelliği (Fg, Bg, Bold) ezer.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Style Cascading & Inheritance", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Styles flow down the hierarchy via cell.Context. Children only override what they set.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.WithBackground(limoni.Hex("#1A202C"),
 					limoni.Border(
 						limoni.Pad(
 							limoni.WithForeground(limoni.Hex("#E2E8F0"),
 								limoni.VStack(
-									limoni.Label("Üst Kutu: Koyu arka plan + Açık gri metin"),
-									limoni.WithForeground(limoni.Hex("#48BB78"), limoni.Label("  → Alt Satır: Rengi yeşil yaptık (Arka plan miras alındı)")),
-									limoni.WithForeground(limoni.Hex("#F6E05E"), limoni.Label("  → Alt Satır: Rengi sarı yaptık")),
-									limoni.Label("  → Alt Satır: Üst rengi kullanmaya devam eder"),
+									limoni.Label("Parent Container: Dark background + light gray text"),
+									limoni.WithForeground(limoni.Hex("#48BB78"), limoni.Label("  -> Line 1: Green foreground (inherits dark background)")),
+									limoni.WithForeground(limoni.Hex("#F6E05E"), limoni.Label("  -> Line 2: Yellow foreground")),
+									limoni.Label("  -> Line 3: Inherits parent foreground and background"),
 								),
 							),
 							1, 2, 1, 2,
@@ -415,18 +413,18 @@ func main() {
 				),
 			)
 
-		case 9: // 🖱️ Interactive & Events
+		case 9: // Interactive & Events
 			detailContent = limoni.VStack(
-				limoni.Label("🖱️ Etkileşim & Olay Yönlendirme (Event Routing)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Fare koordinatları bileşenin kendi lokal alanına göre otomatik hesaplanır.", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Interactive Components & Event Routing", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("Mouse and key events are routed directly to components with local coordinates.", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
-				limoni.Label(fmt.Sprintf("Toplam Tıklama: %d (Aşağıdaki butona tıklayın veya [c] tuşuna basın)", clickCount), limoni.Fg(limoni.Hex("#FFFF00"))),
+				limoni.Label(fmt.Sprintf("Total Clicks: %d  (Click button below or press [c])", clickCount), limoni.Fg(limoni.Hex("#FFFF00"))),
 				limoni.Label(""),
 				limoni.HStack(
 					clickBtn,
 					limoni.OnClick(
 						limoni.Border(
-							limoni.Pad(limoni.Label("🔄 Sayacı Sıfırla", limoni.Bold().WithFg(limoni.Hex("#FF5555"))), 0, 1, 0, 1),
+							limoni.Pad(limoni.Label("[ Reset Counter ]", limoni.Bold().WithFg(limoni.Hex("#FF5555"))), 0, 1, 0, 1),
 							widgets.SymbolsRounded,
 							limoni.Fg(limoni.Hex("#FF5555")),
 						),
@@ -437,10 +435,10 @@ func main() {
 				).WithGap(2),
 			)
 
-		case 10: // ⚡ Zero-Alloc Performance
+		case 10: // Zero-Alloc Performance
 			detailContent = limoni.VStack(
-				limoni.Label("⚡ Sıfır Bellek Tahsisi (Zero-Allocation Benchmarks)", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-				limoni.Label("Tüm çizim ve yerleşim hesaplamaları 0 B/op (0 bayt) bellek ayırır:", limoni.Fg(limoni.Hex("#AAAAAA"))),
+				limoni.Label("Zero-Allocation Performance Benchmarks", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+				limoni.Label("All 14 component primitives execute at 0 B/op (zero heap allocations on hot path):", limoni.Fg(limoni.Hex("#AAAAAA"))),
 				limoni.Label(""),
 				limoni.Flex(1, limoni.Border(
 					limoni.AsComponent(table),
@@ -458,8 +456,8 @@ func main() {
 			limoni.FixedSize(0, 3, limoni.Border(
 				limoni.Pad(
 					limoni.HStack(
-						limoni.Label("🍋 LIMONI LEGO ARCHITECTURE", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
-						limoni.Uppercase(limoni.Label("v1.0 • 0 B/op", limoni.Fg(limoni.Hex("#88CCFF")))),
+						limoni.Label("LIMONI COMPOSABLE ARCHITECTURE", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+						limoni.Uppercase(limoni.Label("v1.0 - 0 B/op", limoni.Fg(limoni.Hex("#88CCFF")))),
 						modeBadge,
 						clickBtn,
 					).WithJustify(limoni.JustifySpaceBetween).WithAlignItems(limoni.AlignItemsCenter),
@@ -491,7 +489,7 @@ func main() {
 				)),
 				limoni.Flex(1, limoni.Border(
 					limoni.Pad(
-						limoni.Mask(limoni.Label(inputState.Value(), limoni.Fg(limoni.Hex("#FFAA88"))), '•'),
+						limoni.Mask(limoni.Label(inputState.Value(), limoni.Fg(limoni.Hex("#FFAA88"))), '*'),
 						0, 1, 0, 1,
 					),
 					widgets.SymbolsRounded,
@@ -503,7 +501,7 @@ func main() {
 			limoni.FixedSize(0, 3, limoni.Border(
 				limoni.Pad(
 					limoni.HStack(
-						limoni.WithForeground(limoni.Hex("#888888"), limoni.Label("↑/↓: Modül Seç | c: Tıkla | m: Mod Değiştir | ?: Modal | ESC: Çıkış")),
+						limoni.WithForeground(limoni.Hex("#888888"), limoni.Label("Up/Down: Select | c: Click | m: Toggle Mode | ?: Modal | ESC: Exit")),
 						limoni.WithForeground(limoni.Hex("#00FFAA"), limoni.Label("0 B/op Zero Alloc")),
 					).WithJustify(limoni.JustifySpaceBetween).WithAlignItems(limoni.AlignItemsCenter),
 					0, 1, 0, 1,
@@ -518,19 +516,19 @@ func main() {
 		// -------------------------------------------------------------
 		modalLayer := limoni.When(showModal,
 			limoni.Center(
-				limoni.FixedSize(60, 14,
+				limoni.FixedSize(62, 14,
 					limoni.WithBackground(limoni.Hex("#111827"),
 						limoni.Border(
 							limoni.Pad(
 								limoni.VStack(
-									limoni.Center(limoni.Label("✨ LEGO BLOK MİMARİSİ ✨", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
-									limoni.Label("• ZStack: Sıfır ek tamponla derinlik ekseninde katmanlama", limoni.Fg(limoni.Hex("#FFFFFF"))),
-									limoni.Label("• Overlay: Mutlak koordinatla bileşen bindirme", limoni.Fg(limoni.Hex("#E5E7EB"))),
-									limoni.Label("• Transform: Bellek kopyalamasız yerinde hücre dönüştürme", limoni.Fg(limoni.Hex("#D1D5DB"))),
-									limoni.Label("• Flexbox: JustifyContent & AlignItems destekli HStack/VStack", limoni.Fg(limoni.Hex("#9CA3AF"))),
-									limoni.Label("• Conditionals: Bildirimsel When & Match akış kontrolü", limoni.Fg(limoni.Hex("#6EE7B7"))),
-									limoni.Label("• Stil Kalıtımı: WithStyle, WithForeground ile otomatik miras", limoni.Fg(limoni.Hex("#93C5FD"))),
-									limoni.Center(limoni.Label("[ Kapatmak için Esc veya ? tuşuna basın ]", limoni.Fg(limoni.Hex("#F59E0B")).Bold())),
+									limoni.Center(limoni.Label("== COMPOSABLE ARCHITECTURE ==", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
+									limoni.Label("- ZStack: Depth-axis layering with zero offscreen buffers", limoni.Fg(limoni.Hex("#FFFFFF"))),
+									limoni.Label("- Overlay: Absolute offset child positioning and event routing", limoni.Fg(limoni.Hex("#E5E7EB"))),
+									limoni.Label("- Transform: In-place buffer cell manipulation pipeline", limoni.Fg(limoni.Hex("#D1D5DB"))),
+									limoni.Label("- Flexbox: JustifyContent & AlignItems on HStack/VStack", limoni.Fg(limoni.Hex("#9CA3AF"))),
+									limoni.Label("- Conditionals: Declarative When & Match branching", limoni.Fg(limoni.Hex("#6EE7B7"))),
+									limoni.Label("- Style Cascading: Context-based inheritance (WithStyle, WithFg)", limoni.Fg(limoni.Hex("#93C5FD"))),
+									limoni.Center(limoni.Label("[ Press Esc or ? to Close ]", limoni.Fg(limoni.Hex("#F59E0B")).Bold())),
 								).WithJustify(limoni.JustifySpaceAround),
 								1, 2, 1, 2,
 							),
@@ -542,7 +540,7 @@ func main() {
 			),
 		)
 
-		// ZStack: Taban görünümü ve modal katmanını birleştirir
+		// ZStack: Combines base dashboard and modal layer
 		rootView := limoni.ZStack(
 			baseDashboard,
 			modalLayer,
