@@ -26,6 +26,9 @@ canvas.DrawCircle(centerX, centerY, radius, limoni.Fg(limoni.RGB(255, 215, 0)))
 
 // Draw filled depth-tested triangles (Z-Buffer supported)
 canvas.DrawFilledTriangleDepth(v0, v1, v2, z0, z1, z2, style)
+
+// Draw depth-tested affine-textured triangles (Z-Buffer + UV texture mapping)
+canvas.DrawTexturedTriangleDepth(x0, y0, z0, u0, v0, x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, textureImage)
 ```
 
 ---
@@ -61,14 +64,34 @@ f.RenderWidget(viewer, f.Area())
 2. **Solid Color**: Fills polygon faces with solid colors or depth-based palettes.
 3. **Lambertian Diffuse Shading**: Computes surface normals (`graphics.CalculateNormal`) against directional lights (`graphics.Light`) for realistic illumination (`canvas.DrawLambertTriangleDepth`).
 4. **Gouraud Shading**: Interpolates colors across triangle vertices using barycentric coordinates for smooth lighting transitions (`canvas.DrawGouraudTriangleDepth`).
-5. **Texture Mapping**: Maps UV coordinates from PNG/JPEG image textures directly onto 3D polygons (`canvas.DrawTexturedTriangle`).
+5. **Texture Mapping & Z-Buffer**: Maps UV coordinates from image textures directly onto 3D polygons with depth buffering (`canvas.DrawTexturedTriangleDepth`).
 
 ---
 
-## 3. Terminal Image Drivers
+## 3. Terminal Image Drivers & The Lower Half-Block Standard
 
 Limoni dynamically queries terminal capabilities to select the highest fidelity image rendering protocol:
 - **Kitty Graphics Protocol**: Direct 24-bit RGB pixel image streaming on modern terminals.
 - **Sixel Graphics Protocol**: Indexed pixel graphics for classic DEC VT terminals and xterm.
 - **iTerm2 Inline Images Protocol**: Base64 image payload transmission for macOS iTerm2.
-- **Half-Block ANSI Fallback**: $1 \times 2$ ANSI half-block (`▀`, `▄`) fallback ensuring pixel-art representation on any standard terminal emulator.
+- **Lower Half-Block (`▄`) Baseline Standard**: $1 \times 2$ subpixel representation with inverted color mapping.
+
+### Why Lower Half-Block (`▄` / `U+2584`)?
+Traditional half-block renderers often use the upper half-block (`▀`). In fonts with non-standard baseline metrics (notably on macOS Terminal.app and iTerm2), upper half-blocks can exceed line-height bounds, resulting in line-overflow, trailing artifacts, and terminal scrolling jitter. 
+
+Limoni establishes the **Lower Half-Block (`▄`)** as the standard:
+- Foreground color renders the lower half of the character cell.
+- Background color renders the upper half.
+- By pinning the glyph to the font baseline, rendering stays 100% within character cell bounds across all operating systems and terminal emulators without vertical bar overflow.
+
+---
+
+## 4. 240 FPS Ultra-High Framerate Mode
+
+Limoni's zero-allocation 1D flat buffer and differential ANSI streaming allow running interactive animations, particle systems, and 3D viewers at up to **240 frames per second**:
+
+```bash
+go run github.com/thebanri/limoni/examples/3d_viewer@latest -fps 240
+```
+
+Even at 240 FPS, Limoni limits terminal serial I/O strictly to dirty cells, keeping CPU utilization exceptionally low.

@@ -34,13 +34,39 @@ inner := block.Inner(area)                      // Kenarlık ve padding sonrası
 
 ---
 
-### `Paragraph`
-Otomatik kelime kaydırma (word wrap), hizalama ve stil desteği sunan metin bloğu.
+### `Label`
+Modal diyaloglar, durum çubukları, etiketler ve metin satırları için geliştirilmiş sıfır ek yüklü, ultra hafif metin bileşeni.
+
+**v0.2.4+** sürümünde `Label`, garantili tam arkaplan dolgusu sunar: Widget'a doğrudan veya üst `cell.Context` üzerinden bir arkaplan rengi verildiğinde, satır sonlarındaki boşluklar ve boş satırlar dahil tüm alan bu renkle doldurulur. Böylece alttaki terminal yazılarının görünmesi engellenir. Tam `SizeHint` ve `Measure` yerleşim müzakeresi desteği sunar.
 
 ```go
-p := limoni.NewParagraph("Limoni sıfır bellek tahsisiyle 60+ FPS hız sunar.").
+lbl := widgets.NewLabel("OBJ modelini dışa aktarmak için [Ctrl+S]").
+    WithStyle(cell.Style{
+        Fg: cell.ColorYellow,
+        Bg: cell.NewColorRGB(30, 32, 48),
+    })
+
+f.RenderWidget(lbl, area)
+
+// Veya Lego Composable bileşeni olarak:
+badge := limoni.HStack(
+    limoni.Label("Durum: ", limoni.Fg(limoni.ColorGray)),
+    limoni.Label("HAZIR", limoni.Fg(limoni.ColorGreen).Bold()),
+)
+```
+
+---
+
+### `Paragraph`
+Otomatik kelime kaydırma (word wrap), hizalama ve stil desteği sunan metin bloğu. **v0.2.4+** sürümünde arkaplan rengi atandığında tüm sınırlayıcı kutu doldurularak alttaki katmanların aradan sızması önlenir.
+
+```go
+p := limoni.NewParagraph("Limoni sıfır bellek tahsisiyle 60-240 FPS akıcı hız sunar.").
     WithWrap(true).
-    WithStyle(limoni.Fg(limoni.RGB(220, 225, 235)).Bold()).
+    WithStyle(cell.Style{
+        Fg: cell.ColorWhite,
+        Bg: cell.NewColorRGB(20, 24, 38),
+    }).
     WithAlignment(limoni.AlignCenter)
 
 f.RenderWidget(p, area)

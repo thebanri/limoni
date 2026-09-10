@@ -34,13 +34,39 @@ inner := block.Inner(area)                      // Exact printable area inside b
 
 ---
 
-### `Paragraph`
-Text rendering widget with automatic word wrapping, alignment, and style inheritance.
+### `Label`
+Ultra-lightweight, zero-overhead text widget designed for single or multi-line text strings, modal dialogs, status lines, and inspector panels.
+
+In **v0.2.4+**, `Label` guarantees solid background coverage: when a background color is set on the widget or inherited from its parent `cell.Context`, all cells in the bounding area—including trailing spaces and empty rows—are filled with the background color, completely preventing underlying terminal text from bleeding through. Supports full `SizeHint` and `Measure` layout negotiation.
 
 ```go
-p := limoni.NewParagraph("Limoni delivers 60+ FPS zero-allocation rendering.").
+lbl := widgets.NewLabel("Press [Ctrl+S] to export OBJ mesh").
+    WithStyle(cell.Style{
+        Fg: cell.ColorYellow,
+        Bg: cell.NewColorRGB(30, 32, 48),
+    })
+
+f.RenderWidget(lbl, area)
+
+// Or as an inline Lego Composable component:
+badge := limoni.HStack(
+    limoni.Label("Status: ", limoni.Fg(limoni.ColorGray)),
+    limoni.Label("READY", limoni.Fg(limoni.ColorGreen).Bold()),
+)
+```
+
+---
+
+### `Paragraph`
+Text rendering widget with automatic word wrapping, alignment, and style inheritance. In **v0.2.4+**, setting a background color fills the entire bounding box so underlying modal/window content is reliably occluded.
+
+```go
+p := limoni.NewParagraph("Limoni delivers 60-240 FPS zero-allocation rendering.").
     WithWrap(true).
-    WithStyle(limoni.Fg(limoni.RGB(220, 225, 235)).Bold()).
+    WithStyle(cell.Style{
+        Fg: cell.ColorWhite,
+        Bg: cell.NewColorRGB(20, 24, 38),
+    }).
     WithAlignment(limoni.AlignCenter)
 
 f.RenderWidget(p, area)
