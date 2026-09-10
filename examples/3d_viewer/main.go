@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
@@ -21,33 +21,33 @@ import (
 	"github.com/thebanri/limoni/widgets"
 )
 
-type text struct {
-	value string
-	style cell.Style
+func generateDefaultTexture() image.Image {
+	const size = 256
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			check := ((x / 32) + (y / 32)) % 2
+			var r, g, b uint8
+			if check == 0 {
+				r = uint8(30 + (x * 150 / size))
+				g = uint8(220 - (y * 60 / size))
+				b = uint8(160 + ((x + y) * 80 / (2 * size)))
+			} else {
+				r = uint8(190 - (x * 80 / size))
+				g = uint8(70 + (y * 140 / size))
+				b = uint8(230 - ((x + y) * 50 / (2 * size)))
+			}
+			if x%32 == 0 || y%32 == 0 || x%32 == 31 || y%32 == 31 {
+				r = uint8(float64(r) * 0.6)
+				g = uint8(float64(g) * 0.6)
+				b = uint8(float64(b) * 0.6)
+			}
+			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+	return img
 }
 
-func (t text) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	mergedStyle := ctx.Style.Merge(t.style)
-	currY := ctx.Area.Y
-	for _, line := range strings.Split(t.value, "\n") {
-		if currY >= ctx.Area.Y+ctx.Area.Height {
-			break
-		}
-		buf.SetString(ctx.Area.X, currY, line, mergedStyle)
-		currY++
-	}
-}
-
-func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
-	lines := strings.Split(t.value, "\n")
-	maxW := 0
-	for _, l := range lines {
-		if len(l) > maxW {
-			maxW = len(l)
-		}
-	}
-	return uint16(maxW), uint16(len(lines))
-}
 
 type AppState struct {
 	RotX, RotY, RotZ float64
@@ -90,6 +90,9 @@ type AppState struct {
 }
 
 func (s *AppState) getOrLoadImage(path string) image.Image {
+	if path == "built-in:checkerboard.png" {
+		return s.OverlayImg
+	}
 	if s.imageCache == nil {
 		s.imageCache = make(map[string]image.Image)
 	}
@@ -203,6 +206,14 @@ func main() {
 		}
 	}
 
+	if defaultImg == nil {
+		defaultImg = generateDefaultTexture()
+		defaultImgPath = "built-in:checkerboard.png"
+	}
+	if len(imgFiles) == 0 {
+		imgFiles = []string{"built-in:checkerboard.png"}
+	}
+
 	state := &AppState{
 		RotX:               25.0,
 		RotY:               45.0,
@@ -313,7 +324,7 @@ func main() {
 							if img != nil {
 								state.OverlayImg = img
 								state.ImgPath = path
-								state.ShadingMode = "Dokulu"
+								state.ShadingMode = "Textured"
 								state.ShadingSelectState.Selected = 0
 							}
 						}
@@ -557,7 +568,8 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 			Borders:        widgets.BorderAll,
 			BorderSymbols:  widgets.SymbolsRounded,
 			BorderStyle:    cell.Style{Fg: accentColor},
-			Child:          text{value: " Real-time 3D vector projection, directional lighting, and Gouraud shading ", style: cell.Style{Fg: cell.NewColorRGB(200, 200, 200)}},
+			Style:          cell.Style{Bg: cell.NewColorRGB(18, 20, 26)},
+			Child:          widgets.NewLabel(" Real-time 3D vector projection, directional lighting, and Gouraud shading ").WithStyle(cell.Style{Fg: cell.NewColorRGB(200, 200, 200)}),
 		}, chunks[0])
 
 		bodyLay := layout.NewFlexLayout(
@@ -575,9 +587,11 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		footerText := fmt.Sprintf(" [Tab] Focus | [Space] Rotate | [F] Mode: %d FPS | Live: %.1f FPS | [Ctrl+E] 3D | [Ctrl+S] Tex", state.TargetFPS, state.FPS)
 		f.RenderWidget(widgets.Block{
 			Borders: widgets.BorderNone,
-			Style:   cell.Style{Fg: cell.NewColorRGB(20, 20, 25)},
-			Child:   text{value: footerText, style: cell.Style{Fg: cell.NewColorRGB(140, 140, 140)}},
+			Style:   cell.Style{Bg: cell.NewColorRGB(20, 20, 25)},
+			Child:   widgets.NewLabel(footerText).WithStyle(cell.Style{Fg: cell.NewColorRGB(140, 140, 140)}),
 		}, chunks[2])
+
+		modalBg := cell.NewColorRGB(18, 20, 26)
 
 		// ─────────────────────────────────────────────────────
 		// 3D MODEL SELECT MODAL (Ctrl+E)
@@ -592,7 +606,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
 				BorderStyle:    cell.Style{Fg: accentColor},
-				Style:          cell.Style{Bg: cell.NewColorRGB(18, 20, 26)},
+				Style:          cell.Style{Bg: modalBg},
 				Opaque:         true,
 			}, modalArea)
 
@@ -624,7 +638,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 				Items:           modelItems,
 				State:           state.ModelListState,
 				Scrollbar:       true,
-				Style:           cell.Style{Fg: cell.NewColorRGB(210, 215, 230)},
+				Style:           cell.Style{Fg: cell.NewColorRGB(210, 215, 230), Bg: modalBg},
 				SelectedStyle:   cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(0, 150, 90), Modifier: cell.ModifierBold},
 				HighlightSymbol: "▶ ",
 			}, cols[0])
@@ -645,7 +659,8 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 
 			f.RenderWidget(widgets.Block{
 				Borders: widgets.BorderNone,
-				Child:   text{value: previewInfo, style: cell.Style{Fg: cell.NewColorRGB(190, 195, 210)}},
+				Style:   cell.Style{Bg: modalBg},
+				Child:   widgets.NewLabel(previewInfo).WithStyle(cell.Style{Fg: cell.NewColorRGB(190, 195, 210), Bg: modalBg}),
 			}, cols[1])
 		}
 
@@ -662,7 +677,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 				Borders:        widgets.BorderAll,
 				BorderSymbols:  widgets.SymbolsRounded,
 				BorderStyle:    cell.Style{Fg: accentColor},
-				Style:          cell.Style{Bg: cell.NewColorRGB(18, 20, 26)},
+				Style:          cell.Style{Bg: modalBg},
 				Opaque:         true,
 			}, modalArea)
 
@@ -694,7 +709,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 				Items:           imgItems,
 				State:           state.ImageListState,
 				Scrollbar:       true,
-				Style:           cell.Style{Fg: cell.NewColorRGB(210, 215, 230)},
+				Style:           cell.Style{Fg: cell.NewColorRGB(210, 215, 230), Bg: modalBg},
 				SelectedStyle:   cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: cell.NewColorRGB(0, 150, 90), Modifier: cell.ModifierBold},
 				HighlightSymbol: "▶ ",
 			}, cols[0])
@@ -705,17 +720,20 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 				liveImg := state.getOrLoadImage(selPath)
 				if liveImg != nil {
 					imgPreview = &widgets.Image{
-						Img: liveImg,
+						Img:            liveImg,
+						ForceHalfBlock: true,
+						Background:     modalBg,
 					}
 				} else {
-					imgPreview = text{value: "Failed to load image:\n" + filepath.Base(selPath), style: cell.Style{Fg: cell.NewColorRGB(220, 80, 80)}}
+					imgPreview = widgets.NewLabel("Failed to load image:\n" + filepath.Base(selPath)).WithStyle(cell.Style{Fg: cell.NewColorRGB(220, 80, 80), Bg: modalBg})
 				}
 			} else {
-				imgPreview = text{value: "Select an image\nfrom the list.", style: cell.Style{Fg: cell.NewColorRGB(130, 135, 150)}}
+				imgPreview = widgets.NewLabel("Select an image\nfrom the list.").WithStyle(cell.Style{Fg: cell.NewColorRGB(130, 135, 150), Bg: modalBg})
 			}
 
 			f.RenderWidget(widgets.Block{
 				Borders: widgets.BorderNone,
+				Style:   cell.Style{Bg: modalBg},
 				Child:   imgPreview,
 			}, cols[1])
 		}
@@ -731,11 +749,14 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 		options = []string{"Cube", "Pyramid", "Sphere", "Torus", "Custom"}
 	}
 
+	ctrlBg := cell.NewColorRGB(18, 20, 26)
+
 	f.RenderWidget(widgets.Block{
 		Title:         " SETTINGS ",
 		Borders:       widgets.BorderAll,
 		BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle:   cell.Style{Fg: blockBorderCol},
+		Style:         cell.Style{Bg: ctrlBg},
 	}, area)
 
 	innerArea := cell.NewRect(area.X+1, area.Y+1, area.Width-2, area.Height-2)
@@ -774,6 +795,7 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	}
 	f.RenderWidget(widgets.Block{
 		Title: " GEOMETRY ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: shapeBorder},
+		Style: cell.Style{Bg: ctrlBg},
 		Child: widgets.Select{
 			ID:      "shape_select",
 			Options: options,
@@ -797,6 +819,7 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	}
 	f.RenderWidget(widgets.Block{
 		Title: " SHADING ", Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: shadingBorder},
+		Style: cell.Style{Bg: ctrlBg},
 		Child: widgets.Select{
 			ID:      "shading_select",
 			Options: shadings,
@@ -818,6 +841,7 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	}
 	f.RenderWidget(widgets.Block{
 		Title: fmt.Sprintf(" SCALE: %%%d ", state.ZoomScale), Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: zoomBorder},
+		Style:       cell.Style{Bg: ctrlBg},
 		PaddingLeft: 1, PaddingRight: 1,
 		Child: widgets.Slider{
 			ID:          "zoom_slider",
@@ -836,6 +860,7 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 	}
 	f.RenderWidget(widgets.Block{
 		Title: fmt.Sprintf(" SPEED: %%%d ", state.RotationSpeed), Borders: widgets.BorderAll, BorderSymbols: widgets.SymbolsRounded, BorderStyle: cell.Style{Fg: speedBorder},
+		Style:       cell.Style{Bg: ctrlBg},
 		PaddingLeft: 1, PaddingRight: 1,
 		Child: widgets.Slider{
 			ID:          "speed_slider",
@@ -877,8 +902,9 @@ func drawControls(f *terminal.Frame, state *AppState, area cell.Rect, focused st
 		Borders:       widgets.BorderAll,
 		BorderSymbols: widgets.SymbolsRounded,
 		BorderStyle:   cell.Style{Fg: blockBorderCol},
+		Style:         cell.Style{Bg: ctrlBg},
 		PaddingLeft:   1,
-		Child:         text{value: infoLines, style: cell.Style{Fg: cell.NewColorRGB(180, 180, 190)}},
+		Child:         widgets.NewLabel(infoLines).WithStyle(cell.Style{Fg: cell.NewColorRGB(180, 180, 190)}),
 	}, ctrlChunks[4])
 }
 
@@ -1025,35 +1051,39 @@ func draw3DCanvas(f *terminal.Frame, state *AppState, area cell.Rect) {
 
 		switch state.ShadingMode {
 		case "Textured":
-			if state.OverlayImg != nil {
+			tex := state.OverlayImg
+			if tex != nil {
 				if isQuad {
 					uv0 := graphics.UV{U: 0.0, V: 1.0}
 					uv1 := graphics.UV{U: 1.0, V: 1.0}
 					uv2 := graphics.UV{U: 1.0, V: 0.0}
 					uv3 := graphics.UV{U: 0.0, V: 0.0}
 
-					canvas.DrawTexturedTriangle(
+					canvas.DrawTexturedTriangleDepth(
 						graphics.Vertex2D{X: p0.x, Y: p0.y},
 						graphics.Vertex2D{X: p1.x, Y: p1.y},
 						graphics.Vertex2D{X: p2.x, Y: p2.y},
-						uv0, uv1, uv2, state.OverlayImg,
+						p0.z, p1.z, p2.z,
+						uv0, uv1, uv2, tex,
 					)
-					canvas.DrawTexturedTriangle(
+					canvas.DrawTexturedTriangleDepth(
 						graphics.Vertex2D{X: p0.x, Y: p0.y},
 						graphics.Vertex2D{X: p2.x, Y: p2.y},
 						graphics.Vertex2D{X: p3.x, Y: p3.y},
-						uv0, uv2, uv3, state.OverlayImg,
+						p0.z, p2.z, p3.z,
+						uv0, uv2, uv3, tex,
 					)
 				} else {
 					uv0 := graphics.UV{U: 0.0, V: 1.0}
 					uv1 := graphics.UV{U: 1.0, V: 1.0}
 					uv2 := graphics.UV{U: 0.5, V: 0.0}
 
-					canvas.DrawTexturedTriangle(
+					canvas.DrawTexturedTriangleDepth(
 						graphics.Vertex2D{X: p0.x, Y: p0.y},
 						graphics.Vertex2D{X: p1.x, Y: p1.y},
 						graphics.Vertex2D{X: p2.x, Y: p2.y},
-						uv0, uv1, uv2, state.OverlayImg,
+						p0.z, p1.z, p2.z,
+						uv0, uv1, uv2, tex,
 					)
 				}
 			} else {

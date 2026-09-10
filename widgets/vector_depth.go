@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"image"
 	"math"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -90,3 +91,78 @@ func (c *Canvas) DrawGouraudTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, 
 		}
 	}
 }
+
+// DrawTexturedTriangleDepth rasterizes a triangle with texture mapping and z-buffering.
+func (c *Canvas) DrawTexturedTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
+	if c == nil || img == nil || c.width == 0 || c.height == 0 || img.Bounds().Empty() {
+		return
+	}
+	minX := int(math.Min(p0.X, math.Min(p1.X, p2.X)))
+	maxX := int(math.Max(p0.X, math.Max(p1.X, p2.X)))
+	minY := int(math.Min(p0.Y, math.Min(p1.Y, p2.Y)))
+	maxY := int(math.Max(p0.Y, math.Max(p1.Y, p2.Y)))
+
+	canvasW, canvasH := int(c.width)*2, int(c.height)*4
+	if minX < 0 {
+		minX = 0
+	}
+	if maxX >= canvasW {
+		maxX = canvasW - 1
+	}
+	if minY < 0 {
+		minY = 0
+	}
+	if maxY >= canvasH {
+		maxY = canvasH - 1
+	}
+
+	denom := (p1.Y-p2.Y)*(p0.X-p2.X) + (p2.X-p1.X)*(p0.Y-p2.Y)
+	if math.Abs(denom) < 1e-6 {
+		return
+	}
+
+	imgW := float64(img.Bounds().Dx())
+	imgH := float64(img.Bounds().Dy())
+	imgMinX := img.Bounds().Min.X
+	imgMinY := img.Bounds().Min.Y
+
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			fx, fy := float64(x), float64(y)
+			l1 := ((p1.Y-p2.Y)*(fx-p2.X) + (p2.X-p1.X)*(fy-p2.Y)) / denom
+			l2 := ((p2.Y-p0.Y)*(fx-p2.X) + (p0.X-p2.X)*(fy-p2.Y)) / denom
+			l3 := 1.0 - l1 - l2
+
+			if l1 >= -0.005 && l2 >= -0.005 && l3 >= -0.005 {
+				u := l1*uv0.U + l2*uv1.U + l3*uv2.U
+				v := l1*uv0.V + l2*uv1.V + l3*uv2.V
+
+				tx := int(u * imgW)
+				ty := int(v * imgH)
+				if tx < 0 {
+					tx = 0
+				}
+				if tx >= int(imgW) {
+					tx = int(imgW) - 1
+				}
+				if ty < 0 {
+					ty = 0
+				}
+				if ty >= int(imgH) {
+					ty = int(imgH) - 1
+				}
+
+				col := img.At(imgMinX+tx, imgMinY+ty)
+				r, g, b, a := col.RGBA()
+				if a >= 8000 {
+					uR := uint8(r >> 8)
+					uG := uint8(g >> 8)
+					uB := uint8(b >> 8)
+					depth := l1*z0 + l2*z1 + l3*z2
+					c.SetDepth(x, y, depth, cell.Style{Fg: cell.NewColorRGB(uR, uG, uB)})
+				}
+			}
+		}
+	}
+}
+

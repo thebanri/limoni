@@ -21,25 +21,11 @@ type text struct {
 }
 
 func (t text) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	lines := strings.Split(t.value, "\n")
-	for i, line := range lines {
-		if uint16(i) >= ctx.Area.Height {
-			break
-		}
-		buf.SetString(ctx.Area.X, ctx.Area.Y+uint16(i), line, ctx.Style.Merge(t.style))
-	}
+	widgets.NewLabel(t.value).WithStyle(t.style).Draw(ctx, buf)
 }
 
 func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
-	lines := strings.Split(t.value, "\n")
-	maxW := 0
-	for _, l := range lines {
-		w := len([]rune(l))
-		if w > maxW {
-			maxW = w
-		}
-	}
-	return uint16(maxW), uint16(len(lines))
+	return widgets.NewLabel(t.value).SizeHint(maxArea)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

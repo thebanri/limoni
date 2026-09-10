@@ -190,6 +190,9 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	listStyle := ctx.Style.Merge(l.Style)
+	if listStyle.Bg.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+		listStyle = listStyle.Merge(ctx.ThemeStyle("surface"))
+	}
 	if ctx.IsFocused(l.ID) {
 		listStyle = listStyle.Merge(l.FocusedStyle)
 	}
@@ -287,7 +290,20 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Satırın arka planını temizle ve doldur
 		for x := area.X; x < area.X+area.Width; x++ {
-			buf.SetCellDirect(x, currY, cell.Cell{Content: ' ', Style: itemStyle})
+			c := buf.Get(x, currY)
+			if c == nil {
+				continue
+			}
+			rowStyle := itemStyle
+			if rowStyle.Bg.Type() == cell.ColorDefault {
+				if ctx.Style.Bg.Type() != cell.ColorDefault {
+					rowStyle.Bg = ctx.Style.Bg
+				} else if c.Style.Bg.Type() != cell.ColorDefault {
+					rowStyle.Bg = c.Style.Bg
+				}
+			}
+			c.Content = ' '
+			c.Style = rowStyle
 		}
 
 		// Metni çiz (allocation-free string rendering)
@@ -323,6 +339,31 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					setFocus(id)
 				}
 			})
+		}
+	}
+
+	// Kalan boş satırları arka plan rengiyle doldur
+	for y := totalItems - offset; y < int(area.Height); y++ {
+		if y < 0 {
+			continue
+		}
+		currY := area.Y + uint16(y)
+		for x := area.X; x < area.X+area.Width; x++ {
+			c := buf.Get(x, currY)
+			if c != nil {
+				bg := listStyle.Bg
+				if bg.Type() == cell.ColorDefault {
+					if ctx.Style.Bg.Type() != cell.ColorDefault {
+						bg = ctx.Style.Bg
+					} else if c.Style.Bg.Type() != cell.ColorDefault {
+						bg = c.Style.Bg
+					}
+				}
+				if bg.Type() != cell.ColorDefault {
+					c.Content = ' '
+					c.Style.Bg = bg
+				}
+			}
 		}
 	}
 }

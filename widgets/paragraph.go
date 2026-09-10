@@ -96,12 +96,37 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
+	bg := mergedStyle.Bg
+	if bg.Type() == cell.ColorDefault && ctx.Style.Bg.Type() != cell.ColorDefault {
+		bg = ctx.Style.Bg
+	}
+
 	// Sınır yüksekliğini aşmayacak şekilde satır satır çiz
 	for i, line := range p.cachedLines {
 		if uint16(i) >= area.Height {
 			break
 		}
-		buf.SetStringWithin(area.X, area.Y+uint16(i), line, mergedStyle, area.Width)
+		currY := area.Y + uint16(i)
+		written := buf.SetStringWithin(area.X, currY, line, mergedStyle, area.Width)
+		if bg.Type() != cell.ColorDefault {
+			for x := area.X + written; x < area.X+area.Width; x++ {
+				if c := buf.Get(x, currY); c != nil {
+					c.Content = ' '
+					c.Style.Bg = bg
+				}
+			}
+		}
+	}
+	if bg.Type() != cell.ColorDefault {
+		for i := len(p.cachedLines); uint16(i) < area.Height; i++ {
+			currY := area.Y + uint16(i)
+			for x := area.X; x < area.X+area.Width; x++ {
+				if c := buf.Get(x, currY); c != nil {
+					c.Content = ' '
+					c.Style.Bg = bg
+				}
+			}
+		}
 	}
 }
 

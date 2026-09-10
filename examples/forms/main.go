@@ -18,9 +18,13 @@ type text struct {
 }
 
 func (t text) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	buf.SetString(ctx.Area.X, ctx.Area.Y, t.value, ctx.Style.Merge(t.style))
+	widgets.NewLabel(t.value).WithStyle(t.style).Draw(ctx, buf)
 }
-func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
+
+func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
+	return widgets.NewLabel(t.value).SizeHint(maxArea)
+}
+
 
 func main() {
 	b := driver.NewBackend(os.Stdin, os.Stdout)

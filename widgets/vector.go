@@ -213,24 +213,7 @@ func (c *Canvas) DrawTexturedTriangle(p0, p1, p2 graphics.Vertex2D, uv0, uv1, uv
 				uG := uint8(g >> 8)
 				uB := uint8(b >> 8)
 
-				// Beyaz/Açık Gri arka planı algıla ve şeffaf yap (color-keying)
-				isWhite := false
-				if uR > 200 && uG > 200 && uB > 200 {
-					diff1 := int(uR) - int(uG)
-					diff2 := int(uG) - int(uB)
-					if diff1 < 0 {
-						diff1 = -diff1
-					}
-					if diff2 < 0 {
-						diff2 = -diff2
-					}
-					if diff1 <= 15 && diff2 <= 15 {
-						isWhite = true
-					}
-				}
-
-				// Sadece görünür ve arka plan olmayan pikselleri çiz
-				if a > 32768 && !isWhite {
+				if a >= 8000 {
 					style := cell.Style{Fg: cell.NewColorRGB(uR, uG, uB)}
 					c.Set(x, y, style)
 				}

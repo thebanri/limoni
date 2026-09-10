@@ -138,6 +138,9 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 	if bgCol.Type() == cell.ColorDefault {
 		bgCol = ctx.Style.Bg
 	}
+	if bgCol.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+		bgCol = ctx.ThemeStyle("surface").Bg
+	}
 
 	if im.lastImg == img && im.lastArea == ctx.Area && len(im.cachedCells) == int(ctx.Area.Width)*int(ctx.Area.Height) {
 		idx := 0
@@ -163,6 +166,17 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 	idx := 0
 	for cy := uint16(0); cy < ctx.Area.Height; cy++ {
 		for cx := uint16(0); cx < ctx.Area.Width; cx++ {
+			cellX := ctx.Area.X + cx
+			cellY := ctx.Area.Y + cy
+
+			// Fallback to existing cell background if bgCol is still default
+			effCellBg := bgCol
+			if effCellBg.Type() == cell.ColorDefault {
+				if cur := buf.Get(cellX, cellY); cur != nil && cur.Style.Bg.Type() != cell.ColorDefault {
+					effCellBg = cur.Style.Bg
+				}
+			}
+
 			// Üst piksel (Background rengi olacak)
 			topCol := resized.At(int(cx), int(2*cy))
 			_, _, _, ta := topCol.RGBA()
@@ -175,18 +189,16 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 			topOpaque := ta >= alphaMin
 			botOpaque := ba >= alphaMin
 
-			bgColor := bgCol
+			bgColor := effCellBg
 			if topOpaque {
-				bgColor = blendColor(topCol, bgCol)
+				bgColor = blendColor(topCol, effCellBg)
 			}
-			fgColor := bgCol
+			fgColor := effCellBg
 			if botOpaque {
-				fgColor = blendColor(botCol, bgCol)
+				fgColor = blendColor(botCol, effCellBg)
 			}
 
 			// Hücreyi güncelle
-			cellX := ctx.Area.X + cx
-			cellY := ctx.Area.Y + cy
 			if c := buf.Get(cellX, cellY); c != nil {
 				c.Style.Modifier = cell.ModifierReset
 
@@ -194,10 +206,10 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 					// Her iki piksel de şeffaf -> Boşluk karakteri
 					c.Content = ' '
 					c.Style.Fg = cell.NewColorDefault()
-					c.Style.Bg = bgCol
+					c.Style.Bg = effCellBg
 				} else if topOpaque && !botOpaque {
 					// Üst dolu, alt şeffaf -> Alt yarım blok (▄) ile Bg üst piksel, Fg arka plan
-					effBg := bgCol
+					effBg := effCellBg
 					if effBg.Type() == cell.ColorDefault {
 						effBg = cell.NewColorRGB(0, 0, 0)
 					}
@@ -206,7 +218,7 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 					c.Style.Bg = bgColor
 				} else if !topOpaque && botOpaque {
 					// Üst şeffaf, alt dolu -> Alt yarım blok (▄) ile Fg alt piksel, Bg arka plan
-					effBg := bgCol
+					effBg := effCellBg
 					if effBg.Type() == cell.ColorDefault {
 						effBg = cell.NewColorRGB(0, 0, 0)
 					}

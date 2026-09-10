@@ -768,6 +768,14 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 
 	var defStyle cell.Style
 	defStyle.Reset()
+	if f.ThemeSet {
+		defStyle = f.Theme.RoleStyle("surface")
+	}
+	if f.Buffer != nil && area.Width > 0 && area.Height > 0 {
+		if c := f.Buffer.Get(area.X, area.Y); c != nil && c.Style.Bg.Type() != cell.ColorDefault {
+			defStyle.Bg = c.Style.Bg
+		}
+	}
 
 	// Katman durumunu belirle: Widget, herhangi bir katmanın içinde mi?
 	isInsideLayer := f.activeLayerID != ""
