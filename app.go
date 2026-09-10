@@ -1,5 +1,7 @@
 package limoni
 
+import "time"
+
 var wakeupChan = make(chan struct{}, 1)
 
 // Wakeup signals the render loop to re-render a frame immediately without waiting for terminal input.
@@ -17,6 +19,17 @@ type AppOption func(*appConfig)
 
 type appConfig struct {
 	catchCtrlC bool
+	fps        int
+}
+
+// WithFPS configures a continuous animation frame rate (e.g. 60, 120, 240 FPS).
+// When configured, the render loop continuously invokes the draw function at the target rate.
+func WithFPS(fps int) AppOption {
+	return func(c *appConfig) {
+		if fps > 0 {
+			c.fps = fps
+		}
+	}
 }
 
 // WithCatchCtrlC configures whether Ctrl+C is forwarded to the application
@@ -63,6 +76,13 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 		return err
 	}
 
+	var tickerChan <-chan time.Time
+	if cfg.fps > 0 {
+		ticker := time.NewTicker(time.Second / time.Duration(cfg.fps))
+		defer ticker.Stop()
+		tickerChan = ticker.C
+	}
+
 	events := term.Events()
 	for running {
 		select {
@@ -87,6 +107,15 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 
 		case <-wakeupChan:
 			// Arka plandaki goroutine'den Wakeup() çağrıldığında tetiklenir
+			err = term.Draw(func(f *Frame) {
+				running = appFn(f, nil)
+			})
+			if err != nil {
+				return err
+			}
+
+		case <-tickerChan:
+			// WithFPS ayarlandığında hedef kare hızında tetiklenir
 			err = term.Draw(func(f *Frame) {
 				running = appFn(f, nil)
 			})

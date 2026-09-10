@@ -89,7 +89,11 @@ Terminal hücrelerinde 60+ FPS hızında gerçek zamanlı 3D yazılımsal raster
 </p>
 
 ```bash
-go run ./examples/3d_viewer
+# Yerel çalıştırma (-fps bayrağı veya [F] tuşu ile 240 FPS destekler):
+go run ./examples/3d_viewer -fps 240
+
+# Veya repoyu indirmeden doğrudan terminalinizden çalıştırın:
+go run github.com/thebanri/limoni/examples/3d_viewer@latest -fps 240
 ```
 
 ---

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -68,7 +69,8 @@ type AppState struct {
 	LastDragX  int
 	LastDragY  int
 
-	FPS float64
+	FPS       float64
+	TargetFPS int
 
 	// New fields for Custom Model and Background overlays
 	OBJModel   *graphics.Model3D
@@ -152,6 +154,14 @@ func scanImageFiles() []string {
 }
 
 func main() {
+	fpsFlag := flag.Int("fps", 60, "Target frame rate (e.g. 30, 60, 120, 240)")
+	flag.Parse()
+
+	targetFPS := *fpsFlag
+	if targetFPS <= 0 {
+		targetFPS = 60
+	}
+
 	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Hata: %v\n", err)
@@ -212,9 +222,11 @@ func main() {
 		OverlayImg:         defaultImg,
 		ImgPath:            defaultImgPath,
 		ImageFiles:         imgFiles,
+		TargetFPS:          targetFPS,
 	}
 
-	ticker := time.NewTicker(33 * time.Millisecond)
+	frameDuration := time.Second / time.Duration(targetFPS)
+	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
 	frameCount := 0
@@ -315,6 +327,23 @@ func main() {
 
 				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
 					return
+				}
+
+				// [F] Toggle FPS Mode (30 -> 60 -> 120 -> 240)
+				if ev.Key.Type == driver.KeyRune && (ev.Key.Ch == 'f' || ev.Key.Ch == 'F') {
+					switch state.TargetFPS {
+					case 30:
+						state.TargetFPS = 60
+					case 60:
+						state.TargetFPS = 120
+					case 120:
+						state.TargetFPS = 240
+					default:
+						state.TargetFPS = 30
+					}
+					ticker.Reset(time.Second / time.Duration(state.TargetFPS))
+					draw()
+					continue
 				}
 
 				// Check Ctrl+E and Ctrl+S
@@ -438,8 +467,12 @@ func main() {
 			}
 
 		case <-ticker.C:
+			currentFPS := float64(state.TargetFPS)
+			if currentFPS <= 0 {
+				currentFPS = 60.0
+			}
+			speedFactor := (float64(state.RotationSpeed) / 50.0) * (60.0 / currentFPS)
 			if state.AutoRotate {
-				speedFactor := float64(state.RotationSpeed) / 50.0
 				state.RotY = math.Mod(state.RotY+1.5*speedFactor, 360.0)
 				if state.RotY < 0 {
 					state.RotY += 360.0
@@ -453,7 +486,7 @@ func main() {
 					state.RotZ += 360.0
 				}
 			}
-			state.LightAngle = math.Mod(state.LightAngle+0.05, 2*math.Pi)
+			state.LightAngle = math.Mod(state.LightAngle+0.05*(60.0/currentFPS), 2*math.Pi)
 
 			draw()
 
@@ -539,7 +572,7 @@ func drawApp(t *terminal.Terminal, state *AppState) {
 		draw3DCanvas(f, state, bodyChunks[1])
 
 		// Footer
-		footerText := fmt.Sprintf(" [Tab] Focus | [Ctrl+E] Load 3D | [Ctrl+S] Load Texture | [Space] Auto Rotate | FPS: %.1f", state.FPS)
+		footerText := fmt.Sprintf(" [Tab] Focus | [Space] Rotate | [F] Mode: %d FPS | Live: %.1f FPS | [Ctrl+E] 3D | [Ctrl+S] Tex", state.TargetFPS, state.FPS)
 		f.RenderWidget(widgets.Block{
 			Borders: widgets.BorderNone,
 			Style:   cell.Style{Fg: cell.NewColorRGB(20, 20, 25)},

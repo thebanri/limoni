@@ -117,7 +117,11 @@ Real-time 3D software rasterization running at 60+ FPS directly in terminal cell
 </p>
 
 ```bash
-go run ./examples/3d_viewer
+# Run locally (supports up to 240 FPS via -fps flag or [F] key):
+go run ./examples/3d_viewer -fps 240
+
+# Or run directly anywhere without cloning:
+go run github.com/thebanri/limoni/examples/3d_viewer@latest -fps 240
 ```
 
 ---

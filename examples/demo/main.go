@@ -4,6 +4,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -157,6 +158,14 @@ type AppState struct {
 }
 
 func main() {
+	fpsFlag := flag.Int("fps", 60, "Target frame rate (e.g. 60, 120, 240)")
+	flag.Parse()
+
+	targetFPS := *fpsFlag
+	if targetFPS <= 0 {
+		targetFPS = 60
+	}
+
 	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize backend: %v\n", err)
@@ -174,7 +183,8 @@ func main() {
 
 	state := initAppState()
 
-	ticker := time.NewTicker(16666 * time.Microsecond) // ~40 FPS smooth tick
+	frameDuration := time.Second / time.Duration(targetFPS)
+	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
 	draw := func() {

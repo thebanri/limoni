@@ -5,6 +5,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -175,6 +176,14 @@ func getModelByName(name string) graphics.Model3D {
 }
 
 func main() {
+	fpsFlag := flag.Int("fps", 60, "Target frame rate (e.g. 60, 120, 240)")
+	flag.Parse()
+
+	targetFPS := *fpsFlag
+	if targetFPS <= 0 {
+		targetFPS = 60
+	}
+
 	b := driver.NewBackend(os.Stdin, os.Stdout)
 	if err := b.Setup(); err != nil {
 		fmt.Fprintf(os.Stderr, "Backend setup error: %v\n", err)
@@ -254,7 +263,8 @@ func main() {
 		LastFrame:     time.Now(),
 	}
 
-	ticker := time.NewTicker(16 * time.Millisecond) // ~60 FPS
+	frameDuration := time.Second / time.Duration(targetFPS)
+	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
 	frameCount := 0
