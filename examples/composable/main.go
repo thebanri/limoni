@@ -17,6 +17,9 @@ func main() {
 		"🎨 Pad, Border, Align Wrappers",
 		"📐 VStack & HStack (Flexbox)",
 		"🥞 ZStack (Depth / Painter's)",
+		"🎯 Overlay (Absolute Compositor)",
+		"⚡ Transform (Uppercase / Mask)",
+		"🔲 Half-Block Border Presets",
 		"❓ Conditionals (When, Match)",
 		"🎭 Style Cascading (WithStyle)",
 		"🖱️ Interactive & Local Hit-Testing",
@@ -30,6 +33,8 @@ func main() {
 		WithHeaders("METRIC", "STATUS", "LATENCY", "ALLOCS").
 		WithRow("VStack / HStack Draw", "OPTIMAL", "650 ns", "0 B/op (0 allocs)").
 		WithRow("ZStack Layering", "OPTIMAL", "437 ns", "0 B/op (0 allocs)").
+		WithRow("Overlay Compositor", "OPTIMAL", "368 ns", "0 B/op (0 allocs)").
+		WithRow("Transform Pipeline", "OPTIMAL", "623 ns", "0 B/op (0 allocs)").
 		WithRow("Flexbox Justify/Align", "OPTIMAL", "767 ns", "0 B/op (0 allocs)").
 		WithRow("Style Cascading", "OPTIMAL", "428 ns", "0 B/op (0 allocs)").
 		WithRow("Interactive Click Hit", "OPTIMAL", "120 ns", "0 B/op (0 allocs)").
@@ -95,6 +100,19 @@ func main() {
 			},
 		)
 
+		// Left column with an Overlay badge:
+		listColumn := limoni.Overlay(
+			limoni.Border(
+				limoni.AsComponent(list),
+				widgets.SymbolsSingle,
+				limoni.Fg(limoni.Hex("#FFCC00")),
+			),
+			limoni.FixedSize(16, 1,
+				limoni.Label(" 🚀 PARITY BADGE ", limoni.Bold().WithFg(limoni.Hex("#000000")).WithBg(limoni.Hex("#00FFAA"))),
+			),
+			4, 0,
+		)
+
 		// -------------------------------------------------------------
 		// Base Dashboard View (VStack + HStack):
 		// -------------------------------------------------------------
@@ -104,6 +122,7 @@ func main() {
 				limoni.Pad(
 					limoni.HStack(
 						limoni.Label("🍋 LIMONI LEGO ARCHITECTURE", limoni.Bold().WithFg(limoni.Hex("#00FFAA"))),
+						limoni.Uppercase(limoni.Label("zero-alloc v1.0", limoni.Fg(limoni.Hex("#88CCFF")))),
 						modeBadge,
 						clickBtn,
 					).WithJustify(limoni.JustifySpaceBetween).WithAlignItems(limoni.AlignItemsCenter),
@@ -115,24 +134,30 @@ func main() {
 
 			// Main Body: HStack with 1:2 flex ratio
 			limoni.Flex(1, limoni.HStack(
-				// Left Column: List wrapped in a single border
-				limoni.Flex(1, limoni.Border(
-					limoni.AsComponent(list),
-					widgets.SymbolsSingle,
-					limoni.Fg(limoni.Hex("#FFCC00")),
-				)),
+				// Left Column: List wrapped in a single border + Overlay badge
+				limoni.Flex(1, listColumn),
 
-				// Right Column: VStack with Table (Flex 1) and TextInput (Fixed 3)
+				// Right Column: VStack with Table (OuterHalfBlock) and Inputs (Rounded + Mask)
 				limoni.Flex(2, limoni.VStack(
 					limoni.Flex(1, limoni.Border(
 						limoni.AsComponent(table),
-						widgets.SymbolsDouble,
+						widgets.SymbolsOuterHalfBlock,
 						limoni.Fg(limoni.Hex("#3399FF")),
 					)),
-					limoni.FixedSize(0, 3, limoni.Border(
-						limoni.AsComponent(input),
-						widgets.SymbolsRounded,
-						limoni.Fg(limoni.Hex("#FF5599")),
+					limoni.FixedSize(0, 3, limoni.HStack(
+						limoni.Flex(2, limoni.Border(
+							limoni.AsComponent(input),
+							widgets.SymbolsRounded,
+							limoni.Fg(limoni.Hex("#FF5599")),
+						)),
+						limoni.Flex(1, limoni.Border(
+							limoni.Pad(
+								limoni.Mask(limoni.Label("secretpassword", limoni.Fg(limoni.Hex("#FFAA88"))), '*'),
+								0, 1, 0, 1,
+							),
+							widgets.SymbolsInnerHalfBlock,
+							limoni.Fg(limoni.Hex("#FFAA88")),
+						)),
 					)),
 				)),
 			)),
