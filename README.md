@@ -90,7 +90,7 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **op
 ### 🎮 3D Mesh & Vector Graphics Engine
 Real-time 3D software rasterization running at 60+ FPS directly in terminal cells. Supports `.obj`, `.stl`, and `.ply` mesh models, depth-buffer Gouraud shading, Lambertian diffuse lighting, and interactive mouse/keyboard orbital controls.
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/3680fb5c-15a1-48d8-aa20-22f360196580" controls width="100%"></video>
+  <img src="assets/3d.gif" alt="3D Mesh & Vector Graphics Engine" width="100%" />
 </p>
 
 ```bash
@@ -103,7 +103,7 @@ go run ./examples/3d_viewer
 Hierarchical collapsible file explorer widget (`widgets.TreeView`) with directory icons, tree guide lines, git/file status indicators, and live TrueColor half-block image previews.
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/29854a28-0d30-4688-a354-b2cdf769a5f8" controls width="100%"></video>
+  <img src="assets/treeview.gif" alt="Superfile-Grade TreeView & Image Previews" width="100%" />
 </p>
 
 ```bash
@@ -116,7 +116,7 @@ go run ./examples/treeview
 Sub-pixel Braille curves (`widgets.LineChart`), vertical gradient spectrum bars (`widgets.BarChart`), and donut distributions (`widgets.PieChart`) rendering high-frequency streaming telemetry with zero heap allocations.
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/47a17e84-839b-4ace-bdbd-b387c49927c8" controls width="100%"></video>
+  <img src="assets/chart.gif" alt="High-Resolution Charts & Data Visualization" width="100%" />
 </p>
 
 ```bash
