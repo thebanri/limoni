@@ -1,5 +1,17 @@
 package limoni
 
+var wakeupChan = make(chan struct{}, 1)
+
+// Wakeup signals the render loop to re-render a frame immediately without waiting for terminal input.
+// Safe to call concurrently from any goroutine (tickers, background workers, etc.).
+func Wakeup() {
+	select {
+	case wakeupChan <- struct{}{}:
+	default:
+		// Sinyal kanalda bekliyorsa fazladan yığılma yapmaması için atla
+	}
+}
+
 // AppOption configures the application lifecycle in Run.
 type AppOption func(*appConfig)
 
@@ -68,6 +80,15 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 			}
 			err = term.Draw(func(f *Frame) {
 				running = appFn(f, &ev)
+			})
+			if err != nil {
+				return err
+			}
+
+		case <-wakeupChan:
+			// Arka plandaki goroutine'den Wakeup() çağrıldığında tetiklenir
+			err = term.Draw(func(f *Frame) {
+				running = appFn(f, nil)
 			})
 			if err != nil {
 				return err
