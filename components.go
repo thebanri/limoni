@@ -324,3 +324,41 @@ func AsComponent(w widgets.Widget) Component {
 func Label(content string, style ...Style) Component {
 	return component.Text(content, style...)
 }
+
+// ---------------------------------------------------------------------
+// 8. Overlay & Transform (Lipgloss Parity)
+// ---------------------------------------------------------------------
+
+// Overlay places an overlay component on top of a base component at
+// absolute position (x, y) within the base's bounding area.
+// Equivalent to Lipgloss's PlaceOverlay(x, y, fg, bg).
+func Overlay(base, overlay Component, x, y uint16) Component {
+	return component.Overlay(base, overlay, x, y)
+}
+
+// Transform wraps a child component and applies fn to every non-zero rune
+// in its bounding area after the child has drawn. Zero-allocation.
+func Transform(child Component, fn func(rune) rune) Component {
+	return component.Transform(child, fn)
+}
+
+// Uppercase wraps a child component and transforms all text to uppercase.
+func Uppercase(child Component) Component {
+	return component.Uppercase(child)
+}
+
+// Lowercase wraps a child component and transforms all text to lowercase.
+func Lowercase(child Component) Component {
+	return component.Lowercase(child)
+}
+
+// Mask wraps a child component and replaces all visible text with a mask rune (e.g. '•' for passwords).
+func Mask(child Component, mask rune) Component {
+	return component.Mask(child, mask)
+}
+
+// Inline constrains a component to render on a single line (height = 1).
+// Useful for status bars, breadcrumbs, and inline badges.
+func Inline(child Component) Component {
+	return component.Inline(child)
+}

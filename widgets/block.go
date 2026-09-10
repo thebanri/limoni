@@ -100,6 +100,26 @@ var (
 		BottomLeft:  '█',
 		BottomRight: '█',
 	}
+	// SymbolsOuterHalfBlock uses outer half-block elements for a
+	// smooth, anti-aliased appearance on supported terminals.
+	SymbolsOuterHalfBlock = BorderSymbols{
+		Horizontal:  '▀', // top: ▀, bottom: ▄ (drawn via Vertical fallback)
+		Vertical:    '▐',
+		TopLeft:     '▛',
+		TopRight:    '▜',
+		BottomLeft:  '▙',
+		BottomRight: '▟',
+	}
+	// SymbolsInnerHalfBlock uses inner half-block elements for a
+	// thinner, inset border appearance on supported terminals.
+	SymbolsInnerHalfBlock = BorderSymbols{
+		Horizontal:  '▄', // top: ▄, bottom: ▀ (inverted from outer)
+		Vertical:    '▌',
+		TopLeft:     '▗',
+		TopRight:    '▖',
+		BottomLeft:  '▝',
+		BottomRight: '▘',
+	}
 )
 
 // Alignment, başlık veya metin hizalamasını belirten türdür.

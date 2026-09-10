@@ -44,6 +44,13 @@ func MinHeight(minH uint16, child Component) Component {
 	return Constrain(0, 0, minH, 0, child)
 }
 
+// Inline constrains a component to render on a single line (height = 1).
+// Useful for status bars, breadcrumbs, and inline badges.
+// Equivalent to Lipgloss's Inline(true).
+func Inline(child Component) Component {
+	return MaxHeight(1, child)
+}
+
 func (c *constraintComponent) clampArea(area cell.Rect) cell.Rect {
 	r := area
 	if c.maxW > 0 && r.Width > c.maxW {

@@ -950,3 +950,243 @@ func BenchmarkConstrainDrawZeroAlloc(b *testing.B) {
 		c.Draw(ctx, buf)
 	}
 }
+
+// ---------------------------------------------------------------------
+// Overlay Tests
+// ---------------------------------------------------------------------
+
+func TestOverlayDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 20, Height: 5})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 20, Height: 5}, cell.NewStyle())
+
+	base := component.Text("BACKGROUND")
+	overlay := component.Text("FG")
+
+	comp := component.Overlay(base, overlay, 5, 2)
+	comp.Draw(ctx, buf)
+
+	// Base: 'B' at (0,0)
+	if c := buf.Get(0, 0); c == nil || c.Content != 'B' {
+		t.Fatalf("expected base 'B' at (0,0), got %v", c)
+	}
+	// Overlay: 'F' at (5,2)
+	if c := buf.Get(5, 2); c == nil || c.Content != 'F' {
+		t.Fatalf("expected overlay 'F' at (5,2), got %v", c)
+	}
+	if c := buf.Get(6, 2); c == nil || c.Content != 'G' {
+		t.Fatalf("expected overlay 'G' at (6,2), got %v", c)
+	}
+}
+
+func TestOverlayOutOfBounds(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 3})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 3}, cell.NewStyle())
+
+	base := component.Text("OK")
+	overlay := component.Text("X")
+
+	// Overlay at x=100 — completely out of bounds, should not panic
+	comp := component.Overlay(base, overlay, 100, 0)
+	comp.Draw(ctx, buf)
+
+	if c := buf.Get(0, 0); c == nil || c.Content != 'O' {
+		t.Fatalf("expected base 'O' at (0,0), got %v", c)
+	}
+}
+
+func TestOverlayEventRouting(t *testing.T) {
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 20, Height: 10}, cell.NewStyle())
+
+	overlayClicked := false
+	base := component.Text("Base")
+	overlay := component.OnClick(component.Text("Btn"), func(ev driver.MouseEvent) {
+		overlayClicked = true
+	})
+
+	comp := component.Overlay(base, overlay, 5, 3)
+
+	// Click at (6, 3) — inside overlay area
+	ev := &driver.Event{
+		Type:  driver.EventMouse,
+		Mouse: driver.MouseEvent{X: 6, Y: 3, Button: driver.MouseLeft},
+	}
+	if !component.DispatchEvent(comp, ctx, ev) {
+		t.Fatalf("expected overlay click to be handled")
+	}
+	if !overlayClicked {
+		t.Fatalf("expected overlayClicked to be true")
+	}
+}
+
+// ---------------------------------------------------------------------
+// Transform Tests
+// ---------------------------------------------------------------------
+
+func TestTransformUppercase(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+
+	comp := component.Uppercase(component.Text("hello"))
+	comp.Draw(ctx, buf)
+
+	expected := []rune{'H', 'E', 'L', 'L', 'O'}
+	for i, ch := range expected {
+		c := buf.Get(uint16(i), 0)
+		if c == nil || c.Content != ch {
+			t.Fatalf("expected '%c' at (%d,0), got %v", ch, i, c)
+		}
+	}
+}
+
+func TestTransformLowercase(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+
+	comp := component.Lowercase(component.Text("HELLO"))
+	comp.Draw(ctx, buf)
+
+	expected := []rune{'h', 'e', 'l', 'l', 'o'}
+	for i, ch := range expected {
+		c := buf.Get(uint16(i), 0)
+		if c == nil || c.Content != ch {
+			t.Fatalf("expected '%c' at (%d,0), got %v", ch, i, c)
+		}
+	}
+}
+
+func TestTransformMask(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+
+	comp := component.Mask(component.Text("Secret"), '•')
+	comp.Draw(ctx, buf)
+
+	// All visible characters should be '•'
+	for i := 0; i < 6; i++ {
+		c := buf.Get(uint16(i), 0)
+		if c == nil || c.Content != '•' {
+			t.Fatalf("expected '•' at (%d,0), got %v", i, c)
+		}
+	}
+}
+
+func TestTransformCustom(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 1}, cell.NewStyle())
+
+	// ROT13-like: shift 'A'->'B', etc.
+	comp := component.Transform(component.Text("ABC"), func(r rune) rune {
+		return r + 1
+	})
+	comp.Draw(ctx, buf)
+
+	expected := []rune{'B', 'C', 'D'}
+	for i, ch := range expected {
+		c := buf.Get(uint16(i), 0)
+		if c == nil || c.Content != ch {
+			t.Fatalf("expected '%c' at (%d,0), got %v", ch, i, c)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------
+// Inline Test
+// ---------------------------------------------------------------------
+
+func TestInlineConstraint(t *testing.T) {
+	comp := component.Inline(component.Text("SingleLine"))
+	props := comp.LayoutInfo(cell.Rect{Width: 80, Height: 24})
+
+	if props.MaxHeight != 1 {
+		t.Fatalf("expected Inline MaxHeight=1, got %d", props.MaxHeight)
+	}
+}
+
+// ---------------------------------------------------------------------
+// Border Preset Tests
+// ---------------------------------------------------------------------
+
+func TestBorderPresetsExist(t *testing.T) {
+	// Verify all 7 presets exist and have non-zero runes
+	presets := []struct {
+		name    string
+		symbols widgets.BorderSymbols
+	}{
+		{"Single", widgets.SymbolsSingle},
+		{"Double", widgets.SymbolsDouble},
+		{"Thick", widgets.SymbolsThick},
+		{"Rounded", widgets.SymbolsRounded},
+		{"Block", widgets.SymbolsBlock},
+		{"OuterHalfBlock", widgets.SymbolsOuterHalfBlock},
+		{"InnerHalfBlock", widgets.SymbolsInnerHalfBlock},
+	}
+
+	for _, p := range presets {
+		if p.symbols.Horizontal == 0 || p.symbols.Vertical == 0 {
+			t.Fatalf("%s: Horizontal or Vertical rune is zero", p.name)
+		}
+		if p.symbols.TopLeft == 0 || p.symbols.TopRight == 0 {
+			t.Fatalf("%s: corner rune is zero", p.name)
+		}
+	}
+}
+
+func TestBorderOuterHalfBlockDraw(t *testing.T) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 10, Height: 5})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 10, Height: 5}, cell.NewStyle())
+
+	b := component.Border(component.Text("X"), widgets.SymbolsOuterHalfBlock, cell.NewStyle())
+	b.Draw(ctx, buf)
+
+	// Top-left corner should be ▛
+	if c := buf.Get(0, 0); c == nil || c.Content != '▛' {
+		t.Fatalf("expected '▛' at (0,0), got %v", c)
+	}
+}
+
+// ---------------------------------------------------------------------
+// New Benchmarks
+// ---------------------------------------------------------------------
+
+func BenchmarkOverlayDrawZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 24})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 24}, cell.NewStyle())
+
+	comp := component.Overlay(
+		component.Text("Background"),
+		component.Text("FG"),
+		10, 5,
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		comp.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkTransformUppercaseZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 1}, cell.NewStyle())
+
+	comp := component.Uppercase(component.Text("hello world this is a test"))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		comp.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkTransformMaskZeroAlloc(b *testing.B) {
+	buf := buffer.NewBuffer(cell.Rect{Width: 80, Height: 1})
+	ctx := cell.NewContext(cell.Rect{X: 0, Y: 0, Width: 80, Height: 1}, cell.NewStyle())
+
+	comp := component.Mask(component.Text("password123"), '•')
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		comp.Draw(ctx, buf)
+	}
+}
