@@ -44,15 +44,38 @@
 
 ## 💡 Neden Limoni?
 
-| Özellik / Hedef | 🍋 Limoni (Go) | 🫧 Bubble Tea (Go) | 🐀 Ratatui (Rust) |
+| Özellik / Hedef | 🍋 Limoni (Go) | 🫧 Bubble Tea + Lipgloss (Go) | 🐀 Ratatui (Rust) |
 | :--- | :--- | :--- | :--- |
 | **Dil ve Araçlar** | **Go (Yerel)** | Go (Yerel) | Rust (Yerel) |
-| **Render Mimarisi** | **1D Düz Matris + ANSI Diff** | String birleştirme / TEA | Çift Tamponlu Immediate Mode |
+| **Render Mimarisi** | **1D Düz Matris + Adaptif ANSI Diff** | String birleştirme / TEA | Çift Tamponlu Immediate Mode |
 | **Kritik Yol Tahsisatı**| **`0 B/op` (Sıfır Alloc)** | Yüksek heap tahsisatı | Stack / RAII |
-| **Büyük Veri / Tablolar**| **1M+ Satır Sanallaştırma** | Yüksek GC yükü | Yüksek layout klonlama yükü |
+| **Düzen Paradigması** | **Bildirimsel Flexbox & Yığın Çözücü** | String dilimleme (`JoinHorizontal/Vertical`) | Kısıt çözücü (Constraint solver) |
+| **Fare Etkileşimi** | **Hücresel Koordinat & Z-Index Yönlendirme** | Yok (manuel koordinat hesabı) | Manuel koordinat |
+| **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Çift tamponlu diff |
+| **Büyük Veri / Tablolar**| **1M+ Satır Sanallaştırma (~22 µs)** | Yüksek GC yükü | Yüksek layout klonlama yükü |
 | **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY) & Shaders** | Harici eklenti gerekir | Eklenti gerekir |
 | **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Deneysel |
 | **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
+
+### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lipgloss
+
+**Lipgloss** Go ekosisteminde bildirimsel stili popülerleştirmiş olsa da, string birleştirmeye dayalı mimarisi yüksek frekanslı ve etkileşimli modern TUI uygulamalarında yapısal kısıtlamalar getirir:
+
+| Yetenek | 🍋 Limoni Composable (`component`) | 🎀 Charm Lipgloss |
+| :--- | :--- | :--- |
+| **Veri İlkesi** | **16 baytlık önbellek uyumlu `Cell` yapısı** | Ham ANSI kaçışlı metin (`string`) |
+| **Kritik Yol Bellek Tahsisi** | **`0 B/op` (0 allocs/op)** layout ve render | Yüksek tahsisat oranı (~Yüzlerce KB - MB/sn) |
+| **Düzen Modeli** | **Gerçek Flexbox & Grid kısıt çözücü** | String dilimleme (`JoinHorizontal`, `JoinVertical`) |
+| **Boyut Kısıtları** | **Orantısal `Flex`, `Ratio`, `Min`, `Max`** | Sadece sabit manuel karakter genişlikleri |
+| **Fare Hit-Testing** | **Otomatik uzamsal sınırlar & z-index yönlendirme** | Yok (manuel koordinat ve karakter hesabı gerekir) |
+| **Ekran Kırpma (Clipping)** | **Hücre seviyesinde dikdörtgensel uzamsal kırpma** | String kesme (bozuk ANSI kaçış dizilerine yol açar) |
+| **Z-Index & Katmanlar** | **Donanım benzeri katman yığını & modal izole** | Satır satır string yamama (`PlaceOverlay`) |
+| **Render Hattı** | **Çift tamponlu ANSI diffing (`~7.1 µs`)** | Tüm terminale string dökme (ekranda titreme yapar) |
+| **Geçiş Köprüsü** | **`compat/bubbletea` akıcı stil oluşturucu** | Charm ekosistemi yerel standardı |
+
+#### Neden Sıfır Bellek Tahsisatlı Mimari Önemlidir?
+1. **Garbage Collector Donmalarını (GC Stutter) Yok Eder**: Lipgloss her kenarlık, boşluk ve yatay birleştirme için bellekte yeni string nesneleri tahsis eder. 60 FPS çalışan hareketli bir ekranda bu durum saniyede yüz binlerce nesne üreterek Go GC'sini devreye sokar ve arayüzde mikro donmalara (stutter) yol açar. Limoni bileşenleri çağrı yığınında (call stack) çalışır ve doğrudan yeniden kullanılan 1D tampona yazar; **sıfır bellek tahsisatı (`0 B/op`)** garantilenir.
+2. **Kutudan Çıkan Fare ve Tıklama Desteği**: Lipgloss sadece düz bir metin ürettiğinden kullanıcının nereye tıkladığını bilemez. Limoni bileşenleri çizildikleri ekran alanını (`cell.Rect`) otomatik kaydeder; tıklama, üzerine gelme (hover), sürükleme ve tekerlek olayları doğrudan ilgili bileşenin callback'ine yönlendirilir.
 
 ---
 

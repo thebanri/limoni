@@ -67,15 +67,38 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **op
 
 ## 💡 Why Limoni?
 
-| Feature / Goal | 🍋 Limoni (Go) | 🫧 Bubble Tea (Go) | 🐀 Ratatui (Rust) |
+| Feature / Goal | 🍋 Limoni (Go) | 🫧 Bubble Tea + Lipgloss (Go) | 🐀 Ratatui (Rust) |
 | :--- | :--- | :--- | :--- |
 | **Language & Tooling** | **Go (Native)** | Go (Native) | Rust (Native) |
-| **Render Architecture** | **Flat 1D Grid + ANSI Diff Engine** | String concatenation / TEA | Immediate Mode Double Buffer |
+| **Render Architecture** | **Flat 1D Grid + Adaptive ANSI Diff** | String concatenation / TEA | Immediate Mode Double Buffer |
 | **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Stack / RAII |
-| **Large Datasets / Tables**| **Virtual Paging (Millions of rows)** | High GC load on scroll | High layout cloning overhead |
-| **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY) & Shaders** | Third-party / custom | Addons required |
+| **Layout Paradigm** | **Declarative Flexbox & Stack Solver** | String slicing (`JoinHorizontal/Vertical`) | Constraint solver |
+| **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | Manual coordinates |
+| **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Double-buffered diff |
+| **Large Datasets / Tables**| **Virtual Paging (1M+ rows, 22 µs)** | High GC load on scroll | High layout cloning overhead |
+| **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY) & Gouraud Shaders** | Third-party / custom | Addons required |
 | **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Experimental |
 | **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Manual thread coordination |
+
+### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lipgloss
+
+While **Lipgloss** popularized styling in Go, its string-concatenation architecture imposes structural limits on interactive, high-frequency applications:
+
+| Capability | 🍋 Limoni Composable (`component`) | 🎀 Charm Lipgloss |
+| :--- | :--- | :--- |
+| **Data Primitive** | **16-byte cache-aligned `Cell` struct matrix** | Raw ANSI-escaped strings (`string`) |
+| **Hot-Path Allocations** | **`0 B/op` (0 allocs/op)** on layout & render | High allocation rate (~100s of KBs to MBs/sec) |
+| **Layout Model** | **True Flexbox & Grid constraint solver** | String slicing (`JoinHorizontal`, `JoinVertical`) |
+| **Size Constraints** | **Proportional `Flex`, `Ratio`, `Min`, `Max`** | Fixed manual character widths only |
+| **Mouse Hit-Testing** | **Automatic spatial bounds & z-index routing** | None (requires manual coordinate mapping) |
+| **Screen Clipping** | **Sub-cell rectangular spatial clipping** | String chopping (causes broken ANSI codes) |
+| **Z-Index & Overlays** | **Hardware-like layer stack & modal trapping** | Line-by-line string splicing (`PlaceOverlay`) |
+| **Rendering Pipeline** | **Double-buffered ANSI diffing (`~7.1 µs`)** | Full terminal string dump (causes screen flicker) |
+| **Migration Bridge** | **`compat/bubbletea` fluent style builder** | Native Charm ecosystem standard |
+
+#### Why Zero-Allocation Architecture Matters:
+1. **Eliminating Garbage Collector Stutter**: Lipgloss computes layouts by allocating intermediate heap strings for every border, padding byte, and horizontal slice. In animated 60 FPS applications, this generates massive heap churn that triggers periodic Go GC pauses (frame stutter). Limoni's component modifiers wrap children on the call stack and write directly into a reusable flat 1D buffer—generating **zero heap allocations (`0 B/op`)**.
+2. **Native Interactivity & Hit-Testing**: Because Lipgloss outputs only a flat text string, it cannot determine which component received a mouse click. Limoni components automatically register their physical terminal boundaries (`cell.Rect`), dispatching click, hover, drag, and scroll events directly to callbacks with z-index ordering.
 
 ### Key Advantages:
 1. **Zero GC Stutter**: Critical rendering loops generate zero heap allocations, eliminating random frame drops during heavy interactions or animations.
