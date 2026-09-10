@@ -494,8 +494,24 @@ func getOwnerCell(owner map[[2]int][2]int, r, c int) [2]int {
 
 // Draw, tabloyu render eder, başlığı yazar, satırları kaydırma offsetine göre dizer ve ızgara çizgilerini çizer.
 func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
-	if len(t.Constraints) == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
+	if ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
+	}
+	if len(t.Constraints) == 0 {
+		colCount := 0
+		if t.Header != nil && len(t.Header.Cells) > 0 {
+			colCount = len(t.Header.Cells)
+		} else if len(t.Rows) > 0 {
+			colCount = len(t.Rows[0].Cells)
+		}
+		if colCount == 0 {
+			return
+		}
+		t.Constraints = make([]TableConstraint, colCount)
+		pct := 100 / colCount
+		for i := 0; i < colCount; i++ {
+			t.Constraints[i] = TableConstraint{Type: ConstraintPercentage, Value: pct}
+		}
 	}
 	scratch := tableDrawScratchPool.Get().(*tableDrawScratch)
 	defer tableDrawScratchPool.Put(scratch)
