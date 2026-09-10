@@ -26,7 +26,7 @@ const (
 	// ModeASCII renders using rich ASCII character typography ramps (CanvasUI style).
 	ModeASCII Ascii3DMode = iota
 
-	// ModeBlock renders using 2x vertical sub-cell Half-Block resolution (▀/▄ with dual TrueColor).
+	// ModeBlock renders using 2x vertical sub-cell Half-Block resolution (▄ with dual TrueColor).
 	ModeBlock
 
 	// ModeDithered renders using retro Bayer 4x4 ordered dithering shading.
@@ -47,7 +47,7 @@ type Ascii3D struct {
 
 	// Rendering Mode:
 	// - ModeASCII: Typography character ramps (default)
-	// - ModeBlock: 2x vertical sub-cell Half-Block (▀/▄)
+	// - ModeBlock: 2x vertical sub-cell Half-Block (▄)
 	// - ModeDithered: Retro Bayer 4x4 ordered dithering
 	// - ModeBraille: 8x sub-pixel Unicode Braille dot matrix
 	Mode Ascii3DMode
@@ -470,8 +470,13 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return fg, mapped
 	}
 
-	// 1. Half-Block Mode (ModeBlock)
+	// 1. Half-Block Mode (ModeBlock) - Standardized on '▄' (U+2584) to eliminate Apple Terminal baseline gap
 	if effectiveMode == ModeBlock {
+		fallbackBg := ctx.Style.Bg
+		if fallbackBg.Type() == cell.ColorDefault {
+			fallbackBg = cell.NewColorRGB(0, 0, 0)
+		}
+
 		for y := 0; y < h; y++ {
 			screenY := area.Y + uint16(y)
 			topY := y * 2
@@ -491,30 +496,32 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					continue
 				}
 
+				cellBg := fallbackBg
+				if existing := buf.Get(screenX, screenY); existing != nil && existing.Style.Bg.Type() != cell.ColorDefault {
+					cellBg = existing.Style.Bg
+				}
+
 				var topCol, botCol cell.Color
 				if hasTop {
 					topCol, _ = calcPixelColor(topIdx)
-				}
-				if hasBot {
-					botCol, _ = calcPixelColor(botIdx)
+				} else {
+					topCol = cellBg
 				}
 
-				if hasTop && hasBot {
-					buf.SetCell(screenX, screenY, cell.Cell{
-						Content: '▀',
-						Style:   cell.Style{Fg: topCol, Bg: botCol},
-					})
-				} else if hasTop {
-					buf.SetCell(screenX, screenY, cell.Cell{
-						Content: '▀',
-						Style:   cell.Style{Fg: topCol},
-					})
+				if hasBot {
+					botCol, _ = calcPixelColor(botIdx)
 				} else {
-					buf.SetCell(screenX, screenY, cell.Cell{
-						Content: '▄',
-						Style:   cell.Style{Fg: botCol},
-					})
+					botCol = cellBg
 				}
+
+				// Standardized dual-pixel half-block:
+				// - Glyph: '▄' (U+2584)
+				// - Lower pixel: Cell.Fg
+				// - Upper pixel: Cell.Bg
+				buf.SetCell(screenX, screenY, cell.Cell{
+					Content: '▄',
+					Style:   cell.Style{Fg: botCol, Bg: topCol},
+				})
 			}
 		}
 		return

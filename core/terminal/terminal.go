@@ -210,22 +210,27 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		return nil
 	}
 
-	// Resim ve metin çıktısını aynı senkron güncelleme içinde üret. Böylece
-	// tam ekran temizleme ile native resim arasında görünür bir ara kare oluşmaz.
+	// ── Tek Yazma Tamponu (Single-Write Batching) ──
+	// Tüm çizim kaçış kodlarını (senkron güncelleme, resimler ve hücre diff'i)
+	// önceden ayrılmış t.writeBuf tamponunda toplayıp tek bir t.driver.Write ile yazıyoruz.
+	t.writeBuf = t.writeBuf[:0]
+
+	// Senkron ekran güncelleme protokolü (?2026) desteği
+	syncWrapped := false
 	if t.caps.SyncOutput {
-		t.driver.StartSyncUpdate()
+		t.writeBuf = append(t.writeBuf, "\x1b[?2026h"...)
+		syncWrapped = true
 	}
 
-	// Tam yeniden çizimde buffer.Diff'in sonradan göndereceği ESC[2J,
-	// daha önce gönderilmiş native resimleri silmemelidir. Boyutları burada
-	// eşitleyip temizleme sırasını image pass'inden önceye alıyoruz.
+	// Tam yeniden çizimde ESC[2J daha önce gönderilmiş native resimleri silmemelidir.
+	// Boyutları burada eşitleyip temizleme sırasını image pass'inden önceye alıyoruz.
 	needsFullClear := sizeChanged
 	if needsFullClear {
 		t.back.Resize(t.front.Area)
-		t.driver.Write([]byte("\x1b[2J"))
+		t.writeBuf = append(t.writeBuf, "\x1b[2J"...)
 	}
 
-	// ── 1. ADIM: Kitty/Sixel resimlerini ÖNCE çiz (en arka piksel katmanı) ──
+	// ── 1. ADIM: Kitty/Sixel resimlerini tampona ekle (en arka piksel katmanı) ──
 	proto := graphics.DetectProtocol()
 	if proto != graphics.ProtocolHalfBlock {
 		imageRegions := t.clippedImageRegions()
@@ -249,7 +254,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 			if imagesChanged {
 				if proto == graphics.ProtocolKitty {
-					t.driver.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
+					t.writeBuf = append(t.writeBuf, "\x1b_Ga=d,d=A,q=2\x1b\\"...)
 				}
 
 				for _, reg := range imageRegions {
@@ -259,19 +264,23 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 					}
 					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, zIndex, reg.Transparent)
 					if escSeq != "" {
-						moveCursor := fmt.Sprintf("\x1b[%d;%dH", reg.Area.Y+1, reg.Area.X+1)
-						t.driver.Write([]byte(moveCursor + escSeq))
+						t.writeBuf = buffer.AppendCursor(t.writeBuf, reg.Area.X, reg.Area.Y)
+						t.writeBuf = append(t.writeBuf, escSeq...)
 					}
 				}
 
-				t.lastDrawnImages = make([]ImageRegion, len(imageRegions))
+				if cap(t.lastDrawnImages) >= len(imageRegions) {
+					t.lastDrawnImages = t.lastDrawnImages[:len(imageRegions)]
+				} else {
+					t.lastDrawnImages = make([]ImageRegion, len(imageRegions))
+				}
 				copy(t.lastDrawnImages, imageRegions)
 			}
 			t.lastImageCount = len(imageRegions)
 		} else {
 			if t.lastImageCount > 0 {
 				if proto == graphics.ProtocolKitty {
-					t.driver.Write([]byte("\x1b_Ga=d,d=A,q=2\x1b\\"))
+					t.writeBuf = append(t.writeBuf, "\x1b_Ga=d,d=A,q=2\x1b\\"...)
 				}
 				t.lastImageCount = 0
 				t.lastDrawnImages = nil
@@ -280,27 +289,22 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 
 	// ── 2. ADIM: ASCII buffer'ı çiz (piksel katmanının ÜZERİNE) ──
-	// Bu, dialog/modal gibi ASCII widget'ların resmin önünde görünmesini sağlar.
-	t.writeBuf = t.writeBuf[:0]
 	var diffErr error
 	t.writeBuf, diffErr = buffer.Diff(t.front, t.back, t.writeBuf, t.caps.TrueColor, t.caps.Colors256)
 	if diffErr != nil {
-		if t.caps.SyncOutput {
-			t.driver.EndSyncUpdate()
-		}
 		return diffErr
 	}
 
+	// Senkron güncellemeyi kapat
+	if syncWrapped {
+		t.writeBuf = append(t.writeBuf, "\x1b[?2026l"...)
+	}
+
+	// Tek bir I/O çağrısıyla tüm kareyi stdout'a gönder
 	if len(t.writeBuf) > 0 {
 		if _, err := t.driver.Write(t.writeBuf); err != nil {
-			if t.caps.SyncOutput {
-				t.driver.EndSyncUpdate()
-			}
 			return err
 		}
-	}
-	if t.caps.SyncOutput {
-		t.driver.EndSyncUpdate()
 	}
 
 	dur := time.Since(t0)

@@ -636,8 +636,8 @@ func main() {
 								topCol := cell.NewColorRGB(uint8(topR>>8), uint8(topG>>8), uint8(topB>>8))
 								botCol := cell.NewColorRGB(uint8(botR>>8), uint8(botG>>8), uint8(botB>>8))
 
-								cellSymbol := '▀'
-								cellStyle := cell.Style{Fg: topCol, Bg: botCol}
+								cellSymbol := '▄'
+								cellStyle := cell.Style{Fg: botCol, Bg: topCol}
 
 								if topA < 1000 && botA < 1000 {
 									cellSymbol = ' '
@@ -646,8 +646,8 @@ func main() {
 									cellSymbol = '▄'
 									cellStyle = cell.Style{Fg: botCol, Bg: bgCard}
 								} else if botA < 1000 {
-									cellSymbol = '▀'
-									cellStyle = cell.Style{Fg: topCol, Bg: bgCard}
+									cellSymbol = '▄'
+									cellStyle = cell.Style{Fg: bgCard, Bg: topCol}
 								}
 
 								f.Buffer.SetCell(currCellX, currCellY, cell.Cell{

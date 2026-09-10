@@ -19,9 +19,9 @@ Implement a threshold check during the diff pass:
    - Proceed with the standard sparse diffing and cursor jumping pipeline.
 
 #### Acceptance Criteria
-- [ ] Benchmark memory allocations on 100% dirty frames (must remain 0 B/op).
-- [ ] Measure byte throughput difference during full-screen 3D model rotation before vs. after.
-- [ ] Verify no visual tearing when switching dynamically between sparse and full-clear modes.
+- [x] Benchmark memory allocations on 100% dirty frames (must remain 0 B/op).
+- [x] Measure byte throughput difference during full-screen 3D model rotation before vs. after.
+- [x] Verify no visual tearing when switching dynamically between sparse and full-clear modes.
 
 
 

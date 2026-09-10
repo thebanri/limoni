@@ -168,6 +168,16 @@ func (c *Cell) Reset() {
 	c.Style.Reset()
 }
 
+// Rune returns the rune content of the cell.
+func (c Cell) Rune() rune {
+	return c.Content
+}
+
+// SetRune sets the rune content of the cell.
+func (c *Cell) SetRune(r rune) {
+	c.Content = r
+}
+
 // RuneContinuation marks the second column of a double-width character.
 const RuneContinuation rune = 0xFFFE
 

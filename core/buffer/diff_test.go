@@ -495,3 +495,242 @@ func TestDiffContinuationRestorationOnModalDrag(t *testing.T) {
 		t.Fatalf("back[6] after restore = %q; want RuneContinuation", back.Get(6, 0).Content)
 	}
 }
+
+func TestDiffAdaptiveThreshold_Sparse(t *testing.T) {
+	area := cell.NewRect(0, 0, 100, 10) // 1000 cells
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Mutate 10% of cells (100 cells < 450)
+	for i := 0; i < 100; i++ {
+		front.Content[i].Content = 'A'
+		front.Content[i].Style = cell.Style{Fg: cell.NewColorRGB(255, 0, 0)}
+	}
+	front.IsDirty = true
+
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+
+	// Case A: Sparse diff (< 45% dirty) should NOT wrap in sync mode \x1b[?2026h
+	if bytes.Contains(out, []byte("\x1b[?2026h")) {
+		t.Errorf("Sparse diff (< 45%% dirty) should not emit sync mode escape sequence")
+	}
+
+	// Should contain cursor positioning
+	if !bytes.Contains(out, []byte("\x1b[")) || !bytes.Contains(out, []byte("H")) {
+		t.Errorf("Sparse diff should contain cursor positioning sequences")
+	}
+}
+
+func TestDiffAdaptiveThreshold_FullStream(t *testing.T) {
+	area := cell.NewRect(0, 0, 100, 10) // 1000 cells
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	// Mutate 50% of cells (500 cells >= 450)
+	for i := 0; i < 500; i++ {
+		front.Content[i].Content = 'B'
+		front.Content[i].Style = cell.Style{Fg: cell.NewColorRGB(0, 255, 0)}
+	}
+	front.IsDirty = true
+
+	out, err := Diff(front, back, nil, true, true)
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+
+	// Case B: Full stream redraw (>= 45% dirty) must start with \x1b[?2026h
+	if !bytes.HasPrefix(out, []byte("\x1b[?2026h")) {
+		prefixLen := 16
+		if len(out) < prefixLen {
+			prefixLen = len(out)
+		}
+		t.Errorf("Full stream redraw (>= 45%% dirty) must start with \\x1b[?2026h, got prefix: %q", out[:prefixLen])
+	}
+
+	// Must end with \x1b[?2026l
+	if !bytes.HasSuffix(out, []byte("\x1b[?2026l")) {
+		suffixStart := len(out) - 16
+		if suffixStart < 0 {
+			suffixStart = 0
+		}
+		t.Errorf("Full stream redraw (>= 45%% dirty) must end with \\x1b[?2026l, got suffix: %q", out[suffixStart:])
+	}
+
+	// Must position cursor to home \x1b[H
+	if !bytes.Contains(out, []byte("\x1b[H")) {
+		t.Errorf("Full stream redraw must position cursor to home \\x1b[H")
+	}
+
+	// Must NOT contain full screen clear \x1b[2J
+	if bytes.Contains(out, []byte("\x1b[2J")) {
+		t.Errorf("Full stream redraw must NOT clear screen with \\x1b[2J")
+	}
+
+	// Must contain line-by-line \r\n
+	if !bytes.Contains(out, []byte("\r\n")) {
+		t.Errorf("Full stream redraw must overwrite line-by-line with \\r\\n")
+	}
+
+	// Buffers must be synchronized
+	for i := range front.Content {
+		if front.Content[i] != back.Content[i] {
+			t.Fatalf("Back buffer not synchronized with front at cell %d", i)
+		}
+	}
+}
+
+func setupAdaptiveBenchmarkBuffers(dirtyPercent int) (*Buffer, *Buffer) {
+	area := cell.NewRect(0, 0, 120, 40) // 4,800 cells
+	front := NewBuffer(area)
+	back := NewBuffer(area)
+
+	baseStyle := cell.Style{Fg: cell.NewColorRGB(180, 180, 180)}
+	for i := range front.Content {
+		front.Content[i] = cell.Cell{Content: '.', Style: baseStyle}
+	}
+	_, _ = Diff(front, back, nil, true, true)
+
+	return front, back
+}
+
+func mutateAdaptiveBenchmarkFrame(front *Buffer, dirtyPercent int, step int) {
+	total := len(front.Content)
+	dirtyCount := total * dirtyPercent / 100
+	fg := cell.NewColorRGB(uint8((step*7)%256), uint8((step*13)%256), 220)
+	ch := rune('A' + (step % 26))
+
+	for i := 0; i < dirtyCount; i++ {
+		idx := (step*31 + i) % total
+		front.Content[idx] = cell.Cell{
+			Content: ch,
+			Style:   cell.Style{Fg: fg},
+		}
+	}
+	front.IsDirty = true
+}
+
+// ── 10% DIRTY BENCHMARKS ──
+
+func BenchmarkDiff_Sparse_10Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(10)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 10, i)
+		out = out[:0]
+		out, _ = DiffSparse(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_FullStream_10Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(10)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 10, i)
+		out = out[:0]
+		out, _ = DiffFullStream(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_Adaptive_10Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(10)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 10, i)
+		out = out[:0]
+		out, _ = Diff(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+// ── 50% DIRTY BENCHMARKS ──
+
+func BenchmarkDiff_Sparse_50Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(50)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 50, i)
+		out = out[:0]
+		out, _ = DiffSparse(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_FullStream_50Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(50)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 50, i)
+		out = out[:0]
+		out, _ = DiffFullStream(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_Adaptive_50Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(50)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 50, i)
+		out = out[:0]
+		out, _ = Diff(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+// ── 100% DIRTY BENCHMARKS ──
+
+func BenchmarkDiff_Sparse_100Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(100)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 100, i)
+		out = out[:0]
+		out, _ = DiffSparse(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_FullStream_100Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(100)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 100, i)
+		out = out[:0]
+		out, _ = DiffFullStream(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}
+
+func BenchmarkDiff_Adaptive_100Percent(b *testing.B) {
+	front, back := setupAdaptiveBenchmarkBuffers(100)
+	out := make([]byte, 0, 65536)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mutateAdaptiveBenchmarkFrame(front, 100, i)
+		out = out[:0]
+		out, _ = Diff(front, back, out, true, true)
+		b.SetBytes(int64(len(out)))
+	}
+}

@@ -196,17 +196,25 @@ func (im *Image) drawHalfBlock(ctx cell.Context, buf *buffer.Buffer, img image.I
 					c.Style.Fg = cell.NewColorDefault()
 					c.Style.Bg = bgCol
 				} else if topOpaque && !botOpaque {
-					// Üst dolu, alt şeffaf -> Üst yarım blok (▀)
-					c.Content = '▀'
-					c.Style.Fg = bgColor
-					c.Style.Bg = bgCol
+					// Üst dolu, alt şeffaf -> Alt yarım blok (▄) ile Bg üst piksel, Fg arka plan
+					effBg := bgCol
+					if effBg.Type() == cell.ColorDefault {
+						effBg = cell.NewColorRGB(0, 0, 0)
+					}
+					c.Content = '▄'
+					c.Style.Fg = effBg
+					c.Style.Bg = bgColor
 				} else if !topOpaque && botOpaque {
-					// Üst şeffaf, alt dolu -> Alt yarım blok (▄)
+					// Üst şeffaf, alt dolu -> Alt yarım blok (▄) ile Fg alt piksel, Bg arka plan
+					effBg := bgCol
+					if effBg.Type() == cell.ColorDefault {
+						effBg = cell.NewColorRGB(0, 0, 0)
+					}
 					c.Content = '▄'
 					c.Style.Fg = fgColor
-					c.Style.Bg = bgCol
+					c.Style.Bg = effBg
 				} else {
-					// İkisi de dolu -> Alt yarım blok (▄)
+					// İkisi de dolu -> Alt yarım blok (▄) ile Fg alt piksel, Bg üst piksel
 					c.Content = '▄'
 					c.Style.Fg = fgColor
 					c.Style.Bg = bgColor

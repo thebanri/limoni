@@ -228,7 +228,7 @@ func getFileInfo(id string) fileMeta {
 				"package widgets",
 				"",
 				"// Image renders arbitrary Go image.Image instances using",
-				"// dual-pixel TrueColor half-blocks ('▀') and circle avatars.",
+				"// dual-pixel TrueColor half-blocks ('▄') and circle avatars.",
 				"type Image struct {",
 				"    Image      image.Image",
 				"    CircleMask bool",

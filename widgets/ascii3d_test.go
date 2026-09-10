@@ -172,3 +172,42 @@ func TestAscii3DOptions(t *testing.T) {
 		t.Fatalf("expected solid block '█' to be rendered with Ascii: false")
 	}
 }
+
+func TestHalfBlockBaselineStandard(t *testing.T) {
+	rect := cell.NewRect(0, 0, 40, 20)
+	duck := graphics.NewDuck()
+
+	buf := buffer.NewBuffer(rect)
+	ctx := cell.Context{Area: rect}
+	w := Ascii3D{
+		Model:          duck,
+		Mode:           ModeBlock,
+		Scale:          4.0,
+		RotX:           10.0,
+		RotY:           180.0,
+		CameraDistance: 4.2,
+		Colored:        true,
+	}
+	w.Draw(ctx, buf)
+
+	foundHalfBlock := false
+	for y := uint16(0); y < 20; y++ {
+		for x := uint16(0); x < 40; x++ {
+			c := buf.Get(x, y)
+			// Baseline fix rule: Must NEVER use '▀' (U+2580)
+			if c.Content == '▀' {
+				t.Fatalf("Found upper half block '▀' at (%d, %d); half-block standard requires '▄' (U+2584)", x, y)
+			}
+			if c.Content == '▄' {
+				foundHalfBlock = true
+				// Verify both colors are populated
+				if c.Style.Bg.Type() == cell.ColorDefault && c.Style.Fg.Type() == cell.ColorDefault {
+					t.Errorf("Cell '▄' at (%d, %d) has unstyled Fg and Bg", x, y)
+				}
+			}
+		}
+	}
+	if !foundHalfBlock {
+		t.Fatalf("Expected ModeBlock to render '▄' half-block cells, found none")
+	}
+}
