@@ -245,12 +245,13 @@ machine, rustc 1.98.1. Median p50 across the three runs; ± is the full spread.
 
 | Workload | Limoni | Ratatui 0.30.2 | ratio | Limoni bytes/frame | Ratatui bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `hundred-layers` | 164.0 µs ±0% | **104.4 µs ±1%** | **0.6×** | 124 | 911 |
-| `virtual-1000000` | 111.9 µs ±8% | 141.3 µs ±0% | 1.3× | 0 | 25 |
-| `full-redraw-120x40` | 120.8 µs ±0% | 175.0 µs ±0% | 1.4× | 4897 | 5828 |
-| `single-cell-update` | 9.9 µs ±0% | 16.0 µs ±0% | 1.6× | 7 | 32 |
-| `unicode-emoji` | 7.3 µs ±2% | 28.5 µs ±0% | 3.9× | 0 | 25 |
-| `text-heavy-120x40` | 14.1 µs ±0% | 65.6 µs ±2% | 4.6× | 0 | 25 |
+| `hundred-layers` | 164.0 µs ±1% | **106.4 µs ±1%** | **0.6×** | 124 | 911 |
+| `virtual-1000000` | 104.8 µs ±6% | 138.9 µs ±1% | 1.3× | 0 | 25 |
+| `full-redraw-120x40` | 120.9 µs ±0% | 172.1 µs ±0% | 1.4× | 4897 | 5828 |
+| `single-cell-update` | 9.9 µs ±0% | 15.6 µs ±3% | 1.6× | 7 | 32 |
+| `unicode-emoji` | 7.3 µs ±1% | 28.2 µs ±2% | 3.8× | 0 | 25 |
+| `text-heavy-120x40` | 14.2 µs ±0% | 63.9 µs ±3% | 4.5× | 0 | 25 |
+| `resize` | 13.9 µs ±2% | 97.5 µs ±5% | 7.0× | 2735 | 1856 |
 
 Byte counts were bit-identical across all three runs.
 
@@ -269,31 +270,42 @@ inherent to the engine, not to this harness.
 
 | Workload | Limoni | Ratatui 0.30.2 | Why |
 | :--- | ---: | ---: | :--- |
-| `table-10000` | 162.9 µs ±0% | 2795.8 µs ±1% | Structural, not like-for-like. Limoni's `Table` holds its rows and redraws the visible window; Ratatui's `Table` takes ownership of a row iterator, so an application rebuilds all 10,000 rows every frame. That is idiomatic Ratatui, not a harness artifact — but it is a different amount of work. |
-| `resize` | 13.9 µs ±0% | 1106.0 µs ±3% | Withheld pending root cause — see the warning below. |
-| `empty-frame` | 0.0 µs ±50% | 15.7 µs ±0% | Limoni has a clean-frame fast path keyed off a dirty flag; Ratatui rescans the buffer unconditionally. |
-| `mouse-hit-test` | 0.8 µs ±1% | 20.2 µs ±0% | Limoni has spatial hit-testing; Ratatui has none. The Ratatui figure is a one-block repaint, not the same algorithm. |
-| `async-update-burst` | 0.1 µs ±33% | 15.7 µs ±0% | Measures Limoni's Elm-runtime dispatch. Ratatui has no runtime to exercise. |
-| `native-image-capability` | 9.6 µs ±1% | 20.2 µs ±13% | Limoni ships graphics protocols in-tree; Ratatui requires a third-party crate. |
+| `table-10000` | 162.8 µs ±1% | 2722.4 µs ±4% | Structural, not like-for-like. Limoni's `Table` holds its rows and redraws the visible window; Ratatui's `Table` takes ownership of a row iterator, so an application rebuilds all 10,000 rows every frame. That is idiomatic Ratatui, not a harness artifact — but it is a different amount of work. |
+| `empty-frame` | 0.0 µs ±33% | 15.3 µs ±0% | Limoni has a clean-frame fast path keyed off a dirty flag; Ratatui rescans the buffer unconditionally. |
+| `mouse-hit-test` | 0.8 µs ±25% | 19.8 µs ±0% | Limoni has spatial hit-testing; Ratatui has none. The Ratatui figure is a one-block repaint, not the same algorithm. |
+| `async-update-burst` | 0.1 µs ±25% | 15.3 µs ±0% | Measures Limoni's Elm-runtime dispatch. Ratatui has no runtime to exercise. |
+| `native-image-capability` | 9.6 µs ±0% | 19.8 µs ±0% | Limoni ships graphics protocols in-tree; Ratatui requires a third-party crate. |
 
 #### 0.29 → 0.30 on the same harness
 
 Holding the runner constant and changing only the Ratatui version, 0.30 is
 faster nearly everywhere — `empty-frame` −40%, `single-cell-update` −39%,
 `async-update-burst` −39%, `mouse-hit-test` −27%, `text-heavy` −14% — with byte
-counts identical on every workload but one.
+counts identical on every workload but `resize`, which grew from 306 to 1856
+bytes per frame as 0.30 clears more on a viewport change.
 
-> ⚠️ **`resize` regressed by 1807%** (57.5 µs → 1106.0 µs ±3%) and its output
-> grew from 306 to 1856 bytes per frame, with allocations going from 1 to 13.5
-> per frame. **This is not published as a Ratatui result,** and the workload is
-> listed as non-comparable above for that reason. Per the rule in `CLAUDE.md`,
-> a number this extreme is a harness bug until proven otherwise; the scene
-> alternates viewport size every frame, which is pathological, and 0.30's
-> backend `clear_region()` requirement plausibly changed what a resize emits.
-> Repeating the run three times did not help it: the spread is ±3%, so it is
-> reproducible, not noise — which rules out measurement error and leaves either
-> a real 0.30 change or a scene that asks Ratatui something unreasonable. It
-> needs a root-cause pass before it means anything.
+#### A worked example of the harness-bug rule
+
+An intermediate revision of this runner reported `resize` at 1106 µs on 0.30
+against 57 µs on 0.29 — a 1807% regression, reproducible to ±3% across three
+runs. It was withheld rather than published, on the rule that a number that
+extreme is a harness bug until proven otherwise. It was a harness bug.
+
+0.30 added `clear_fixed_viewport`, which calls `backend.size()` on every
+viewport clear, and therefore on every resize. Through `CrosstermBackend` that
+is an `ioctl` against the controlling terminal — roughly a millisecond when
+something answers, and `EAGAIN` on CI, where no `TERM` is set. The runner had
+been paying a terminal round-trip per frame and calling it Ratatui's cost. It
+was caught by CI failing outright, not by the number looking wrong; the run had
+been green locally, which is the failure mode `CLAUDE.md` warns about under
+"compiling is not verifying".
+
+With the size query answered from a fixed value — which is what an in-memory
+benchmark must do — `resize` on 0.30 is 97.5 µs against 0.29's 57 µs. A 1.7×
+increase, attributable to the extra clearing work 0.30 genuinely does, and now
+published as a comparable workload. Reproducibility was no defence here: the
+wrong number was stable to ±3% precisely because the terminal answered
+consistently.
 
 #### Reproducing
 
@@ -420,13 +432,15 @@ To make the cross-framework comparison current again:
    `tea.KeyMsg` splits into `tea.KeyPressMsg`/`tea.KeyReleaseMsg`), so this is a
    port rather than a version bump. Keep the v1 runner for historical continuity
    and report all three columns.
-2. ~~**Bump the Ratatui runner to 0.30.**~~ Done — see [§2.5](#25-ratatui). The
-   breaking changes turned out not to reach this runner: it drives
-   `CrosstermBackend` rather than a custom backend, so the new associated
-   `Error` type and `clear_region()` requirement do not apply, and it uses no
-   `Flex`. The runner compiled against 0.30.2 unchanged. What did need work was
-   the harness, which was measuring fabricated byte counts and two scenes that
-   did not match their Limoni counterparts.
+2. ~~**Bump the Ratatui runner to 0.30.**~~ Done — see [§2.5](#25-ratatui). Most
+   of the work was in the harness, which was measuring fabricated byte counts
+   and two scenes that did not match their Limoni counterparts. The 0.30 backend
+   changes did reach the runner in the end: driving `CrosstermBackend` directly
+   compiled and ran locally but failed on CI with `EAGAIN`, because with no
+   `TERM` set crossterm queries the terminal for the cursor position and waits
+   for a reply that never arrives. It now wraps that in a `FixedBackend`
+   implementing `Backend` with 0.30's associated `Error` type and
+   `clear_region()`, answering size and cursor queries from fixed values.
    **Still open:** root-cause the `resize` regression flagged in §2.5 before any
    0.30 number for that workload is published.
 3. **Add an emitted-bytes-per-frame column.** This is the metric that predicts

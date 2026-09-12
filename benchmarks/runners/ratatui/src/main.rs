@@ -9,8 +9,10 @@
 // of `buffer.Diff`, so the two byte columns described different quantities and
 // were never comparable.
 //
-// This version drives `CrosstermBackend` over an in-memory `Sink` behind a
-// fixed viewport, so the measured pipeline is: widgets draw into a cell buffer,
+// This version drives `CrosstermBackend` over an in-memory `Sink`, wrapped in a
+// `FixedBackend` that answers every question about the real terminal from a
+// fixed size, behind a fixed viewport. The measured pipeline is: widgets draw
+// into a cell buffer,
 // Ratatui diffs against the previous frame, and the backend encodes the result
 // as ANSI into the sink. That is the same pipeline the Limoni runner measures —
 // `buffer.Diff` also syncs its back buffer, so both sides diff against the
@@ -47,8 +49,8 @@
 // likewise marked `comparable: false`.
 
 use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Rect},
+    backend::{ClearType, CrosstermBackend, WindowSize},
+    layout::{Constraint, Position, Rect, Size},
     style::Color,
     widgets::{Block, Cell, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal, TerminalOptions, Viewport,
@@ -87,20 +89,14 @@ static A: Counter = Counter;
 const RUNNER_VERSION: &str = "v2.0.0";
 const WARMUP: usize = 10;
 
-/// Workloads Ratatui has no equivalent for, that exercise a structurally
-/// different amount of work, or whose figure is withheld pending a root cause.
-/// All are reported; none is ever quoted as a ratio.
+/// Workloads Ratatui has no equivalent for, or that exercise a structurally
+/// different amount of work. Reported, never quoted as a ratio.
 const NON_COMPARABLE: &[&str] = &[
     "empty-frame",
     "mouse-hit-test",
     "async-update-burst",
     "native-image-capability",
     "table-10000",
-    // Withheld, not structural: resize costs 19x more on 0.30 than on 0.29
-    // with this harness unchanged, reproducibly (+-3% over three runs). Until
-    // that is root-caused the figure says more about the scene — which
-    // alternates viewport size every frame — than about either engine.
-    "resize",
 ];
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -290,7 +286,80 @@ impl Write for Sink {
     }
 }
 
-type Backend = CrosstermBackend<Sink>;
+/// A `CrosstermBackend` with every question about the real terminal answered
+/// from a fixed size, and the cursor-position query stubbed.
+///
+/// 0.30 added `clear_fixed_viewport`, which calls `backend.size()` on every
+/// viewport clear — so on every resize. Through `CrosstermBackend` that is a
+/// real ioctl against the controlling terminal: roughly a millisecond when one
+/// answers, and EAGAIN on CI, where no `TERM` is set. Left unwrapped it made
+/// `resize` look 19x slower on 0.30 than on 0.29; with the query answered from
+/// a fixed size the honest figure is 1.7x, and the difference is the clearing
+/// work 0.30 actually added.
+///
+/// An in-memory benchmark has no business talking to a terminal at all, so this
+/// wrapper makes sure it never does.
+///
+/// Drawing and ANSI encoding still go through crossterm untouched, because that
+/// is the thing being measured; only the interrogation is intercepted.
+struct FixedBackend {
+    inner: CrosstermBackend<Sink>,
+    size: Size,
+}
+
+impl ratatui::backend::Backend for FixedBackend {
+    type Error = io::Error;
+
+    fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a ratatui::buffer::Cell)>,
+    {
+        self.inner.draw(content)
+    }
+
+    fn hide_cursor(&mut self) -> io::Result<()> {
+        self.inner.hide_cursor()
+    }
+
+    fn show_cursor(&mut self) -> io::Result<()> {
+        self.inner.show_cursor()
+    }
+
+    fn get_cursor_position(&mut self) -> io::Result<Position> {
+        Ok(Position::ORIGIN)
+    }
+
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
+        self.inner.set_cursor_position(position)
+    }
+
+    fn clear(&mut self) -> io::Result<()> {
+        self.inner.clear()
+    }
+
+    fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
+        self.inner.clear_region(clear_type)
+    }
+
+    fn size(&self) -> io::Result<Size> {
+        Ok(self.size)
+    }
+
+    fn window_size(&mut self) -> io::Result<WindowSize> {
+        Ok(WindowSize {
+            columns_rows: self.size,
+            pixels: Size::new(0, 0),
+        })
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        // Disambiguated: CrosstermBackend also has io::Write::flush, and the
+        // Backend one is what emits the queued frame.
+        ratatui::backend::Backend::flush(&mut self.inner)
+    }
+}
+
+type Backend = FixedBackend;
 
 fn render_scene(
     name: &str,
@@ -433,8 +502,12 @@ fn main() -> io::Result<()> {
         let mut table_state = TableState::default();
 
         let sink = Sink::new();
+        let backend = FixedBackend {
+            inner: CrosstermBackend::new(sink.clone()),
+            size: Size::new(spec.width, spec.height),
+        };
         let mut terminal = Terminal::with_options(
-            CrosstermBackend::new(sink.clone()),
+            backend,
             TerminalOptions {
                 viewport: Viewport::Fixed(Rect::new(0, 0, spec.width, spec.height)),
             },

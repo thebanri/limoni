@@ -161,52 +161,41 @@ Bubble Tea v2 benchmark runner with a documented baseline.
 
 ## Open work, roughly in priority order
 
-1. **Ratatui `resize` on 0.30.** The runner now measures Ratatui 0.30.2 — the
-   0.30 breaking changes never reached it, since it drives `CrosstermBackend`
-   rather than a custom backend and uses no `Flex`. The harness was the real
-   work: it had been reporting fabricated byte counts (`symbol().len() + 10`
-   per cell), cloning 10,000 rows inside the timed region, and rendering two
-   scenes that did not match their Limoni counterparts. See
-   `docs/benchmark-methodology.md` §2.5.
-   What is left: `resize` regressed 1807% from 0.29 to 0.30 on the same
-   harness. Treat it as a harness bug until root-caused; nothing about that
-   workload is publishable yet.
-
-2. **Instance isolation and `RunWithContext`.** `limoni.Wakeup` writes to a
+1. **Instance isolation and `RunWithContext`.** `limoni.Wakeup` writes to a
    package-level channel, so two Limoni applications cannot run in one process —
    yet `examples/ssh_server` exists and multi-session SSH is a stated target. Make
    the wakeup channel instance-bound and give immediate mode a context-aware entry
    point. Keep `limoni.Run` as a default-instance wrapper for compatibility.
 
-3. **Terminal capability handshake.** `DetectCapabilities` only reads `TERM`,
+2. **Terminal capability handshake.** `DetectCapabilities` only reads `TERM`,
    `COLORTERM` and `TERM_PROGRAM`, which is wrong inside tmux, over SSH with an
    unhelpful `TERM`, and in emulators that do not advertise themselves. Add a
    short, timeout-guarded probe at startup: DA1, XTVERSION, DECRQM for modes 2026
    and 2027, and the Kitty keyboard query — falling back to the current guess.
    `Terminal.SetCapabilities` already exists as the manual override.
 
-4. **Grapheme clusters.** `cell.RuneWidth` / `StringWidth` walk runes with
+3. **Grapheme clusters.** `cell.RuneWidth` / `StringWidth` walk runes with
    hand-written East Asian ranges. ZWJ emoji, regional-indicator flags, skin-tone
    modifiers and VS16 all measure wrong, which corrupts layout in any application
    rendering user content. Needs UAX #29 segmentation plus mode 2027 negotiation,
    and a decision about how `Cell` stores a multi-rune cluster.
 
-5. **Diff bandwidth.** The diff emits cursor jumps and runs. Ultraviolet also uses
+4. **Diff bandwidth.** The diff emits cursor jumps and runs. Ultraviolet also uses
    `ECH`/`REP`/`ICH`/`DCH` and scroll-region optimisation, which is where its SSH
    bandwidth story comes from. Emitted bytes, not CPU time, govern responsiveness
    over a network link.
 
-6. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
+5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
    notifications, no mouse shape, no window title, no suspend/resume, no inline
    (non-altscreen) render mode. Inline mode in particular is what tools like `gum`
    and CI progress renderers are built on.
 
-7. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
+6. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
    syntax-highlighted code view, log view, big text, calendar, autocomplete.
 
-8. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
+7. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
    alongside Braille (2×4). Sextants help where Braille fonts are missing.
 
-9. **Automatic border merging** between adjacent `Block`s. Ratatui 0.30 does this;
+8. **Automatic border merging** between adjacent `Block`s. Ratatui 0.30 does this;
    a cell grid can do it far more easily than a string-based renderer, so it is a
    concrete demonstration of the architecture's advantage.
