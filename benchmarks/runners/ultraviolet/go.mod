@@ -1,4 +1,4 @@
-module github.com/thebanri/limoni/bubbletea-v2-runner
+module github.com/thebanri/limoni/ultraviolet-runner
 
 go 1.25.0
 

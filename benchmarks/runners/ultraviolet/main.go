@@ -9,42 +9,34 @@
 // full buffer.Diff that produces the escape sequence stream.
 //
 // Those are different amounts of work, which makes v1-vs-Limoni numbers
-// structurally unfair. This runner fixes that for v2: it drives Ultraviolet's
-// TerminalRenderer — the cell-based, ncurses-derived diffing layer that Bubble
-// Tea v2 and Lip Gloss v2 are both built on — so the measured pipeline is
-// cells in, diffed ANSI bytes out, exactly like Limoni's runner.
+// structurally unfair. This runner closes that gap by measuring the cell-based
+// diffing layer directly: cells in, diffed ANSI bytes out, exactly like
+// Limoni's runner. The screen writes into an in-memory buffer, not a PTY, so
+// no terminal is required and no I/O latency is included on either side.
 //
-// The renderer writes into an in-memory buffer, not a PTY, so no terminal is
-// required and no I/O latency is included on either side.
+//	go run . -output ../../../benchmark-results/ultraviolet.json
 //
-//	go run . -output ../../../benchmark-results/bubbletea-v2.json
+// # Why this is labelled Ultraviolet and not Bubble Tea v2
 //
-// # STATUS: results are NOT yet publishable
+// It measures what it links, and it does not link Bubble Tea. Nothing here
+// imports charm.land/bubbletea/v2 — the earlier requirement in go.mod was
+// unreferenced and `go mod tidy` removed it. What is exercised is
+// uv.TerminalScreen from github.com/charmbracelet/ultraviolet, which is the
+// layer Bubble Tea v2 and Lip Gloss v2 are both built on and the layer a
+// Bubble Tea v2 program actually drives.
 //
-// This runner builds and runs against real Bubble Tea v2 / Ultraviolet, but two
-// harness-level questions are unresolved, and until they are, no number
-// produced here belongs in the README:
+// That makes it a fair proxy for v2's rendering cost, and an unfair label for
+// v2 itself: a Bubble Tea program also pays for its own runtime, message
+// dispatch and view construction, none of which is measured here. Quoting
+// these numbers as "Bubble Tea v2" would overclaim in one direction and
+// underclaim in the other. The report's `target` field carries the exact
+// Ultraviolet version, read from the binary's build info.
 //
-//  1. Touch tracking. Ultraviolet's renderer early-returns when no line is
-//     marked touched, and the marks are reset by TerminalScreen — a layer this
-//     harness bypasses. Resetting them here (see resetTouched below) takes an
-//     unchanged frame from ~195us to ~42ns in isolation, which is the same
-//     order as Limoni's clean-frame fast path. So the first version of this
-//     runner overstated v2's cost by roughly four orders of magnitude on the
-//     sparse workloads.
-//
-//  2. Clear() semantics. This harness clears the buffer every frame, mirroring
-//     the Limoni runner. Limoni's Buffer.Clear short-circuits via a clean flag;
-//     Ultraviolet's does not, so clearing re-dirties every line and defeats the
-//     early return. Whether that is a genuine architectural difference or an
-//     artifact of driving TerminalRenderer instead of TerminalScreen is not yet
-//     established. A Bubble Tea v2 application does not clear a RenderBuffer by
-//     hand, so the pattern may simply be non-idiomatic.
-//
-// Resolving this most likely means rewriting the harness against
-// uv.TerminalScreen, which is the layer Bubble Tea v2 actually drives.
-//
-// Until then: treat the output as a work in progress, not as evidence.
+// Driving TerminalScreen rather than TerminalRenderer matters. The renderer
+// early-returns when no line is marked touched, and it is TerminalScreen that
+// resets those marks — so a harness that bypasses the screen re-scans every
+// line every frame. An earlier version of this runner did exactly that and
+// overstated the cost by roughly four orders of magnitude on sparse workloads.
 package main
 
 import (
@@ -59,6 +51,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -113,6 +106,23 @@ type envMetadata struct {
 	WarmupCount   int    `json:"warmup_count,omitempty"`
 	BuildMode     string `json:"build_mode,omitempty"`
 	Measures      string `json:"measures,omitempty"`
+	Target        string `json:"target,omitempty"`
+}
+
+// ultravioletVersion reports the Ultraviolet module version actually linked
+// into this binary, read from the embedded build info. Hand-written version
+// labels drift; this one cannot.
+func ultravioletVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == "github.com/charmbracelet/ultraviolet" {
+			return dep.Path + " " + dep.Version
+		}
+	}
+	return "unknown"
 }
 
 type report struct {
@@ -299,7 +309,7 @@ func locateManifest() (string, []byte, error) {
 }
 
 func main() {
-	output := flag.String("output", "bubbletea-v2.json", "dashboard report path")
+	output := flag.String("output", "ultraviolet.json", "dashboard report path")
 	flag.Parse()
 
 	_, data, err := locateManifest()
@@ -318,7 +328,7 @@ func main() {
 	}
 
 	result := report{
-		Implementation: "bubbletea-v2",
+		Implementation: "ultraviolet",
 		Environment: envMetadata{
 			OS:            runtime.GOOS,
 			Arch:          runtime.GOARCH,
@@ -326,10 +336,11 @@ func main() {
 			Output:        "memory",
 			ManifestHash:  hex.EncodeToString(hash[:]),
 			GitCommit:     gitCommit,
-			RunnerVersion: "v2.0.0",
+			RunnerVersion: "v3.0.0",
 			WarmupCount:   warmupIterations,
 			BuildMode:     "release",
-			Measures:      "cells -> ultraviolet TerminalRenderer diff -> ANSI bytes",
+			Measures:      "cells -> ultraviolet TerminalScreen diff -> ANSI bytes",
+			Target:        ultravioletVersion(),
 		},
 		Valid: true,
 	}

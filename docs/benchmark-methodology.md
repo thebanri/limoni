@@ -16,7 +16,8 @@ where the comparison is currently out of date.
 | :--- | :--- | :--- |
 | Limoni | this commit | ✅ Current |
 | Bubble Tea | **v1.3.10** | ⚠️ **Stale.** Bubble Tea v2 rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet). v1 numbers do not describe v2. |
-| Bubble Tea v2 | **v2.0.9** | ✅ **Measured** via `uv.TerminalScreen`. First baseline in [§2.4](#24-bubble-tea-v2--ultraviolet); one machine, one run, not yet a published result. |
+| Bubble Tea v2 | — | ❌ **Not measured.** No runner links it. The renderer it is built on is measured instead; see the row below and [§2.4](#24-ultraviolet). |
+| Ultraviolet | **v0.0.0-20260703014108** | ✅ **Measured** via `uv.TerminalScreen`. First baseline in [§2.4](#24-ultraviolet); one machine, one run, not yet a published result. |
 | Ratatui | **0.30.2** | ✅ **Measured** on a rebuilt runner. First baseline in [§2.5](#25-ratatui); one machine, one run, not yet a published result. |
 
 **Consequence:** any README statement comparing Limoni's rendering architecture to
@@ -62,13 +63,13 @@ Three standalone programs execute the same named workloads and emit JSON:
 | Limoni | `benchmarks/runners/limoni` | this module |
 | Bubble Tea | `benchmarks/runners/bubbletea` | separate Go module |
 | Ratatui | `benchmarks/runners/ratatui` | Cargo crate |
-| Bubble Tea v2 | `benchmarks/runners/bubbletea-v2` | separate Go module (needs Go ≥ 1.25) |
+| Ultraviolet | `benchmarks/runners/ultraviolet` | separate Go module (needs Go ≥ 1.25) |
 
 > ⚠️ **These runners do not all measure the same pipeline.** The v1 Bubble Tea
 > runner measures view-string construction only; the Limoni runner measures
 > drawing *plus* the full ANSI diff. Any Limoni-vs-Bubble-Tea-v1 ratio therefore
 > compares different amounts of work and should not be quoted as a like-for-like
-> speedup. §2.4 explains the fix in progress.
+> speedup. §2.4 explains what was done about it.
 
 ```bash
 go run ./benchmarks/runners/limoni -output benchmark-results/limoni.json
@@ -90,11 +91,13 @@ go run ./benchmarks/runners/dashboard \
   benchmark-results/ratatui.json
 ```
 
-### 2.4 Bubble Tea v2 / Ultraviolet
+### 2.4 Ultraviolet
 
-`benchmarks/runners/bubbletea-v2` measures Bubble Tea v2 (v2.0.9) through
-`uv.TerminalScreen` — the layer Bubble Tea v2 actually drives. It exists because
-of a fairness problem in the v1 runner:
+`benchmarks/runners/ultraviolet` measures `uv.TerminalScreen` from
+`github.com/charmbracelet/ultraviolet` — the cell-based diffing layer that
+Bubble Tea v2 and Lip Gloss v2 are both built on, and the layer a Bubble Tea v2
+program actually drives. It exists because of a fairness problem in the v1
+runner:
 
 > **The v1 Bubble Tea runner and the Limoni runner do not measure the same
 > pipeline.** The v1 runner measures `Model.Update` + `Model.View` — building the
@@ -103,65 +106,82 @@ of a fairness problem in the v1 runner:
 > buffer **and** the full `buffer.Diff` that emits the escape sequences.
 > Any Limoni-vs-v1 ratio therefore compares different amounts of work.
 
-The v2 runner closes that gap: cells in, diffed ANSI bytes out, colour profile
-pinned to TrueColor on both sides, same workload manifest, same machine, same Go
-toolchain (1.25.1).
+This runner closes that gap: cells in, diffed ANSI bytes out, colour profile
+pinned to TrueColor on both sides, same workload manifest, same machine.
+
+#### Why this is not labelled "Bubble Tea v2"
+
+It measures what it links, and **it does not link Bubble Tea**. Nothing in the
+runner imports `charm.land/bubbletea/v2`; the requirement that used to sit in
+its `go.mod` was unreferenced, and `go mod tidy` removed it. Earlier revisions
+of this document labelled these numbers "Bubble Tea v2 (v2.0.9)" — a version
+that was never linked into the binary that produced them.
+
+Ultraviolet is a fair proxy for v2's *rendering* cost and an unfair label for
+v2 itself: a Bubble Tea program also pays for its runtime, message dispatch and
+view construction, none of which is exercised here. So the comparison is
+published under the name of the thing being measured. The report's `target`
+field carries the exact module version, read from the binary's build info
+rather than typed by hand.
+
+Measured here: `github.com/charmbracelet/ultraviolet
+v0.0.0-20260703014108-f5a850f9c2b7`.
 
 #### Comparable workloads
 
-Both engines compose a frame and let their own diff decide what to emit.
+One machine, one run, 1,000 frames each.
 
-| Workload | Limoni | Bubble Tea v2 | ratio | Limoni bytes/frame | v2 bytes/frame |
+| Workload | Limoni | Ultraviolet | ratio | Limoni bytes/frame | UV bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `full-redraw-120x40` | 148.0 µs | 702.1 µs | 4.7× | 4897 | 6329 |
-| `table-10000` | 202.4 µs | 538.5 µs | 2.7× | 298 | 1136 |
-| `virtual-1000000` | 124.4 µs | 635.2 µs | 5.1× | 0 | 1888 |
-| `hundred-layers` | 220.9 µs | 439.8 µs | 2.0× | 124 | 11743 |
-| `native-image-capability` | 10.4 µs | 94.8 µs | 9.1× | 0 | 0 |
-| `single-cell-update` | 11.5 µs | 150.5 µs | 13.0× | 7 | 3 |
-| `resize` | 15.8 µs | 142.4 µs | 9.0× | 2735 | 8 |
-| `text-heavy-120x40` | 18.2 µs | 540.3 µs | 29.7× | 0 | 0 |
-| `unicode-emoji` | 9.4 µs | 220.0 µs | 23.3× | 0 | 0 |
+| `hundred-layers` | 164.0 µs | 318.7 µs | 1.9× | 124 | 11743 |
+| `table-10000` | 163.0 µs | 334.6 µs | 2.1× | 298 | 1136 |
+| `virtual-1000000` | 103.6 µs | 387.1 µs | 3.7× | 0 | 1888 |
+| `full-redraw-120x40` | 121.0 µs | 486.7 µs | 4.0× | 4897 | 6329 |
+| `resize` | 13.9 µs | 90.1 µs | 6.5× | 2735 | 8 |
+| `native-image-capability` | 9.6 µs | 65.5 µs | 6.8× | 0 | 0 |
+| `single-cell-update` | 9.9 µs | 89.8 µs | 9.1× | 7 | 3 |
+| `unicode-emoji` | 7.3 µs | 138.3 µs | 18.9× | 0 | 0 |
+| `text-heavy-120x40` | 14.2 µs | 282.1 µs | 19.9× | 0 | 0 |
 
 #### Workloads that are *not* comparable
 
 These are reported for completeness and should never be quoted as ratios.
 
-| Workload | Limoni | Bubble Tea v2 | Why it is not comparable |
+| Workload | Limoni | Ultraviolet | Why it is not comparable |
 | :--- | ---: | ---: | :--- |
-| `empty-frame` | 0.0 µs | 138.0 µs | Limoni measures a clean-frame fast path. v2 has no equivalent because a Bubble Tea program does not render an unchanged frame at all — the cost shown is `TerminalScreen.Render`'s unconditional full-screen copy, which a real app would never pay here. |
-| `mouse-hit-test` | 0.8 µs | 132.8 µs | Limoni has spatial hit-testing; Ultraviolet has none. The v2 figure is a one-line repaint, not the same algorithm. |
-| `async-update-burst` | 0.6 µs | 142.3 µs | Limoni measures Elm-runtime message dispatch. The v2 figure is a one-line repaint; the runtimes are not exercised the same way. |
+| `empty-frame` | 0.0 µs | 87.8 µs | Limoni measures a clean-frame fast path. Ultraviolet has no equivalent because a Bubble Tea program does not render an unchanged frame at all — the cost shown is `TerminalScreen.Render`'s unconditional full-screen copy, which a real app would never pay here. The resulting ratio is four digits wide and means nothing. |
+| `mouse-hit-test` | 0.8 µs | 90.6 µs | Limoni has spatial hit-testing; Ultraviolet has none. The UV figure is a one-line repaint, not the same algorithm. |
+| `async-update-burst` | 0.1 µs | 89.5 µs | Limoni measures Elm-runtime message dispatch. Ultraviolet has no runtime; the figure is a one-line repaint. |
 
 #### What these numbers do and do not show
 
 - **They are one machine, one run.** No repetitions, no confidence intervals.
-  Treat them as a first baseline, not a published result.
-- **`TerminalScreen.Render` copies the whole screen every call** — an
-  unconditional 4,800-cell scan at 120×40 — where Limoni's diff short-circuits
-  on a clean buffer. That is a real architectural difference and it accounts for
-  most of the fixed ~140 µs floor in the v2 column.
-- **But per-frame cost matters less for v2 than the ratios suggest.** A Bubble
-  Tea program renders when its model changes, not on a timer, so an idle
-  application does not pay that cost repeatedly. Limoni's immediate mode with
-  `WithFPS` does render continuously, which is why its fast path exists.
+  Treat them as a baseline, not a published result.
+- **Ultraviolet carries a ~88 µs floor on every workload.**
+  `TerminalScreen.Render` copies the whole screen every call — an unconditional
+  1,920-cell scan at 80×24 — where Limoni's diff short-circuits on a clean
+  buffer. That is a real architectural difference and it accounts for most of
+  the fixed cost in the UV column.
+- **But per-frame cost matters less for a Bubble Tea app than the ratios
+  suggest.** Such a program renders when its model changes, not on a timer, so
+  an idle application does not pay that cost repeatedly. Limoni's immediate mode
+  with `WithFPS` does render continuously, which is why its fast path exists.
 - **Byte counts are the more interesting column.** Limoni emits fewer bytes per
   frame on `full-redraw` (4,897 vs 6,329), `table-10000` (298 vs 1,136) and
   dramatically fewer on `hundred-layers` (124 vs 11,743). Emitted bytes, not CPU
   time, is what determines responsiveness over SSH.
 - **Allocation counts are not directly comparable** and are omitted above:
-  Limoni's runner reuses buffers it owns, and the v2 runner allocates a `Cell`
+  Limoni's runner reuses buffers it owns, and this runner allocates a `Cell`
   per glyph because that is Ultraviolet's API shape.
 
 #### Reproducing
 
 ```bash
-cd benchmarks/runners/bubbletea-v2
-go run . -output ../../../benchmark-results/bubbletea-v2.json
+cd benchmarks/runners/ultraviolet
+go run . -output ../../../benchmark-results/ultraviolet.json
 ```
 
-Requires Go ≥ 1.25 (Bubble Tea v2's own floor) and a reachable module proxy for
-the `charm.land` vanity path.
+Requires Go ≥ 1.25.
 
 ### 2.5 Ratatui
 
@@ -353,12 +373,15 @@ because latency on shared CI runners is too noisy to gate on. See the
 
 To make the cross-framework comparison current again:
 
-1. **Add a Bubble Tea v2 runner.** Create `benchmarks/runners/bubbletea-v2` as a
-   separate module depending on `charm.land/bubbletea/v2`. v2 requires Go ≥ 1.25
-   and its API differs from v1 (`View()` returns a `tea.View` struct;
+1. **Add a Bubble Tea v2 runner — a real one.** What exists today measures
+   Ultraviolet, the renderer underneath v2, and is now labelled as such
+   ([§2.4](#24-ultraviolet)). A genuine v2 runner would depend on
+   `charm.land/bubbletea/v2` and drive `Model`/`Update`/`View` through the
+   program loop, so the runtime and view construction are in the measurement
+   too. Its API differs from v1 (`View()` returns a `tea.View` struct;
    `tea.KeyMsg` splits into `tea.KeyPressMsg`/`tea.KeyReleaseMsg`), so this is a
    port rather than a version bump. Keep the v1 runner for historical continuity
-   and report both columns.
+   and report all three columns.
 2. ~~**Bump the Ratatui runner to 0.30.**~~ Done — see [§2.5](#25-ratatui). The
    breaking changes turned out not to reach this runner: it drives
    `CrosstermBackend` rather than a custom backend, so the new associated
