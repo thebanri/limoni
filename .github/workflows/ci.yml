@@ -20,18 +20,29 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # A patch-level `go` directive (e.g. `go 1.26.5`) forces every consumer to
-      # download that exact toolchain, and pins the module to a release that may
-      # not exist yet on their machine. Only `go 1.N` is acceptable.
-      - name: Reject patch-level go directive
+      # The original sin this guards against was `go 1.26.5` in the root
+      # module: a directive naming a toolchain newer than the one in hand, which
+      # makes `go` download that exact release before it will do anything — or
+      # refuse outright under GOTOOLCHAIN=local. Note that a three-component
+      # directive is NOT itself the problem: `go 1.25.0` is what the Go
+      # toolchain writes, and what x/sys and Bubble Tea v2 declare.
+      #
+      # `go list -m` under GOTOOLCHAIN=local reproduces the failure exactly,
+      # for every module in the repository, without parsing version strings.
+      - name: Every module resolves on the CI toolchain
+        env:
+          GOTOOLCHAIN: local
         run: |
           set -euo pipefail
+          go version
           for mod in $(git ls-files '*go.mod' 'go.mod'); do
+            dir=$(dirname "$mod")
             directive=$(awk '/^go /{print $2; exit}' "$mod")
-            if [[ "$directive" =~ ^[0-9]+\.[0-9]+$ ]]; then
-              echo "ok   $mod -> go $directive"
+            if (cd "$dir" && go list -m >/dev/null 2>&1); then
+              echo "ok   $mod (go $directive)"
             else
-              echo "FAIL $mod declares 'go $directive'; use a two-component version such as 'go 1.25'"
+              echo "FAIL $mod declares 'go $directive', which this toolchain cannot satisfy:"
+              (cd "$dir" && go list -m) || true
               exit 1
             fi
           done
