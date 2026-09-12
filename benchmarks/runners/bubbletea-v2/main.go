@@ -63,6 +63,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -129,26 +130,26 @@ func truecolor(r, g, b uint8) color.Color { return color.RGBA{R: r, G: g, B: b, 
 
 // scene renders one frame into buf. Returning is enough; the harness renders
 // and diffs afterwards.
-type scene func(buf *uv.RenderBuffer, step int)
+type scene func(scr *uv.TerminalScreen, step int)
 
 // writeString writes s starting at (x, y) with the given style.
-func writeString(buf *uv.RenderBuffer, x, y int, s string, style uv.Style) {
+func writeString(scr *uv.TerminalScreen, x, y int, s string, style uv.Style) {
 	col := x
 	for _, r := range s {
 		cell := uv.NewCell(ansi.GraphemeWidth, string(r))
 		cell.Style = style
-		buf.SetCell(col, y, cell)
+		scr.SetCell(col, y, cell)
 		col += cell.Width
 	}
 }
 
-func fill(buf *uv.RenderBuffer, w, h int, content string, style uv.Style) {
+func fill(scr *uv.TerminalScreen, w, h int, content string, style uv.Style) {
 	cell := uv.NewCell(ansi.GraphemeWidth, content)
 	cell.Style = style
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			c := *cell
-			buf.SetCell(x, y, &c)
+			scr.SetCell(x, y, &c)
 		}
 	}
 }
@@ -164,76 +165,76 @@ func sceneFor(s spec) scene {
 
 	switch s.Name {
 	case "empty-frame":
-		return func(buf *uv.RenderBuffer, step int) {}
+		return func(scr *uv.TerminalScreen, step int) {}
 
 	case "full-redraw-120x40":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			ch := string(rune('A' + (step % 26)))
 			style := uv.Style{
 				Fg: truecolor(uint8((step*3)%256), 200, 120),
 				Bg: truecolor(20, 20, uint8(step%256)),
 			}
-			fill(buf, w, h, ch, style)
+			fill(scr, w, h, ch, style)
 		}
 
 	case "single-cell-update":
-		return func(buf *uv.RenderBuffer, step int) {
-			writeString(buf, 0, 0, "Initial frame state", uv.Style{})
+		return func(scr *uv.TerminalScreen, step int) {
+			writeString(scr, 0, 0, "Initial frame state", uv.Style{})
 			glyph := "Y"
 			if step%2 == 0 {
 				glyph = "X"
 			}
-			writeString(buf, 0, 0, glyph, uv.Style{})
+			writeString(scr, 0, 0, glyph, uv.Style{})
 		}
 
 	case "text-heavy-120x40":
 		line := "Limoni benchmark ✓ 日本語. Heavy text rendering test for performance analysis."
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			style := uv.Style{Fg: truecolor(200, 200, 255)}
 			for y := 0; y < h; y++ {
-				writeString(buf, 0, y, line, style)
+				writeString(scr, 0, y, line, style)
 			}
 		}
 
 	case "unicode-emoji":
 		line := "Unicode emoji test: 🚀 🍎 🦊 💻 🌟 日本語. Multibyte CJK and complex symbols."
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			style := uv.Style{Fg: truecolor(255, 200, 120)}
 			for y := 0; y < h; y++ {
-				writeString(buf, 0, y, line, style)
+				writeString(scr, 0, y, line, style)
 			}
 		}
 
 	case "table-10000":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			offset := step % 9900
 			header := uv.Style{Fg: truecolor(255, 255, 255), Attrs: 1}
 			body := uv.Style{Fg: truecolor(190, 200, 210)}
-			writeString(buf, 0, 0, "ID        Name            Status", header)
+			writeString(scr, 0, 0, "ID        Name            Status", header)
 			for i := 1; i < h; i++ {
-				writeString(buf, 0, i,
+				writeString(scr, 0, i,
 					fmt.Sprintf("%-9d %-15s %s", offset+i, "process", "running"), body)
 			}
 		}
 
 	case "virtual-1000000":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			offset := step % 990000
 			body := uv.Style{Fg: truecolor(190, 200, 210)}
 			for i := 0; i < h; i++ {
-				writeString(buf, 0, i,
+				writeString(scr, 0, i,
 					fmt.Sprintf("#%06d | ornek kayit %d | viewport cache", offset+i, offset+i), body)
 			}
 		}
 
 	case "mouse-hit-test":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			style := uv.Style{Fg: truecolor(120, 220, 100)}
-			writeString(buf, 0, 0, "Mouse Target Area", style)
+			writeString(scr, 0, 0, "Mouse Target Area", style)
 		}
 
 	case "hundred-layers":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			// Ultraviolet has no layer stack; the closest equivalent is drawing
 			// 100 overlapping boxes in order, which is what a Bubble Tea app
 			// would do by hand.
@@ -244,33 +245,33 @@ func sceneFor(s spec) scene {
 				style := uv.Style{Fg: truecolor(uint8(layer*2%256), 180, 200)}
 				x := (layer + step) % max(1, w-12)
 				y := (layer + step) % max(1, h-2)
-				writeString(buf, x, y, fmt.Sprintf("Layer %d", layer), style)
+				writeString(scr, x, y, fmt.Sprintf("Layer %d", layer), style)
 			}
 		}
 
 	case "resize":
-		return func(buf *uv.RenderBuffer, step int) {
-			writeString(buf, 0, 0,
+		return func(scr *uv.TerminalScreen, step int) {
+			writeString(scr, 0, 0,
 				fmt.Sprintf("Size: %dx%d", 100+step%40, 30+step%10), uv.Style{})
 		}
 
 	case "async-update-burst":
-		return func(buf *uv.RenderBuffer, step int) {
-			writeString(buf, 0, 0, fmt.Sprintf("Value: %d", step), uv.Style{})
+		return func(scr *uv.TerminalScreen, step int) {
+			writeString(scr, 0, 0, fmt.Sprintf("Value: %d", step), uv.Style{})
 		}
 
 	case "native-image-capability":
-		return func(buf *uv.RenderBuffer, step int) {
+		return func(scr *uv.TerminalScreen, step int) {
 			style := uv.Style{
 				Fg: truecolor(100, 150, 200),
 				Bg: truecolor(50, 100, 150),
 			}
-			fill(buf, w, h, "▄", style)
+			fill(scr, w, h, "▄", style)
 		}
 
 	default:
-		return func(buf *uv.RenderBuffer, step int) {
-			writeString(buf, 0, 0, "Limoni benchmark ✓ 日本語", uv.Style{})
+		return func(scr *uv.TerminalScreen, step int) {
+			writeString(scr, 0, 0, "Limoni benchmark ✓ 日本語", uv.Style{})
 		}
 	}
 }
@@ -343,35 +344,29 @@ func main() {
 		}
 
 		var sink bytes.Buffer
-		// A truecolor-capable environment, matching Limoni's diff settings.
-		renderer := uv.NewTerminalRenderer(&sink, []string{"TERM=xterm-256color", "COLORTERM=truecolor"})
-		renderer.Resize(w, h)
+		// TerminalScreen is the layer Bubble Tea v2 actually drives. Using it
+		// rather than TerminalRenderer means the harness never touches
+		// Ultraviolet's internal dirty tracking, so what is measured is the
+		// library's real behaviour and not the harness's idea of it.
+		screen := uv.NewTerminalScreen(&sink, uv.Environ{
+			"TERM=xterm-256color",
+			"COLORTERM=truecolor",
+		})
+		screen.Resize(w, h)
+		// Limoni's runner diffs with trueColor and colors256 both enabled, so
+		// pin the same profile here rather than letting environment sniffing
+		// decide. Without this the emitted byte counts are not comparable.
+		screen.SetColorProfile(colorprofile.TrueColor)
 
-		buf := uv.NewRenderBuffer(w, h)
 		draw := sceneFor(item)
-
-		// Ultraviolet's TerminalRenderer early-returns when no line is marked
-		// touched, and RenderBuffer.SetCell only touches a line when the cell
-		// actually changes — that is its equivalent of Limoni's clean-frame
-		// fast path. The touch marks are reset by the higher-level
-		// TerminalScreen, not by Render, so a harness driving the renderer
-		// directly must reset them itself. Without this the renderer re-scans
-		// every line on every frame and an unchanged frame costs ~195 us
-		// instead of ~42 ns, which would overstate v2's cost by four orders of
-		// magnitude on the sparse workloads.
-		resetTouched := func() {
-			for i := range buf.Touched {
-				buf.Touched[i] = nil
-			}
-		}
 
 		render := func(step int) int {
 			sink.Reset()
-			buf.Clear()
-			draw(buf, step)
-			renderer.Render(buf)
-			_ = renderer.Flush()
-			resetTouched()
+			draw(screen, step)
+			// Render composes the frame and diffs it; Flush is what actually
+			// writes the resulting bytes to the writer.
+			screen.Render()
+			_ = screen.Flush()
 			return sink.Len()
 		}
 
