@@ -1,6 +1,6 @@
 module github.com/thebanri/limoni/bubbletea-runner
 
-go 1.26.5
+go 1.23
 
 require github.com/charmbracelet/bubbletea v1.3.10
 

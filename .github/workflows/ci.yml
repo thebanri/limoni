@@ -8,6 +8,62 @@ on:
   workflow_dispatch:
 
 jobs:
+  module-hygiene:
+    name: Module Hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # A patch-level `go` directive (e.g. `go 1.26.5`) forces every consumer to
+      # download that exact toolchain, and pins the module to a release that may
+      # not exist yet on their machine. Only `go 1.N` is acceptable.
+      - name: Reject patch-level go directive
+        run: |
+          set -euo pipefail
+          for mod in $(git ls-files '*go.mod' 'go.mod'); do
+            directive=$(awk '/^go /{print $2; exit}' "$mod")
+            if [[ "$directive" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              echo "ok   $mod -> go $directive"
+            else
+              echo "FAIL $mod declares 'go $directive'; use a two-component version such as 'go 1.25'"
+              exit 1
+            fi
+          done
+
+      # The module must build on the oldest Go release it claims to support,
+      # otherwise the declared floor is fiction.
+      - name: Build on declared minimum Go version
+        env:
+          GOTOOLCHAIN: local
+        run: go build ./...
+
+      - name: go.mod and go.sum are tidy
+        run: |
+          set -euo pipefail
+          cp go.mod go.mod.bak && cp go.sum go.sum.bak
+          go mod tidy
+          diff -u go.mod.bak go.mod || { echo "go.mod is not tidy; run 'go mod tidy'"; exit 1; }
+          diff -u go.sum.bak go.sum || { echo "go.sum is not tidy; run 'go mod tidy'"; exit 1; }
+
+      # Compiled binaries and local tool configuration must never be committed:
+      # they bloat clones and have leaked credentials in the past.
+      - name: Reject committed binaries and local config
+        run: |
+          set -euo pipefail
+          offenders=$(git ls-files | grep -E '(\.test|\.exe|\.out|\.prof)$|^settings\.json$' || true)
+          if [ -n "$offenders" ]; then
+            echo "FAIL tracked build artifacts or local config:"
+            echo "$offenders"
+            exit 1
+          fi
+          echo "ok   no tracked build artifacts"
+
   test:
     strategy:
       fail-fast: false
@@ -92,4 +148,5 @@ jobs:
           go build -o bin/ssh_server ./examples/ssh_server
           go build -o bin/custom_widget ./examples/custom_widget
           go build -o bin/composable ./examples/composable
+          go build -o bin/counter ./examples/counter
           GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm
