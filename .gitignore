@@ -12,6 +12,11 @@ coverage.html
 /limoni
 /ssh_server
 
+# Cargo build output for the Ratatui runner (137 MB after one release build).
+# Cargo.lock is deliberately NOT ignored: the runner is a binary crate, and
+# pinning its dependency versions is what makes a benchmark run reproducible.
+benchmarks/runners/ratatui/target/
+
 # Generated benchmark & platform reports
 benchmark-results/
 platform-results/

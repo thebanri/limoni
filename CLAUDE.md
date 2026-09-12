@@ -1,3 +1,7 @@
+## Git Commit Guidelines
+- Never add `Co-Authored-By: Claude...` or `Claude-Session:...` trailers to git commit messages.
+
+
 # Limoni — working notes for Claude Code
 
 Limoni is a terminal UI engine for Go: a flat 1D cell grid, a double-buffered ANSI
@@ -157,12 +161,16 @@ Bubble Tea v2 benchmark runner with a documented baseline.
 
 ## Open work, roughly in priority order
 
-1. **Ratatui 0.30 runner.** `benchmarks/runners/ratatui` is pinned to 0.29. 0.30
-   split into `ratatui-core`/`ratatui-widgets`, changed `Flex::SpaceAround`
-   semantics (old behaviour is now `SpaceEvenly`), requires backends to declare an
-   associated `Error` type and `clear_region()`, and turns the layout cache on by
-   default — all of which shift results. Mirror the rigour of the v2 runner: same
-   workload manifest, same machine, and mark non-comparable workloads as such.
+1. **Ratatui `resize` on 0.30.** The runner now measures Ratatui 0.30.2 — the
+   0.30 breaking changes never reached it, since it drives `CrosstermBackend`
+   rather than a custom backend and uses no `Flex`. The harness was the real
+   work: it had been reporting fabricated byte counts (`symbol().len() + 10`
+   per cell), cloning 10,000 rows inside the timed region, and rendering two
+   scenes that did not match their Limoni counterparts. See
+   `docs/benchmark-methodology.md` §2.5.
+   What is left: `resize` regressed 1807% from 0.29 to 0.30 on the same
+   harness. Treat it as a harness bug until root-caused; nothing about that
+   workload is publishable yet.
 
 2. **Instance isolation and `RunWithContext`.** `limoni.Wakeup` writes to a
    package-level channel, so two Limoni applications cannot run in one process —

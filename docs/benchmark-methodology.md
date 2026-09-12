@@ -17,7 +17,7 @@ where the comparison is currently out of date.
 | Limoni | this commit | ✅ Current |
 | Bubble Tea | **v1.3.10** | ⚠️ **Stale.** Bubble Tea v2 rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet). v1 numbers do not describe v2. |
 | Bubble Tea v2 | **v2.0.9** | ✅ **Measured** via `uv.TerminalScreen`. First baseline in [§2.4](#24-bubble-tea-v2--ultraviolet); one machine, one run, not yet a published result. |
-| Ratatui | **0.29** | ⚠️ **Stale.** Ratatui 0.30 restructured into `ratatui-core`/`ratatui-widgets` and enabled the layout cache by default. |
+| Ratatui | **0.30.2** | ✅ **Measured** on a rebuilt runner. First baseline in [§2.5](#25-ratatui); one machine, one run, not yet a published result. |
 
 **Consequence:** any README statement comparing Limoni's rendering architecture to
 "Bubble Tea" or "Lip Gloss" without a version qualifier should be read as
@@ -163,6 +163,94 @@ go run . -output ../../../benchmark-results/bubbletea-v2.json
 Requires Go ≥ 1.25 (Bubble Tea v2's own floor) and a reachable module proxy for
 the `charm.land` vanity path.
 
+### 2.5 Ratatui
+
+`benchmarks/runners/ratatui` measures Ratatui 0.30.2 through
+`CrosstermBackend` writing into an in-memory sink, behind a `Viewport::Fixed`
+so no tty is required. The measured pipeline is cells in, diffed ANSI bytes
+out — the same pipeline the Limoni runner measures, since `buffer.Diff` also
+syncs its back buffer and both sides therefore diff against the frame they last
+emitted.
+
+#### What the previous runner got wrong
+
+The 0.29 runner's numbers should not be compared against anything, including
+its own successor. Four defects, in descending order of severity:
+
+1. **`BytesPerFrame` was fabricated.** It summed `cell.symbol().len() + 10`
+   over every cell of a `TestBackend` buffer — a constant 21,120 bytes for an
+   empty 80×24 frame, which is not a quantity Ratatui ever emits. The column
+   was never measuring output.
+2. **Two workloads rendered nothing like their Limoni counterparts.**
+   `full-redraw-120x40` drew one unchanging glyph, so after the first frame the
+   diff had nothing to emit; Limoni's advances the glyph and the colours every
+   step. `hundred-layers` drew `Block::default()` — borderless and titleless,
+   i.e. no cells at all — at fixed positions, against Limoni's bordered, titled,
+   moving blocks.
+3. **Fixtures were built inside the timed region.** `table-10000` cloned a
+   10,000-element `Vec<Row>` per frame and reported 80,049 allocations per
+   frame with a p50 of 2.1 ms that was largely memcpy.
+4. **`table-10000` did not scroll,** contrary to [§4](#4-measurement-rules).
+
+#### Comparable workloads
+
+One machine, one run, 1,000 frames each, AMD Ryzen class CPU, rustc 1.98.1.
+
+| Workload | Limoni | Ratatui 0.30.2 | ratio | Limoni bytes/frame | Ratatui bytes/frame |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| `full-redraw-120x40` | 121.0 µs | 175.1 µs | 1.4× | 4897 | 5828 |
+| `single-cell-update` | 9.9 µs | 15.9 µs | 1.6× | 7 | 32 |
+| `text-heavy-120x40` | 14.2 µs | 65.2 µs | 4.6× | 0 | 25 |
+| `unicode-emoji` | 7.3 µs | 28.7 µs | 3.9× | 0 | 25 |
+| `virtual-1000000` | 103.6 µs | 141.8 µs | 1.4× | 0 | 25 |
+| `hundred-layers` | 164.0 µs | **103.9 µs** | **0.6×** | 124 | 911 |
+
+`hundred-layers` is the result the old harness was hiding: with both runners
+drawing the same bordered, titled, moving blocks, **Ratatui is faster than
+Limoni** on this workload. Limoni emits far fewer bytes for it (124 vs 911),
+which is the trade the cell-grid architecture is supposed to make, but the
+per-frame CPU cost is not currently in Limoni's favour here.
+
+Ratatui carries a ~16 µs floor on every workload and never emits fewer than 25
+bytes a frame: `Terminal::draw` resets the back buffer and the backend writes
+cursor-visibility and positioning sequences unconditionally. That floor is
+inherent to the engine, not to this harness.
+
+#### Not comparable
+
+| Workload | Limoni | Ratatui 0.30.2 | Why |
+| :--- | ---: | ---: | :--- |
+| `table-10000` | 163.0 µs | 2741.6 µs | Structural, not like-for-like. Limoni's `Table` holds its rows and redraws the visible window; Ratatui's `Table` takes ownership of a row iterator, so an application rebuilds all 10,000 rows every frame. That is idiomatic Ratatui, not a harness artifact — but it is a different amount of work. |
+| `empty-frame` | 0.02 µs | 15.7 µs | Limoni has a clean-frame fast path keyed off a dirty flag; Ratatui rescans the buffer unconditionally. |
+| `mouse-hit-test` | 0.8 µs | 20.2 µs | Limoni has spatial hit-testing; Ratatui has none. The Ratatui figure is a one-block repaint, not the same algorithm. |
+| `async-update-burst` | 0.1 µs | 15.8 µs | Measures Limoni's Elm-runtime dispatch. Ratatui has no runtime to exercise. |
+| `native-image-capability` | 9.6 µs | 20.2 µs | Limoni ships graphics protocols in-tree; Ratatui requires a third-party crate. |
+
+#### 0.29 → 0.30 on the same harness
+
+Holding the runner constant and changing only the Ratatui version, 0.30 is
+faster nearly everywhere — `empty-frame` −40%, `single-cell-update` −39%,
+`async-update-burst` −39%, `mouse-hit-test` −27%, `text-heavy` −14% — with byte
+counts identical on every workload but one.
+
+> ⚠️ **`resize` regressed by 1807%** (57.5 µs → 1095.9 µs) and its output grew
+> from 306 to 1856 bytes per frame, with allocations going from 1 to 13.5 per
+> frame. **This is not published as a Ratatui result.** Per the rule in
+> `CLAUDE.md`, a number this extreme is a harness bug until proven otherwise;
+> the scene alternates viewport size every frame, which is pathological, and
+> 0.30's backend `clear_region()` requirement plausibly changed what a resize
+> emits. It needs a root-cause pass before it means anything.
+
+#### Reproducing
+
+```bash
+cd benchmarks/runners/ratatui
+cargo run --release -- ../../../benchmark-results/ratatui.json
+```
+
+The report's `ratatui_version` field is stamped from `Cargo.lock` at build time
+by `build.rs`, so the version label cannot drift from what was linked.
+
 ---
 
 ## 3. Workloads
@@ -271,11 +359,15 @@ To make the cross-framework comparison current again:
    `tea.KeyMsg` splits into `tea.KeyPressMsg`/`tea.KeyReleaseMsg`), so this is a
    port rather than a version bump. Keep the v1 runner for historical continuity
    and report both columns.
-2. **Bump the Ratatui runner to 0.30.** Note the breaking changes: backends now
-   require an associated `Error` type and a `clear_region()` method, and
-   `Flex::SpaceAround` changed meaning (the old behaviour is now
-   `Flex::SpaceEvenly`). The layout cache is enabled by default in 0.30 and will
-   shift results.
+2. ~~**Bump the Ratatui runner to 0.30.**~~ Done — see [§2.5](#25-ratatui). The
+   breaking changes turned out not to reach this runner: it drives
+   `CrosstermBackend` rather than a custom backend, so the new associated
+   `Error` type and `clear_region()` requirement do not apply, and it uses no
+   `Flex`. The runner compiled against 0.30.2 unchanged. What did need work was
+   the harness, which was measuring fabricated byte counts and two scenes that
+   did not match their Limoni counterparts.
+   **Still open:** root-cause the `resize` regression flagged in §2.5 before any
+   0.30 number for that workload is published.
 3. **Add an emitted-bytes-per-frame column.** This is the metric that predicts
    SSH responsiveness and is currently the largest gap between what the suite
    measures and what users feel.
