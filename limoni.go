@@ -66,6 +66,15 @@ type (
 	Select          = widgets.Select
 	SelectState     = widgets.SelectState
 	Dialog          = widgets.Dialog
+
+	// Scrolling, navigation and activity widgets.
+	Viewport             = widgets.Viewport
+	ViewportState        = widgets.ViewportState
+	Scrollbar            = widgets.Scrollbar
+	ScrollbarOrientation = widgets.ScrollbarOrientation
+	Tabs                 = widgets.Tabs
+	Spinner              = widgets.Spinner
+	SpinnerSet           = widgets.SpinnerSet
 )
 
 // Re-exported Constants
@@ -123,6 +132,10 @@ const (
 	KeyPageUp    = driver.KeyPageUp
 	KeyPageDown  = driver.KeyPageDown
 
+	// Scrollbar Orientation
+	ScrollbarVertical   = widgets.ScrollbarVertical
+	ScrollbarHorizontal = widgets.ScrollbarHorizontal
+
 	// Mouse Buttons
 	MouseLeft       = driver.MouseLeft
 	MouseMiddle     = driver.MouseMiddle
@@ -138,6 +151,15 @@ var (
 	SymbolsThick   = widgets.SymbolsThick
 	SymbolsRounded = widgets.SymbolsRounded
 	SymbolsBlock   = widgets.SymbolsBlock
+
+	// Built-in spinner animations.
+	SpinnerBraille = widgets.SpinnerBraille
+	SpinnerDots    = widgets.SpinnerDots
+	SpinnerLine    = widgets.SpinnerLine
+	SpinnerArrow   = widgets.SpinnerArrow
+	SpinnerBar     = widgets.SpinnerBar
+	SpinnerPulse   = widgets.SpinnerPulse
+	SpinnerClock   = widgets.SpinnerClock
 )
 
 // New initializes standard OS input/output, switches to raw mode, enables

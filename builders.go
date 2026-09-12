@@ -83,3 +83,15 @@ func NewSelectState() *SelectState {
 func NewSliderState(value int) *SliderState {
 	return widgets.NewSliderState(value)
 }
+
+// NewViewportState creates scroll state for a Viewport, positioned at the top.
+func NewViewportState() *ViewportState {
+	return widgets.NewViewportState()
+}
+
+// ScrollbarMetrics computes the thumb offset and length for a scrollbar track.
+// Exposed so applications can draw custom scroll indicators with the same
+// geometry Limoni's Scrollbar uses.
+func ScrollbarMetrics(contentLength, viewportLength, offset, trackLength int) (thumbStart, thumbLength int) {
+	return widgets.ScrollbarMetrics(contentLength, viewportLength, offset, trackLength)
+}

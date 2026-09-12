@@ -359,12 +359,17 @@ Limoni comes with an extensive suite of production-ready widgets:
 
 | Category | Available Widgets |
 | :--- | :--- |
-| **Structure & Layout** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox` |
-| **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `Sparkline`, `ProgressBar`, `RichText` |
-| **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider` |
-| **Navigation & Search**| `CommandPalette`, `FuzzySearch (FZF-style)`, `Tabs`, `KeybindingManager` |
-| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
-| **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting` |
+| **Structure & Layout** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox`, `Viewport` |
+| **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
+| **Charts** | `LineChart (Braille)`, `BarChart`, `PieChart`, `Sparkline` |
+| **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider`, `ColorPicker` |
+| **Navigation & Search**| `Tabs`, `Scrollbar`, `CommandPalette`, `FuzzySearch (FZF-style)`, `KeybindingManager` |
+| **Feedback** | `Spinner`, `Toast`, `ProgressBar` |
+| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY/GLB)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
+| **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting`, `Label`, `Paragraph` |
+| **Accessibility & Tooling** | `AccessibleTree`, `DevTools`, `Theme`, `Validation` |
+
+**Scrolling:** `List` and `Table` virtualise internally and render only visible rows, so they stay flat on datasets of any size. `Viewport` is the general-purpose scroll container for everything else — wrap any widget taller than its area, optionally with a `Scrollbar`. Both `Viewport` and `Scrollbar` are allocation-free in steady state; see their package docs for the cost model.
 
 ---
 
