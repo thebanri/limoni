@@ -16,6 +16,7 @@ func BenchmarkTableVisibleRows_Static(b *testing.B) {
 	buf := buffer.NewBuffer(cell.NewRect(0, 0, 80, 30))
 	ctx := cell.NewContext(buf.Area, cell.Style{})
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		table.Draw(ctx, buf)
 	}
@@ -31,6 +32,7 @@ func BenchmarkTableVisibleRows_Scrolling(b *testing.B) {
 	buf := buffer.NewBuffer(cell.NewRect(0, 0, 80, 30))
 	ctx := cell.NewContext(buf.Area, cell.Style{})
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		state.Select((i * 7) % len(rows))
 		table.Draw(ctx, buf)
