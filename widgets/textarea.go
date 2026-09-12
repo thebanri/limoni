@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"github.com/thebanri/limoni/core/accessibility"
 	"strings"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -144,5 +145,21 @@ func (a TextArea) Measure(maxArea cell.Rect) layout.Measure {
 		MaxWidth:    maxArea.Width,
 		MaxHeight:   maxArea.Height,
 		Overflow:    layout.OverflowScroll,
+	}
+}
+
+// AccessibilityNode returns the semantic node description for TextArea.
+func (a TextArea) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	return accessibility.AccessibilityNode{
+		ID:     a.ID,
+		Role:   accessibility.RoleInput,
+		Label:  "Text Area",
+		Value:  a.State.Value(),
+		State:  state,
+		Bounds: bounds,
 	}
 }

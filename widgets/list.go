@@ -3,6 +3,7 @@ package widgets
 import (
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
@@ -427,5 +428,51 @@ func (l List) Measure(maxArea cell.Rect) layout.Measure {
 		MaxWidth:    maxArea.Width,
 		MaxHeight:   maxArea.Height,
 		Overflow:    layout.OverflowClip,
+	}
+}
+
+// AccessibilityNode returns the semantic node description for List.
+//
+// A screen reader announces the selected item, not the whole list, so the node
+// stays flat: no child slice is built and nothing is allocated on the draw
+// path. Position is carried in Description, which is what makes "3 of 20"
+// audible.
+func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+
+	count := len(l.Items)
+	if l.Provider != nil {
+		count = l.Provider.Len()
+	}
+
+	selected := -1
+	if l.State != nil {
+		selected = l.State.Selected
+	}
+
+	value := ""
+	position := 0
+	if selected >= 0 && selected < count {
+		state |= accessibility.StateSelected
+		if l.Provider != nil {
+			value = l.Provider.ItemAt(selected)
+		} else {
+			value = l.Items[selected]
+		}
+		position = selected + 1
+	}
+
+	return accessibility.AccessibilityNode{
+		ID:       l.ID,
+		Role:     accessibility.RoleList,
+		Label:    "List",
+		Value:    value,
+		State:    state,
+		Bounds:   bounds,
+		Position: position,
+		SetSize:  count,
 	}
 }

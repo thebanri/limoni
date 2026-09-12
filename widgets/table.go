@@ -7,6 +7,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
@@ -1387,4 +1388,47 @@ func getIntersectionChar(up, down, left, right bool) rune {
 		return '│'
 	}
 	return ' '
+}
+
+// AccessibilityNode returns the semantic node description for Table.
+//
+// The node describes the selected row rather than enumerating rows: a table
+// may hold a million of them, and building a child per row would allocate on
+// every frame.
+func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+
+	count := len(t.Rows)
+	if t.DataSource != nil {
+		count = t.DataSource.RowCount()
+	}
+
+	selected, position, value := -1, 0, ""
+	if t.State != nil {
+		selected = t.State.Selected
+	}
+	if selected >= 0 && selected < len(t.Rows) {
+		state |= accessibility.StateSelected
+		position = selected + 1
+		if cells := t.Rows[selected].Cells; len(cells) > 0 {
+			value = cells[0].Text
+		}
+	} else if selected >= 0 && selected < count {
+		state |= accessibility.StateSelected
+		position = selected + 1
+	}
+
+	return accessibility.AccessibilityNode{
+		ID:       t.ID,
+		Role:     accessibility.RoleTable,
+		Label:    "Table",
+		Value:    value,
+		State:    state,
+		Bounds:   bounds,
+		Position: position,
+		SetSize:  count,
+	}
 }

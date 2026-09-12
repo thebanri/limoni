@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"fmt"
+	"github.com/thebanri/limoni/core/accessibility"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -506,4 +507,22 @@ func splitMessage(msg string, maxW int) []string {
 		lines = append(lines, currentLine)
 	}
 	return lines
+}
+
+// AccessibilityNode returns the semantic node description for Dialog.
+func (d Dialog) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+	return accessibility.AccessibilityNode{
+		ID:          d.ID,
+		Role:        accessibility.RoleDialog,
+		Label:       d.Title,
+		Value:       d.Message,
+		Description: d.SubMessage,
+		State:       state,
+		Bounds:      bounds,
+		SetSize:     len(d.Buttons),
+	}
 }

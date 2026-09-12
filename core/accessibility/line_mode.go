@@ -114,6 +114,11 @@ func writeLineNode(b *strings.Builder, node AccessibilityNode, depth int, mode M
 	if node.Description != "" {
 		fmt.Fprintf(b, " description=%q", mode.TextFallback(node.Description))
 	}
+	if node.SetSize > 0 {
+		// Rendered here rather than stored preformatted, so that building a
+		// node on the draw path stays allocation-free.
+		fmt.Fprintf(b, " position=%d/%d", node.Position, node.SetSize)
+	}
 	if states := node.State.StateNames(); len(states) > 0 {
 		b.WriteString(" state=")
 		b.WriteString(strings.Join(states, ","))

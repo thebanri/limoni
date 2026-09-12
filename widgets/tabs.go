@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -182,4 +183,30 @@ func (t Tabs) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		w = maxArea.Width
 	}
 	return w, 1
+}
+
+// AccessibilityNode returns the semantic node description for Tabs.
+func (t Tabs) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	state := accessibility.NodeState(0)
+	if focused {
+		state |= accessibility.StateFocused
+	}
+
+	value, position := "", 0
+	if t.Selected >= 0 && t.Selected < len(t.Titles) {
+		state |= accessibility.StateSelected
+		value = t.Titles[t.Selected]
+		position = t.Selected + 1
+	}
+
+	return accessibility.AccessibilityNode{
+		ID:       t.ID,
+		Role:     accessibility.RoleList,
+		Label:    "Tabs",
+		Value:    value,
+		State:    state,
+		Bounds:   bounds,
+		Position: position,
+		SetSize:  len(t.Titles),
+	}
 }
