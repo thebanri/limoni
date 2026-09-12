@@ -149,4 +149,5 @@ jobs:
           go build -o bin/custom_widget ./examples/custom_widget
           go build -o bin/composable ./examples/composable
           go build -o bin/counter ./examples/counter
+          go build -o bin/scroll ./examples/scroll
           GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm

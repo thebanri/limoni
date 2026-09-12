@@ -12,7 +12,7 @@
   <a href="https://github.com/thebanri/limoni/actions"><img src="https://img.shields.io/github/actions/workflow/status/thebanri/limoni/ci.yml?branch=main&style=flat-square&logo=github" alt="Derleme Durumu"></a>
   <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-referans-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go.Dev Referans"></a>
   <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.25-blue?style=flat-square&logo=go" alt="Go Sürümü"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-emerald?style=flat-square" alt="Lisans"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-Apache_2.0-blue?style=flat-square" alt="Lisans"></a>
   <a href="#-performans-ve-kıyaslamalar"><img src="https://img.shields.io/badge/tahsisat-0_B%2Fop-brightgreen?style=flat-square" alt="Sıfır Bellek Tahsisatı"></a>
 </p>
 
@@ -264,6 +264,26 @@ Limoni eşik tabanlı bir **Adaptif Flush Motoruna (Adaptive Flush Engine)** sah
 
 ---
 
+## 🧩 Zengin Widget Ekosistemi
+
+Limoni kutudan çıkan, üretime hazır geniş bir widget takımıyla gelir:
+
+| Kategori | Mevcut Widget'lar |
+| :--- | :--- |
+| **Yapı & Düzen** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox`, `Viewport` |
+| **Veri Gösterimi** | `Table (Sanal/Sayfalı)`, `List (Sanal)`, `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
+| **Grafikler** | `LineChart (Braille)`, `BarChart`, `PieChart`, `Sparkline` |
+| **Girdi Kontrolleri** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider`, `ColorPicker` |
+| **Gezinme & Arama** | `Tabs`, `Scrollbar`, `CommandPalette`, `FuzzySearch (FZF tarzı)`, `KeybindingManager` |
+| **Geri Bildirim** | `Spinner`, `Toast`, `ProgressBar` |
+| **Grafik & 3D** | `Canvas (Braille / Blok)`, `Vector3D Mesh (OBJ/STL/PLY/GLB)`, `Lambert & Gouraud Shader`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
+| **Metin & Doküman** | `Markdown (Tam GFM)`, `RichText Vurgulama`, `Label`, `Paragraph` |
+| **Erişilebilirlik & Araçlar** | `AccessibleTree`, `DevTools`, `Theme`, `Validation` |
+
+**Kaydırma hakkında:** `List` ve `Table` kendi içinde sanallaştırma yapar ve yalnızca görünür satırları çizer; bu yüzden veri seti ne kadar büyürse büyüsün maliyetleri sabit kalır. `Viewport` ise geri kalan her şey için genel amaçlı kaydırma kapsayıcısıdır — alanından uzun herhangi bir widget'ı sarar, istenirse `Scrollbar` ile birlikte. `Viewport` ve `Scrollbar` kararlı durumda bellek tahsisatı yapmaz; maliyet modeli için paket dokümantasyonuna bakın.
+
+---
+
 ## 📂 Örnek Uygulamalar
 
 | Dizin | Başlık | Çalıştırma |
@@ -302,4 +322,4 @@ Limoni, Go ekosisteminde terminal performansının sınırlarını zorlamak ve R
 
 ## 📄 Lisans
 
-Bu proje **MIT Lisansı** altında lisanslanmıştır.
+Bu proje **Apache License 2.0** altında lisanslanmıştır.
