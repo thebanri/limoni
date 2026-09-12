@@ -165,4 +165,3 @@ func (c *Canvas) DrawTexturedTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1,
 		}
 	}
 }
-

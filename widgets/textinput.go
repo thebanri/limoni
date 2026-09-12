@@ -188,7 +188,6 @@ func (ti *TextInput) WithFocused(focused bool) *TextInput {
 	return ti
 }
 
-
 // Draw, metin kutusunu çizer, tıklandığında odak almasını sağlar ve aktif odaklıysa software cursor gösterir.
 func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ti.ID == "" || ti.State == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {

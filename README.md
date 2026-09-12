@@ -41,6 +41,13 @@
 
 ---
 
+<p align="center">
+  <strong><a href="https://thebanri.github.io/limoni/">▶ Try Limoni in your browser</a></strong><br>
+  <sub>The same engine, compiled to WebAssembly and running on xterm.js — no install.</sub>
+</p>
+
+---
+
 ## ⚡ Overview
 
 **Limoni** is a modern, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and responsive terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.

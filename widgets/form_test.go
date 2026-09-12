@@ -8,7 +8,6 @@ import (
 	"github.com/thebanri/limoni/core/driver"
 )
 
-
 func TestTextInputState(t *testing.T) {
 	state := NewTextInputState()
 	if state.Value() != "" {
@@ -139,4 +138,3 @@ func TestTextInputMultilineAndSelection(t *testing.T) {
 		t.Errorf("expected newline to be rendered with return symbol '↵'")
 	}
 }
-
