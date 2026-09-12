@@ -54,13 +54,24 @@ jobs:
           GOTOOLCHAIN: local
         run: go build ./...
 
+      # Checking only the root module let two runner modules ship broken: the v1
+      # runner declared `go 1.23` while Bubble Tea v1.3.10 itself requires 1.24,
+      # and the v2 runner's go.sum was missing entries, so neither built at all.
       - name: go.mod and go.sum are tidy
         run: |
           set -euo pipefail
-          cp go.mod go.mod.bak && cp go.sum go.sum.bak
-          go mod tidy
-          diff -u go.mod.bak go.mod || { echo "go.mod is not tidy; run 'go mod tidy'"; exit 1; }
-          diff -u go.sum.bak go.sum || { echo "go.sum is not tidy; run 'go mod tidy'"; exit 1; }
+          for mod in $(git ls-files '*go.mod' 'go.mod'); do
+            dir=$(dirname "$mod")
+            (
+              cd "$dir"
+              cp go.mod go.mod.bak && cp go.sum go.sum.bak
+              go mod tidy
+              diff -u go.mod.bak go.mod || { echo "$dir/go.mod is not tidy; run 'go mod tidy' there"; exit 1; }
+              diff -u go.sum.bak go.sum || { echo "$dir/go.sum is not tidy; run 'go mod tidy' there"; exit 1; }
+              mv go.mod.bak go.mod && mv go.sum.bak go.sum
+            )
+            echo "ok   $mod is tidy"
+          done
 
       # Compiled binaries and local tool configuration must never be committed:
       # they bloat clones and have leaked credentials in the past.
