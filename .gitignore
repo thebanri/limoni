@@ -1,5 +1,8 @@
 # Build & test artifacts
 *.test
+# Compiled runner binaries (Go names them after their module)
+benchmarks/runners/*/limoni
+benchmarks/runners/*/*-runner
 *.exe
 *.out
 *.prof

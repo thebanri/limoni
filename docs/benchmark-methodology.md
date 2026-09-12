@@ -16,6 +16,7 @@ where the comparison is currently out of date.
 | :--- | :--- | :--- |
 | Limoni | this commit | ✅ Current |
 | Bubble Tea | **v1.3.10** | ⚠️ **Stale.** Bubble Tea v2 rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet). v1 numbers do not describe v2. |
+| Bubble Tea v2 | **v2.0.9** | 🚧 **Runner exists, results withheld.** See [§2.4](#24-the-v2-runner-and-why-its-numbers-are-not-published). |
 | Ratatui | **0.29** | ⚠️ **Stale.** Ratatui 0.30 restructured into `ratatui-core`/`ratatui-widgets` and enabled the layout cache by default. |
 
 **Consequence:** any README statement comparing Limoni's rendering architecture to
@@ -61,6 +62,13 @@ Three standalone programs execute the same named workloads and emit JSON:
 | Limoni | `benchmarks/runners/limoni` | this module |
 | Bubble Tea | `benchmarks/runners/bubbletea` | separate Go module |
 | Ratatui | `benchmarks/runners/ratatui` | Cargo crate |
+| Bubble Tea v2 | `benchmarks/runners/bubbletea-v2` | separate Go module (results withheld — see §2.4) |
+
+> ⚠️ **These runners do not all measure the same pipeline.** The v1 Bubble Tea
+> runner measures view-string construction only; the Limoni runner measures
+> drawing *plus* the full ANSI diff. Any Limoni-vs-Bubble-Tea-v1 ratio therefore
+> compares different amounts of work and should not be quoted as a like-for-like
+> speedup. §2.4 explains the fix in progress.
 
 ```bash
 go run ./benchmarks/runners/limoni -output benchmark-results/limoni.json
@@ -81,6 +89,46 @@ go run ./benchmarks/runners/dashboard \
   benchmark-results/bubbletea.json \
   benchmark-results/ratatui.json
 ```
+
+### 2.4 The v2 runner, and why its numbers are not published
+
+`benchmarks/runners/bubbletea-v2` builds and runs against real Bubble Tea v2 and
+Ultraviolet. It exists because of a fairness problem in the v1 runner:
+
+> **The v1 Bubble Tea runner and the Limoni runner do not measure the same
+> pipeline.** The v1 runner measures `Model.Update` + `Model.View` — building the
+> output string — and never invokes Bubble Tea's renderer, so diffing and ANSI
+> encoding are excluded. The Limoni runner measures widgets drawing into a cell
+> buffer **and** the full `buffer.Diff` that emits the escape sequences.
+> Comparing the two compares different amounts of work.
+
+The v2 runner drives Ultraviolet's `TerminalRenderer` directly, so the measured
+pipeline is cells in, diffed ANSI bytes out — the same shape as Limoni's.
+
+Its results are nevertheless **not published**, because two harness questions
+are unresolved:
+
+1. **Touch tracking.** Ultraviolet's renderer early-returns when no line is
+   marked touched, and those marks are reset by `TerminalScreen` — a layer this
+   harness bypasses. Resetting them by hand takes an unchanged frame from
+   ~195 µs to ~42 ns, the same order as Limoni's clean-frame fast path. The
+   first version of this runner did not reset them, and therefore overstated
+   v2's cost by roughly four orders of magnitude on the sparse workloads.
+2. **`Clear()` semantics.** The harness clears the buffer every frame, mirroring
+   the Limoni runner. Limoni's `Buffer.Clear` short-circuits via a clean flag;
+   Ultraviolet's does not, so clearing re-dirties every line and defeats the
+   early return. Whether that is a real architectural difference or an artifact
+   of driving `TerminalRenderer` instead of `TerminalScreen` is not established
+   — a Bubble Tea v2 application never clears a `RenderBuffer` by hand.
+
+Resolving this most likely means rewriting the harness against
+`uv.TerminalScreen`, the layer Bubble Tea v2 actually drives. Until that is
+done, no number from this runner belongs in the README or in any comparison.
+
+This is written down rather than quietly fixed because the failure mode is
+instructive: the first run of this harness produced a 4,700× advantage for
+Limoni on the empty-frame workload. That number was an artifact of the harness,
+not a property of either library.
 
 ---
 
