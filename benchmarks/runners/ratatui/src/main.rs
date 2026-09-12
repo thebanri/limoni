@@ -87,14 +87,20 @@ static A: Counter = Counter;
 const RUNNER_VERSION: &str = "v2.0.0";
 const WARMUP: usize = 10;
 
-/// Workloads Ratatui has no equivalent for, or that exercise a structurally
-/// different amount of work. Reported, never quoted as a ratio.
+/// Workloads Ratatui has no equivalent for, that exercise a structurally
+/// different amount of work, or whose figure is withheld pending a root cause.
+/// All are reported; none is ever quoted as a ratio.
 const NON_COMPARABLE: &[&str] = &[
     "empty-frame",
     "mouse-hit-test",
     "async-update-burst",
     "native-image-capability",
     "table-10000",
+    // Withheld, not structural: resize costs 19x more on 0.30 than on 0.29
+    // with this harness unchanged, reproducibly (+-3% over three runs). Until
+    // that is root-caused the figure says more about the scene — which
+    // alternates viewport size every frame — than about either engine.
+    "resize",
 ];
 
 #[derive(Serialize, Deserialize, Clone)]

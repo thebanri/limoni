@@ -92,6 +92,22 @@ type summary struct {
 type workload struct {
 	Spec    spec    `json:"spec"`
 	Summary summary `json:"summary"`
+	// Comparable is false when a ratio against another implementation would
+	// mislead. It travels with the data so a consumer cannot quote a ratio the
+	// methodology disowns.
+	Comparable bool `json:"comparable"`
+}
+
+// nonComparable lists workloads Ultraviolet has no equivalent for. Each is
+// still measured and reported; none may be quoted as a ratio. Left unmarked,
+// empty-frame alone yields a 4,380x "advantage" that is entirely an artifact
+// of comparing a clean-frame fast path against an unconditional full-screen
+// copy.
+var nonComparable = map[string]bool{
+	"empty-frame":             true,
+	"mouse-hit-test":          true,
+	"async-update-burst":      true,
+	"native-image-capability": true,
 }
 
 type envMetadata struct {
@@ -419,7 +435,8 @@ func main() {
 		}
 
 		result.Workloads = append(result.Workloads, workload{
-			Spec: item,
+			Spec:       item,
+			Comparable: !nonComparable[item.Name],
 			Summary: summary{
 				Frames:        iterations,
 				P50NS:         durations[len(durations)*50/100],

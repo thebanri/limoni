@@ -17,8 +17,8 @@ where the comparison is currently out of date.
 | Limoni | this commit | ✅ Current |
 | Bubble Tea | **v1.3.10** | ⚠️ **Stale.** Bubble Tea v2 rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet). v1 numbers do not describe v2. |
 | Bubble Tea v2 | — | ❌ **Not measured.** No runner links it. The renderer it is built on is measured instead; see the row below and [§2.4](#24-ultraviolet). |
-| Ultraviolet | **v0.0.0-20260703014108** | ✅ **Measured** via `uv.TerminalScreen`. First baseline in [§2.4](#24-ultraviolet); one machine, one run, not yet a published result. |
-| Ratatui | **0.30.2** | ✅ **Measured** on a rebuilt runner. First baseline in [§2.5](#25-ratatui); one machine, one run, not yet a published result. |
+| Ultraviolet | **v0.0.0-20260703014108** | ✅ **Measured** via `uv.TerminalScreen`. [§2.4](#24-ultraviolet); three runs, one machine. |
+| Ratatui | **0.30.2** | ✅ **Measured** on a rebuilt runner. [§2.5](#25-ratatui); three runs, one machine. |
 
 **Consequence:** any README statement comparing Limoni's rendering architecture to
 "Bubble Tea" or "Lip Gloss" without a version qualifier should be read as
@@ -71,6 +71,17 @@ Three standalone programs execute the same named workloads and emit JSON:
 > compares different amounts of work and should not be quoted as a like-for-like
 > speedup. §2.4 explains what was done about it.
 
+To reproduce the published comparison, use the script — it builds each runner,
+executes all three three times in sequence, and prints the median p50 per
+workload with its run-to-run spread, suppressing every ratio the runners mark
+non-comparable:
+
+```bash
+./benchmarks/compare.sh
+```
+
+Individually:
+
 ```bash
 go run ./benchmarks/runners/limoni -output benchmark-results/limoni.json
 
@@ -79,7 +90,13 @@ cd benchmarks/runners/bubbletea && go mod download && \
 
 cd benchmarks/runners/ratatui && \
   cargo run --release -- ../../../benchmark-results/ratatui.json
+
+cd benchmarks/runners/ultraviolet && \
+  go run . -output ../../../benchmark-results/ultraviolet.json
 ```
+
+Each report carries a `comparable` flag per workload. A `false` there means a
+ratio against that workload would mislead, and the reason is given in §2.4/§2.5.
 
 ### 2.3 Comparison dashboard
 
@@ -129,19 +146,23 @@ v0.0.0-20260703014108-f5a850f9c2b7`.
 
 #### Comparable workloads
 
-One machine, one run, 1,000 frames each.
+Three runs per implementation, 1,000 frames each, run sequentially on one
+machine. The figure is the median p50 across the three runs; ± is the full
+spread, `(max − min) / median`.
 
 | Workload | Limoni | Ultraviolet | ratio | Limoni bytes/frame | UV bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `hundred-layers` | 164.0 µs | 318.7 µs | 1.9× | 124 | 11743 |
-| `table-10000` | 163.0 µs | 334.6 µs | 2.1× | 298 | 1136 |
-| `virtual-1000000` | 103.6 µs | 387.1 µs | 3.7× | 0 | 1888 |
-| `full-redraw-120x40` | 121.0 µs | 486.7 µs | 4.0× | 4897 | 6329 |
-| `resize` | 13.9 µs | 90.1 µs | 6.5× | 2735 | 8 |
-| `native-image-capability` | 9.6 µs | 65.5 µs | 6.8× | 0 | 0 |
-| `single-cell-update` | 9.9 µs | 89.8 µs | 9.1× | 7 | 3 |
-| `unicode-emoji` | 7.3 µs | 138.3 µs | 18.9× | 0 | 0 |
-| `text-heavy-120x40` | 14.2 µs | 282.1 µs | 19.9× | 0 | 0 |
+| `hundred-layers` | 164.0 µs ±0% | 320.2 µs ±4% | 2.0× | 124 | 11743 |
+| `table-10000` | 162.9 µs ±0% | 337.2 µs ±2% | 2.1× | 298 | 1136 |
+| `virtual-1000000` | 111.9 µs ±8% | 389.7 µs ±1% | 3.5× | 0 | 1888 |
+| `full-redraw-120x40` | 120.8 µs ±0% | 492.7 µs ±1% | 4.1× | 4897 | 6329 |
+| `resize` | 13.9 µs ±0% | 89.7 µs ±4% | 6.4× | 2735 | 8 |
+| `single-cell-update` | 9.9 µs ±0% | 90.1 µs ±1% | 9.1× | 7 | 3 |
+| `unicode-emoji` | 7.3 µs ±2% | 138.5 µs ±5% | 18.9× | 0 | 25 |
+| `text-heavy-120x40` | 14.1 µs ±0% | 285.5 µs ±2% | 20.2× | 0 | 0 |
+
+Byte counts were **bit-identical across all three runs** for every workload and
+every implementation, so that column carries no spread.
 
 #### Workloads that are *not* comparable
 
@@ -149,9 +170,14 @@ These are reported for completeness and should never be quoted as ratios.
 
 | Workload | Limoni | Ultraviolet | Why it is not comparable |
 | :--- | ---: | ---: | :--- |
-| `empty-frame` | 0.0 µs | 87.8 µs | Limoni measures a clean-frame fast path. Ultraviolet has no equivalent because a Bubble Tea program does not render an unchanged frame at all — the cost shown is `TerminalScreen.Render`'s unconditional full-screen copy, which a real app would never pay here. The resulting ratio is four digits wide and means nothing. |
-| `mouse-hit-test` | 0.8 µs | 90.6 µs | Limoni has spatial hit-testing; Ultraviolet has none. The UV figure is a one-line repaint, not the same algorithm. |
-| `async-update-burst` | 0.1 µs | 89.5 µs | Limoni measures Elm-runtime message dispatch. Ultraviolet has no runtime; the figure is a one-line repaint. |
+| `empty-frame` | 0.0 µs ±50% | 87.7 µs ±1% | Limoni measures a clean-frame fast path. Ultraviolet has no equivalent because a Bubble Tea program does not render an unchanged frame at all — the cost shown is `TerminalScreen.Render`'s unconditional full-screen copy, which a real app would never pay here. The resulting ratio is four digits wide and means nothing. |
+| `mouse-hit-test` | 0.8 µs ±1% | 87.3 µs ±4% | Limoni has spatial hit-testing; Ultraviolet has none. The UV figure is a one-line repaint, not the same algorithm. |
+| `async-update-burst` | 0.1 µs ±33% | 89.2 µs ±1% | Limoni measures Elm-runtime message dispatch. Ultraviolet has no runtime; the figure is a one-line repaint. |
+| `native-image-capability` | 9.6 µs ±1% | 65.4 µs ±1% | A capability comparison, per [§3](#workload-fairness-caveats): Limoni ships graphics protocols in-tree, Ultraviolet does not implement them at all. |
+
+The only two measurements with meaningful run-to-run spread are Limoni's
+`empty-frame` and `async-update-burst`, and both are sub-microsecond, where
+timer granularity dominates. Neither is quoted as a ratio.
 
 #### What these numbers do and do not show
 
@@ -214,16 +240,19 @@ its own successor. Four defects, in descending order of severity:
 
 #### Comparable workloads
 
-One machine, one run, 1,000 frames each, AMD Ryzen class CPU, rustc 1.98.1.
+Three runs per implementation, 1,000 frames each, run sequentially on one
+machine, rustc 1.98.1. Median p50 across the three runs; ± is the full spread.
 
 | Workload | Limoni | Ratatui 0.30.2 | ratio | Limoni bytes/frame | Ratatui bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `full-redraw-120x40` | 121.0 µs | 175.1 µs | 1.4× | 4897 | 5828 |
-| `single-cell-update` | 9.9 µs | 15.9 µs | 1.6× | 7 | 32 |
-| `text-heavy-120x40` | 14.2 µs | 65.2 µs | 4.6× | 0 | 25 |
-| `unicode-emoji` | 7.3 µs | 28.7 µs | 3.9× | 0 | 25 |
-| `virtual-1000000` | 103.6 µs | 141.8 µs | 1.4× | 0 | 25 |
-| `hundred-layers` | 164.0 µs | **103.9 µs** | **0.6×** | 124 | 911 |
+| `hundred-layers` | 164.0 µs ±0% | **104.4 µs ±1%** | **0.6×** | 124 | 911 |
+| `virtual-1000000` | 111.9 µs ±8% | 141.3 µs ±0% | 1.3× | 0 | 25 |
+| `full-redraw-120x40` | 120.8 µs ±0% | 175.0 µs ±0% | 1.4× | 4897 | 5828 |
+| `single-cell-update` | 9.9 µs ±0% | 16.0 µs ±0% | 1.6× | 7 | 32 |
+| `unicode-emoji` | 7.3 µs ±2% | 28.5 µs ±0% | 3.9× | 0 | 25 |
+| `text-heavy-120x40` | 14.1 µs ±0% | 65.6 µs ±2% | 4.6× | 0 | 25 |
+
+Byte counts were bit-identical across all three runs.
 
 `hundred-layers` is the result the old harness was hiding: with both runners
 drawing the same bordered, titled, moving blocks, **Ratatui is faster than
@@ -240,11 +269,12 @@ inherent to the engine, not to this harness.
 
 | Workload | Limoni | Ratatui 0.30.2 | Why |
 | :--- | ---: | ---: | :--- |
-| `table-10000` | 163.0 µs | 2741.6 µs | Structural, not like-for-like. Limoni's `Table` holds its rows and redraws the visible window; Ratatui's `Table` takes ownership of a row iterator, so an application rebuilds all 10,000 rows every frame. That is idiomatic Ratatui, not a harness artifact — but it is a different amount of work. |
-| `empty-frame` | 0.02 µs | 15.7 µs | Limoni has a clean-frame fast path keyed off a dirty flag; Ratatui rescans the buffer unconditionally. |
-| `mouse-hit-test` | 0.8 µs | 20.2 µs | Limoni has spatial hit-testing; Ratatui has none. The Ratatui figure is a one-block repaint, not the same algorithm. |
-| `async-update-burst` | 0.1 µs | 15.8 µs | Measures Limoni's Elm-runtime dispatch. Ratatui has no runtime to exercise. |
-| `native-image-capability` | 9.6 µs | 20.2 µs | Limoni ships graphics protocols in-tree; Ratatui requires a third-party crate. |
+| `table-10000` | 162.9 µs ±0% | 2795.8 µs ±1% | Structural, not like-for-like. Limoni's `Table` holds its rows and redraws the visible window; Ratatui's `Table` takes ownership of a row iterator, so an application rebuilds all 10,000 rows every frame. That is idiomatic Ratatui, not a harness artifact — but it is a different amount of work. |
+| `resize` | 13.9 µs ±0% | 1106.0 µs ±3% | Withheld pending root cause — see the warning below. |
+| `empty-frame` | 0.0 µs ±50% | 15.7 µs ±0% | Limoni has a clean-frame fast path keyed off a dirty flag; Ratatui rescans the buffer unconditionally. |
+| `mouse-hit-test` | 0.8 µs ±1% | 20.2 µs ±0% | Limoni has spatial hit-testing; Ratatui has none. The Ratatui figure is a one-block repaint, not the same algorithm. |
+| `async-update-burst` | 0.1 µs ±33% | 15.7 µs ±0% | Measures Limoni's Elm-runtime dispatch. Ratatui has no runtime to exercise. |
+| `native-image-capability` | 9.6 µs ±1% | 20.2 µs ±13% | Limoni ships graphics protocols in-tree; Ratatui requires a third-party crate. |
 
 #### 0.29 → 0.30 on the same harness
 
@@ -253,13 +283,17 @@ faster nearly everywhere — `empty-frame` −40%, `single-cell-update` −39%,
 `async-update-burst` −39%, `mouse-hit-test` −27%, `text-heavy` −14% — with byte
 counts identical on every workload but one.
 
-> ⚠️ **`resize` regressed by 1807%** (57.5 µs → 1095.9 µs) and its output grew
-> from 306 to 1856 bytes per frame, with allocations going from 1 to 13.5 per
-> frame. **This is not published as a Ratatui result.** Per the rule in
-> `CLAUDE.md`, a number this extreme is a harness bug until proven otherwise;
-> the scene alternates viewport size every frame, which is pathological, and
-> 0.30's backend `clear_region()` requirement plausibly changed what a resize
-> emits. It needs a root-cause pass before it means anything.
+> ⚠️ **`resize` regressed by 1807%** (57.5 µs → 1106.0 µs ±3%) and its output
+> grew from 306 to 1856 bytes per frame, with allocations going from 1 to 13.5
+> per frame. **This is not published as a Ratatui result,** and the workload is
+> listed as non-comparable above for that reason. Per the rule in `CLAUDE.md`,
+> a number this extreme is a harness bug until proven otherwise; the scene
+> alternates viewport size every frame, which is pathological, and 0.30's
+> backend `clear_region()` requirement plausibly changed what a resize emits.
+> Repeating the run three times did not help it: the spread is ±3%, so it is
+> reproducible, not noise — which rules out measurement error and leaves either
+> a real 0.30 change or a scene that asks Ratatui something unreasonable. It
+> needs a root-cause pass before it means anything.
 
 #### Reproducing
 
@@ -329,7 +363,11 @@ The harness (`benchmarks/metrics.go`) follows these rules:
 - **Real layering.** `hundred-layers` renders 100 overlapping `Block` widgets.
 - **Allocation accounting.** `MeasureWorkloadWithStats` captures heap deltas via
   `runtime.MemStats`; Go benchmarks report `-benchmem` figures directly.
-- **Repetitions.** CI runs `-count=3`. Single-run numbers are not published.
+- **Repetitions.** The Go micro-benchmarks run under `-count=3` in CI. The
+  cross-framework runners have no such flag — each executes the manifest once —
+  so they are invoked three times in sequence and the published figure is the
+  median p50 across runs, carrying the full spread. Single-run numbers are not
+  published.
 
 ### What is *not* measured
 
