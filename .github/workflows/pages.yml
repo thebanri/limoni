@@ -62,6 +62,11 @@ jobs:
           touch site/.nojekyll
           ls -lh site/
 
+      # Compiling is not verifying: every bug this demo has shipped compiled
+      # cleanly. This runs the module and asserts on what it emits.
+      - name: Verify the module actually runs
+        run: node scripts/verify-wasm.mjs "$(go env GOROOT)" site/limoni.wasm
+
       - name: Report module size
         run: |
           set -euo pipefail
