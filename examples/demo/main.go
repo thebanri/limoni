@@ -224,7 +224,7 @@ func main() {
 
 			switch ev.Type {
 			case driver.EventKey:
-				handleKey(ev.Key, state)
+				handleKey(ev.Key, state, term)
 				if state.ActiveTab != prevTab {
 					b.Write([]byte("\x1b[2J"))
 					term.ForceFullRedraw()
@@ -756,7 +756,12 @@ func closeExitDialog(state *AppState, term *terminal.Terminal) {
 	}
 }
 
-func handleKey(key driver.KeyEvent, state *AppState) {
+func handleKey(key driver.KeyEvent, state *AppState, term ...*terminal.Terminal) {
+	var trm *terminal.Terminal
+	if len(term) > 0 {
+		trm = term[0]
+	}
+
 	// If Command Palette is open, feed keys directly to it
 	if state.CmdPalette != nil && state.CmdPalette.IsOpen {
 		if state.CmdPalette.HandleKey(key) {
@@ -770,17 +775,16 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 		return
 	}
 
-	// Esc key
+	// Esc key: only closes open overlays (CmdPalette or ExitDialog), never opens exit dialog
 	if key.Type == driver.KeyEsc {
 		if state.CmdPalette != nil && state.CmdPalette.IsOpen {
 			state.CmdPalette.Close()
 			return
 		}
 		if state.ShowExitDialog {
-			closeExitDialog(state, nil)
+			closeExitDialog(state, trm)
 			return
 		}
-		openExitDialog(state, nil)
 		return
 	}
 
@@ -804,11 +808,11 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 			if state.ExitDialogSelectedBtn == 0 {
 				state.ExitRequested = true
 			} else {
-				closeExitDialog(state, nil)
+				closeExitDialog(state, trm)
 			}
 			return
 		case driver.KeyEsc:
-			closeExitDialog(state, nil)
+			closeExitDialog(state, trm)
 			return
 		case driver.KeyRune:
 			if key.Ch == 'y' || key.Ch == 'Y' {
@@ -816,7 +820,7 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 				return
 			}
 			if key.Ch == 'n' || key.Ch == 'N' {
-				closeExitDialog(state, nil)
+				closeExitDialog(state, trm)
 				return
 			}
 		}
@@ -825,7 +829,7 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 
 	// 'q' or 'Q' or '6' opens exit confirmation dialog
 	if key.Type == driver.KeyRune && (key.Ch == 'q' || key.Ch == 'Q' || key.Ch == '6') {
-		openExitDialog(state, nil)
+		openExitDialog(state, trm)
 		return
 	}
 
@@ -842,9 +846,19 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 		state.ActiveTab = (state.ActiveTab + 1) % 5
 		addLog(state, fmt.Sprintf("Tab: %s", state.Tabs[state.ActiveTab]))
 	case driver.KeyArrowRight:
-		state.ActiveTab = (state.ActiveTab + 1) % 5
+		if state.ActiveTab == 0 {
+			state.RotY += 10.0
+		} else {
+			state.ActiveTab = (state.ActiveTab + 1) % 5
+			addLog(state, fmt.Sprintf("Tab: %s", state.Tabs[state.ActiveTab]))
+		}
 	case driver.KeyArrowLeft:
-		state.ActiveTab = (state.ActiveTab - 1 + 5) % 5
+		if state.ActiveTab == 0 {
+			state.RotY -= 10.0
+		} else {
+			state.ActiveTab = (state.ActiveTab - 1 + 5) % 5
+			addLog(state, fmt.Sprintf("Tab: %s", state.Tabs[state.ActiveTab]))
+		}
 	case driver.KeyArrowUp:
 		state.RotX += 10.0
 	case driver.KeyArrowDown:
@@ -865,6 +879,9 @@ func handleKey(key driver.KeyEvent, state *AppState) {
 	case driver.KeyRune:
 		switch key.Ch {
 		case '1', '2', '3', '4', '5':
+			if key.Alt || key.Ctrl {
+				return
+			}
 			idx := int(key.Ch - '1')
 			if idx < 5 {
 				state.ActiveTab = idx
@@ -1011,6 +1028,7 @@ func renderFrame(term *terminal.Terminal, state *AppState) {
 				}
 				term.ForceFullRedraw()
 			} else {
+				f.BeginLayer("exit_dialog")
 				f.RegisterModal("exit_dialog", dialogArea, func() {
 					closeExitDialog(state, term)
 				})
@@ -1086,7 +1104,9 @@ func renderFrame(term *terminal.Terminal, state *AppState) {
 					}
 					f.BeginFocusScope("exit_dialog")
 					f.RenderWidget(exitDialog, animatedArea)
+					f.EndFocusScope()
 				}
+				f.EndLayer()
 			}
 		}
 

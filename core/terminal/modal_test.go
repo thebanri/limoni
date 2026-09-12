@@ -97,28 +97,52 @@ func TestRouteMouseEventWithModal(t *testing.T) {
 	// Modal içi click area
 	insideTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
-		Area: cell.NewRect(25, 8, 5, 2),
+		Area:    cell.NewRect(25, 8, 5, 2),
+		LayerID: "test_modal",
 		Handler: func(ev driver.MouseEvent) {
 			insideTriggered = true
+		},
+	})
+
+	// Modal altındaki arka plan click area (çakışan koordinat)
+	backgroundTriggered := false
+	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
+		Area:    cell.NewRect(22, 8, 10, 2),
+		LayerID: "",
+		Handler: func(ev driver.MouseEvent) {
+			backgroundTriggered = true
 		},
 	})
 
 	// Modal dışı click area
 	outsideTriggered := false
 	trm.frame.ClickRegions = append(trm.frame.ClickRegions, ClickRegion{
-		Area: cell.NewRect(5, 5, 5, 2),
+		Area:    cell.NewRect(5, 5, 5, 2),
+		LayerID: "",
 		Handler: func(ev driver.MouseEvent) {
 			outsideTriggered = true
 		},
 	})
 
-	// 1. Modal içine tıklama
+	// 1. Modal içindeki boş alana tıklama (arka plana sızmamalı!)
+	handled := trm.RouteMouseEvent(driver.MouseEvent{X: 22, Y: 8, Button: driver.MouseLeft})
+	if !handled {
+		t.Errorf("Modal içi boşluk tıklaması yutulmalıydı (handled=true)!")
+	}
+	if backgroundTriggered {
+		t.Errorf("Modal altındaki arka plan bölgesi tetiklendi! Sızma engellenmeliydi.")
+	}
+
+	// 2. Modal içi butona tıklama
 	trm.RouteMouseEvent(driver.MouseEvent{X: 27, Y: 9, Button: driver.MouseLeft})
 	if !insideTriggered {
 		t.Errorf("Modal içi tıklama tetiklenmedi!")
 	}
+	if backgroundTriggered {
+		t.Errorf("Modal altındaki arka plan bölgesi tetiklendi!")
+	}
 
-	// 2. Modal dışına tıklama (click-outside tetiklenmeli ve dışarıdaki handler engellenmeli)
+	// 3. Modal dışına tıklama (click-outside tetiklenmeli ve dışarıdaki handler engellenmeli)
 	trm.RouteMouseEvent(driver.MouseEvent{X: 6, Y: 6, Button: driver.MouseLeft})
 	if !outsideClicked {
 		t.Errorf("ClickOutside callback tetiklenmedi!")

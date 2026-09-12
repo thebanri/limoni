@@ -736,3 +736,86 @@ func TestCloseOnImageTabKitty(t *testing.T) {
 		}
 	}
 }
+
+func TestEscKeyBehavior(t *testing.T) {
+	state := initAppState()
+	state.ActiveTab = 0
+
+	// 1. Pressing Esc on Tab 0 must NOT open exit dialog or jump tabs
+	handleKey(driver.KeyEvent{Type: driver.KeyEsc}, state)
+	if state.ShowExitDialog {
+		t.Errorf("Expected ShowExitDialog=false when pressing Esc on main screen, but it opened!")
+	}
+	if state.ActiveTab != 0 {
+		t.Errorf("Expected ActiveTab=0, got %d", state.ActiveTab)
+	}
+
+	// 2. Open exit dialog via 'q'
+	handleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'q'}, state)
+	if !state.ShowExitDialog {
+		t.Fatalf("Expected ShowExitDialog=true after pressing 'q'")
+	}
+
+	// 3. Pressing Esc when Exit Dialog is open MUST close it
+	handleKey(driver.KeyEvent{Type: driver.KeyEsc}, state)
+	if state.ExitDialogAnim != nil && state.ExitDialogAnim.Target() != 0.0 {
+		t.Errorf("Expected ExitDialogAnim target=0.0 on Esc, got %f", state.ExitDialogAnim.Target())
+	}
+}
+
+func TestTab0Arrow3DRotation(t *testing.T) {
+	state := initAppState()
+	state.ActiveTab = 0
+	initY := state.RotY
+
+	// ArrowLeft should rotate RotY, NOT jump to Tab 4
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowLeft}, state)
+	if state.ActiveTab != 0 {
+		t.Errorf("Expected ActiveTab=0 after ArrowLeft, got %d (jumped tabs!)", state.ActiveTab)
+	}
+	if state.RotY != initY-10.0 {
+		t.Errorf("Expected RotY=%f, got %f", initY-10.0, state.RotY)
+	}
+
+	// ArrowRight should rotate RotY back
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowRight}, state)
+	if state.ActiveTab != 0 {
+		t.Errorf("Expected ActiveTab=0 after ArrowRight, got %d", state.ActiveTab)
+	}
+	if state.RotY != initY {
+		t.Errorf("Expected RotY=%f, got %f", initY, state.RotY)
+	}
+
+	// On Tab 2, ArrowLeft/Right SHOULD switch tabs
+	state.ActiveTab = 2
+	handleKey(driver.KeyEvent{Type: driver.KeyArrowRight}, state)
+	if state.ActiveTab != 3 {
+		t.Errorf("Expected ActiveTab=3 on Tab 2 ArrowRight, got %d", state.ActiveTab)
+	}
+}
+
+func TestExitDialogModalClickIsolation(t *testing.T) {
+	memIO := driver.NewMemoryTerminalIO(nil, 80, 24)
+	b := driver.NewPortableBackend(memIO)
+	term, err := terminal.New(b)
+	if err != nil {
+		t.Fatalf("Failed to create terminal: %v", err)
+	}
+
+	state := initAppState()
+	state.ActiveTab = 0
+	openExitDialog(state, term)
+	state.ExitDialogAnim.SetValue(1.0)
+
+	renderFrame(term, state)
+
+	// Coordinate (18, 13) is inside the Exit Dialog (CenterRect 48x9 on 80x24: X: 16..64, Y: 7..16)
+	// and directly overlaps sidebar button 3 ("4. Telemetry", X: 0..24, Y: 12..15).
+	// A mouse click at (18, 13) must be swallowed by the modal and NEVER trigger Tab 3!
+	term.RouteMouseEvent(driver.MouseEvent{X: 18, Y: 13, Button: driver.MouseLeft})
+
+	if state.ActiveTab != 0 {
+		t.Errorf("Modal click bled through to background sidebar button! Expected ActiveTab=0, got %d", state.ActiveTab)
+	}
+}
+

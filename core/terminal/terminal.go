@@ -435,13 +435,8 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 						return true
 					}
 				}
-				// En üst katman içinde ama o katmana ait tıklama alanı yok.
-				// Geriye dönük uyumluluk: ActiveModal (eski RegisterModal API'si) varsa onu da dene.
-				if t.frame.ActiveModal != nil && t.frame.ActiveModal.ID == topLayer.ID {
-					// ActiveModal path'e devam et (aşağıdaki blokta ele alınacak)
-				} else {
-					return true // Katman içinde ama eşleşen alan yok → olayı yut
-				}
+				// En üst katman içinde ama o katmana ait tıklama alanı yok → olayı yut (asla alt katmanlara sızdırma)
+				return true
 			} else {
 				// En üst katmanın dışına tıklandı → ClickOutside tetikle (sadece sol tıklama basınçlarında)
 				if ev.Button == driver.MouseLeft && !ev.Drag && topLayer.ClickOutside != nil {
@@ -456,10 +451,10 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 	if t.frame.ActiveModal != nil {
 		modal := t.frame.ActiveModal
 		if modal.Area.Contains(ev.X, ev.Y) {
-			// Modal içinde: LayerID'si boş olan (kök) veya modal ile aynı ID olan bölgeleri ara
+			// Modal içinde: Sadece modal ile aynı ID olan bölgeleri ara
 			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 				reg := t.frame.ClickRegions[i]
-				if (reg.LayerID == "" || reg.LayerID == modal.ID) && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
+				if reg.LayerID == modal.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
 					reg.Handler(ev)
 					if t.frame.mouseCaptureRequest != nil {
 						t.mouseCaptureHandler = t.frame.mouseCaptureRequest

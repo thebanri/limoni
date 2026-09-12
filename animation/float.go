@@ -75,6 +75,11 @@ func (f *Float) Value() float64 {
 	return f.current
 }
 
+// Target, hedeflenen bitiş değerini döndürür.
+func (f *Float) Target() float64 {
+	return f.endVal
+}
+
 // SetValue, animasyonu sonlandırıp değeri doğrudan belirtilen sayıya eşitler.
 func (f *Float) SetValue(val float64) {
 	f.startVal = val
