@@ -34,6 +34,13 @@
 
 ---
 
+<p align="center">
+  <strong><a href="https://thebanri.github.io/limoni/">▶ Limoni'yi tarayıcında dene</a></strong><br>
+  <sub>Aynı motor, WebAssembly'ye derlenmiş ve xterm.js üzerinde çalışıyor — kurulum yok.</sub>
+</p>
+
+---
+
 ## ⚡ Genel Bakış
 
 **Limoni**, Go dili için sıfırdan tasarlanmış kurumsal düzeyde, yüksek performanslı bir Terminal Kullanıcı Arayüzü (TUI) motorudur. Veri yoğun izleme panelleri, DevOps araçları ve modern CLI uygulamaları için Go'nun geliştirici ergonomisini Rust benzeri ham render hızıyla buluşturur.

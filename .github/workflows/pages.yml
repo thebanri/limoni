@@ -1,0 +1,98 @@
+name: Playground
+
+# Builds the WebAssembly playground and publishes it to GitHub Pages.
+#
+# One-time setup in the repository: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". Nothing else is required; this workflow provisions
+# the rest.
+#
+# The built limoni.wasm is deliberately not committed — it is a build artifact
+# and is produced here from the current commit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Allow a single concurrent deployment, and let a newer push supersede a
+# running one rather than queueing behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build playground
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build WebAssembly module
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          go build -trimpath -ldflags="-s -w" -o site/limoni.wasm ./examples/wasm
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          cp examples/wasm/index.html site/index.html
+          # wasm_exec.js must match the toolchain that produced the module.
+          # Go moved it from misc/wasm to lib/wasm in 1.24; support both.
+          if [ -f "$(go env GOROOT)/lib/wasm/wasm_exec.js" ]; then
+            cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" site/wasm_exec.js
+          else
+            cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" site/wasm_exec.js
+          fi
+          # Jekyll would otherwise strip files it does not recognise.
+          touch site/.nojekyll
+          ls -lh site/
+
+      - name: Report module size
+        run: |
+          set -euo pipefail
+          raw=$(stat -c%s site/limoni.wasm)
+          gz=$(gzip -9 -c site/limoni.wasm | wc -c)
+          br=$(command -v brotli >/dev/null && brotli -q 11 -c site/limoni.wasm | wc -c || echo 0)
+          {
+            echo "### Playground module size"
+            echo ""
+            echo "| Encoding | Size |"
+            echo "| :--- | ---: |"
+            printf "| raw | %.2f MB |\n" "$(echo "$raw/1048576" | bc -l)"
+            printf "| gzip | %.2f MB |\n" "$(echo "$gz/1048576" | bc -l)"
+            if [ "$br" != "0" ]; then
+              printf "| brotli | %.2f MB |\n" "$(echo "$br/1048576" | bc -l)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

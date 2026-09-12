@@ -137,6 +137,22 @@ func (t *Terminal) LastWidgetStats() []WidgetStat {
 	return t.lastWidgetStats
 }
 
+// SetCapabilities overrides the auto-detected terminal capability profile.
+//
+// Detection is environment-variable based and therefore a guess: it is wrong
+// inside tmux and screen, over SSH with an unhelpful TERM, and anywhere the
+// emulator does not advertise itself. Applications that know better — because
+// they negotiated with the terminal, read a config file, or are driving a
+// backend they control — can say so here.
+//
+// Call it before the first Draw; the profile is read on every flush.
+func (t *Terminal) SetCapabilities(profile CapabilityProfile) {
+	if t == nil {
+		return
+	}
+	t.caps = profile
+}
+
 // Capabilities returns the capability profile of the active terminal.
 func (t *Terminal) Capabilities() CapabilityProfile {
 	return t.caps

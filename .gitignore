@@ -23,3 +23,7 @@ settings.json
 go.work
 go.work.sum
 vendor/
+
+# Generated WebAssembly build output (produced by CI, published to Pages)
+examples/wasm/limoni.wasm
+site/
