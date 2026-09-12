@@ -53,3 +53,56 @@ func TestParseSGRMouse(t *testing.T) {
 		t.Errorf("Scroll down failed: %+v", ev)
 	}
 }
+
+func TestParseKittyKeyboardProtocol(t *testing.T) {
+	// Shift+Enter (\x1b[13;2u) -> 7 bytes
+	ev, consumed := ParseEvent([]byte("\x1b[13;2u"))
+	if consumed != 7 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Shift {
+		t.Errorf("Shift+Enter CSI u failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Alt+Enter (\x1b[13;3u) -> 7 bytes
+	ev, consumed = ParseEvent([]byte("\x1b[13;3u"))
+	if consumed != 7 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Alt {
+		t.Errorf("Alt+Enter CSI u failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Ctrl+Enter (\x1b[13;5u) -> 7 bytes
+	ev, consumed = ParseEvent([]byte("\x1b[13;5u"))
+	if consumed != 7 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Ctrl {
+		t.Errorf("Ctrl+Enter CSI u failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Shift+Tab (\x1b[9;2u) -> 6 bytes
+	ev, consumed = ParseEvent([]byte("\x1b[9;2u"))
+	if consumed != 6 || ev.Type != EventKey || ev.Key.Type != KeyTab || !ev.Key.Shift {
+		t.Errorf("Shift+Tab CSI u failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Shift+Space (\x1b[32;2u) -> 7 bytes
+	ev, consumed = ParseEvent([]byte("\x1b[32;2u"))
+	if consumed != 7 || ev.Type != EventKey || ev.Key.Type != KeySpace || !ev.Key.Shift {
+		t.Errorf("Shift+Space CSI u failed: %+v (consumed %d)", ev, consumed)
+	}
+}
+
+func TestParseModifyOtherKeys(t *testing.T) {
+	// Shift+Enter (\x1b[27;2;13~) -> 10 bytes
+	ev, consumed := ParseEvent([]byte("\x1b[27;2;13~"))
+	if consumed != 10 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Shift {
+		t.Errorf("Shift+Enter modifyOtherKeys failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Ctrl+Enter (\x1b[27;5;13~) -> 10 bytes
+	ev, consumed = ParseEvent([]byte("\x1b[27;5;13~"))
+	if consumed != 10 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Ctrl {
+		t.Errorf("Ctrl+Enter modifyOtherKeys failed: %+v (consumed %d)", ev, consumed)
+	}
+
+	// Alt+Enter (\x1b\r) -> 2 bytes
+	ev, consumed = ParseEvent([]byte("\x1b\r"))
+	if consumed != 2 || ev.Type != EventKey || ev.Key.Type != KeyEnter || !ev.Key.Alt {
+		t.Errorf("Alt+Enter \\x1b\\r failed: %+v (consumed %d)", ev, consumed)
+	}
+}
+

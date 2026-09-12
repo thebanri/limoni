@@ -26,7 +26,10 @@ func ParseEvent(buf []byte) (Event, int) {
 
 		ev := Event{Type: EventKey}
 		switch r {
-		case '\n', '\r':
+		case '\n':
+			ev.Key.Type = KeyEnter
+			ev.Key.Ctrl = true // Ctrl+J (ASCII 10 LF)
+		case '\r':
 			ev.Key.Type = KeyEnter
 		case 127, '\b':
 			ev.Key.Type = KeyBackspace
@@ -86,6 +89,9 @@ func ParseEvent(buf []byte) (Event, int) {
 				return Event{}, 0
 			}
 			return Event{}, 2
+		}
+		if r == '\r' || r == '\n' {
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Alt: true}}, 1 + size
 		}
 		ev := Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: r, Alt: true}}
 		return ev, 1 + size
@@ -169,6 +175,34 @@ func parseCSI(buf []byte) (Event, int) {
 		if len(paramsStr) > 0 && paramsStr[0] == '<' {
 			return parseSGRMouse(paramsStr, cmd, consumed)
 		}
+	case 'u':
+		// Kitty keyboard protocol / CSI u format: \x1b[<keycode>;<modifiers>u
+		if len(params) == 0 {
+			return Event{}, consumed
+		}
+		keyCode := params[0]
+		mod := 0
+		if len(params) > 1 {
+			mod = params[1]
+		}
+		shift, alt, ctrl := decodeModifiers(mod)
+		switch keyCode {
+		case 13, 10:
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+		case 9:
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+		case 27:
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+		case 127, 8:
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyBackspace, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+		case 32:
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeySpace, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+		default:
+			if keyCode >= 32 {
+				return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			}
+		}
+		return Event{}, consumed
 	case '~':
 		// Keypad ve fonksiyon tuşları (\x1b[sayı~)
 		if len(params) == 0 {
@@ -218,6 +252,23 @@ func parseCSI(buf []byte) (Event, int) {
 			kt = KeyF11
 		case 24:
 			kt = KeyF12
+		case 27:
+			// Xterm modifyOtherKeys format: \x1b[27;<mod>;<keycode>~
+			if len(params) >= 3 {
+				mod := params[1]
+				keyCode := params[2]
+				shift, alt, ctrl := decodeModifiers(mod)
+				if keyCode == 13 || keyCode == 10 {
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				} else if keyCode == 9 {
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				} else if keyCode == 27 {
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				} else if keyCode >= 32 {
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				}
+			}
+			return Event{}, consumed
 		default:
 			return Event{}, consumed
 		}

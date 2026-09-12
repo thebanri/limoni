@@ -3,9 +3,11 @@ package widgets
 import (
 	"testing"
 
+	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
 )
+
 
 func TestTextInputState(t *testing.T) {
 	state := NewTextInputState()
@@ -84,3 +86,57 @@ func TestCheckboxAndRadio(t *testing.T) {
 		t.Errorf("RadioButton.SizeHint() = (%d, %d); (13, 1) bekleniyordu", rw, rh)
 	}
 }
+
+func TestTextInputMultilineAndSelection(t *testing.T) {
+	state := NewTextInputState()
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'h'})
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'i'})
+
+	// Shift+Enter should insert newline
+	handled := state.HandleKey(driver.KeyEvent{Type: driver.KeyEnter, Shift: true})
+	if !handled {
+		t.Fatal("Shift+Enter was not handled")
+	}
+	state.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '!'})
+
+	if state.Value() != "hi\n!" {
+		t.Fatalf("state.Value() = %q; want 'hi\\n!'", state.Value())
+	}
+
+	// Test Draw with selection and software cursor
+	ti := NewTextInput("inp1").
+		WithState(state).
+		WithSelection(0, 2).
+		WithFocused(true)
+
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 20, 1))
+	ctx := cell.Context{
+		Area: cell.NewRect(0, 0, 20, 1),
+	}
+
+	ti.Draw(ctx, buf)
+
+	// Verify buffer rendered characters and selection style
+	// First character 'h' at col 0 should have selection style (or reverse)
+	c0 := buf.Get(0, 0)
+	if c0 == nil || c0.Content != 'h' {
+		t.Fatalf("buf.Get(0,0) content = %c; want 'h'", c0.Content)
+	}
+	if c0.Style.Modifier&cell.ModifierBold == 0 {
+		t.Errorf("expected selected character to have bold/selection modifier")
+	}
+
+	// Verify newline replacement character is rendered ('↵')
+	hasReturnSymbol := false
+	for x := uint16(0); x < 20; x++ {
+		c := buf.Get(x, 0)
+		if c != nil && c.Content == '↵' {
+			hasReturnSymbol = true
+			break
+		}
+	}
+	if !hasReturnSymbol {
+		t.Errorf("expected newline to be rendered with return symbol '↵'")
+	}
+}
+

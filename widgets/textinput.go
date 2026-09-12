@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"strings"
+
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -40,6 +42,12 @@ func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 		state.insert(key.Ch)
 		return true
 
+	case driver.KeyEnter:
+		if key.Shift || key.Alt || key.Ctrl {
+			state.insert('\n')
+			return true
+		}
+
 	case driver.KeySpace:
 		state.insert(' ')
 		return true
@@ -78,6 +86,9 @@ func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 }
 
 func (state *TextInputState) insert(r rune) {
+	if r == '\r' {
+		return
+	}
 	// Araya karakter ekleme
 	state.Text = append(state.Text, 0)
 	copy(state.Text[state.Cursor+1:], state.Text[state.Cursor:])
@@ -112,13 +123,19 @@ type TextInput struct {
 	Style            cell.Style
 	PlaceholderStyle cell.Style
 	FocusedStyle     cell.Style
+	SelectionStart   int
+	SelectionEnd     int
+	SelectionStyle   cell.Style
+	Focused          bool
 }
 
 // NewTextInput creates a new TextInput widget with the specified ID.
 func NewTextInput(id string) *TextInput {
 	return &TextInput{
-		ID:    id,
-		State: NewTextInputState(),
+		ID:             id,
+		State:          NewTextInputState(),
+		SelectionStart: -1,
+		SelectionEnd:   -1,
 	}
 }
 
@@ -152,6 +169,26 @@ func (ti *TextInput) WithFocusedStyle(style cell.Style) *TextInput {
 	return ti
 }
 
+// WithSelection sets the selection range [start, end).
+func (ti *TextInput) WithSelection(start, end int) *TextInput {
+	ti.SelectionStart = start
+	ti.SelectionEnd = end
+	return ti
+}
+
+// WithSelectionStyle sets the style for selected text.
+func (ti *TextInput) WithSelectionStyle(style cell.Style) *TextInput {
+	ti.SelectionStyle = style
+	return ti
+}
+
+// WithFocused overrides the focus state explicitly.
+func (ti *TextInput) WithFocused(focused bool) *TextInput {
+	ti.Focused = focused
+	return ti
+}
+
+
 // Draw, metin kutusunu çizer, tıklandığında odak almasını sağlar ve aktif odaklıysa software cursor gösterir.
 func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ti.ID == "" || ti.State == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
@@ -163,7 +200,7 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		ctx.RegisterFocus(ti.ID)
 	}
 
-	isFocused := (ctx.FocusedID == ti.ID)
+	isFocused := ti.Focused || (ti.ID != "" && ctx.FocusedID == ti.ID)
 
 	// Tıklama olayında odağı üzerine al
 	if ctx.RegisterClick != nil && ctx.SetFocus != nil {
@@ -188,25 +225,101 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
+	visibleWidth := int(ctx.Area.Width)
+	if visibleWidth <= 0 {
+		return
+	}
+
 	// Metni veya placeholder'ı çiz
 	textStr := ti.State.Value()
 	if textStr == "" && ti.Placeholder != "" {
 		phStyle := boxStyle.Merge(ti.PlaceholderStyle)
-		buf.SetString(ctx.Area.X, ctx.Area.Y, ti.Placeholder, phStyle)
-	} else {
-		buf.SetString(ctx.Area.X, ctx.Area.Y, textStr, boxStyle)
-	}
-
-	// Eğer odaklıysa software cursor (Reverse style) çiz
-	if isFocused {
-		cursorCol := 0
-		for i := 0; i < ti.State.Cursor && i < len(ti.State.Text); i++ {
-			cursorCol += cell.RuneWidth(ti.State.Text[i])
+		phRunes := []rune(ti.Placeholder)
+		if len(phRunes) > visibleWidth {
+			phRunes = phRunes[:visibleWidth]
 		}
-		cursorX := ctx.Area.X + uint16(cursorCol)
-		if cursorX < ctx.Area.X+ctx.Area.Width {
-			if c := buf.Get(cursorX, ctx.Area.Y); c != nil {
+		buf.SetString(ctx.Area.X, ctx.Area.Y, string(phRunes), phStyle)
+
+		// Boşken ilk karakter üzerinde software cursor çiz
+		if isFocused {
+			if c := buf.Get(ctx.Area.X, ctx.Area.Y); c != nil {
 				c.Style.Modifier |= cell.ModifierReverse
+				c.Style.Bg = cell.NewColorRGB(255, 255, 255)
+				c.Style.Fg = cell.NewColorRGB(0, 0, 0)
+				c.Style.Modifier |= cell.ModifierBold
+			}
+		}
+	} else {
+		var displayText strings.Builder
+		cursorVisualCol := 0
+		for idx, r := range ti.State.Text {
+			if idx == ti.State.Cursor {
+				cursorVisualCol = len([]rune(displayText.String()))
+			}
+			if r == '\n' {
+				displayText.WriteString(" ↵ ")
+			} else {
+				displayText.WriteRune(r)
+			}
+		}
+		if ti.State.Cursor >= len(ti.State.Text) {
+			cursorVisualCol = len([]rune(displayText.String()))
+		}
+
+		runes := []rune(displayText.String())
+
+		// Horizontal scrolling / Viewport calculation
+		startOffset := 0
+		if cursorVisualCol >= visibleWidth {
+			startOffset = cursorVisualCol - visibleWidth + 1
+		}
+		if startOffset > len(runes) {
+			startOffset = len(runes)
+		}
+		visibleRunes := runes[startOffset:]
+		if len(visibleRunes) > visibleWidth {
+			visibleRunes = visibleRunes[:visibleWidth]
+		}
+
+		s := ti.SelectionStart
+		e := ti.SelectionEnd
+		hasSelection := (s != -1 && e != -1 && s != e)
+		if s > e {
+			s, e = e, s
+		}
+
+		for i, r := range visibleRunes {
+			charIdx := startOffset + i
+			st := boxStyle
+			if hasSelection && charIdx >= s && charIdx < e {
+				if ti.SelectionStyle.Bg != 0 || ti.SelectionStyle.Fg != 0 || ti.SelectionStyle.Modifier != 0 {
+					st = st.Merge(ti.SelectionStyle)
+				} else {
+					st.Bg = cell.NewColorRGB(255, 255, 255)
+					st.Fg = cell.NewColorRGB(0, 0, 0)
+					st.Modifier |= cell.ModifierBold
+				}
+			}
+			colX := ctx.Area.X + uint16(i)
+			if colX < ctx.Area.X+ctx.Area.Width {
+				buf.SetCell(colX, ctx.Area.Y, cell.Cell{
+					Content: r,
+					Style:   st,
+				})
+			}
+		}
+
+		// Eğer odaklıysa software cursor çiz: harfin üzeri beyaz, yazı siyah
+		if isFocused {
+			relCursor := cursorVisualCol - startOffset
+			if relCursor >= 0 && relCursor < visibleWidth {
+				cursorX := ctx.Area.X + uint16(relCursor)
+				if c := buf.Get(cursorX, ctx.Area.Y); c != nil {
+					c.Style.Modifier |= cell.ModifierReverse
+					c.Style.Bg = cell.NewColorRGB(255, 255, 255)
+					c.Style.Fg = cell.NewColorRGB(0, 0, 0)
+					c.Style.Modifier |= cell.ModifierBold
+				}
 			}
 		}
 	}
