@@ -56,7 +56,17 @@ jobs:
       - name: Reject committed binaries and local config
         run: |
           set -euo pipefail
+          # Extension-based rules miss bare Go binaries, which are named after
+          # their module. Also reject any tracked file that is an ELF/Mach-O/PE
+          # executable, whatever it is called.
           offenders=$(git ls-files | grep -E '(\.test|\.exe|\.out|\.prof)$|^settings\.json$' || true)
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            case "$(file -b --mime-type "$f")" in
+              application/x-executable|application/x-sharedlib|application/x-mach-binary|application/x-dosexec)
+                offenders="$offenders$(printf '\n%s' "$f")" ;;
+            esac
+          done < <(git ls-files)
           if [ -n "$offenders" ]; then
             echo "FAIL tracked build artifacts or local config:"
             echo "$offenders"
