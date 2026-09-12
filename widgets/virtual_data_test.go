@@ -3,6 +3,7 @@ package widgets
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"testing"
@@ -312,5 +313,87 @@ func TestVirtualDataAdvancedFeatures(t *testing.T) {
 	}
 	if stats.Started != 2 {
 		t.Errorf("stats.Started = %d, want 2", stats.Started)
+	}
+}
+
+// queryScopedVirtualSource stamps each row with the query it was loaded under,
+// so a viewport still serving rows from a superseded query is detectable.
+type queryScopedVirtualSource struct {
+	query    VirtualQuery
+	rowAtHit int
+}
+
+func (q *queryScopedVirtualSource) ApplyQuery(_ context.Context, query VirtualQuery) error {
+	q.query = query
+	return nil
+}
+func (*queryScopedVirtualSource) RowCount(context.Context) (int, error) { return 10, nil }
+func (q *queryScopedVirtualSource) RowAt(_ context.Context, i int) (Row, error) {
+	q.rowAtHit++
+	return Row{ID: q.RowID(i), Text: q.stamp()}, nil
+}
+func (q *queryScopedVirtualSource) RowID(i int) RowID {
+	return RowID(fmt.Sprintf("%s/%d", q.stamp(), i))
+}
+func (q *queryScopedVirtualSource) stamp() string {
+	order := "asc"
+	if q.query.SortDescending {
+		order = "desc"
+	}
+	return fmt.Sprintf("%s|%s|%s", q.query.Filter, q.query.SortKey, order)
+}
+
+func TestVirtualDataRefreshReloadsWhenQueryChanges(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*VirtualDataState)
+		want   string
+	}{
+		{"filter", func(s *VirtualDataState) { s.SetFilter("beta") }, "beta||asc"},
+		{"sort key", func(s *VirtualDataState) { s.SetSort("name", false) }, "alpha|name|asc"},
+		{"sort order", func(s *VirtualDataState) { s.SetSort("", true) }, "alpha||desc"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := &queryScopedVirtualSource{}
+			state := NewVirtualDataState()
+			state.SetFilter("alpha")
+			if err := state.Refresh(context.Background(), source, 0, 4, 0); err != nil {
+				t.Fatalf("first refresh: %v", err)
+			}
+			if row, ok := state.Row(0); !ok || row.Text != "alpha||asc" {
+				t.Fatalf("first refresh loaded %q (ok=%v), want %q", row.Text, ok, "alpha||asc")
+			}
+
+			tc.change(state)
+			if err := state.Refresh(context.Background(), source, 0, 4, 0); err != nil {
+				t.Fatalf("second refresh: %v", err)
+			}
+			row, ok := state.Row(0)
+			if !ok {
+				t.Fatal("row 0 missing after the query changed")
+			}
+			if row.Text != tc.want {
+				t.Errorf("viewport still serving rows from the previous query: got %q, want %q", row.Text, tc.want)
+			}
+		})
+	}
+}
+
+func TestVirtualDataRefreshStillCachesUnchangedQuery(t *testing.T) {
+	source := &queryScopedVirtualSource{}
+	state := NewVirtualDataState()
+	state.SetFilter("alpha")
+	if err := state.Refresh(context.Background(), source, 0, 4, 0); err != nil {
+		t.Fatalf("first refresh: %v", err)
+	}
+	loaded := source.rowAtHit
+	if loaded == 0 {
+		t.Fatal("first refresh fetched no rows")
+	}
+	if err := state.Refresh(context.Background(), source, 0, 4, 0); err != nil {
+		t.Fatalf("second refresh: %v", err)
+	}
+	if source.rowAtHit != loaded {
+		t.Errorf("unchanged query refetched %d rows; the viewport cache fast path is not firing", source.rowAtHit-loaded)
 	}
 }

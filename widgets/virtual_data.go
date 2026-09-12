@@ -86,14 +86,21 @@ type VirtualDataState struct {
 	filter            string
 	sortKey           string
 	sortDesc          bool
-	generation        uint64
-	cancel            context.CancelFunc
-	queuePolicy       VirtualQueuePolicy
-	activeDone        chan struct{}
-	stats             VirtualQueueStats
-	rowTextCache      map[RowID]string
-	lastOffset        int
-	lastSticky        int
+	// cachedFilter/cachedSortKey/cachedSortDesc record the query that produced
+	// the rows currently in s.rows. Refresh compares the live query against
+	// these to decide whether the cache still answers the request; without the
+	// distinction a SetFilter followed by Refresh serves unfiltered rows.
+	cachedFilter   string
+	cachedSortKey  string
+	cachedSortDesc bool
+	generation     uint64
+	cancel         context.CancelFunc
+	queuePolicy    VirtualQueuePolicy
+	activeDone     chan struct{}
+	stats          VirtualQueueStats
+	rowTextCache   map[RowID]string
+	lastOffset     int
+	lastSticky     int
 }
 
 func NewVirtualDataState() *VirtualDataState {
@@ -333,7 +340,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 
 	// 1. Viewport Caching Check: If requested range is already fully loaded, return immediately.
 	s.mu.RLock()
-	if (s.status == VirtualReady || s.status == VirtualEmpty) && s.filter == s.filter && s.sortKey == s.sortKey && s.sortDesc == s.sortDesc {
+	if (s.status == VirtualReady || s.status == VirtualEmpty) && s.filter == s.cachedFilter && s.sortKey == s.cachedSortKey && s.sortDesc == s.cachedSortDesc {
 		clipLast := last
 		if s.count > 0 && clipLast > s.count {
 			clipLast = s.count
@@ -454,6 +461,15 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	}
 	if s.rows == nil {
 		s.rows = make(map[int]Row)
+	}
+
+	// Rows cached under a different filter or sort answer a different question:
+	// the provider re-indexes its result set per query, so index i is not the
+	// same row before and after. Drop them, or the loop below skips them as
+	// already loaded and the viewport keeps serving the previous query.
+	if s.cachedFilter != query.Filter || s.cachedSortKey != query.SortKey || s.cachedSortDesc != query.SortDescending {
+		clear(s.rows)
+		s.cachedFilter, s.cachedSortKey, s.cachedSortDesc = query.Filter, query.SortKey, query.SortDescending
 	}
 
 	for i := first; i < last; i++ {
