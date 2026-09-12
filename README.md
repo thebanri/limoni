@@ -80,19 +80,21 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **op
 | :--- | :--- | :--- | :--- | :--- |
 | **Language & Tooling** | **Go (Native)** | Go (Native) | Go (Native) | Rust (Native) |
 | **Render Architecture** | **Flat 1D Grid + Adaptive ANSI Diff** | String concatenation / TEA | Cell buffer + ncurses-style diff | Immediate Mode Double Buffer |
-| **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Reduced; not a zero-alloc design goal — *not yet benchmarked here* | Stack / RAII |
+| **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Reduced; not a zero-alloc design goal — Ultraviolet allocates a `Cell` per glyph | Stack / RAII |
 | **Layout Paradigm** | **Declarative Flexbox & Stack Solver** | String slicing (`JoinHorizontal/Vertical`) | Cassowary constraint solver | Constraint solver |
 | **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | SGR mouse events; no built-in hit-testing | Manual coordinates |
 | **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Cell diff + `ECH`/`REP`/`ICH`/`DCH` + scroll optimization | Double-buffered diff |
 | **Grapheme Clusters** | Rune-level widths — **cluster support not implemented yet** | `uniseg` | `uniseg` + Mode 2027 negotiation | `unicode-width` |
 | **Capability Detection** | Environment variables only | Environment / terminfo | Runtime queries (no terminfo) | terminfo / crossterm |
-| **Large Datasets / Tables**| **Virtual Paging (1M+ rows, 22 µs)** | High GC load on scroll | Improved vs v1 | High layout cloning overhead |
+| **Large Datasets / Tables**| **Virtual paging (1M rows, ~2.6 ms/frame under continuous scroll)** | High GC load on scroll | Improved vs v1 | Rebuilds every row each frame — `Table` owns its row iterator |
 | **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY/GLB) & Gouraud Shaders** | Third-party / custom | Third-party / custom | Addons required |
 | **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Limited / Manual | Experimental |
 | **External Dependencies** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 transitive modules | ~15 transitive modules | crates.io graph |
 | **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Single-threaded TEA loop | Manual thread coordination |
 
-> **On the Bubble Tea v2 column:** entries are taken from upstream documentation, not from Limoni's own measurements. Charm rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet), a cell-based diffing layer, so the architectural gap Limoni originally opened against **v1** does not carry over to **v2** unchanged. The benchmark suite in this repository currently targets **Bubble Tea v1.3.10**; see [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for what is and is not measured, and treat any performance claim against v2 as unproven until that runner lands.
+> **On the Bubble Tea v2 column:** the entries are taken from upstream documentation, not from Limoni's own measurements. Charm rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet), a cell-based diffing layer, so the architectural gap Limoni originally opened against **v1** does not carry over to **v2** unchanged.
+>
+> Ultraviolet *is* now measured here, and Limoni is 1.9×–20× faster on the comparable render workloads while emitting far fewer bytes per frame ([§2.4](docs/benchmark-methodology.md#24-ultraviolet)). That is **not** a Bubble Tea v2 result: a v2 program also pays for its runtime, message dispatch and view construction, none of which this measures. No runner in this repository links Bubble Tea v2, so treat any performance claim against v2 itself as unproven.
 
 ### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
 
@@ -436,7 +438,7 @@ Limoni comes with an extensive suite of production-ready widgets:
 
 ## 📊 Benchmarks
 
-> 📐 **Read [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) first.** It states which framework versions are measured, what the harness does and does not capture, and which comparison claims are currently unproven. The cross-framework runners target **Bubble Tea v1.3.10** and **Ratatui 0.29**; both upstream projects have since shipped major releases.
+> 📐 **Read [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) first.** It states which framework versions are measured, what the harness does and does not capture, and which comparison claims are currently unproven. The cross-framework runners target **Ratatui 0.30.2**, **Ultraviolet** (the cell renderer under Bubble Tea v2 and Lip Gloss v2) and **Bubble Tea v1.3.10**. There is **no Bubble Tea v2 runner**: nothing here links it, so no claim in this repository is a claim about v2 itself.
 
 Limoni includes a standardized cross-implementation benchmark suite measuring real dirty diffing, partial invalidations, virtual scrolling, and memory allocations under standard virtual terminal conditions (120×40 cells = 4,800 cells).
 
@@ -448,23 +450,41 @@ go test ./core/buffer -run '^$' -bench . -benchmem
 # Run Widget & Layout benchmarks
 go test ./benchmarks -run '^$' -bench . -benchmem
 
+# Cross-framework comparison: builds each runner, runs all three three times,
+# reports median latency with run-to-run spread, and suppresses every ratio the
+# runners mark non-comparable. Needs a Rust toolchain for the Ratatui runner.
+./benchmarks/compare.sh
+
 # Generate HTML Comparison Dashboard
 go run ./benchmarks/runners/dashboard -output benchmark-results/dashboard.html benchmark-results/limoni.json benchmark-results/bubbletea.json benchmark-results/ratatui.json
 ```
 
-### Verified Benchmark Results (120×40 Viewport, AMD Ryzen / EPYC):
+### Measured results
+
+**AMD Ryzen 5 5600 (6C/12T), Linux 6.17, Go 1.27.1, `-count=3`, median.** Absolute
+figures are hardware-dependent; what is meaningful is the ratio between commits on
+one machine. Reproduce with the command above.
 
 | Benchmark Operation | Measured Latency | Throughput | Allocations | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~90.1 µs`** | **~11,100 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
-| **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48,800 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
-| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
-| **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16,400 FPS** | **`5 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
-| **`BenchmarkHundredLayers`** | **`~47.0 µs`** | **~21,200 FPS** | **`0 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
-| **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9,800 FPS** | **`614 B/op`** | Active selection scrolling through a 10,000-row table rendering visible rows |
-| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
-| **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16,200,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
-| **`BenchmarkAsyncUpdateBurst`** | **`~214 ns`** | **~4,660,000 msg/s** | **`8 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
+| **`BenchmarkDiff_FullChanges`** | **`~116 µs`** | **~8,600 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
+| **`BenchmarkDiff_PartialChanges`** | **`~38.8 µs`** | **~25,800 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
+| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~521,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
+| **`BenchmarkTextHeavyFrame`** | **`~104 µs`** | **~9,600 FPS** | **`10 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
+| **`BenchmarkHundredLayers`** | **`~159 µs`** | **~6,300 FPS** | **`2 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
+| **`BenchmarkTenThousandRowTable`** | **`~146 µs`** | **~6,900 FPS** | **`615 B/op (4 allocs)`** | Active selection scrolling through a 10,000-row table rendering visible rows |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.57 ms`** | **~389 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
+| **`BenchmarkMouseHitTest`** | **`~62.3 ns`** | **~16,000,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
+| **`BenchmarkAsyncUpdateBurst`** | **`~222 ns`** | **~4,500,000 msg/s** | **`7 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
+
+> [!WARNING]
+> **These figures were corrected downwards.** An earlier revision of this table
+> quoted latencies that do not reproduce on the hardware class it named — most
+> of them optimistic, `BenchmarkHundredLayers` by 3.4× (47 µs claimed, 159 µs
+> measured). The numbers above were re-measured with `-count=3` on the machine
+> named, and the hardware is now stated precisely rather than as a CPU family.
+> The zero-allocation guarantees were the part that held up: every hot path
+> that claimed `0 allocs/op` still measures `0 allocs/op`.
 
 > [!NOTE]
 > **Transparency & Engineering Integrity Guarantee**:

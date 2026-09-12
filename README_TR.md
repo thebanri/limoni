@@ -61,13 +61,15 @@
 | **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Hücre diff + `ECH`/`REP`/`ICH`/`DCH` + kaydırma optimizasyonu | Çift tamponlu diff |
 | **Grapheme Cluster** | Rune seviyesinde genişlik — **cluster desteği henüz yok** | `uniseg` | `uniseg` + Mod 2027 müzakeresi | `unicode-width` |
 | **Yetenek Tespiti** | Yalnızca ortam değişkenleri | Ortam / terminfo | Çalışma anında sorgulama (terminfo'suz) | terminfo / crossterm |
-| **Büyük Veri / Tablolar**| **1M+ Satır Sanallaştırma (~22 µs)** | Yüksek GC yükü | v1'e göre iyileştirilmiş | Yüksek layout klonlama yükü |
+| **Büyük Veri / Tablolar**| **1M satır sanallaştırma (sürekli kaydırma altında ~2,6 ms/kare)** | Yüksek GC yükü | v1'e göre iyileştirilmiş | Her karede tüm satırları yeniden kurar — `Table` satır iterator'ının sahibidir |
 | **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY/GLB) & Shaders** | Harici eklenti gerekir | Harici eklenti gerekir | Eklenti gerekir |
 | **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Kısıtlı / Manuel | Deneysel |
 | **Harici Bağımlılık** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 dolaylı modül | ~15 dolaylı modül | crates.io grafiği |
 | **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
 
-> **Bubble Tea v2 sütunu hakkında:** bu satırlar Limoni'nin kendi ölçümlerinden değil, üst akış dokümantasyonundan alınmıştır. Charm, render motorunu hücre tabanlı diff yapan [Ultraviolet](https://github.com/charmbracelet/ultraviolet) üzerine yeniden inşa etti; dolayısıyla Limoni'nin **v1**'e karşı açtığı mimari fark **v2** için olduğu gibi geçerli değildir. Bu depodaki benchmark paketi şu an **Bubble Tea v1.3.10**'u hedefliyor; neyin ölçülüp neyin ölçülmediği için [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) dosyasına bakın ve v2'ye karşı her performans iddiasını o koşucu eklenene kadar kanıtlanmamış sayın.
+> **Bubble Tea v2 sütunu hakkında:** bu satırlar Limoni'nin kendi ölçümlerinden değil, üst akış dokümantasyonundan alınmıştır. Charm, render motorunu hücre tabanlı diff yapan [Ultraviolet](https://github.com/charmbracelet/ultraviolet) üzerine yeniden inşa etti; dolayısıyla Limoni'nin **v1**'e karşı açtığı mimari fark **v2** için olduğu gibi geçerli değildir.
+>
+> Ultraviolet artık burada **ölçülüyor** ve karşılaştırılabilir render iş yüklerinde Limoni 1,9–20 kat daha hızlı, üstelik kare başına belirgin biçimde daha az bayt yayıyor ([§2.4](docs/benchmark-methodology.md#24-ultraviolet)). Bu bir **Bubble Tea v2 sonucu değildir**: bir v2 programı ayrıca kendi çalışma zamanını, mesaj dağıtımını ve view kurulumunu da öder; bunların hiçbiri burada ölçülmüyor. Bu depodaki hiçbir koşucu Bubble Tea v2'yi link etmiyor, dolayısıyla v2'nin kendisine karşı her performans iddiasını kanıtlanmamış sayın.
 
 ### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
 
@@ -204,6 +206,8 @@ func main() {
 
 ## 📊 Performans ve Kıyaslamalar (Benchmarks)
 
+> 📐 **Önce [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) dosyasını okuyun.** Hangi sürümlerin ölçüldüğünü, harness'ın neyi yakalayıp neyi yakalamadığını ve hangi iddiaların henüz kanıtlanmadığını açıklar. Çapraz-framework koşucuları **Ratatui 0.30.2**, **Ultraviolet** (Bubble Tea v2 ve Lip Gloss v2'nin altındaki hücre render motoru) ve **Bubble Tea v1.3.10**'u hedefliyor. **Bubble Tea v2 koşucusu yoktur**: burada hiçbir şey onu link etmiyor, dolayısıyla bu depodaki hiçbir iddia v2'nin kendisi hakkında değildir.
+
 Limoni, standart sanal terminal ortamında (120×40 hücre = 4.800 hücre) gerçek dirty diffing, kısmi güncellemeler, sanal kaydırma ve bellek tahsisatlarını ölçen kapsamlı bir kıyaslama paketine sahiptir.
 
 Testleri yerel ortamınızda çalıştırmak için:
@@ -213,21 +217,39 @@ go test ./core/buffer -run '^$' -bench . -benchmem
 
 # Widget ve Düzen kıyaslamaları
 go test ./benchmarks -run '^$' -bench . -benchmem
+
+# Çapraz-framework karşılaştırması: her koşucuyu derler, üçünü de üçer kez
+# çalıştırır, medyan gecikmeyi koşular arası yayılımla raporlar ve koşucuların
+# karşılaştırılamaz işaretlediği her oranı gizler. Ratatui için Rust gerekir.
+./benchmarks/compare.sh
 ```
 
-### Doğrulanmış Kıyaslama Sonuçları (120×40 Görünüm Alanı, AMD Ryzen / EPYC):
+### Ölçülen sonuçlar
+
+**AMD Ryzen 5 5600 (6Ç/12İ), Linux 6.17, Go 1.27.1, `-count=3`, medyan.** Mutlak
+değerler donanıma bağlıdır; anlamlı olan, tek bir makinede commit'ler arasındaki
+orandır. Yukarıdaki komutla yeniden üretilebilir.
 
 | Kıyaslama İşlemi | Ölçülen Gecikme | Kare / İşlem Hızı | Bellek Tahsisatı | Açıklama |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~90.1 µs`** | **~11.100 FPS** | **`0 B/op (0 allocs)`** | %100 tam ekran hücre değişimi (4.800 hücre) çift tampon diff işlemi ve ANSI akışı üretimi |
-| **`BenchmarkDiff_PartialChanges`** | **`~20.5 µs`** | **~48.800 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
-| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~520.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
-| **`BenchmarkTextHeavyFrame`** | **`~60.8 µs`** | **~16.400 FPS** | **`5 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
-| **`BenchmarkHundredLayers`** | **`~47.0 µs`** | **~21.200 FPS** | **`0 B/op (0 allocs)`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
-| **`BenchmarkTenThousandRowTable`** | **`~102 µs`** | **~9.800 FPS** | **`614 B/op`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
-| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.53 ms`** | **~395 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
-| **`BenchmarkMouseHitTest`** | **`~61.7 ns`** | **~16.200.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
-| **`BenchmarkAsyncUpdateBurst`** | **`~214 ns`** | **~4.660.000 msg/s** | **`8 B/op (0 allocs)`** | Elm çalışma mimarisinde yüksek verimli asenkron mesaj kuyruğu iletimi |
+| **`BenchmarkDiff_FullChanges`** | **`~116 µs`** | **~8.600 FPS** | **`0 B/op (0 allocs)`** | %100 tam ekran hücre değişimi (4.800 hücre) çift tampon diff işlemi ve ANSI akışı üretimi |
+| **`BenchmarkDiff_PartialChanges`** | **`~38.8 µs`** | **~25.800 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
+| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~521.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
+| **`BenchmarkTextHeavyFrame`** | **`~104 µs`** | **~9.600 FPS** | **`10 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
+| **`BenchmarkHundredLayers`** | **`~159 µs`** | **~6.300 FPS** | **`2 B/op (0 allocs)`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
+| **`BenchmarkTenThousandRowTable`** | **`~146 µs`** | **~6.900 FPS** | **`615 B/op (4 allocs)`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.57 ms`** | **~389 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
+| **`BenchmarkMouseHitTest`** | **`~62.3 ns`** | **~16.000.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
+| **`BenchmarkAsyncUpdateBurst`** | **`~222 ns`** | **~4.500.000 msg/s** | **`7 B/op (0 allocs)`** | Elm çalışma mimarisinde yüksek verimli asenkron mesaj kuyruğu iletimi |
+
+> [!WARNING]
+> **Bu değerler aşağı yönlü düzeltildi.** Tablonun önceki hâlinde, adı geçen
+> donanım sınıfında yeniden üretilemeyen gecikmeler yer alıyordu; çoğu iyimserdi
+> ve `BenchmarkHundredLayers` 3,4 kat sapmıştı (47 µs iddia, 159 µs ölçüm).
+> Yukarıdaki sayılar belirtilen makinede `-count=3` ile yeniden ölçüldü ve
+> donanım artık bir işlemci ailesi olarak değil kesin olarak yazılıyor.
+> Tutan kısım sıfır-tahsisat garantileriydi: `0 allocs/op` iddia eden her sıcak
+> yol hâlâ `0 allocs/op` ölçüyor.
 
 > [!NOTE]
 > **Şeffaflık ve Mühendislik Dürüstlüğü Garantisi**:
