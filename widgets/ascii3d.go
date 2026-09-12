@@ -334,8 +334,19 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	specularBuf := make([]float64, totalCells)
 	matColorBuf := make([]cell.Color, totalCells)
 
+	// Adaptive face LOD decimation safeguard:
+	// For massive models (>50,000 faces), sample faces to preserve interactive frame rate
+	faceStep := 1
+	if len(model.Faces) > 50000 {
+		faceStep = len(model.Faces) / 40000
+		if faceStep < 1 {
+			faceStep = 1
+		}
+	}
+
 	// Rasterize faces
-	for faceIdx, face := range model.Faces {
+	for faceIdx := 0; faceIdx < len(model.Faces); faceIdx += faceStep {
+		face := model.Faces[faceIdx]
 		if len(face) < 3 {
 			continue
 		}

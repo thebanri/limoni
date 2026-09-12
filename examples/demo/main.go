@@ -4,6 +4,8 @@
 package main
 
 import (
+	"bytes"
+	_ "embed"
 	"flag"
 	"fmt"
 	"image"
@@ -25,6 +27,16 @@ import (
 	"github.com/thebanri/limoni/layout"
 	"github.com/thebanri/limoni/widgets"
 )
+
+//go:embed limoni.glb
+var defaultModelGLB []byte
+
+//go:embed apple.png
+var defaultApplePNG []byte
+
+//go:embed profile.png
+var defaultProfilePNG []byte
+
 
 // Theme defines colors for the UI showcase.
 type Theme struct {
@@ -158,6 +170,7 @@ type AppState struct {
 }
 
 func main() {
+	modelFlag := flag.String("model", "", "Path to custom 3D model (.glb, .gltf, .obj, .stl, .ply)")
 	fpsFlag := flag.Int("fps", 60, "Target frame rate (e.g. 60, 120, 240)")
 	flag.Parse()
 
@@ -181,7 +194,7 @@ func main() {
 
 	b.StartEventLoop()
 
-	state := initAppState()
+	state := initAppState(*modelFlag)
 
 	frameDuration := time.Second / time.Duration(targetFPS)
 	ticker := time.NewTicker(frameDuration)
@@ -248,7 +261,7 @@ func main() {
 	}
 }
 
-func initAppState() *AppState {
+func initAppState(customModelPath ...string) *AppState {
 	state := &AppState{
 		AsciiMode:           widgets.ModeASCII,
 		AutoRotate:          true,
@@ -292,7 +305,11 @@ func initAppState() *AppState {
 	}
 
 	// 1. Load 3D Model
-	model, path, err := findAndLoadModel()
+	customPath := ""
+	if len(customModelPath) > 0 {
+		customPath = customModelPath[0]
+	}
+	model, path, err := findAndLoadModel(customPath)
 	if err != nil {
 		state.Model = graphics.NewSphere(1.0, 16, 24)
 		state.ModelPath = "Procedural Sphere (Fallback)"
@@ -326,11 +343,37 @@ func initAppState() *AppState {
 	return state
 }
 
-func findAndLoadModel() (graphics.Model3D, string, error) {
+func findAndLoadModel(customPath string) (graphics.Model3D, string, error) {
+	// 1. Check user specified custom path via flag
+	if customPath != "" {
+		if m, err := graphics.LoadModel(customPath); err == nil {
+			return m, filepath.Base(customPath), nil
+		}
+	}
+
+	// 2. Check environment variables
+	if envPath := os.Getenv("LIMONI_MODEL"); envPath != "" {
+		if m, err := graphics.LoadModel(envPath); err == nil {
+			return m, filepath.Base(envPath), nil
+		}
+	}
+	if envPath := os.Getenv("LIMONI_OBJ"); envPath != "" {
+		if m, err := graphics.LoadModel(envPath); err == nil {
+			return m, filepath.Base(envPath), nil
+		}
+	}
+
+	// 3. Embedded binary glTF mascot (zero disk dependency, instant load anywhere)
+	if len(defaultModelGLB) > 0 {
+		if m, err := graphics.ParseGLB(defaultModelGLB); err == nil {
+			return m, "limoni.glb (Embedded)", nil
+		}
+	}
+
+	// 4. Fallback candidates on disk
 	candidates := []string{
 		"examples/demo/limoni.glb",
 		"limoni.glb",
-		"/home/thebanri/Projects/limoni-website/public/limoni.glb",
 	}
 
 	for _, p := range candidates {
@@ -347,6 +390,25 @@ func findAndLoadModel() (graphics.Model3D, string, error) {
 }
 
 func loadSampleImages(state *AppState) {
+	// 1. Load embedded images first (guaranteed to be available anywhere)
+	if len(defaultApplePNG) > 0 {
+		if img, _, err := image.Decode(bytes.NewReader(defaultApplePNG)); err == nil {
+			state.Images = append(state.Images, img)
+			state.ImageNames = append(state.ImageNames, "apple.png (Embedded)")
+		}
+	}
+	if len(defaultProfilePNG) > 0 {
+		if img, _, err := image.Decode(bytes.NewReader(defaultProfilePNG)); err == nil {
+			state.Images = append(state.Images, img)
+			state.ImageNames = append(state.ImageNames, "profile.png (Embedded)")
+		}
+	}
+
+	if len(state.Images) > 0 {
+		return
+	}
+
+	// 2. Fallback to disk paths
 	paths := []string{
 		"examples/demo/apple.png",
 		"examples/demo/profile.png",

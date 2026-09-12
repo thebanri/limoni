@@ -216,8 +216,6 @@ func TestGLBLemonAndGopherColors(t *testing.T) {
 	outBytes := memIO.Output()
 	outStr := string(outBytes)
 
-	_ = os.WriteFile("/home/thebanri/.gemini/antigravity-ide/brain/c0aab374-3ba6-44e1-a13b-efb69b666b40/scratch/full_demo.ansi", outBytes, 0644)
-
 	// TrueColor ANSI sequences look like: \x1b[38;2;R;G;Bm
 	t.Logf("Flushed ANSI output length: %d bytes, sample: %q", len(outStr), outStr[:min(len(outStr), 300)])
 	if len(outStr) == 0 {
