@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Limoni TUI — WebAssembly Browser Demo</title>
+  <title>Limoni — a Go TUI engine, running in your browser</title>
+  <meta name="description" content="Limoni is a zero-allocation terminal UI engine for Go with a built-in 3D rasteriser. Try it here — the same engine, compiled to WebAssembly.">
+
+  <meta property="og:title" content="Limoni — a Go TUI engine, running in your browser">
+  <meta property="og:description" content="Zero-allocation terminal UI engine for Go, with a built-in 3D rasteriser. Compiled to WebAssembly — no install required.">
+  <meta property="og:type" content="website">
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
@@ -11,133 +17,177 @@
   <style>
     :root {
       --bg: #0d1117;
-      --card-bg: rgba(22, 27, 34, 0.85);
-      --accent: #58a6ff;
+      --accent: #00ffaa;
+      --accent-dim: #00c98a;
       --text: #c9d1d9;
+      --muted: #8b949e;
       --border: rgba(255, 255, 255, 0.1);
     }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: radial-gradient(circle at 50% 20%, #161b22, #0d1117 80%);
+      background: radial-gradient(circle at 50% 10%, #161b22, #0d1117 70%);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
+      padding: 32px 16px 48px;
     }
-    header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
+    header { text-align: center; margin-bottom: 22px; max-width: 680px; }
     h1 {
-      font-size: 28px;
-      font-weight: 700;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-content: center;
-      margin-bottom: 6px;
+      font-size: 30px; font-weight: 700; color: #fff;
+      display: flex; align-items: center; gap: 10px;
+      justify-content: center; margin-bottom: 10px;
     }
     h1 span {
-      background: linear-gradient(135deg, #7ee787, #58a6ff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      background: linear-gradient(135deg, #00ffaa, #58a6ff);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
     }
-    p.subtitle {
-      font-size: 14px;
-      color: #8b949e;
+    p.subtitle { font-size: 15px; color: var(--muted); line-height: 1.5; }
+    p.subtitle code {
+      font-family: ui-monospace, Menlo, Monaco, "Courier New", monospace;
+      color: var(--accent-dim);
     }
-    .terminal-container {
+
+    .stage {
+      position: relative;
       background: #010409;
       border: 1px solid var(--border);
       border-radius: 12px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
       padding: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
       width: 100%;
-      max-width: 900px;
-      overflow: hidden;
+      max-width: 1000px;
     }
-    .terminal-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    .stage-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 4px 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px;
     }
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-    .dot.red { background: #ff5f56; }
-    .dot.yellow { background: #ffbd2e; }
-    .dot.green { background: #27c93f; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; }
+    .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
     .title-tag {
-      margin-left: auto;
-      font-size: 12px;
-      color: #8b949e;
-      font-family: monospace;
+      margin-left: auto; font-size: 12px; color: var(--muted);
+      font-family: ui-monospace, Menlo, Monaco, monospace;
     }
-    #terminal {
-      width: 100%;
-      height: 520px;
+    #terminal { min-height: 420px; }
+
+    /* Poster overlay: the WASM module is only fetched when the user asks. */
+    .poster {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; text-align: center;
+      background: rgba(1, 4, 9, 0.94);
+      border-radius: 12px; z-index: 5; padding: 24px;
     }
+    .poster.hidden { display: none; }
+    .poster h2 { font-size: 19px; color: #fff; font-weight: 600; }
+    .poster p { font-size: 13px; color: var(--muted); max-width: 420px; line-height: 1.6; }
+    button.run {
+      appearance: none; border: 0; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #58a6ff);
+      color: #04170f; font-weight: 700; font-size: 15px;
+      padding: 12px 28px; border-radius: 8px;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    button.run:hover { transform: translateY(-1px); }
+    button.run:disabled { cursor: progress; opacity: 0.65; transform: none; }
+
     .status {
-      margin-top: 14px;
-      font-size: 13px;
-      color: #8b949e;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      margin-top: 14px; font-size: 12.5px; color: var(--muted);
+      display: flex; align-items: center; gap: 8px;
+      font-family: ui-monospace, Menlo, Monaco, monospace;
     }
-    .badge {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #e3b341;
+    .badge { width: 8px; height: 8px; border-radius: 50%; background: #6e7681; }
+    .badge.ready { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .badge.error { background: #ff5f56; }
+
+    .keys {
+      margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 16px;
+      justify-content: center; font-size: 12.5px; color: var(--muted);
     }
-    .badge.ready { background: #3fb950; }
+    .keys kbd {
+      font-family: ui-monospace, Menlo, Monaco, monospace;
+      background: #161b22; border: 1px solid var(--border);
+      border-bottom-width: 2px; border-radius: 5px;
+      padding: 2px 7px; color: var(--text); margin-right: 4px;
+    }
+
+    footer { margin-top: 30px; font-size: 13px; color: var(--muted); text-align: center; }
+    footer a { color: var(--accent-dim); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer code {
+      font-family: ui-monospace, Menlo, Monaco, monospace;
+      background: #161b22; border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 8px; color: var(--text);
+      display: inline-block; margin-top: 10px;
+    }
+    .note { margin-top: 8px; font-size: 12px; color: #6e7681; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🍋 <span>Limoni</span> WebAssembly Runner</h1>
-    <p class="subtitle">High-performance Go TUI engine compiled to WebAssembly with zero-alloc diff rendering</p>
+    <h1>🍋 <span>Limoni</span></h1>
+    <p class="subtitle">
+      A terminal UI engine for Go — zero heap allocations on the render path,
+      with a built-in 3D rasteriser.<br>
+      This page runs the <strong>same engine</strong>, compiled with
+      <code>GOOS=js GOARCH=wasm</code> and pointed at xterm.js.
+    </p>
   </header>
 
-  <div class="terminal-container">
-    <div class="terminal-header">
+  <div class="stage">
+    <div class="stage-header">
       <div class="dot red"></div>
       <div class="dot yellow"></div>
       <div class="dot green"></div>
-      <div class="title-tag">xterm.js · 80x24 truecolor</div>
+      <div class="title-tag" id="size-tag">xterm.js · truecolor</div>
     </div>
     <div id="terminal"></div>
+
+    <div class="poster" id="poster">
+      <h2>Run Limoni in this tab</h2>
+      <p>
+        Loads a <strong id="size-hint">~3 MB</strong> WebAssembly module.
+        Nothing is installed, nothing leaves your browser.
+      </p>
+      <button class="run" id="run">▶&nbsp;&nbsp;Run it</button>
+    </div>
   </div>
 
   <div class="status">
     <span class="badge" id="status-badge"></span>
-    <span id="status-text">Loading WebAssembly binary (limoni.wasm)...</span>
+    <span id="status-text">Ready — press Run to load the engine</span>
   </div>
+
+  <div class="keys">
+    <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> switch scene</span>
+    <span><kbd>Tab</kbd> next scene</span>
+    <span><kbd>↑</kbd><kbd>↓</kbd><kbd>PgUp</kbd><kbd>PgDn</kbd> scroll</span>
+    <span><kbd>Space</kbd> count</span>
+    <span>mouse wheel works too</span>
+  </div>
+
+  <footer>
+    <p>
+      <a href="https://github.com/thebanri/limoni">github.com/thebanri/limoni</a>
+      &nbsp;·&nbsp;
+      <a href="https://pkg.go.dev/github.com/thebanri/limoni">pkg.go.dev</a>
+    </p>
+    <code>go get github.com/thebanri/limoni</code>
+    <p class="note">
+      Go's WebAssembly output is large by nature; a native Limoni binary is a fraction of this size.
+    </p>
+  </footer>
 
   <script>
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: 'ui-monospace, Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,
-      theme: {
-        background: '#010409',
-        foreground: '#c9d1d9',
-      }
+      lineHeight: 1.0,
+      theme: { background: '#010409', foreground: '#c9d1d9' }
     });
 
     const fitAddon = new FitAddon.FitAddon();
@@ -145,46 +195,91 @@
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    window.addEventListener('resize', () => {
-      fitAddon.fit();
-      if (window.__limoni_resize) {
-        window.__limoni_resize(term.cols, term.rows);
-      }
-    });
-
-    // Bridge Go output to xterm
-    window.__limoni_output = function(str) {
-      term.write(str);
-    };
-
-    // Bridge xterm input to Go
-    term.onData(data => {
-      if (window.__limoni_input) {
-        window.__limoni_input(data);
-      }
-    });
-
-    // Initialize Go WebAssembly
-    const go = new Go();
     const statusText = document.getElementById('status-text');
     const statusBadge = document.getElementById('status-badge');
+    const sizeTag = document.getElementById('size-tag');
+    const poster = document.getElementById('poster');
+    const runButton = document.getElementById('run');
 
-    WebAssembly.instantiateStreaming(fetch('limoni.wasm'), go.importObject)
-      .then(result => {
-        statusText.textContent = 'WebAssembly Limoni Engine Running';
+    function updateSizeTag() {
+      sizeTag.textContent = `xterm.js · ${term.cols}x${term.rows} · truecolor`;
+    }
+    updateSizeTag();
+
+    // Debounce resize so a drag does not flood the Go side with resize events.
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        fitAddon.fit();
+        updateSizeTag();
+        if (window.__limoni_resize) {
+          window.__limoni_resize(term.cols, term.rows);
+        }
+      }, 80);
+    });
+
+    // Go -> xterm.js
+    window.__limoni_output = function (str) { term.write(str); };
+
+    // xterm.js -> Go
+    term.onData(data => {
+      if (window.__limoni_input) { window.__limoni_input(data); }
+    });
+
+    async function boot() {
+      runButton.disabled = true;
+      runButton.textContent = 'Loading…';
+      statusText.textContent = 'Fetching limoni.wasm…';
+
+      try {
+        const go = new Go();
+        const response = await fetch('limoni.wasm');
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+
+        // Report real transfer size when the server exposes it.
+        const length = response.headers.get('content-length');
+        if (length) {
+          statusText.textContent =
+            `Compiling ${(Number(length) / 1048576).toFixed(1)} MB of WebAssembly…`;
+        }
+
+        const result = await WebAssembly.instantiateStreaming(response, go.importObject);
+
+        poster.classList.add('hidden');
         statusBadge.classList.add('ready');
+        statusText.textContent = 'Limoni engine running — click the terminal and type';
+        term.focus();
+
         setTimeout(() => {
+          fitAddon.fit();
+          updateSizeTag();
           if (window.__limoni_resize) {
             window.__limoni_resize(term.cols, term.rows);
           }
         }, 100);
-        return go.run(result.instance);
-      })
-      .catch(err => {
-        statusText.textContent = 'WASM Load Error: ' + err.message;
-        statusBadge.style.background = '#ff5f56';
+
+        await go.run(result.instance);
+
+        statusBadge.classList.remove('ready');
+        statusText.textContent = 'Program exited — reload the page to run it again';
+      } catch (err) {
+        statusBadge.classList.add('error');
+        statusText.textContent = 'Failed to load: ' + err.message;
+        runButton.disabled = false;
+        runButton.textContent = '▶  Try again';
         console.error(err);
-      });
+      }
+    }
+
+    runButton.addEventListener('click', boot);
+
+    // ?autorun=1 skips the poster, for demo recordings and deep links.
+    if (new URLSearchParams(location.search).get('autorun') === '1') {
+      boot();
+    }
   </script>
 </body>
 </html>

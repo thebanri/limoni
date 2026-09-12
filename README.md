@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/thebanri/limoni/actions"><img src="https://img.shields.io/github/actions/workflow/status/thebanri/limoni/ci.yml?branch=main&style=flat-square&logo=github" alt="Build Status"></a>
   <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go.Dev Reference"></a>
-  <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.22-blue?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.25-blue?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-blue?style=flat-square" alt="License"></a>
   <a href="#-benchmarks"><img src="https://img.shields.io/badge/allocs-0_B%2Fop-brightgreen?style=flat-square" alt="Zero Allocations"></a>
   <a href="AWESOME.md"><img src="https://img.shields.io/badge/awesome-limoni-gold?style=flat-square&logo=awesomelists" alt="Awesome Limoni"></a>
@@ -41,6 +41,13 @@
 
 ---
 
+<p align="center">
+  <strong><a href="https://thebanri.github.io/limoni/">▶ Try Limoni in your browser</a></strong><br>
+  <sub>The same engine, compiled to WebAssembly and running on xterm.js — no install.</sub>
+</p>
+
+---
+
 ## ⚡ Overview
 
 **Limoni** is a modern, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and responsive terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.
@@ -51,6 +58,8 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **op
 
 ## 🆕 What's New & Recent Updates
 
+* 🎛️ **Both Application Models Are Now First-Class**:
+  The declarative Elm-architecture runtime is re-exported from the root package — `limoni.NewProgram`, `limoni.RunProgram`, `limoni.Model`, `limoni.Cmd`, `limoni.Msg` — so declarative apps no longer need to import `core/engine` directly. `Program.Run(ctx)` and `RunProgram(ctx, …)` are context-aware and shut down cleanly on cancellation. See [`examples/counter`](examples/counter).
 * 🧱 **Composable Lego-Like Component Architecture (`component` package)**:
   Build rich, responsive interfaces declaratively using composable view trees (`limoni.VStack`, `limoni.HStack`, `limoni.Border`, `limoni.Pad`, `limoni.Center`, `limoni.Flex`, `limoni.FixedSize`). The underlying stack solver allocates zero heap memory on the hot rendering path while retaining full interoperability with monolithic widgets via `limoni.AsComponent`.
 * 🔄 **Package Reorganization & Idiomatic Go Naming**:
@@ -67,24 +76,31 @@ By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **op
 
 ## 💡 Why Limoni?
 
-| Feature / Goal | 🍋 Limoni (Go) | 🫧 Bubble Tea + Lipgloss (Go) | 🐀 Ratatui (Rust) |
-| :--- | :--- | :--- | :--- |
-| **Language & Tooling** | **Go (Native)** | Go (Native) | Rust (Native) |
-| **Render Architecture** | **Flat 1D Grid + Adaptive ANSI Diff** | String concatenation / TEA | Immediate Mode Double Buffer |
-| **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Stack / RAII |
-| **Layout Paradigm** | **Declarative Flexbox & Stack Solver** | String slicing (`JoinHorizontal/Vertical`) | Constraint solver |
-| **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | Manual coordinates |
-| **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Double-buffered diff |
-| **Large Datasets / Tables**| **Virtual Paging (1M+ rows, 22 µs)** | High GC load on scroll | High layout cloning overhead |
-| **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY) & Gouraud Shaders** | Third-party / custom | Addons required |
-| **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Experimental |
-| **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Manual thread coordination |
+| Feature / Goal | 🍋 Limoni (Go) | 🫧 Bubble Tea **v1** + Lip Gloss v1 (Go) | 🌈 Bubble Tea **v2** + Ultraviolet (Go) | 🐀 Ratatui **0.30** (Rust) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Language & Tooling** | **Go (Native)** | Go (Native) | Go (Native) | Rust (Native) |
+| **Render Architecture** | **Flat 1D Grid + Adaptive ANSI Diff** | String concatenation / TEA | Cell buffer + ncurses-style diff | Immediate Mode Double Buffer |
+| **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Reduced; not a zero-alloc design goal — *not yet benchmarked here* | Stack / RAII |
+| **Layout Paradigm** | **Declarative Flexbox & Stack Solver** | String slicing (`JoinHorizontal/Vertical`) | Cassowary constraint solver | Constraint solver |
+| **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | SGR mouse events; no built-in hit-testing | Manual coordinates |
+| **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Cell diff + `ECH`/`REP`/`ICH`/`DCH` + scroll optimization | Double-buffered diff |
+| **Grapheme Clusters** | Rune-level widths — **cluster support not implemented yet** | `uniseg` | `uniseg` + Mode 2027 negotiation | `unicode-width` |
+| **Capability Detection** | Environment variables only | Environment / terminfo | Runtime queries (no terminfo) | terminfo / crossterm |
+| **Large Datasets / Tables**| **Virtual Paging (1M+ rows, 22 µs)** | High GC load on scroll | Improved vs v1 | High layout cloning overhead |
+| **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY/GLB) & Gouraud Shaders** | Third-party / custom | Third-party / custom | Addons required |
+| **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Limited / Manual | Experimental |
+| **External Dependencies** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 transitive modules | ~15 transitive modules | crates.io graph |
+| **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Single-threaded TEA loop | Manual thread coordination |
 
-### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lipgloss
+> **On the Bubble Tea v2 column:** entries are taken from upstream documentation, not from Limoni's own measurements. Charm rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet), a cell-based diffing layer, so the architectural gap Limoni originally opened against **v1** does not carry over to **v2** unchanged. The benchmark suite in this repository currently targets **Bubble Tea v1.3.10**; see [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for what is and is not measured, and treat any performance claim against v2 as unproven until that runner lands.
 
-While **Lipgloss** popularized styling in Go, its string-concatenation architecture imposes structural limits on interactive, high-frequency applications:
+### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
 
-| Capability | 🍋 Limoni Composable (`component`) | 🎀 Charm Lipgloss |
+While **Lip Gloss v1** popularized styling in Go, its string-concatenation architecture imposed structural limits on interactive, high-frequency applications. The comparison below is against **v1 specifically**:
+
+> ⚠️ **Lip Gloss v2 changes this picture.** v2 is built on [Ultraviolet](https://github.com/charmbracelet/ultraviolet)'s cell buffer rather than raw string concatenation, so the "Data Primitive", "Rendering Pipeline" and "Screen Clipping" rows below no longer describe the current Charm stack. Limoni's remaining structural advantages over v2 are hit-testing, virtual paging, built-in 3D, and the dependency footprint — not string-vs-cell architecture.
+
+| Capability | 🍋 Limoni Composable (`component`) | 🎀 Charm Lip Gloss **v1** |
 | :--- | :--- | :--- |
 | **Data Primitive** | **16-byte cache-aligned `Cell` struct matrix** | Raw ANSI-escaped strings (`string`) |
 | **Hot-Path Allocations** | **`0 B/op` (0 allocs/op)** on layout & render | High allocation rate (~100s of KBs to MBs/sec) |
@@ -97,7 +113,7 @@ While **Lipgloss** popularized styling in Go, its string-concatenation architect
 | **Migration Bridge** | **`compat/bubbletea` fluent style builder** | Native Charm ecosystem standard |
 
 #### Why Zero-Allocation Architecture Matters:
-1. **Eliminating Garbage Collector Stutter**: Lipgloss computes layouts by allocating intermediate heap strings for every border, padding byte, and horizontal slice. In animated 60 FPS applications, this generates massive heap churn that triggers periodic Go GC pauses (frame stutter). Limoni's component modifiers wrap children on the call stack and write directly into a reusable flat 1D buffer—generating **zero heap allocations (`0 B/op`)**.
+1. **Eliminating Garbage Collector Stutter**: Lip Gloss v1 computes layouts by allocating intermediate heap strings for every border, padding byte, and horizontal slice. In animated 60 FPS applications, this generates massive heap churn that triggers periodic Go GC pauses (frame stutter). Limoni's component modifiers wrap children on the call stack and write directly into a reusable flat 1D buffer—generating **zero heap allocations (`0 B/op`)**.
 2. **Native Interactivity & Hit-Testing**: Because Lipgloss outputs only a flat text string, it cannot determine which component received a mouse click. Limoni components automatically register their physical terminal boundaries (`cell.Rect`), dispatching click, hover, drag, and scroll events directly to callbacks with z-index ordering.
 
 ### Key Advantages:
@@ -230,7 +246,21 @@ func main() {
 }
 ```
 
-### 2. Interactive TEA (The Elm Architecture) Example
+### 2. Declarative TEA (The Elm Architecture) Example
+
+Limoni ships **two application models**, both on the same renderer and widget set:
+
+| | Immediate mode | Declarative mode |
+| :--- | :--- | :--- |
+| **Entry point** | `limoni.Run` / `limoni.Start` | `limoni.RunProgram` / `limoni.NewProgram` |
+| **State lives in** | your own closure | a `limoni.Model` |
+| **Best for** | dashboards, 3D viewers, games, animations | forms, wizards, CRUD tools, async workflows |
+| **Runtime gives you** | a redraw on every event | message scheduling, command cancellation, deterministic ordering, panic recovery |
+| **`context.Context`** | not yet | ✅ `Program.Run(ctx)` and `RunProgram(ctx, …)` |
+
+Both are first-class and both are reachable from the root package — no second
+import required. The runtime itself lives in [`core/engine`](./core/engine) if
+you need to drive it directly (custom backends, SSH sessions, tests).
 
 ```go
 package main
@@ -240,99 +270,74 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/driver"
-	"github.com/thebanri/limoni/core/engine"
-	"github.com/thebanri/limoni/core/terminal"
-	"github.com/thebanri/limoni/layout"
-	"github.com/thebanri/limoni/widgets"
+	"github.com/thebanri/limoni"
 )
 
 type AppModel struct {
 	count int
 }
 
-func (m *AppModel) Init() []engine.Cmd {
-	return nil
-}
+func (m *AppModel) Init() []limoni.Cmd { return nil }
 
-func (m *AppModel) Update(msg engine.Msg) engine.UpdateResult {
-	switch msg := msg.(type) {
-	case engine.KeyPressMsg:
-		switch msg.Key.Type {
-		case driver.KeyEsc:
-			return engine.UpdateResult{Quit: true}
-		case driver.KeyRune:
-			switch msg.Key.Ch {
-			case 'q', 'Q':
-				return engine.UpdateResult{Quit: true}
-			case '+', '=':
-				m.count++
-				return engine.UpdateResult{Redraw: true}
-			case '-', '_':
-				m.count--
-				return engine.UpdateResult{Redraw: true}
-			}
+func (m *AppModel) Update(msg limoni.Msg) limoni.UpdateResult {
+	press, ok := msg.(limoni.KeyPressMsg)
+	if !ok {
+		return limoni.UpdateResult{}
+	}
+
+	switch press.Key.Type {
+	case limoni.KeyEsc:
+		return limoni.UpdateResult{Quit: true}
+	case limoni.KeyRune:
+		switch press.Key.Ch {
+		case 'q', 'Q':
+			return limoni.UpdateResult{Quit: true}
+		case '+', '=':
+			m.count++
+			return limoni.UpdateResult{Redraw: true}
+		case '-', '_':
+			m.count--
+			return limoni.UpdateResult{Redraw: true}
 		}
 	}
-	return engine.UpdateResult{}
+	return limoni.UpdateResult{}
 }
 
-func (m *AppModel) View(frame *terminal.Frame) {
-	area := frame.Area()
+func (m *AppModel) View(frame *limoni.Frame) {
+	accent := limoni.Style{Fg: limoni.RGB(0, 255, 200)}
+	muted := limoni.Style{Fg: limoni.RGB(100, 110, 120)}
 
-	// 3-Row Vertical Layout: Header, Counter, Footer
-	chunks := layout.NewFlexLayout(layout.Vertical, 0,
-		layout.Fixed(3),
-		layout.Fill(),
-		layout.Fixed(3),
-	).Split(area)
+	rows := limoni.SplitVertical(frame.Area(),
+		limoni.Fixed(3),
+		limoni.Fill(),
+		limoni.Fixed(3),
+	)
 
-	// Header
-	frame.RenderWidget(widgets.Block{
+	frame.RenderWidget(limoni.Block{
 		Title:       " 🍋 Limoni Counter Application ",
-		BorderStyle: cell.Style{Fg: cell.NewColorRGB(0, 255, 200)},
-	}, chunks[0])
+		BorderStyle: accent,
+	}, rows[0])
 
-	// Counter Body
-	text := fmt.Sprintf("Current Counter Value: %d\n\nPress '+' to increment, '-' to decrement.", m.count)
-	p := &widgets.Paragraph{
-		Text:  text,
-		Style: cell.Style{Fg: cell.NewColorRGB(0, 255, 200), Modifier: cell.ModifierBold},
-	}
-	frame.RenderWidget(p, chunks[1])
+	frame.RenderWidget(&limoni.Paragraph{
+		Text:  fmt.Sprintf("Current Counter Value: %d\n\nPress '+' to increment, '-' to decrement.", m.count),
+		Style: limoni.Style{Fg: limoni.RGB(0, 255, 200), Modifier: limoni.ModifierBold},
+	}, rows[1])
 
-	// Footer
-	frame.RenderWidget(widgets.Block{
+	frame.RenderWidget(limoni.Block{
 		Title:       " [+] Increment  [-] Decrement  [Q/Esc] Quit ",
-		BorderStyle: cell.Style{Fg: cell.NewColorRGB(100, 110, 120)},
-	}, chunks[2])
+		BorderStyle: muted,
+	}, rows[2])
 }
 
 func main() {
-	d := driver.NewDriver(os.Stdin, os.Stdout)
-	if err := d.Setup(); err != nil {
-		fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+	if err := limoni.RunProgram(context.Background(), &AppModel{}, limoni.WithProgramFPS(60)); err != nil {
+		fmt.Fprintf(os.Stderr, "limoni: %v\n", err)
 		os.Exit(1)
-	}
-	defer d.Close()
-
-	term, err := terminal.New(d)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Terminal failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	app := engine.New(
-		engine.WithModel(&AppModel{}),
-		engine.WithFPS(60),
-	)
-
-	if err := app.RunTerminal(context.Background(), term, d); err != nil {
-		panic(err)
 	}
 }
 ```
+
+Run it with `go run ./examples/counter`.
 
 ---
 
@@ -361,12 +366,17 @@ Limoni comes with an extensive suite of production-ready widgets:
 
 | Category | Available Widgets |
 | :--- | :--- |
-| **Structure & Layout** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox` |
-| **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `Sparkline`, `ProgressBar`, `RichText` |
-| **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider` |
-| **Navigation & Search**| `CommandPalette`, `FuzzySearch (FZF-style)`, `Tabs`, `KeybindingManager` |
-| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
-| **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting` |
+| **Structure & Layout** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox`, `Viewport` |
+| **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
+| **Charts** | `LineChart (Braille)`, `BarChart`, `PieChart`, `Sparkline` |
+| **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider`, `ColorPicker` |
+| **Navigation & Search**| `Tabs`, `Scrollbar`, `CommandPalette`, `FuzzySearch (FZF-style)`, `KeybindingManager` |
+| **Feedback** | `Spinner`, `Toast`, `ProgressBar` |
+| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY/GLB)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
+| **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting`, `Label`, `Paragraph` |
+| **Accessibility & Tooling** | `AccessibleTree`, `DevTools`, `Theme`, `Validation` |
+
+**Scrolling:** `List` and `Table` virtualise internally and render only visible rows, so they stay flat on datasets of any size. `Viewport` is the general-purpose scroll container for everything else — wrap any widget taller than its area, optionally with a `Scrollbar`. Both `Viewport` and `Scrollbar` are allocation-free in steady state; see their package docs for the cost model.
 
 ---
 
@@ -425,6 +435,8 @@ Limoni comes with an extensive suite of production-ready widgets:
 ---
 
 ## 📊 Benchmarks
+
+> 📐 **Read [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) first.** It states which framework versions are measured, what the harness does and does not capture, and which comparison claims are currently unproven. The cross-framework runners target **Bubble Tea v1.3.10** and **Ratatui 0.29**; both upstream projects have since shipped major releases.
 
 Limoni includes a standardized cross-implementation benchmark suite measuring real dirty diffing, partial invalidations, virtual scrolling, and memory allocations under standard virtual terminal conditions (120×40 cells = 4,800 cells).
 

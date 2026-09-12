@@ -1,3 +1,32 @@
-benchmark-results/
-.claude/
+# Build & test artifacts
+*.test
+# Compiled runner binaries (Go names them after their module)
+benchmarks/runners/*/limoni
+benchmarks/runners/*/*-runner
+*.exe
+*.out
+*.prof
+*.pprof
+coverage.txt
+coverage.html
+/limoni
+/ssh_server
 
+# Generated benchmark & platform reports
+benchmark-results/
+platform-results/
+
+# Local tool / editor state
+.claude/
+.idea/
+.vscode/
+settings.json
+
+# Go workspace & vendoring (not used by this module)
+go.work
+go.work.sum
+vendor/
+
+# Generated WebAssembly build output (produced by CI, published to Pages)
+examples/wasm/limoni.wasm
+site/

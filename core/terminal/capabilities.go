@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/thebanri/limoni/graphics"
@@ -26,6 +27,16 @@ func DetectCapabilities() CapabilityProfile {
 		BracketedPaste: true, // Most modern terminals support bracketed paste
 		SyncOutput:     true, // Synchronized Output (?2026) enables atomic tear-free frames (safely ignored if unsupported)
 		GraphicsProto:  graphics.DetectProtocol(),
+	}
+
+	// Under js/wasm there is no process environment to inspect, but the host is
+	// a browser terminal emulator (xterm.js and friends), all of which speak
+	// 24-bit color. Without this the browser playground would be downsampled to
+	// 16 colors purely because COLORTERM is absent.
+	if runtime.GOOS == "js" {
+		profile.TrueColor = true
+		profile.Colors256 = true
+		return profile
 	}
 
 	term := os.Getenv("TERM")
