@@ -188,7 +188,35 @@ const RuneImage rune = 0xFFFF
 const RuneInvalid rune = 0x10FFFF
 
 // RuneWidth calculates the terminal display column width of a rune.
+// bmpWidth holds the width of every Basic Multilingual Plane codepoint.
+//
+// RuneWidth is the hottest function on the draw path: a 100-layer frame spent
+// 39% of its time in the range checks below, because every cell written — box
+// drawing included — walked roughly twenty comparisons. The BMP covers box
+// drawing, CJK, and all Latin text, so a 64 KB table turns almost every call
+// into a single indexed read.
+//
+// The table is filled from runeWidthSlow, so it cannot drift from the range
+// logic it stands in for.
+var bmpWidth = func() *[0x10000]uint8 {
+	var table [0x10000]uint8
+	for r := rune(0); r < 0x10000; r++ {
+		table[r] = uint8(runeWidthSlow(r))
+	}
+	return &table
+}()
+
+// RuneWidth returns the terminal-cell width of a rune: 0, 1 or 2.
 func RuneWidth(r rune) int {
+	// uint32 conversion also routes negative runes to the slow path, which
+	// classifies them as unprintable.
+	if uint32(r) < 0x10000 {
+		return int(bmpWidth[r])
+	}
+	return runeWidthSlow(r)
+}
+
+func runeWidthSlow(r rune) int {
 	// 1. Control characters and unprintable C0/C1
 	if r < 32 || (r >= 0x7F && r <= 0x9F) {
 		return 0

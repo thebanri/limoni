@@ -152,14 +152,14 @@ spread, `(max − min) / median`.
 
 | Workload | Limoni | Ultraviolet | ratio | Limoni bytes/frame | UV bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `hundred-layers` | 164.0 µs ±0% | 320.2 µs ±4% | 2.0× | 124 | 11743 |
-| `table-10000` | 162.9 µs ±0% | 337.2 µs ±2% | 2.1× | 298 | 1136 |
-| `virtual-1000000` | 111.9 µs ±8% | 389.7 µs ±1% | 3.5× | 0 | 1888 |
-| `full-redraw-120x40` | 120.8 µs ±0% | 492.7 µs ±1% | 4.1× | 4897 | 6329 |
-| `resize` | 13.9 µs ±0% | 89.7 µs ±4% | 6.4× | 2735 | 8 |
-| `single-cell-update` | 9.9 µs ±0% | 90.1 µs ±1% | 9.1× | 7 | 3 |
-| `unicode-emoji` | 7.3 µs ±2% | 138.5 µs ±5% | 18.9× | 0 | 25 |
-| `text-heavy-120x40` | 14.1 µs ±0% | 285.5 µs ±2% | 20.2× | 0 | 0 |
+| `table-10000` | 85.9 µs ±0% | 335.8 µs ±2% | 3.9× | 298 | 1136 |
+| `hundred-layers` | 71.7 µs ±0% | 315.6 µs ±1% | 4.4× | 124 | 11743 |
+| `virtual-1000000` | 87.5 µs ±4% | 388.9 µs ±0% | 4.4× | 0 | 1888 |
+| `resize` | 14.6 µs ±19% | 90.6 µs ±1% | 6.2× | 2735 | 8 |
+| `full-redraw-120x40` | 59.3 µs ±0% | 475.4 µs ±0% | 8.0× | 4897 | 6329 |
+| `single-cell-update` | 9.7 µs ±0% | 89.7 µs ±1% | 9.2× | 7 | 3 |
+| `text-heavy-120x40` | 12.3 µs ±0% | 285.2 µs ±3% | 23.1× | 0 | 0 |
+| `unicode-emoji` | 5.6 µs ±0% | 138.7 µs ±1% | 24.8× | 0 | 25 |
 
 Byte counts were **bit-identical across all three runs** for every workload and
 every implementation, so that column carries no spread.
@@ -245,21 +245,24 @@ machine, rustc 1.98.1. Median p50 across the three runs; ± is the full spread.
 
 | Workload | Limoni | Ratatui 0.30.2 | ratio | Limoni bytes/frame | Ratatui bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `hundred-layers` | 164.0 µs ±1% | **106.4 µs ±1%** | **0.6×** | 124 | 911 |
-| `virtual-1000000` | 104.8 µs ±6% | 138.9 µs ±1% | 1.3× | 0 | 25 |
-| `full-redraw-120x40` | 120.9 µs ±0% | 172.1 µs ±0% | 1.4× | 4897 | 5828 |
-| `single-cell-update` | 9.9 µs ±0% | 15.6 µs ±3% | 1.6× | 7 | 32 |
-| `unicode-emoji` | 7.3 µs ±1% | 28.2 µs ±2% | 3.8× | 0 | 25 |
-| `text-heavy-120x40` | 14.2 µs ±0% | 63.9 µs ±3% | 4.5× | 0 | 25 |
-| `resize` | 13.9 µs ±2% | 97.5 µs ±5% | 7.0× | 2735 | 1856 |
+| `hundred-layers` | 71.7 µs ±0% | 106.4 µs ±0% | 1.5× | 124 | 911 |
+| `single-cell-update` | 9.7 µs ±0% | 15.6 µs ±0% | 1.6× | 7 | 32 |
+| `virtual-1000000` | 87.5 µs ±4% | 138.9 µs ±1% | 1.6× | 0 | 25 |
+| `full-redraw-120x40` | 59.3 µs ±0% | 172.4 µs ±0% | 2.9× | 4897 | 5828 |
+| `unicode-emoji` | 5.6 µs ±0% | 28.1 µs ±2% | 5.0× | 0 | 25 |
+| `text-heavy-120x40` | 12.3 µs ±0% | 64.2 µs ±1% | 5.2× | 0 | 25 |
+| `resize` | 14.6 µs ±19% | 95.1 µs ±5% | 6.5× | 2735 | 1856 |
 
 Byte counts were bit-identical across all three runs.
 
-`hundred-layers` is the result the old harness was hiding: with both runners
-drawing the same bordered, titled, moving blocks, **Ratatui is faster than
-Limoni** on this workload. Limoni emits far fewer bytes for it (124 vs 911),
-which is the trade the cell-grid architecture is supposed to make, but the
-per-frame CPU cost is not currently in Limoni's favour here.
+`hundred-layers` was the one workload Ratatui won, once the harness was fixed so
+that both runners drew the same bordered, titled, moving blocks: 164 µs against
+106 µs. That deficit is what sent a profiler at the draw path, and it found
+`cell.RuneWidth` accounting for 39% of a layered frame — twenty range
+comparisons per cell written, box drawing included. With it answering from a
+lookup table the workload runs at 71.7 µs and the result reverses. Limoni also
+emits 124 bytes a frame here against 911, which is the trade the cell-grid
+architecture is meant to make.
 
 Ratatui carries a ~16 µs floor on every workload and never emits fewer than 25
 bytes a frame: `Terminal::draw` resets the back buffer and the backend writes

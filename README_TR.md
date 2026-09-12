@@ -232,24 +232,26 @@ orandır. Yukarıdaki komutla yeniden üretilebilir.
 
 | Kıyaslama İşlemi | Ölçülen Gecikme | Kare / İşlem Hızı | Bellek Tahsisatı | Açıklama |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~116 µs`** | **~8.600 FPS** | **`0 B/op (0 allocs)`** | %100 tam ekran hücre değişimi (4.800 hücre) çift tampon diff işlemi ve ANSI akışı üretimi |
-| **`BenchmarkDiff_PartialChanges`** | **`~38.8 µs`** | **~25.800 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
-| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~521.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
-| **`BenchmarkTextHeavyFrame`** | **`~104 µs`** | **~9.600 FPS** | **`10 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
-| **`BenchmarkHundredLayers`** | **`~159 µs`** | **~6.300 FPS** | **`2 B/op (0 allocs)`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
-| **`BenchmarkTenThousandRowTable`** | **`~146 µs`** | **~6.900 FPS** | **`615 B/op (4 allocs)`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
-| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.57 ms`** | **~389 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
-| **`BenchmarkMouseHitTest`** | **`~62.3 ns`** | **~16.000.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
-| **`BenchmarkAsyncUpdateBurst`** | **`~222 ns`** | **~4.500.000 msg/s** | **`7 B/op (0 allocs)`** | Elm çalışma mimarisinde yüksek verimli asenkron mesaj kuyruğu iletimi |
+| **`BenchmarkDiff_FullChanges`** | **`~50.5 µs`** | **~19.800 FPS** | **`0 B/op (0 allocs)`** | %100 tam ekran hücre değişimi (4.800 hücre) çift tampon diff işlemi ve ANSI akışı üretimi |
+| **`BenchmarkDiff_PartialChanges`** | **`~23.7 µs`** | **~42.200 FPS** | **`0 B/op (0 allocs)`** | %10 ekran alanı değişimi (480 hücre) çift tampon diff işlemi |
+| **`BenchmarkDiff_NoChanges`** | **`~1.94 ns`** | **~516.000.000 FPS** | **`0 B/op (0 allocs)`** | Tamponda hiçbir değişiklik olmadığında fast-path ile anında dönüş |
+| **`BenchmarkTextHeavyFrame`** | **`~31.7 µs`** | **~31.500 FPS** | **`2 B/op (0 allocs)`** | 120 sütuna yayılan 40 satırlık unicode sembollü ve kelime kaydırmalı metin çizimi |
+| **`BenchmarkHundredLayers`** | **`~68.2 µs`** | **~14.700 FPS** | **`1 B/op (0 allocs)`** | 100 katmanlı Block widget çizimi ve değerlendirmesi (Ratatui hundred-layers denklik testi) |
+| **`BenchmarkTenThousandRowTable`** | **`~68.5 µs`** | **~14.600 FPS** | **`611 B/op (4 allocs)`** | 10.000 satırlık tabloda aktif imleç kaydırma (scrolling) ve görünür satır çizimi |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.70 ms`** | **~370 FPS** | **`4.9 KB/op (6 allocs)`** | 1.000.000 satırlık sanal veri kaynağında aktif kaydırma ve görünür alan yönetimi |
+| **`BenchmarkMouseHitTest`** | **`~63.4 ns`** | **~15.800.000 op/s** | **`0 B/op (0 allocs)`** | 100 tıklama bölgesi üzerinde hiyerarşik uzamsal fare tıklama tespiti |
+| **`BenchmarkAsyncUpdateBurst`** | **`~232 ns`** | **~4.310.000 msg/s** | **`7 B/op (0 allocs)`** | Elm çalışma mimarisinde yüksek verimli asenkron mesaj kuyruğu iletimi |
 
-> [!WARNING]
-> **Bu değerler aşağı yönlü düzeltildi.** Tablonun önceki hâlinde, adı geçen
-> donanım sınıfında yeniden üretilemeyen gecikmeler yer alıyordu; çoğu iyimserdi
-> ve `BenchmarkHundredLayers` 3,4 kat sapmıştı (47 µs iddia, 159 µs ölçüm).
-> Yukarıdaki sayılar belirtilen makinede `-count=3` ile yeniden ölçüldü ve
-> donanım artık bir işlemci ailesi olarak değil kesin olarak yazılıyor.
-> Tutan kısım sıfır-tahsisat garantileriydi: `0 allocs/op` iddia eden her sıcak
-> yol hâlâ `0 allocs/op` ölçüyor.
+> [!NOTE]
+> **Bu değerler iki kez, iki yönde de değişti.** Tablonun önceki hâlinde adı
+> geçen donanım sınıfında yeniden üretilemeyen gecikmeler vardı;
+> `BenchmarkHundredLayers` 47 µs iddia ediliyor, 159 µs ölçülüyordu. Bunu
+> düzeltmek zamanın asıl nerede gittiğini ortaya çıkardı: katmanlı bir karenin
+> %39'u `cell.RuneWidth`'te geçiyordu, yazılan her hücre için yirmi aralık
+> karşılaştırması dolaşarak. Artık cevabı bir arama tablosundan veriyor ve bu,
+> çizim yolunu genel olarak 2–3 kat aşağı çekti. Yani yukarıdaki sayılar hem
+> düzeltilmiş hâlden hem de orijinal şişirilmiş iddialardan daha düşük — bu kez
+> arkalarında bir profil var. Sıfır-tahsisat garantileri baştan sona korundu.
 
 > [!NOTE]
 > **Şeffaflık ve Mühendislik Dürüstlüğü Garantisi**:

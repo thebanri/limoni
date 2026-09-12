@@ -467,24 +467,26 @@ one machine. Reproduce with the command above.
 
 | Benchmark Operation | Measured Latency | Throughput | Allocations | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~116 µs`** | **~8,600 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
-| **`BenchmarkDiff_PartialChanges`** | **`~38.8 µs`** | **~25,800 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
-| **`BenchmarkDiff_NoChanges`** | **`~1.92 ns`** | **~521,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
-| **`BenchmarkTextHeavyFrame`** | **`~104 µs`** | **~9,600 FPS** | **`10 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
-| **`BenchmarkHundredLayers`** | **`~159 µs`** | **~6,300 FPS** | **`2 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
-| **`BenchmarkTenThousandRowTable`** | **`~146 µs`** | **~6,900 FPS** | **`615 B/op (4 allocs)`** | Active selection scrolling through a 10,000-row table rendering visible rows |
-| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.57 ms`** | **~389 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
-| **`BenchmarkMouseHitTest`** | **`~62.3 ns`** | **~16,000,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
-| **`BenchmarkAsyncUpdateBurst`** | **`~222 ns`** | **~4,500,000 msg/s** | **`7 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
+| **`BenchmarkDiff_FullChanges`** | **`~50.5 µs`** | **~19,800 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
+| **`BenchmarkDiff_PartialChanges`** | **`~23.7 µs`** | **~42,200 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
+| **`BenchmarkDiff_NoChanges`** | **`~1.94 ns`** | **~516,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
+| **`BenchmarkTextHeavyFrame`** | **`~31.7 µs`** | **~31,500 FPS** | **`2 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
+| **`BenchmarkHundredLayers`** | **`~68.2 µs`** | **~14,700 FPS** | **`1 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
+| **`BenchmarkTenThousandRowTable`** | **`~68.5 µs`** | **~14,600 FPS** | **`611 B/op (4 allocs)`** | Active selection scrolling through a 10,000-row table rendering visible rows |
+| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.70 ms`** | **~370 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
+| **`BenchmarkMouseHitTest`** | **`~63.4 ns`** | **~15,800,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
+| **`BenchmarkAsyncUpdateBurst`** | **`~232 ns`** | **~4,310,000 msg/s** | **`7 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
 
-> [!WARNING]
-> **These figures were corrected downwards.** An earlier revision of this table
-> quoted latencies that do not reproduce on the hardware class it named — most
-> of them optimistic, `BenchmarkHundredLayers` by 3.4× (47 µs claimed, 159 µs
-> measured). The numbers above were re-measured with `-count=3` on the machine
-> named, and the hardware is now stated precisely rather than as a CPU family.
-> The zero-allocation guarantees were the part that held up: every hot path
-> that claimed `0 allocs/op` still measures `0 allocs/op`.
+> [!NOTE]
+> **These figures moved twice, in both directions.** An earlier revision of this
+> table quoted latencies that did not reproduce on the hardware class it named —
+> `BenchmarkHundredLayers` was claimed at 47 µs and measured 159 µs. Correcting
+> that exposed where the time was actually going: `cell.RuneWidth` was 39% of a
+> layered frame, walking twenty range comparisons per cell written. It now
+> answers from a lookup table, which took the draw path down roughly 2–3× across
+> the board. So the numbers above are lower than the corrected ones *and* lower
+> than the original inflated claims — this time with a profile behind them.
+> The zero-allocation guarantees held throughout.
 
 > [!NOTE]
 > **Transparency & Engineering Integrity Guarantee**:

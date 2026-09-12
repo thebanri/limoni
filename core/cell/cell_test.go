@@ -135,3 +135,76 @@ func TestControlCharactersRuneWidth(t *testing.T) {
 		}
 	}
 }
+
+// The BMP lookup table is a performance shortcut around runeWidthSlow. If the
+// two ever disagree, layout breaks in a way that is invisible until something
+// renders wrong, so check every codepoint the table covers.
+func TestRuneWidthTableMatchesRangeLogic(t *testing.T) {
+	for r := rune(0); r < 0x10000; r++ {
+		if got, want := RuneWidth(r), runeWidthSlow(r); got != want {
+			t.Fatalf("RuneWidth(%#x) = %d, runeWidthSlow = %d", r, got, want)
+		}
+	}
+}
+
+func TestRuneWidthAboveBMPUsesRangeLogic(t *testing.T) {
+	for r := rune(0x10000); r <= 0x10FFFF; r++ {
+		if got, want := RuneWidth(r), runeWidthSlow(r); got != want {
+			t.Fatalf("RuneWidth(%#x) = %d, runeWidthSlow = %d", r, got, want)
+		}
+	}
+}
+
+func TestRuneWidthKnownValues(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		r    rune
+		want int
+	}{
+		{"ascii letter", 'A', 1},
+		{"space", ' ', 1},
+		{"nul", 0, 0},
+		{"del", 0x7F, 0},
+		{"soft hyphen", 0x00AD, 0},
+		{"combining acute", 0x0301, 0},
+		{"zero width joiner", 0x200D, 0},
+		{"variation selector 16", 0xFE0F, 0},
+		{"box drawing horizontal", '─', 1},
+		{"box drawing corner", '┌', 1},
+		{"hangul jamo", 0x1100, 2},
+		{"cjk ideograph", '日', 2},
+		{"hangul syllable", 0xAC00, 2},
+		{"fullwidth exclamation", 0xFF01, 2},
+		{"wide dingbat", 0x2705, 2},
+		{"emoji plane 1", 0x1F600, 2},
+		{"negative rune", -1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := RuneWidth(tc.r); got != tc.want {
+				t.Errorf("RuneWidth(%#x) = %d, want %d", tc.r, got, tc.want)
+			}
+		})
+	}
+}
+
+func BenchmarkRuneWidth(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		r    rune
+	}{
+		{"ascii", 'A'},
+		{"box-drawing", '─'},
+		{"cjk", '日'},
+		{"emoji", 0x1F600},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			var total int
+			for i := 0; i < b.N; i++ {
+				total += RuneWidth(tc.r)
+			}
+			_ = total
+		})
+	}
+}
