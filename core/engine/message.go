@@ -1,4 +1,5 @@
-// Package runtime provides an optional Init/Update/View application runtime.
+// Package engine provides the optional Init/Update/View application runtime
+// (The Elm Architecture) that powers limoni.NewProgram.
 package engine
 
 // Msg is an application message delivered to Model.Update.

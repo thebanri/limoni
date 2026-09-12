@@ -1,3 +1,25 @@
-benchmark-results/
-.claude/
+# Build & test artifacts
+*.test
+*.exe
+*.out
+*.prof
+*.pprof
+coverage.txt
+coverage.html
+/limoni
+/ssh_server
 
+# Generated benchmark & platform reports
+benchmark-results/
+platform-results/
+
+# Local tool / editor state
+.claude/
+.idea/
+.vscode/
+settings.json
+
+# Go workspace & vendoring (not used by this module)
+go.work
+go.work.sum
+vendor/

@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/thebanri/limoni/actions"><img src="https://img.shields.io/github/actions/workflow/status/thebanri/limoni/ci.yml?branch=main&style=flat-square&logo=github" alt="Derleme Durumu"></a>
   <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-referans-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go.Dev Referans"></a>
-  <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.22-blue?style=flat-square&logo=go" alt="Go Sürümü"></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.25-blue?style=flat-square&logo=go" alt="Go Sürümü"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-emerald?style=flat-square" alt="Lisans"></a>
   <a href="#-performans-ve-kıyaslamalar"><img src="https://img.shields.io/badge/tahsisat-0_B%2Fop-brightgreen?style=flat-square" alt="Sıfır Bellek Tahsisatı"></a>
 </p>
@@ -44,24 +44,31 @@
 
 ## 💡 Neden Limoni?
 
-| Özellik / Hedef | 🍋 Limoni (Go) | 🫧 Bubble Tea + Lipgloss (Go) | 🐀 Ratatui (Rust) |
-| :--- | :--- | :--- | :--- |
-| **Dil ve Araçlar** | **Go (Yerel)** | Go (Yerel) | Rust (Yerel) |
-| **Render Mimarisi** | **1D Düz Matris + Adaptif ANSI Diff** | String birleştirme / TEA | Çift Tamponlu Immediate Mode |
-| **Kritik Yol Tahsisatı**| **`0 B/op` (Sıfır Alloc)** | Yüksek heap tahsisatı | Stack / RAII |
-| **Düzen Paradigması** | **Bildirimsel Flexbox & Yığın Çözücü** | String dilimleme (`JoinHorizontal/Vertical`) | Kısıt çözücü (Constraint solver) |
-| **Fare Etkileşimi** | **Hücresel Koordinat & Z-Index Yönlendirme** | Yok (manuel koordinat hesabı) | Manuel koordinat |
-| **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Çift tamponlu diff |
-| **Büyük Veri / Tablolar**| **1M+ Satır Sanallaştırma (~22 µs)** | Yüksek GC yükü | Yüksek layout klonlama yükü |
-| **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY) & Shaders** | Harici eklenti gerekir | Eklenti gerekir |
-| **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Deneysel |
-| **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
+| Özellik / Hedef | 🍋 Limoni (Go) | 🫧 Bubble Tea **v1** + Lip Gloss v1 (Go) | 🌈 Bubble Tea **v2** + Ultraviolet (Go) | 🐀 Ratatui **0.30** (Rust) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Dil ve Araçlar** | **Go (Yerel)** | Go (Yerel) | Go (Yerel) | Rust (Yerel) |
+| **Render Mimarisi** | **1D Düz Matris + Adaptif ANSI Diff** | String birleştirme / TEA | Hücre tamponu + ncurses tarzı diff | Çift Tamponlu Immediate Mode |
+| **Kritik Yol Tahsisatı**| **`0 B/op` (Sıfır Alloc)** | Yüksek heap tahsisatı | Azaltılmış; sıfır-alloc bir tasarım hedefi değil — *henüz burada ölçülmedi* | Stack / RAII |
+| **Düzen Paradigması** | **Bildirimsel Flexbox & Yığın Çözücü** | String dilimleme (`JoinHorizontal/Vertical`) | Cassowary kısıt çözücü | Kısıt çözücü (Constraint solver) |
+| **Fare Etkileşimi** | **Hücresel Koordinat & Z-Index Yönlendirme** | Yok (manuel koordinat hesabı) | SGR fare olayları; dahili hit-testing yok | Manuel koordinat |
+| **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Hücre diff + `ECH`/`REP`/`ICH`/`DCH` + kaydırma optimizasyonu | Çift tamponlu diff |
+| **Grapheme Cluster** | Rune seviyesinde genişlik — **cluster desteği henüz yok** | `uniseg` | `uniseg` + Mod 2027 müzakeresi | `unicode-width` |
+| **Yetenek Tespiti** | Yalnızca ortam değişkenleri | Ortam / terminfo | Çalışma anında sorgulama (terminfo'suz) | terminfo / crossterm |
+| **Büyük Veri / Tablolar**| **1M+ Satır Sanallaştırma (~22 µs)** | Yüksek GC yükü | v1'e göre iyileştirilmiş | Yüksek layout klonlama yükü |
+| **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY/GLB) & Shaders** | Harici eklenti gerekir | Harici eklenti gerekir | Eklenti gerekir |
+| **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Kısıtlı / Manuel | Deneysel |
+| **Harici Bağımlılık** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 dolaylı modül | ~15 dolaylı modül | crates.io grafiği |
+| **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
 
-### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lipgloss
+> **Bubble Tea v2 sütunu hakkında:** bu satırlar Limoni'nin kendi ölçümlerinden değil, üst akış dokümantasyonundan alınmıştır. Charm, render motorunu hücre tabanlı diff yapan [Ultraviolet](https://github.com/charmbracelet/ultraviolet) üzerine yeniden inşa etti; dolayısıyla Limoni'nin **v1**'e karşı açtığı mimari fark **v2** için olduğu gibi geçerli değildir. Bu depodaki benchmark paketi şu an **Bubble Tea v1.3.10**'u hedefliyor; neyin ölçülüp neyin ölçülmediği için [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) dosyasına bakın ve v2'ye karşı her performans iddiasını o koşucu eklenene kadar kanıtlanmamış sayın.
 
-**Lipgloss** Go ekosisteminde bildirimsel stili popülerleştirmiş olsa da, string birleştirmeye dayalı mimarisi yüksek frekanslı ve etkileşimli modern TUI uygulamalarında yapısal kısıtlamalar getirir:
+### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
 
-| Yetenek | 🍋 Limoni Composable (`component`) | 🎀 Charm Lipgloss |
+**Lip Gloss v1** Go ekosisteminde bildirimsel stili popülerleştirmiş olsa da, string birleştirmeye dayalı mimarisi yüksek frekanslı ve etkileşimli modern TUI uygulamalarında yapısal kısıtlamalar getiriyordu. Aşağıdaki karşılaştırma **özellikle v1**'e karşıdır:
+
+> ⚠️ **Lip Gloss v2 bu tabloyu değiştiriyor.** v2, ham string birleştirme yerine [Ultraviolet](https://github.com/charmbracelet/ultraviolet) hücre tamponu üzerine kuruludur; bu yüzden aşağıdaki "Veri İlkesi", "Render Hattı" ve "Ekran Kırpma" satırları güncel Charm yığınını tarif etmez. Limoni'nin v2'ye karşı kalan yapısal üstünlükleri hit-testing, sanallaştırma, dahili 3D ve bağımlılık ayak izidir — string-hücre mimarisi değil.
+
+| Yetenek | 🍋 Limoni Composable (`component`) | 🎀 Charm Lip Gloss **v1** |
 | :--- | :--- | :--- |
 | **Veri İlkesi** | **16 baytlık önbellek uyumlu `Cell` yapısı** | Ham ANSI kaçışlı metin (`string`) |
 | **Kritik Yol Bellek Tahsisi** | **`0 B/op` (0 allocs/op)** layout ve render | Yüksek tahsisat oranı (~Yüzlerce KB - MB/sn) |
