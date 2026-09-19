@@ -8,6 +8,26 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- **Terminal capability handshake.** Setup asks the terminal for its name
+  (XTVERSION), mode 2026/2027 support (DECRQM), Kitty keyboard support and DA1.
+  It also *measures* whether REP works and how wide a grapheme cluster is
+  drawn, by writing a few cells and asking where the cursor went. Answers
+  refine the environment-based guess on the next frame, and force a full
+  repaint if they arrive after one. Tested against kitty 0.48.2, Alacritty and
+  Konsole 26.08.1. `LIMONI_PROBE=0` turns it off.
+- `limoni doctor` prints what the terminal reported and which capabilities
+  Limoni will use. The bug report template asks for it.
+- `DiffOptions.ClusterWidths`: skip cursor re-anchoring after grapheme clusters
+  on terminals measured to draw them as units.
+
+### Fixed
+- Replies to terminal queries were dropped or misread: a Kitty keyboard reply
+  (`CSI ? flags u`) was parsed as a key press, and DA1 replies longer than 32
+  bytes were cut off, so the rest arrived as keystrokes.
+- Parsing a CSI sequence allocated. Keys, mouse reports and replies now parse
+  without allocating.
+
 ## [v0.3.0] — 2026-09-19
 
 ### Breaking
