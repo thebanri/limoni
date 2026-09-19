@@ -12,6 +12,14 @@ a patch bump (`v0.x.y`) does not.
 - `TextInput` understands the readline keys: Ctrl+A/E move to the start and
   end, Ctrl+U deletes to the start, Ctrl+K to the end, Ctrl+W the previous
   word.
+- `limoni new -template counter|dashboard|form|ssh`. Every template comes
+  with a `main_test.go` written with `uitest`, and the scaffold's own test
+  runs `go mod tidy`, `build`, `vet` and `test` on each of them.
+- `widgets.Button` (also `limoni.Button`): a push button with a `button`
+  node in the semantic tree. It does not allocate when drawn.
+- `uitest`: `ToContainValue`, and `Page.ExpectExit`, which waits for a
+  declarative program's Quit to go through its message loop.
+- `limoni.LogView` and `limoni.LogViewState` re-exported from the root.
 - zest's status line and key hints are in the semantic tree (`status`, `keys`),
   and the hints stay visible while typing a filter.
 

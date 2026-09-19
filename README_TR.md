@@ -56,11 +56,12 @@ func main() {
 }
 ```
 
-Hemen çalışan bir proje de oluşturabilirsin:
+Hemen çalışan ve testi hazır yazılmış bir proje de oluşturabilirsin:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam
+go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam    # -template counter|dashboard|form|ssh
 cd uygulamam && go mod tidy && go run .
+go test ./...                                                         # her şablon bir uitest testiyle gelir
 ```
 
 **Sonraki adımlar:** [Başlangıç rehberi](docs/tr/getting-started.md) · [Widget galerisi](docs/widget-gallery.md) · [Örnekler](#örnekler)

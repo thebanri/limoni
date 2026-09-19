@@ -56,11 +56,12 @@ func main() {
 }
 ```
 
-Or generate a project that runs straight away:
+Or generate a project that runs straight away, with a test already written:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new myapp
+go run github.com/thebanri/limoni/cmd/limoni@latest new myapp    # -template counter|dashboard|form|ssh
 cd myapp && go mod tidy && go run .
+go test ./...                                                     # a uitest test comes with every template
 ```
 
 **Next:** [Getting started](docs/getting-started.md) · [Widget gallery](docs/widget-gallery.md) · [Examples](#examples)

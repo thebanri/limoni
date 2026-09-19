@@ -1,0 +1,37 @@
+package main
+
+import (
+	"fmt"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/widgets"
+)
+
+// session is one connected user's application. Everything specific to your
+// app goes here; main.go is only the SSH plumbing around it.
+type session struct {
+	user    string
+	presses int
+}
+
+func newSession(user string) *session { return &session{user: user} }
+
+func (s *session) draw(f *limoni.Frame, ev *limoni.Event) bool {
+	if ev != nil && ev.Type == limoni.EventKey {
+		if ev.Key.Type == limoni.KeyEsc || (ev.Key.Type == limoni.KeyRune && ev.Key.Ch == 'q') {
+			return false
+		}
+		s.presses++
+	}
+	f.SetTheme(widgets.DarkTheme())
+	f.RenderWidget(limoni.Block{
+		Title: " [[.Name]] ", Borders: limoni.BorderAll, BorderSymbols: limoni.SymbolsRounded,
+		Padding: widgets.UniformInsets(1),
+		Child: &limoni.Paragraph{
+			ID:   "greeting",
+			Text: fmt.Sprintf("Hello, %s. You are connected over SSH.\n\nKeys pressed: %d\n\nq disconnects.", s.user, s.presses),
+			Wrap: true,
+		},
+	}, f.Area())
+	return true
+}

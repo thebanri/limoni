@@ -1,0 +1,137 @@
+// [[.Name]] serves a Limoni application over SSH: every connection gets its
+// own session, its own terminal and its own limoni.App.
+//
+//	go run .            # listens on 127.0.0.1:2222
+//	ssh -p 2222 localhost
+//
+// It accepts anyone and generates a new host key each run. Add real
+// authentication (ssh.ServerConfig.PublicKeyCallback) and a persistent host
+// key before exposing it anywhere.
+package main
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"sync"
+
+	"golang.org/x/crypto/ssh"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/terminal"
+)
+
+func main() {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	config := &ssh.ServerConfig{NoClientAuth: true} // demo only: see the package comment
+	config.AddHostKey(signer)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:2222")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("[[.Name]]: ssh -p 2222 localhost")
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			continue
+		}
+		go serveConn(conn, config)
+	}
+}
+
+func serveConn(conn net.Conn, config *ssh.ServerConfig) {
+	sshConn, channels, requests, err := ssh.NewServerConn(conn, config)
+	if err != nil {
+		return
+	}
+	defer sshConn.Close()
+	go ssh.DiscardRequests(requests)
+	for newChannel := range channels {
+		if newChannel.ChannelType() != "session" {
+			_ = newChannel.Reject(ssh.UnknownChannelType, "only sessions")
+			continue
+		}
+		channel, reqs, err := newChannel.Accept()
+		if err != nil {
+			return
+		}
+		go serveSession(channel, reqs, sshConn.User())
+	}
+}
+
+// pty is an SSH channel with the window size the client reported.
+type pty struct {
+	ssh.Channel
+	mu   sync.Mutex
+	w, h uint16
+}
+
+func (p *pty) Size() (uint16, uint16, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.w, p.h, nil
+}
+
+func serveSession(channel ssh.Channel, reqs <-chan *ssh.Request, user string) {
+	defer channel.Close()
+	p := &pty{Channel: channel, w: 80, h: 24}
+	backend := driver.NewSSHBackend(p)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for req := range reqs {
+		switch req.Type {
+		case "pty-req":
+			// The payload starts with the TERM string, then columns and rows.
+			if n := int(binary.BigEndian.Uint32(req.Payload)); len(req.Payload) >= 4+n+8 {
+				p.mu.Lock()
+				p.w = uint16(binary.BigEndian.Uint32(req.Payload[4+n:]))
+				p.h = uint16(binary.BigEndian.Uint32(req.Payload[8+n:]))
+				p.mu.Unlock()
+			}
+			_ = req.Reply(true, nil)
+		case "window-change":
+			if len(req.Payload) >= 8 {
+				backend.SetSize(uint16(binary.BigEndian.Uint32(req.Payload)), uint16(binary.BigEndian.Uint32(req.Payload[4:])))
+			}
+		case "shell":
+			_ = req.Reply(true, nil)
+			go func() {
+				defer cancel()
+				defer channel.Close()
+				if err := runSession(ctx, backend, user); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("session %s: %v", user, err)
+				}
+			}()
+		default:
+			_ = req.Reply(false, nil)
+		}
+	}
+}
+
+// runSession runs one user's application until they quit or disconnect.
+func runSession(ctx context.Context, backend *driver.Backend, user string) error {
+	if err := backend.Setup(); err != nil {
+		return err
+	}
+	term, err := terminal.New(backend)
+	if err != nil {
+		return err
+	}
+	defer term.Close()
+	return limoni.NewApp(term).Run(ctx, newSession(user).draw)
+}

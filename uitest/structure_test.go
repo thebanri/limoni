@@ -1,6 +1,7 @@
 package uitest
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -78,4 +79,21 @@ func TestEnsureActionsAreIdempotent(t *testing.T) {
 	if clicks != 3 { // check, uncheck, select; the repeats click nothing
 		t.Fatalf("%d clicks reached the app, want 3", clicks)
 	}
+}
+
+// ToContainValue waits, like every assertion: a paragraph updated by the
+// next frame passes once that frame is drawn.
+func TestToContainValueWaitsForTheFrame(t *testing.T) {
+	n := 0
+	page := Run(t, 40, 5, func(f *terminal.Frame, ev *driver.Event) bool {
+		if ev != nil && ev.Type == driver.EventKey {
+			n++
+		}
+		f.RenderWidget(&widgets.Paragraph{ID: "count", Text: "count " + strconv.Itoa(n)}, cell.NewRect(0, 0, 40, 1))
+		return true
+	})
+	page.Press("a")
+	page.Press("b")
+	page.Expect(page.GetByID("count")).ToContainValue("count 2")
+	page.Expect(page.GetByID("count")).Not().ToContainValue("count 1")
 }
