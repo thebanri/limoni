@@ -31,6 +31,9 @@ func (s *TextAreaState) HandleKey(ev driver.KeyEvent) bool {
 	}
 	switch ev.Type {
 	case driver.KeyRune:
+		if ev.Ctrl || ev.Alt {
+			return false // a command, not text
+		}
 		s.Text = append(s.Text, 0)
 		copy(s.Text[s.Cursor+1:], s.Text[s.Cursor:])
 		s.Text[s.Cursor] = ev.Ch
