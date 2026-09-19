@@ -6,7 +6,9 @@ All notable changes to Limoni are recorded here. The format follows
 [docs/stability.md](docs/stability.md): a minor bump (`v0.x.0`) may break the API,
 a patch bump (`v0.x.y`) does not.
 
-## [Unreleased] — planned as v0.3.0
+## [Unreleased]
+
+## [v0.3.0] — 2026-09-19
 
 ### Breaking
 - `widgets.ListState` is no longer comparable with `==`: it now owns the buffer
@@ -120,7 +122,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/thebanri/limoni/compare/v0.2.7...v0.3.0
 [v0.2.7]: https://github.com/thebanri/limoni/compare/v0.2.6...v0.2.7
 [v0.2.6]: https://github.com/thebanri/limoni/compare/v0.2.5...v0.2.6
 [v0.2.5]: https://github.com/thebanri/limoni/compare/v0.2.4...v0.2.5
