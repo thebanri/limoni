@@ -41,7 +41,7 @@ Limoni is built around several non-negotiable architectural tenets:
 
 ### Prerequisites
 
-- **Go**: Version `1.22` or later.
+- **Go**: Version `1.25` or later (the floor `golang.org/x/sys` requires; see `go.mod`).
 - **OS**: Linux, macOS, or Windows.
 - **Terminal Emulator**: A terminal supporting TrueColor (24-bit ANSI) is recommended (Ghostty, Kitty, WezTerm, Alacritty, iTerm2, Windows Terminal).
 
@@ -198,29 +198,13 @@ go test ./benchmarks -run '^$' -bench 'BenchmarkEmptyFrame|BenchmarkMouseHitTest
 Ensure all example applications and the WebAssembly target build without errors:
 
 ```bash
-mkdir -p /tmp/limoni-test-build
-go build -o /tmp/limoni-test-build/limoni-cli ./cmd/limoni
-go build -o /tmp/limoni-test-build/simple ./examples/simple
-go build -o /tmp/limoni-test-build/showcase ./examples/showcase
-go build -o /tmp/limoni-test-build/demo ./examples/demo
-go build -o /tmp/limoni-test-build/anim ./examples/animation
-go build -o /tmp/limoni-test-build/ascii3d ./examples/ascii3d
-go build -o /tmp/limoni-test-build/charts ./examples/charts
-go build -o /tmp/limoni-test-build/forms ./examples/forms
-go build -o /tmp/limoni-test-build/layer_demo ./examples/layer_demo
-go build -o /tmp/limoni-test-build/3d_viewer ./examples/3d_viewer
-go build -o /tmp/limoni-test-build/paint ./examples/paint
-go build -o /tmp/limoni-test-build/toast ./examples/toast
-go build -o /tmp/limoni-test-build/todo ./examples/todo
-go build -o /tmp/limoni-test-build/treeview ./examples/treeview
-go build -o /tmp/limoni-test-build/dashboard ./examples/dashboard
-go build -o /tmp/limoni-test-build/table_virtual ./examples/table_virtual
-go build -o /tmp/limoni-test-build/ssh_server ./examples/ssh_server
-go build -o /tmp/limoni-test-build/custom_widget ./examples/custom_widget
-go build -o /tmp/limoni-test-build/composable ./examples/composable
-GOOS=js GOARCH=wasm go build -o /tmp/limoni-test-build/limoni.wasm ./examples/wasm
-rm -rf /tmp/limoni-test-build
+go build ./cmd/... ./examples/...
+go build -tags limoni_debug -o "$(mktemp -d)/" ./examples/agent_checklist
+GOOS=js GOARCH=wasm go build -o "$(mktemp -d)/limoni.wasm" ./examples/wasm
 ```
+
+Building is not the same as working: the WebAssembly demo once built fine and
+rendered nothing. If you touch an example or a driver, run it.
 
 ### TestKit & Deterministic Snapshots
 
@@ -230,24 +214,46 @@ When writing tests for new widgets or layouts, use Limoni's deterministic `testk
 package mywidget_test
 
 import (
+    "strings"
     "testing"
+
     "github.com/thebanri/limoni/testkit"
     "github.com/thebanri/limoni/widgets"
 )
 
 func TestMyWidgetSnapshot(t *testing.T) {
     term := testkit.NewTerminal(40, 10)
-    widget := widgets.NewBlock().WithTitle("Test")
-    
-    term.DrawWidget(widget)
-    term.AssertContains(t, "Test")
-    term.AssertGolden(t, "testdata/my_widget.golden")
+    term.Render(widgets.NewBlock().WithTitle("Test"), term.Area())
+
+    snap := term.Snapshot()
+    if !strings.Contains(snap, "Test") {
+        t.Fatalf("title missing:\n%s", snap)
+    }
+    // UPDATE_GOLDEN=1 go test ./... writes the file on the first run.
+    if err := testkit.CompareGolden("testdata/my_widget.golden", snap); err != nil {
+        t.Fatal(err)
+    }
 }
 ```
 
+For anything interactive — clicking, typing, focus, waiting for a widget to
+appear — prefer [`uitest`](./uitest), which addresses widgets by role and label
+instead of by coordinate.
+
 ---
+
+## Finding Something to Work On
+
+- Issues labelled [`good first issue`](https://github.com/thebanri/limoni/labels/good%20first%20issue)
+  are scoped to a single file or widget and say how to verify the change.
+- [`help wanted`](https://github.com/thebanri/limoni/labels/help%20wanted) issues are larger but
+  well understood.
+- Converting the remaining Turkish code comments to English is always welcome and a
+  good way to learn a package. User-facing docs stay bilingual on purpose
+  (`README.md` / `README_TR.md`, `docs/` / `docs/tr/`).
 
 ## Questions & Discussions
 
-- If you encounter bugs or want to propose an enhancement, please open a GitHub Issue.
-- Join the discussions and help make terminal user interfaces in Go faster, lighter, and more beautiful!
+- Bugs and concrete proposals: [open an issue](https://github.com/thebanri/limoni/issues/new/choose).
+- Questions, ideas and "show and tell": [GitHub Discussions](https://github.com/thebanri/limoni/discussions).
+- Built something with Limoni? Add it to [AWESOME.md](./AWESOME.md) with a pull request.

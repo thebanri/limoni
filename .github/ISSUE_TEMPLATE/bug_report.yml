@@ -1,0 +1,52 @@
+name: Bug report
+description: Something renders wrong, crashes, or behaves differently than documented.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Terminal bugs depend heavily on the emulator, so the
+        environment fields below are the most useful part of the report.
+        For security problems, do **not** open an issue — see [SECURITY.md](https://github.com/thebanri/limoni/blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead. A screenshot helps for rendering bugs.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest program or example command that shows it. `go run ./examples/<name>` is fine if an example reproduces it.
+      render: go
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Limoni version
+      description: Output of `go list -m github.com/thebanri/limoni`, or a commit hash.
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal emulator and version
+      placeholder: "Ghostty 1.2.0, inside tmux 3.5a"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and Go version
+      placeholder: "Linux 6.12, go1.25.3"
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Terminal environment
+      description: Output of `echo "$TERM $COLORTERM $TERM_PROGRAM"`. Say if you are in tmux, screen or SSH.
+      render: shell

@@ -2,12 +2,15 @@
 
 ## Supported Versions
 
-We release security updates and bug fixes for the active versions of Limoni.
+Limoni is pre-1.0. Security fixes land on `main` and ship in the next release of
+the latest minor line; older minor lines are not patched.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| latest `v0.x` minor (currently `v0.3.x`) | :white_check_mark: |
+| older `v0.x` minors | :x: |
+
+Once `v1.0.0` is tagged, the latest `v1.x` minor will be supported the same way.
 
 ---
 

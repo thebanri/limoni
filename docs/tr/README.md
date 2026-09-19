@@ -10,9 +10,16 @@
 2. **[Çekirdek Motor API Referansı](core-api.md)**: Çekirdek paket yapısı, 1D tampon bellek matrisi, ANSI diff algoritması, Unicode East Asian Width emoji doğruluğu ve donanım imleç senkronizasyonu.
 3. **[Zengin Widget Kataloğu](widgets-reference.md)**: Block, Paragraph, Table, VirtualDataView, Canvas, Viewer3D, TextInput, Markdown, Dialog, Slider ve akıcı (fluent) yapıcılar.
 4. **[Yerleşim (Layout) Rehberi](layout-guide.md)**: FlexLayout, GridLayout, kısıtlamalar (Fixed, Percentage, Ratio, Fill) ve `SplitVertical` / `SplitHorizontal` kısayolları.
-5. **[Grafik, Canvas & 3D Motoru](../graphics-and-canvas.md)**: $2 \times 4$ Braille alt-piksel çizim tuvali, yerel resim protokolleri (Kitty, Sixel, iTerm2), derinlik tamponlu (Depth Buffer) 3D Gouraud/Lambert rasterizer ve mesh yükleme.
+5. **[Grafik, Canvas & 3D Motoru](graphics-and-canvas.md)**: $2 \times 4$ Braille alt-piksel çizim tuvali, yerel resim protokolleri (Kitty, Sixel, iTerm2), derinlik tamponlu (Depth Buffer) 3D Gouraud/Lambert rasterizer ve mesh yükleme.
 6. **[Örnek Uygulamalar Rehberi](examples.md)**: `examples/` dizinindeki showcase, 3D viewer, animasyon, sanal tablo ve form demoları.
-7. **[Mimari ve Performans Prensipleri](../architecture.md)**: 1D düz hücre matrisi, sıfır GC duraklaması, ANSI diff algoritması ve iş parçacığı güvenliği.
+7. **[Mimari ve Performans Prensipleri](../architecture.md)** (İngilizce): 1D düz hücre matrisi, sıfır GC duraklaması, ANSI diff algoritması ve iş parçacığı güvenliği.
+8. **[Semantik Otomasyon, MCP ve uitest](automation.md)**: Uygulamayı koordinat yerine seçiciyle sürmek, AI agent'lar için `limoni-mcp`, Playwright tarzı testler ve güvenlik modeli.
+9. **[Oturum Kaydı ve Tekrar Oynatma](session-recording.md)**: Bildirimsel bir uygulamanın oturumunu kaydedip regresyon testi olarak oynatmak.
+10. **[Karşılaştırma](comparison.md)**: Bubble Tea v1/v2, Lip Gloss ve Ratatui ile karşılaştırma ve çekinceleri.
+11. **[Performans ve Kıyaslamalar](benchmarks.md)**: Ölçülen sayılar ve yeniden üretme yolu.
+12. **[Görsel İşleme SSS](faq.md)**: İnce boşluklar, önerilen terminal ayarları, emoji ve bayraklar.
+13. **[Kararlılık ve Sürümleme](stability.md)**: 1.0 öncesi hangi sürümde neyin değişebileceği.
+14. **[Katkı Rehberi](contributing.md)**
 
 ---
 
