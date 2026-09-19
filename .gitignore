@@ -22,8 +22,10 @@ benchmarks/runners/ratatui/target/
 benchmark-results/
 platform-results/
 
-# Local tool / editor state
-.claude/
+# Local tool / editor state. Skills are the exception: they are project
+# knowledge, checked in so every session and every contributor gets them.
+.claude/*
+!.claude/skills/
 .idea/
 .vscode/
 settings.json

@@ -13,6 +13,15 @@ Longer architectural background lives in `.agents/skills/limoni_development/skil
 and `docs/`. This file is the short version plus the things that are easy to get
 wrong.
 
+Two skills in `.claude/skills/` carry the detail for the areas that bite hardest,
+and load themselves when the work touches them:
+
+- `limoni-agent-surface` — the semantic tree, the automation socket,
+  `cmd/limoni-mcp` and `uitest`: invariants, the bugs they came from, and how to
+  test an agent surface (unit, mutation, PTY, a real agent).
+- `limoni-text-rendering` — grapheme clusters, widths, mode 2027, the cluster
+  table, and the inlining and fast-path work that paid for segmentation.
+
 ---
 
 ## Verify before you claim anything works
