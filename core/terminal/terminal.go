@@ -245,6 +245,10 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		t.writeBuf = append(t.writeBuf, "\x1b[?2026h"...)
 		syncWrapped = true
 	}
+	// A redraw whose cells all match the previous frame produces no body.
+	// Remember where the body starts so such a frame can be dropped whole
+	// instead of sending an empty ?2026h/?2026l pair on every tick.
+	bodyStart := len(t.writeBuf)
 
 	// Tam yeniden çizimde ESC[2J daha önce gönderilmiş native resimleri silmemelidir.
 	// Boyutları burada eşitleyip temizleme sırasını image pass'inden önceye alıyoruz.
@@ -339,8 +343,12 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		return diffErr
 	}
 
-	// Senkron güncellemeyi kapat
-	if syncWrapped {
+	if len(t.writeBuf) == bodyStart {
+		t.writeBuf = t.writeBuf[:0]
+	}
+
+	// Close the synchronized update.
+	if syncWrapped && len(t.writeBuf) > 0 {
 		t.writeBuf = append(t.writeBuf, "\x1b[?2026l"...)
 	}
 

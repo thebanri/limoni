@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/thebanri/limoni/discussions
+    about: Ask how to do something, or float an idea before it is a concrete proposal.
+  - name: Try Limoni in the browser
+    url: https://thebanri.github.io/limoni/
+    about: The WebAssembly playground — no install.
+  - name: Security vulnerability
+    url: https://github.com/thebanri/limoni/security/advisories/new
+    about: Report privately, not in a public issue.

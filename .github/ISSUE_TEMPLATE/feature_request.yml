@@ -1,0 +1,27 @@
+name: Feature request
+description: A widget, API or terminal feature Limoni does not have yet.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to build?
+      description: The application or situation, not only the feature. It helps to know what the feature is for.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help
+      description: The API or behaviour you have in mind. Sketch code is welcome.
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: How Bubble Tea, Ratatui, Textual or another library handles it, if you know.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to implement this myself, with some guidance.

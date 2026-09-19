@@ -1,785 +1,248 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/thebanri/limoni.svg)](https://pkg.go.dev/github.com/thebanri/limoni)
-
 <p align="center">
-  <img src="assets/logo.png" alt="Limoni Logo" width="180" />
+  <img src="assets/logo.png" alt="Limoni Logo" width="160" />
 </p>
 
 <h1 align="center">🍋 Limoni</h1>
 
 <p align="center">
-  <strong>An Ultra-Fast, Zero-Allocation, Thread-Safe Modern TUI Framework for Go.</strong>
+  <strong>A terminal UI engine for Go that tests can click, AI agents can drive,<br>and the garbage collector never sees.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/thebanri/limoni/actions"><img src="https://img.shields.io/github/actions/workflow/status/thebanri/limoni/ci.yml?branch=main&style=flat-square&logo=github" alt="Build Status"></a>
-  <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go.Dev Reference"></a>
+  <a href="https://pkg.go.dev/github.com/thebanri/limoni"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go Reference"></a>
   <a href="https://golang.org"><img src="https://img.shields.io/badge/go-%3E%3D%201.25-blue?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-blue?style=flat-square" alt="License"></a>
-  <a href="#-benchmarks"><img src="https://img.shields.io/badge/allocs-0_B%2Fop-brightgreen?style=flat-square" alt="Zero Allocations"></a>
-  <a href="AWESOME.md"><img src="https://img.shields.io/badge/awesome-limoni-gold?style=flat-square&logo=awesomelists" alt="Awesome Limoni"></a>
-  <a href="CODE_OF_CONDUCT.md"><img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square" alt="Code of Conduct"></a>
+  <a href="docs/benchmarks.md"><img src="https://img.shields.io/badge/draw%20path-0_B%2Fop-brightgreen?style=flat-square" alt="Zero Allocations"></a>
 </p>
 
 <p align="center">
-  <strong>Language:</strong>
-  <a href="README.md">English</a> •
-  <a href="README_TR.md">Türkçe</a>
+  <a href="README.md">English</a> • <a href="README_TR.md">Türkçe</a>
 </p>
 
 <p align="center">
-  <a href="#-whats-new">What's New</a> •
-  <a href="#-why-limoni">Why Limoni?</a> •
-  <a href="#-showcase--demos">Showcase</a> •
-  <a href="#-key-features">Key Features</a> •
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-documentation">Documentation</a> •
-  <a href="#-rich-widget-ecosystem">Widgets</a> •
-  <a href="#-benchmarks">Benchmarks</a> •
-  <a href="#-examples--showcase-applications">Examples</a> •
-  <a href="#-awesome-limoni">Awesome Limoni</a>
+  <strong><a href="https://thebanri.github.io/limoni/">▶ Try it in your browser</a></strong> — the same engine compiled to WebAssembly, no install.
 </p>
-
----
 
 <p align="center">
-  <strong><a href="https://thebanri.github.io/limoni/">▶ Try Limoni in your browser</a></strong><br>
-  <sub>The same engine, compiled to WebAssembly and running on xterm.js — no install.</sub>
+  <img src="assets/3d.gif" alt="Limoni rendering a shaded 3D model in the terminal" width="100%" />
 </p>
 
 ---
 
-## ⚡ Overview
-
-**Limoni** is a modern, high-performance Terminal User Interface (TUI) engine for Go. Designed from the ground up for data-intensive dashboards, devtools, and responsive terminal applications, Limoni bridges the gap between Go's developer ergonomics and Rust-like raw rendering speed.
-
-By utilizing a **flat 1D cell grid**, **zero-allocation hot-paths**, and an **optimized differential ANSI engine**, Limoni achieves ultra-smooth 60+ FPS rendering without triggering Go's Garbage Collector.
-
----
-
-## 🆕 What's New & Recent Updates
-
-* 🧬 **Grapheme Clusters**:
-  A flag, a family emoji, a skin-toned thumbs-up or an `e` with a combining accent is now one character on screen, not several. Text is segmented by the Unicode 17.0 rules (UAX #29) and checked against the standard's own `GraphemeBreakTest.txt`; widths come from the same Unicode data. See [FAQ §4](#4-emoji-flags-and-accented-letters) for what changed and what did not.
-* 🎛️ **Both Application Models Are Now First-Class**:
-  The declarative Elm-architecture runtime is re-exported from the root package — `limoni.NewProgram`, `limoni.RunProgram`, `limoni.Model`, `limoni.Cmd`, `limoni.Msg` — so declarative apps no longer need to import `core/engine` directly. `Program.Run(ctx)` and `RunProgram(ctx, …)` are context-aware and shut down cleanly on cancellation. See [`examples/counter`](examples/counter).
-* 🧱 **Composable Lego-Like Component Architecture (`component` package)**:
-  Build rich, responsive interfaces declaratively using composable view trees (`limoni.VStack`, `limoni.HStack`, `limoni.Border`, `limoni.Pad`, `limoni.Center`, `limoni.Flex`, `limoni.FixedSize`). The underlying stack solver allocates zero heap memory on the hot rendering path while retaining full interoperability with monolithic widgets via `limoni.AsComponent`.
-* 🔄 **Package Reorganization & Idiomatic Go Naming**:
-  - `core/engine`: The Elm Architecture (TEA) application loop, message scheduling, cancellation precedence, and panic recovery (renamed from `core/runtime` to eliminate collisions with Go's standard library `runtime`).
-  - `core/driver`: Cross-platform VT driver abstraction, raw mode termios, epoll/kqueue event loop, Windows VT, WebAssembly bridge, and SSH PTY streams (renamed from `core/backend` to clearly reflect responsibilities).
-* 🛑 **Configurable Signal & Ctrl+C Handling**:
-  Configure process termination behavior with `limoni.WithCatchCtrlC(bool)` and `limoni.WithoutDefaultQuitKeys()`, enabling applications to intercept Ctrl+C for modal confirmations, subshell escapes, or custom shutdown routines.
-* ⚡ **Zero-Allocation Hot-Path Verification**:
-  Continuous benchmark enforcement in CI ensuring `0 B/op` and `0 allocs/op` on buffer diffing, widget drawing, and component stack layout.
-* 🧪 **Comprehensive Cross-Platform CI**:
-  Full automated verification on Linux, macOS, and Windows with active data race detection (`-race`) across the entire codebase.
-
----
-
-## 💡 Why Limoni?
-
-| Feature / Goal | 🍋 Limoni (Go) | 🫧 Bubble Tea **v1** + Lip Gloss v1 (Go) | 🌈 Bubble Tea **v2** + Ultraviolet (Go) | 🐀 Ratatui **0.30** (Rust) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Language & Tooling** | **Go (Native)** | Go (Native) | Go (Native) | Rust (Native) |
-| **Render Architecture** | **Flat 1D Grid + Adaptive ANSI Diff** | String concatenation / TEA | Cell buffer + ncurses-style diff | Immediate Mode Double Buffer |
-| **Hot-Path Allocations**| **`0 B/op` (Zero Alloc)** | High heap allocation overhead | Reduced; not a zero-alloc design goal — Ultraviolet allocates a `Cell` per glyph | Stack / RAII |
-| **Layout Paradigm** | **Declarative Flexbox & Stack Solver** | String slicing (`JoinHorizontal/Vertical`) | Cassowary constraint solver | Constraint solver |
-| **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | SGR mouse events; no built-in hit-testing | Manual coordinates |
-| **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Cell diff + `ECH`/`REP`/`ICH`/`DCH` + scroll optimization | Double-buffered diff |
-| **Grapheme Clusters** | **UAX #29 clusters, Unicode 17.0, all 766 official break tests pass** + Mode 2027 request; cursor re-anchored after each cluster for terminals without it | `uniseg` | `uniseg` + Mode 2027 negotiation | `unicode-width` |
-| **Capability Detection** | Environment variables only | Environment / terminfo | Runtime queries (no terminfo) | terminfo / crossterm |
-| **Large Datasets / Tables**| **Virtual paging (1M rows, ~2.6 ms/frame under continuous scroll)** | High GC load on scroll | Improved vs v1 | Rebuilds every row each frame — `Table` owns its row iterator |
-| **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY/GLB) & Gouraud Shaders** | Third-party / custom | Third-party / custom | Addons required |
-| **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Limited / Manual | Experimental |
-| **External Dependencies** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 transitive modules | ~15 transitive modules | crates.io graph |
-| **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Single-threaded TEA loop | Manual thread coordination |
-
-> **On the Bubble Tea v2 column:** the entries are taken from upstream documentation, not from Limoni's own measurements. Charm rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet), a cell-based diffing layer, so the architectural gap Limoni originally opened against **v1** does not carry over to **v2** unchanged.
->
-> Ultraviolet *is* now measured here, and Limoni is 1.9×–20× faster on the comparable render workloads while emitting far fewer bytes per frame ([§2.4](docs/benchmark-methodology.md#24-ultraviolet)). That is **not** a Bubble Tea v2 result: a v2 program also pays for its runtime, message dispatch and view construction, none of which this measures. No runner in this repository links Bubble Tea v2, so treat any performance claim against v2 itself as unproven.
-
-### 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
-
-While **Lip Gloss v1** popularized styling in Go, its string-concatenation architecture imposed structural limits on interactive, high-frequency applications. The comparison below is against **v1 specifically**:
-
-> ⚠️ **Lip Gloss v2 changes this picture.** v2 is built on [Ultraviolet](https://github.com/charmbracelet/ultraviolet)'s cell buffer rather than raw string concatenation, so the "Data Primitive", "Rendering Pipeline" and "Screen Clipping" rows below no longer describe the current Charm stack. Limoni's remaining structural advantages over v2 are hit-testing, virtual paging, built-in 3D, and the dependency footprint — not string-vs-cell architecture.
-
-| Capability | 🍋 Limoni Composable (`component`) | 🎀 Charm Lip Gloss **v1** |
-| :--- | :--- | :--- |
-| **Data Primitive** | **16-byte cache-aligned `Cell` struct matrix** | Raw ANSI-escaped strings (`string`) |
-| **Hot-Path Allocations** | **`0 B/op` (0 allocs/op)** on layout & render | High allocation rate (~100s of KBs to MBs/sec) |
-| **Layout Model** | **True Flexbox & Grid constraint solver** | String slicing (`JoinHorizontal`, `JoinVertical`) |
-| **Size Constraints** | **Proportional `Flex`, `Ratio`, `Min`, `Max`** | Fixed manual character widths only |
-| **Mouse Hit-Testing** | **Automatic spatial bounds & z-index routing** | None (requires manual coordinate mapping) |
-| **Screen Clipping** | **Sub-cell rectangular spatial clipping** | String chopping (causes broken ANSI codes) |
-| **Z-Index & Overlays** | **Hardware-like layer stack & modal trapping** | Line-by-line string splicing (`PlaceOverlay`) |
-| **Rendering Pipeline** | **Double-buffered ANSI diffing (`~14 µs` sparse, `~50 µs` full-screen)** | Full terminal string dump (causes screen flicker) |
-| **Migration Bridge** | **`compat/bubbletea` fluent style builder** | Native Charm ecosystem standard |
-
-#### Why Zero-Allocation Architecture Matters:
-1. **Eliminating Garbage Collector Stutter**: Lip Gloss v1 computes layouts by allocating intermediate heap strings for every border, padding byte, and horizontal slice. In animated 60 FPS applications, this generates massive heap churn that triggers periodic Go GC pauses (frame stutter). Limoni's component modifiers wrap children on the call stack and write directly into a reusable flat 1D buffer—generating **zero heap allocations (`0 B/op`)**.
-2. **Native Interactivity & Hit-Testing**: Because Lipgloss outputs only a flat text string, it cannot determine which component received a mouse click. Limoni components automatically register their physical terminal boundaries (`cell.Rect`), dispatching click, hover, drag, and scroll events directly to callbacks with z-index ordering.
-
-### Key Advantages:
-1. **Zero GC Stutter**: Critical rendering loops generate zero heap allocations, eliminating random frame drops during heavy interactions or animations.
-2. **True Multithreaded State**: Push state updates from any goroutine safely without bottlenecking the main event loop.
-3. **Virtual Viewport Paging**: Render tables and lists with millions of rows without loading invisible cells into memory.
-4. **Batteries-Included**: 3D Wireframe/Lambert/Gouraud rendering, rich markdown parser, physics/easing animations, fuzzy search, and command palettes out-of-the-box.
-
----
-
-## 🎬 Showcase & Demos
-
-### 🎮 3D Mesh & Vector Graphics Engine
-Real-time 3D software rasterization running at 60+ FPS directly in terminal cells. Supports `.obj`, `.stl`, and `.ply` mesh models, depth-buffer Gouraud shading, Lambertian diffuse lighting, and interactive mouse/keyboard orbital controls.
-<p align="center">
-  <img src="assets/3d.gif" alt="3D Mesh & Vector Graphics Engine" width="100%" />
-</p>
-
-```bash
-# Run locally (supports up to 240 FPS via -fps flag or [F] key):
-go run ./examples/3d_viewer -fps 240
-
-# Or run directly anywhere without cloning:
-go run github.com/thebanri/limoni/examples/3d_viewer@latest -fps 240
-```
-
----
-
-### 📁 Superfile-Grade TreeView & Image Previews
-Hierarchical collapsible file explorer widget (`widgets.TreeView`) with directory icons, tree guide lines, git/file status indicators, and live TrueColor half-block image previews.
-
-<p align="center">
-  <img src="assets/treeview.gif" alt="Superfile-Grade TreeView & Image Previews" width="100%" />
-</p>
-
-```bash
-go run ./examples/treeview
-```
-
----
-
-### 📊 High-Resolution Charts & Data Visualization
-Sub-pixel Braille curves (`widgets.LineChart`), vertical gradient spectrum bars (`widgets.BarChart`), and donut distributions (`widgets.PieChart`) rendering high-frequency streaming telemetry with zero heap allocations.
-
-<p align="center">
-  <img src="assets/chart.gif" alt="High-Resolution Charts & Data Visualization" width="100%" />
-</p>
-
-```bash
-go run ./examples/charts
-```
-
----
-
-## ✨ Key Features
-
-* 🚀 **Ultra-Fast ANSI Diffing**: Computes dirty cell regions and emits minimal ANSI escape sequences in ~50 µs on a full-screen 120×40 change (~19,800 FPS) with zero heap allocations, short-circuiting in ~2 ns when clean. See [Benchmarks](#-benchmarks) for the measurement conditions.
-* 📉 **Run-Compressed Output**: Blank runs become `ECH`/`EL` and repeated glyphs become `REP`, which takes a full-screen redraw from 4,897 emitted bytes to **377** — 15× fewer than Ratatui 0.30.2 on the same frame. Emitted bytes, not CPU time, are what you feel over SSH.
-* 📃 **Inline Rendering**: `limoni.WithInline(height)` renders in a band of the normal screen buffer — no alternate screen, scrollback intact, output still on screen after exit. The mode `gum` and CI progress renderers are built on.
-* 📦 **Contiguous 1D Buffer**: Flat memory layout eliminates pointer chasing and maximizes CPU L1/L2 cache locality.
-* 🎨 **TrueColor & Fallback Engine**: Full 24-bit RGB TrueColor support with automatic downsampling fallbacks for 256-color and 16-color terminals.
-* 📐 **Responsive Flexbox Layouts**: Declarative layout engine supporting proportional splits, minimum/maximum size constraints, and nested alignments.
-* 🎬 **Animation & Easing Engine**: Built-in interpolation for float, color, and transitions (Linear, Quad, Cubic, Elastic, Bounce).
-* 🕶️ **Native 3D & Vector Graphics**: Render 3D `.obj`, `.stl`, `.ply` meshes directly in terminal cells with camera projection, rotation, and lighting!
-* ♿ **Built-in Accessibility**: Accessible navigation tree, line-by-line inspection mode, and semantic annotations for screen-readers.
-* 🤖 **Semantic Automation**: Drive a running application by selector instead of by screen coordinate — see below.
-* 🔲 **Automatic Border Merging**: Adjacent `Block`s share one edge and meet in `┬ ┼ ├ ┤ ┴` via `MergeBorders`, by unioning the box-drawing segments already in the cell — something a string-concatenating renderer has already overwritten.
-
----
-
-## 🤖 Semantic Automation
-
-Every tool that automates a terminal application today — [termwright](https://github.com/fcoury/termwright), [mcp-tui-test](https://github.com/GeorgePearse/mcp-tui-test) — wraps the process in a pseudo-terminal and parses the rendered character grid. They have no choice: the application underneath has no semantics to offer. So a test asserts that some text sits at some coordinate, and breaks the moment the layout shifts by one column.
-
-Limoni already builds a semantic tree every frame, for screen readers. `WithAutomation` serves that same tree on a Unix socket, which turns
-
-```
-assert text "Submit" at 42,7  →  click 42,7
-```
-
-into
-
-```go
-client.Click(automation.Selector{Role: "button", Label: "Submit"})
-```
-
-The selector survives relayout, resizing and restyling, because it never mentions where anything is drawn.
-
-```go
-// The application opts in, with an explicit policy. Build with -tags limoni_debug.
-limoni.Run(draw, limoni.WithAutomation("/run/user/1000/myapp.sock", limoni.AutomationPolicy{
-	AllowInput:   true, // off by default: without it a client can only observe
-	ExposeScreen: true, // off by default: the grid holds every character on screen
-}))
-```
-
-```go
-// A test, or an agent, drives it.
-client, _ := automation.Dial("/run/user/1000/myapp.sock")
-defer client.Close()
-
-list, _ := client.WaitFor(automation.Selector{Role: "list"}, 3*time.Second)
-// list.Value == "beta", list.Position == 2, list.SetSize == 3
-
-client.Key("down")
-client.Type("hello")
-client.Click(automation.Selector{Role: "button", Label: "Submit"})
-
-screen, _ := client.Screen() // the raw grid, for assertions the tree cannot make
-```
-
-The protocol is newline-delimited JSON, so `socat` is a usable client when debugging. An ambiguous selector is an **error**, not a coin toss — a test that silently takes the first of two matching buttons passes for the wrong reason as soon as the second one appears; pass `Nth` to say which you meant.
-
-### Driving it from an AI agent (MCP)
-
-`cmd/limoni-mcp` puts the same tree in front of any agent that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Code, Claude Desktop, Cursor and others. It is a bridge with no dependencies beyond the standard library: MCP over stdio on one side, the application's socket on the other.
-
-```bash
-go install github.com/thebanri/limoni/cmd/limoni-mcp@latest
-
-# Try it on the example built for this:
-# In one terminal — the app listens on $XDG_RUNTIME_DIR/limoni-checklist.sock:
-go run -tags limoni_debug ./examples/agent_checklist
-# In another:
-claude mcp add limoni -- limoni-mcp -socket "$XDG_RUNTIME_DIR/limoni-checklist.sock"
-```
-
-The agent gets eight tools: `tree`, `find`, `click`, `press_key`, `type_text`, `wait_for`, `screen` and `status`. Two details matter in practice:
-
-- **Input tools return the tree after the application redraws.** Input is asynchronous — the socket acknowledges a key before the frame it causes — so `click` waits for the tree to change and settle, and returns that. An agent never reasons about the screen as it was *before* its own click. If nothing changed, the result says so, and says why when it can tell: the field is secret, or the policy hides input values.
-- **Failures are explanations.** An ambiguous selector, a misspelled argument or a policy refusal comes back as text the model can act on — `label="Remove" matches 2 nodes; set nth to choose one` — rather than as a protocol error.
-
-The bridge changes none of the limits below: it can do only what the application's policy allows, and it opens no port. Input tools are annotated as destructive, so a client that asks before side effects will ask.
-
-In one run, Claude Code 2.1.270, told only the goal, added a task, ticked three, typed a deploy token and deployed in 17 tool calls. The run's transcript contains no tool result with the token in it. That is one run, not a benchmark.
-
-### Testing it like Playwright (`uitest`)
-
-The same tree makes for tests that read like the ones Playwright writes for web pages. `uitest` finds widgets by role, label and ID, acts on them, and asserts with checks that **wait**: an action waits until its locator matches exactly one widget, and an assertion retries until it holds, so a test never sleeps. When a check does fail, the message shows what was expected, what was seen and the whole semantic tree of the last frame.
-
-```go
-func TestReleaseFlow(t *testing.T) {
-	app := newChecklist()
-	page := uitest.Run(t, 80, 24, app.draw) // in process: no terminal, no build tag
-
-	page.GetByRole("input", "New task").Type("Tag v1.0")
-	page.GetByRole("button", "Add task").Click()
-
-	rows := page.GetByRole("list-item", "").Within(page.GetByRole("list", "Tasks"))
-	page.Expect(rows).ToHaveCount(3)
-	rows.Nth(-1).Click()
-	page.Press("space")
-
-	page.Expect(page.GetByID("status")).ToContainLabel("Added")
-	page.Expect(page.GetByRole("dialog", "")).Not().ToBeVisible()
-}
-```
-
-```
-uitest: expected id="status" to have label "Deployed with 3 tasks complete.": got label "Blocked: the deploy token is empty." after 5s
-last frame:
-  input#new-task "New task" bounds=2,2 36x1
-  button#add "Add task" bounds=40,2 14x1
-  …
-```
-
-Every action is logged, so a failure arrives with the steps that led to it, and `uitest.WithSlowMo` paces a test for someone watching. Pointed at a running application with `uitest.Connect`, the same test drives it on screen — `TestLiveDemo` in [`examples/agent_checklist`](examples/agent_checklist) does exactly that.
-
-One API, three targets: `uitest.Run` for an immediate-mode draw function, `uitest.Program` for a declarative model running through its real message loop (commands included), and `uitest.Connect` for a running binary over its automation socket. [`examples/agent_checklist`](examples/agent_checklist) is tested with it, and is the same application an agent drives through `limoni-mcp`.
-
-Lists expose their visible rows as `list-item` children, so a row is addressed by its text rather than by counting key presses.
-
-> [!WARNING]
-> **This opens a control channel into a running process.** It is built in layers so that each one fails closed on its own.
->
-> - **Absent from release builds.** The gateway only exists in binaries built with `-tags limoni_debug`. Without the tag, `WithAutomation` makes `Run` return `ErrAutomationNotCompiled`, and the socket server is not in the binary at all — CI builds a release binary and checks its symbol table for any automation code. No configuration mistake can switch on code that is not there.
-> - **Closed by default.** The zero `AutomationPolicy` exposes structure only: roles, labels, positions, bounds. Input values, the screen snapshot and input synthesis each need their own field set.
-> - **Secrets never leave, whatever the policy says.** `TextInput{Secret: true}` draws a mask glyph per character, so the secret never reaches the cell buffer, and its node carries no value and is marked sensitive. The gateway clears sensitive values again regardless, so a widget that forgets does not leak. Selectors are resolved against the redacted tree, so a client cannot guess a password and learn it from whether `value="…"` matched.
-> - **Only your user can connect.** On Linux, macOS and FreeBSD the server asks the kernel who owns the connecting process and refuses any other user, in addition to the socket's 0600 permissions. Where the kernel cannot say — Windows among them — every connection is refused unless `AllowUnverifiedPeers` is set, because file permissions would be the only protection left.
-> - **Unix socket only, no TCP option.** Deliberate and not configurable: a port would offer application control to anything that can reach the host.
->
-> **What is left, stated plainly:** another process running *as the same user* can still connect — the operating system offers no stronger identity than the user for a local socket. And the gateway cannot know that a paragraph you render is secret unless you mark it; `ExposeScreen` sends whatever is on screen. Treat a `limoni_debug` binary as you would a debug console.
-
----
-
-## ⏺️ Session Recording & Replay
-
-A bug report that says *"I pressed some keys and it crashed"* is hard to act on. A recording of the session is not. The `session` package records a declarative application — every message its model received, in the order `Update` saw them, plus the semantic tree of every frame — and replays it against the model, verifying each frame.
-
-```go
-rec, _ := session.Create("bug.limoni", model, width, height, session.Policy{})
-defer rec.Close()
-limoni.RunProgram(ctx, model, limoni.WithProgramObserver(rec))
-```
-
-```go
-// Later, in a test: the recording becomes a regression test.
-report, err := session.Replay("bug.limoni", func() limoni.Model { return newModel() }, session.ReplayOptions{})
-if err != nil { t.Fatal(err) }          // the recording could not be trusted
-if !report.Verified() { t.Fatal(report.Divergence) } // "replay diverged at step 3 ..."
-```
-
-A replay reports the **first step whose frame differs**, and whether a recorded **crash reproduces** — so the same file tells you the bug is still there, and later that it is fixed.
-
-It records at `Update` rather than at the terminal, which is what makes it replayable: timers and commands race in a live run, and recording where `Update` is called freezes how those races came out. A command's effect enters the recording as the message it produced, so a replay never re-sends a request or reads the clock.
-
-> [!WARNING]
-> **Limits, stated plainly.**
->
-> - **Declarative mode only.** Immediate-mode `Run` has no boundary between the application and its side effects, so there is nothing to record at.
-> - **`Update` and `View` must be deterministic.** A model that calls `time.Now` or `math/rand` inside them diverges on replay — the replay detects it and names the step, but cannot fix it. Receive the clock as a message with `limoni.NowCmd`. [`tools/limonivet`](tools/limonivet) reports such calls; CI runs it on this repository.
-> - **Registered messages only.** An application message type is recorded by name only unless registered with `session.Register`, and a replay that reaches one fails loudly rather than skipping it.
->
-> **Privacy is closed by default.** Typed text and pastes are written as `x` unless `RecordText` is set; input-field values are dropped from recorded trees unless `ExposeInputValues` is set; sensitive fields are always dropped. Even with `RecordText`, characters are redacted whenever a secret field might have focus — including the window after *any* message, before the next frame shows where focus went, because a command result can move focus into a password field as easily as Tab can. Files are `0600`, never overwritten, checksummed, and refused on replay if modified.
->
-> **What is left:** a message type you register is recorded in full — use `session.RegisterRedacted` for one that carries a secret. Labels are recorded even when values are not, so a widget whose *label* shows a secret puts it in the file. And a recording is a file on disk: treat it like a log that may contain what your users saw.
-
----
-
-## 🚀 Quick Start
-
-### Installation
+## Quick start
 
 ```bash
 go get github.com/thebanri/limoni
 ```
 
-### 1. Composable Lego-Style UI Example (Zero Allocation)
-
 ```go
 package main
 
-import (
-	"fmt"
-
-	"github.com/thebanri/limoni"
-	"github.com/thebanri/limoni/widgets"
-)
+import "github.com/thebanri/limoni"
 
 func main() {
-	err := limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
+	limoni.Run(func(f *limoni.Frame, ev *limoni.Event) bool {
 		if ev != nil && ev.Type == limoni.EventKey && ev.Key.Type == limoni.KeyEsc {
-			return false // Exit
+			return false // quit
 		}
-
-		// Declarative layout composition with zero heap allocations on hot path:
-		view := limoni.VStack(
-			// Header (Fixed height 3 rows)
-			limoni.FixedSize(0, 3, limoni.Border(
-				limoni.Center(limoni.Label("🍋 Limoni Composable Architecture", limoni.Bold().WithFg(limoni.Hex("#00FFAA")))),
-				widgets.SymbolsRounded,
-				limoni.Fg(limoni.Hex("#00FFAA")),
-			)),
-
-			// Body (Flex 1): 2-Column Split
-			limoni.Flex(1, limoni.HStack(
-				limoni.Flex(1, limoni.Border(
-					limoni.Label("Left Sidebar\n- Fast\n- Zero-Alloc\n- Thread-Safe", limoni.Fg(limoni.Hex("#FFCC00"))),
-					widgets.SymbolsSingle,
-					limoni.Fg(limoni.Hex("#FFCC00")),
-				)),
-				limoni.Flex(2, limoni.Border(
-					limoni.Center(limoni.Label("Main Content Area\nPress ESC to exit.", limoni.Fg(limoni.Hex("#FFFFFF")))),
-					widgets.SymbolsDouble,
-					limoni.Fg(limoni.Hex("#3399FF")),
-				)),
-			)),
-
-			// Footer (Fixed height 3 rows)
-			limoni.FixedSize(0, 3, limoni.Border(
-				limoni.Center(limoni.Label("ESC: Quit | 60+ FPS ANSI Diff", limoni.Fg(limoni.Hex("#888888")))),
-				widgets.SymbolsSingle,
-				limoni.Fg(limoni.Hex("#666666")),
-			)),
-		)
-
-		f.RenderComponent(view, f.Area())
+		f.RenderComponent(limoni.Border(
+			limoni.Center(limoni.Label("Hello from Limoni 🍋  (Esc quits)", limoni.Bold())),
+			limoni.SymbolsRounded,
+			limoni.Fg(limoni.Hex("#FFCC00")),
+		), f.Area())
 		return true
 	})
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
 }
 ```
 
-### 2. Declarative TEA (The Elm Architecture) Example
+Or generate a project that runs straight away:
 
-Limoni ships **two application models**, both on the same renderer and widget set:
+```bash
+go run github.com/thebanri/limoni/cmd/limoni@latest new myapp
+cd myapp && go mod tidy && go run .
+```
 
-| | Immediate mode | Declarative mode |
-| :--- | :--- | :--- |
-| **Entry point** | `limoni.Run` / `limoni.Start` | `limoni.RunProgram` / `limoni.NewProgram` |
-| **State lives in** | your own closure | a `limoni.Model` |
-| **Best for** | dashboards, 3D viewers, games, animations | forms, wizards, CRUD tools, async workflows |
-| **Runtime gives you** | a redraw on every event | message scheduling, command cancellation, deterministic ordering, panic recovery |
-| **`context.Context`** | not yet | ✅ `Program.Run(ctx)` and `RunProgram(ctx, …)` |
+**Next:** [Getting started](docs/getting-started.md) · [Widget gallery](docs/widget-gallery.md) · [Examples](#examples)
 
-Both are first-class and both are reachable from the root package — no second
-import required. The runtime itself lives in [`core/engine`](./core/engine) if
-you need to drive it directly (custom backends, SSH sessions, tests).
+---
+
+## Why Limoni
+
+### 1. Your TUI has a semantic tree, so tests and agents address widgets by name
+
+Most terminal automation, such as [termwright](https://github.com/fcoury/termwright) or
+[mcp-tui-test](https://github.com/GeorgePearse/mcp-tui-test), parses the rendered character
+grid, so a test breaks when the layout moves by one column. A Limoni app builds a
+semantic tree every frame (the same tree a screen reader uses), and the tools below
+work on that tree instead.
+
+**`uitest`: Playwright-style tests.** Checks wait instead of sleeping, and a failure
+prints the whole tree of the last frame.
 
 ```go
-package main
+page := uitest.Run(t, 80, 24, app.draw)            // in process: no terminal needed
 
-import (
-	"context"
-	"fmt"
-	"os"
-
-	"github.com/thebanri/limoni"
-)
-
-type AppModel struct {
-	count int
-}
-
-func (m *AppModel) Init() []limoni.Cmd { return nil }
-
-func (m *AppModel) Update(msg limoni.Msg) limoni.UpdateResult {
-	press, ok := msg.(limoni.KeyPressMsg)
-	if !ok {
-		return limoni.UpdateResult{}
-	}
-
-	switch press.Key.Type {
-	case limoni.KeyEsc:
-		return limoni.UpdateResult{Quit: true}
-	case limoni.KeyRune:
-		switch press.Key.Ch {
-		case 'q', 'Q':
-			return limoni.UpdateResult{Quit: true}
-		case '+', '=':
-			m.count++
-			return limoni.UpdateResult{Redraw: true}
-		case '-', '_':
-			m.count--
-			return limoni.UpdateResult{Redraw: true}
-		}
-	}
-	return limoni.UpdateResult{}
-}
-
-func (m *AppModel) View(frame *limoni.Frame) {
-	accent := limoni.Style{Fg: limoni.RGB(0, 255, 200)}
-	muted := limoni.Style{Fg: limoni.RGB(100, 110, 120)}
-
-	rows := limoni.SplitVertical(frame.Area(),
-		limoni.Fixed(3),
-		limoni.Fill(),
-		limoni.Fixed(3),
-	)
-
-	frame.RenderWidget(limoni.Block{
-		Title:       " 🍋 Limoni Counter Application ",
-		BorderStyle: accent,
-	}, rows[0])
-
-	frame.RenderWidget(&limoni.Paragraph{
-		Text:  fmt.Sprintf("Current Counter Value: %d\n\nPress '+' to increment, '-' to decrement.", m.count),
-		Style: limoni.Style{Fg: limoni.RGB(0, 255, 200), Modifier: limoni.ModifierBold},
-	}, rows[1])
-
-	frame.RenderWidget(limoni.Block{
-		Title:       " [+] Increment  [-] Decrement  [Q/Esc] Quit ",
-		BorderStyle: muted,
-	}, rows[2])
-}
-
-func main() {
-	if err := limoni.RunProgram(context.Background(), &AppModel{}, limoni.WithProgramFPS(60)); err != nil {
-		fmt.Fprintf(os.Stderr, "limoni: %v\n", err)
-		os.Exit(1)
-	}
-}
+page.GetByRole("input", "New task").Type("Tag v1.0")
+page.GetByRole("button", "Add task").Click()
+page.Expect(page.GetByRole("list-item", "").Within(page.GetByRole("list", "Tasks"))).ToHaveCount(3)
+page.Expect(page.GetByID("status")).ToContainLabel("Added")
 ```
 
-Run it with `go run ./examples/counter`.
+**`limoni-mcp`: let an AI agent drive the app.** It gives Claude Code, Cursor or any
+MCP client eight tools (`tree`, `click`, `type_text`, `wait_for`…) that work on the
+same tree. In one recorded run, Claude Code completed a release checklist in 17 tool
+calls. That run included typing a deploy token the agent could not read back.
 
----
-
-## 📚 Documentation
-
-Detailed guides and API references are available in the [`docs/`](./docs) directory and on our [**Interactive Documentation Website**](https://limoni-docs.vercel.app/#quickstart):
-
-| Guide | Description |
-| :--- | :--- |
-| **[⚡ Getting Started](./docs/getting-started.md)** | Step-by-step introduction, installation, and first interactive app. |
-| **[🏛️ Architecture & Zero-Alloc Deep Dive](./docs/architecture.md)** | Memory layout, 1D contiguous grid, and cache locality. |
-| **[⚙️ Core API Reference](./docs/core-api.md)** | `cell`, `buffer`, `terminal`, `backend`, and `runtime` packages. |
-| **[📐 Flexbox Layout Engine](./docs/layout-guide.md)** | Multi-column, multi-row, percentage, ratio, and constraint layouts. |
-| **[🧩 Widget Reference & Guide](./docs/widgets-reference.md)** | Full reference for all display, input, and modal widgets. |
-| **[🎨 2D/3D Graphics & Canvas](./docs/graphics-and-canvas.md)** | Braille canvas, 3D Mesh loaders, Lambert/Gouraud shaders, and image protocols. |
-| **[🎬 Animation & Physics](./docs/animation-and-physics.md)** | Interpolation, spring physics, and smooth easing curves. |
-| **[♿ Accessibility & Theming](./docs/accessibility-and-theming.md)** | Screen-readers, High-Contrast mode, and `NO_COLOR` standard. |
-| **[🌐 Drivers & WebAssembly](./docs/drivers-and-platforms.md)** | Cross-platform details: Linux, macOS, Windows VT100, WASM, and SSH. |
-| **[📂 Examples Directory Guide](./docs/examples.md)** | Feature map and run instructions for all 12 example applications. |
-
----
-
-## 🧩 Rich Widget Ecosystem
-
-Limoni comes with an extensive suite of production-ready widgets:
-
-| Category | Available Widgets |
-| :--- | :--- |
-| **Structure & Layout** | `Block`, `Dialog / Modal`, `Popup`, `ResponsiveGrid`, `Flexbox`, `Viewport` |
-| **Data Display** | `Table (Virtual/Paged)`, `List (Virtual)`, `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
-| **Charts** | `LineChart (Braille)`, `BarChart`, `PieChart`, `Sparkline` |
-| **Input Controls** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select / Dropdown`, `Slider`, `ColorPicker` |
-| **Navigation & Search**| `Tabs`, `Scrollbar`, `CommandPalette`, `FuzzySearch (FZF-style)`, `KeybindingManager` |
-| **Feedback** | `Spinner`, `Toast`, `ProgressBar` |
-| **Graphics & 3D** | `Canvas (Braille / Block)`, `Vector3D Mesh (OBJ/STL/PLY/GLB)`, `Lambertian & Gouraud Shaders`, `Image (Kitty/Sixel/iTerm2/HalfBlock)` |
-| **Text & Docs** | `Markdown (Full GFM)`, `RichText Highlighting`, `Label`, `Paragraph` |
-| **Accessibility & Tooling** | `AccessibleTree`, `DevTools`, `Theme`, `Validation` |
-
-**Scrolling:** `List` and `Table` virtualise internally and render only visible rows, so they stay flat on datasets of any size. `Viewport` is the general-purpose scroll container for everything else — wrap any widget taller than its area, optionally with a `Scrollbar`. Both `Viewport` and `Scrollbar` are allocation-free in steady state; see their package docs for the cost model.
-
----
-
-## 🏛️ Architecture
-
-```
-                      ┌────────────────────────────────────────┐
-                      │             User Application           │
-                      └───────────────────┬────────────────────┘
-                                          │ State & Views
-                                          ▼
-                      ┌────────────────────────────────────────┐
-                      │    Composable UI / Declarative Widgets │
-                      │   (VStack, Border, Pad, Tables, 3D)    │
-                      └───────────────────┬────────────────────┘
-                                          │ Draw to Grid
-                                          ▼
-                      ┌────────────────────────────────────────┐
-                      │          Flat 1D Buffer Grid           │
-                      │  [Zero Heap Allocation Cell Memory]   │
-                      └───────────────────┬────────────────────┘
-                                          │
-                        ┌─────────────────┴─────────────────┐
-                        ▼                                   ▼
-             ┌─────────────────────┐             ┌─────────────────────┐
-             │ Previous Frame Snap │             │ Current Frame Snap  │
-             └──────────┬──────────┘             └──────────┬──────────┘
-                        └─────────────────┬─────────────────┘
-                                          │ Sub-microsecond Diff
-                                          ▼
-                      ┌────────────────────────────────────────┐
-                      │       ANSI Diff & Optimize Stream      │
-                      │  (Minimizes cursor jump & color reset) │
-                      └───────────────────┬────────────────────┘
-                                          │ Direct Write
-                                          ▼
-                      ┌────────────────────────────────────────┐
-                      │   Terminal Driver (Unix/Win/WASM/SSH)  │
-                      └────────────────────────────────────────┘
-```
-
-### 1. Zero-Allocation Rendering Pipeline
-- **Contiguous 1D Flat Matrix:** Screen state is stored in a single flat slice of `[]cell.Cell` instead of jagged 2D slices, maximizing CPU L1/L2 cache locality.
-- **Cache-Friendly 16-Byte Cell Alignment:** Every `cell.Cell` is exactly 16 bytes (`Content`: 4 bytes, `Style`: 12 bytes), fitting cleanly across 64-bit cache lines.
-- **Stack-Allocated Context:** Rendering parameters and cascading styles are passed by value on the call stack via `cell.Context`, generating zero heap escape.
-- **Pre-Allocated ANSI Diff Buffer:** `buffer.Diff` computes changes between double-buffered frame snapshots and writes minimal ANSI escape sequences into a reused byte slice (`writeBuf`), yielding **`0 B/op` and `0 allocs/op`** on hot rendering paths.
-
-### 2. Decoupled, Non-Dogmatic Concurrency & TEA
-- **Optional Elm Architecture (TEA):** Limoni includes a production-ready, typed Elm Architecture via `core/engine.Program` (`Model`, `Update`, `View`, `Cmd`, `Msg`) with redraw coalescing, background command worker pools, and panic recovery.
-- **Non-Dogmatic Freedom:** Unlike frameworks that mandate TEA for every task, Limoni allows you to choose the paradigm that best fits your project:
-  * **Composable Lego Trees:** Build declarative layouts with `limoni.VStack`, `limoni.HStack`, `limoni.Border`, and `limoni.Pad`.
-  * **Immediate-Mode Callbacks:** Write quick scripts or simple tools using `limoni.Run(func(f, ev) bool)`.
-  * **Multithreaded Goroutine Streaming:** Safely push background telemetry updates from arbitrary goroutines without bottlenecking the main loop.
-
-
----
-
-## 📊 Benchmarks
-
-> 📐 **Read [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) first.** It states which framework versions are measured, what the harness does and does not capture, and which comparison claims are currently unproven. The cross-framework runners target **Ratatui 0.30.2**, **Ultraviolet** (the cell renderer under Bubble Tea v2 and Lip Gloss v2) and **Bubble Tea v1.3.10**. There is **no Bubble Tea v2 runner**: nothing here links it, so no claim in this repository is a claim about v2 itself.
-
-Limoni includes a standardized cross-implementation benchmark suite measuring real dirty diffing, partial invalidations, virtual scrolling, and memory allocations under standard virtual terminal conditions (120×40 cells = 4,800 cells).
-
-Run benchmarks locally:
 ```bash
-# Run Buffer Diff benchmarks (measured dirty and clean passes)
-go test ./core/buffer -run '^$' -bench . -benchmem
-
-# Run Widget & Layout benchmarks
-go test ./benchmarks -run '^$' -bench . -benchmem
-
-# Cross-framework comparison: builds each runner, runs all three three times,
-# reports median latency with run-to-run spread, and suppresses every ratio the
-# runners mark non-comparable. Needs a Rust toolchain for the Ratatui runner.
-./benchmarks/compare.sh
-
-# Generate HTML Comparison Dashboard
-go run ./benchmarks/runners/dashboard -output benchmark-results/dashboard.html benchmark-results/limoni.json benchmark-results/bubbletea.json benchmark-results/ratatui.json
+go run -tags limoni_debug ./examples/agent_checklist
+claude mcp add limoni -- limoni-mcp -socket "$XDG_RUNTIME_DIR/limoni-checklist.sock"
 ```
 
-### Measured results
+The automation socket only exists in `-tags limoni_debug` builds. It is closed by
+default, only the same user can connect, and secret fields are never exposed.
+→ [Semantic automation, MCP and uitest](docs/automation.md)
 
-**AMD Ryzen 5 5600 (6C/12T), Linux 6.17, Go 1.27.1, `-count=3`, median.** Absolute
-figures are hardware-dependent; what is meaningful is the ratio between commits on
-one machine. Reproduce with the command above.
+### 2. Fast where you can feel it
 
-| Benchmark Operation | Measured Latency | Throughput | Allocations | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| **`BenchmarkDiff_FullChanges`** | **`~50.5 µs`** | **~19,800 FPS** | **`0 B/op (0 allocs)`** | 100% full-screen cell mutation (4,800 cells) diffed against persistent double-buffer emitting ANSI escape stream |
-| **`BenchmarkDiff_PartialChanges`** | **`~23.7 µs`** | **~42,200 FPS** | **`0 B/op (0 allocs)`** | 10% viewport mutation (480 cells across shifting rows) diffed against persistent double-buffer |
-| **`BenchmarkDiff_NoChanges`** | **`~1.94 ns`** | **~516,000,000 FPS** | **`0 B/op (0 allocs)`** | Clean frame fast-path bypass when no buffer cells mutated |
-| **`BenchmarkTextHeavyFrame`** | **`~31.7 µs`** | **~31,500 FPS** | **`2 B/op (0 allocs)`** | 40-line text dashboard rendering with unicode symbols and word wrapping across 120 columns |
-| **`BenchmarkHundredLayers`** | **`~68.2 µs`** | **~14,700 FPS** | **`1 B/op (0 allocs)`** | 100 layered Block widgets evaluation and frame rendering (Ratatui hundred-layers parity) |
-| **`BenchmarkTenThousandRowTable`** | **`~68.5 µs`** | **~14,600 FPS** | **`611 B/op (4 allocs)`** | Active selection scrolling through a 10,000-row table rendering visible rows |
-| **`BenchmarkOneMillionRowVirtualScroll`**| **`~2.70 ms`** | **~370 FPS** | **`4.9 KB/op (6 allocs)`** | Active virtual scrolling across 1,000,000 rows with viewport boundary pruning |
-| **`BenchmarkMouseHitTest`** | **`~63.4 ns`** | **~15,800,000 ops/s**| **`0 B/op (0 allocs)`** | Hierarchical widget tree spatial hit testing across 100 click regions |
-| **`BenchmarkAsyncUpdateBurst`** | **`~232 ns`** | **~4,310,000 msg/s** | **`7 B/op (0 allocs)`** | High-throughput Elm runtime async message dispatch |
+- **Zero heap allocations on the draw path**, enforced in CI, so animations do not stutter from GC pauses.
+- **Few bytes per frame.** Blank runs become `ECH`/`EL` and repeats become `REP`: a full-screen redraw is **377 bytes**, and an idle app sends **nothing**. Bytes, not CPU, are what you feel over SSH.
+- **Virtual tables and lists.** One million rows scroll at ~2.7 ms a frame, because only visible rows are touched.
 
-> [!NOTE]
-> **These figures moved twice, in both directions.** An earlier revision of this
-> table quoted latencies that did not reproduce on the hardware class it named —
-> `BenchmarkHundredLayers` was claimed at 47 µs and measured 159 µs. Correcting
-> that exposed where the time was actually going: `cell.RuneWidth` was 39% of a
-> layered frame, walking twenty range comparisons per cell written. It now
-> answers from a lookup table, which took the draw path down roughly 2–3× across
-> the board. So the numbers above are lower than the corrected ones *and* lower
-> than the original inflated claims — this time with a profile behind them.
-> The zero-allocation guarantees held throughout.
+| Measured on a Ryzen 5 5600, Go 1.27.1 | Latency | Allocations |
+| :--- | ---: | ---: |
+| Full-screen diff, 120×40, every cell changed | ~50 µs | 0 |
+| 10% of the screen changed | ~24 µs | 0 |
+| Nothing changed | ~2 ns | 0 |
+| 100 layered blocks, drawn and diffed | ~68 µs | 0 |
 
-> [!NOTE]
-> **The table predates grapheme clusters.** Segmenting text costs something for
-> non-ASCII characters; plain ASCII takes a fast path that skips it. Measured
-> back to back on the machine above against the commit before the change
-> (`-count=3`, medians): `BenchmarkTextHeavyFrame` +5% (30.7 → 32.3 µs — its text
-> has three symbols per line), `BenchmarkDiff_FullChanges` +2%,
-> `BenchmarkHundredLayers` and `BenchmarkDiff_PartialChanges` unchanged, all
-> still at zero allocations. The absolute figures in the table were not
-> re-measured, so compare the ratios, not the rows.
+Absolute numbers depend on the machine. The comparisons against Ratatui 0.30.2,
+Ultraviolet and Bubble Tea v1.3.10, including which ratios are *not* meaningful, are in
+[docs/benchmarks.md](docs/benchmarks.md) and the [methodology](docs/benchmark-methodology.md).
+One earlier run showed a 4,700× lead; it came from a bug in the benchmark harness,
+and the [methodology](docs/benchmark-methodology.md#the-4700-that-was-a-harness-bug) explains how it was caught.
 
-> [!NOTE]
-> **Transparency & Engineering Integrity Guarantee**:
-> We do not use synthetic shortcuts, artificial buffer clears, or zero-offset static loops.
-> - **Diff Benchmarks**: Run against a persistent double-buffer where cells genuinely mutate every single frame, forcing the full diff algorithm and ANSI encoder to run end-to-end.
-> - **Scroll Benchmarks**: Actively cycle through rows (`Select((i * 7) % N)`), proving zero-overhead virtual window rendering under continuous scrolling.
-> - **Hundred Layers**: Genuinely renders 100 overlapping `Block` widgets rather than a synthetic hit-test shortcut.
+### 3. Batteries that other TUI libraries leave to you
 
----
+| | |
+| :--- | :--- |
+| 🕶️ **3D** | A software rasteriser for OBJ/STL/PLY/GLB with Lambert and Gouraud shading, drawn in terminal cells |
+| 🖼️ **Images** | Kitty, Sixel, iTerm2 and half-block fallback |
+| 📊 **Charts** | Braille line charts, bar charts, pie charts, sparklines |
+| 📝 **Markdown** | GFM rendering with a scrollable reader |
+| ♿ **Accessibility** | A semantic tree, a screen-reader line mode, `NO_COLOR`, high contrast, reduced motion |
+| 🧬 **Unicode** | UAX #29 grapheme clusters (Unicode 17.0, all 766 conformance tests), so flags and emoji families take one cell |
+| 📃 **Inline mode** | Render in a band of the normal screen, like `gum`, with scrollback intact |
+| ⏺️ **Session replay** | Record a session, replay it as a regression test ([docs](docs/session-recording.md)) |
+| 🌐 **Everywhere** | Linux, macOS, BSD, Windows, WebAssembly in the browser, SSH sessions |
 
-## 🖥️ Rendering Quirks & FAQ
+The only dependencies are `golang.org/x/sys` and `golang.org/x/crypto`.
 
-### 1. Why do lines, 3D meshes, or images show hairline gaps in some terminals?
-In standard terminal emulators, default monospace font line-height (cell padding) often adds 1–2px of empty vertical space between adjacent character rows. When rendering contiguous sub-pixel Braille matrices or half-blocks, this leading gap can cause surfaces to appear perforated ("grid gap" artifact).
-
-#### How Limoni Solves This: The Lower Half-Block (`▄`) Baseline Standard
-Traditional TUI frameworks frequently use the Upper Half Block (`▀`, `U+2580`). Because typography engines anchor font glyphs to the **baseline** (bottom of the character cell), any extra line-height creates an uncolored gap at the *top* of the cell, physically detaching `▀` from the row above it.
-
-Limoni standardizes on the **Lower Half Block (`▄`, `U+2584`)**:
-- **Upper Pixel:** Rendered via the cell background (`Cell.Bg`).
-- **Lower Pixel:** Rendered via the cell foreground (`Cell.Fg`).
-- **Glyph:** Set to `▄`.
-
-Because background colors always stretch to fill 100% of the character cell, and `▄` rests directly on the baseline, half-block graphics connect seamlessly without inter-cell cracks even on terminals with loose vertical spacing.
-
-### 2. Recommended Terminal Settings for Visual Perfection
-To experience Limoni's 3D software rasterization, charts, and Braille vector graphics at maximum fidelity:
-
-* **Set Line Height to 1.0:** In your terminal's configuration, ensure `line-height` / `cell-height` is set to `1.0` (or `100%` / 0px vertical line padding).
-* **Recommended Modern Terminals:**
-  - **[Ghostty](https://ghostty.org):** Native GPU renderer with pixel-perfect contiguous box-drawing, Braille, and block element rendering out-of-the-box.
-  - **[Kitty](https://sw.kovidgoyal.net/kitty/):** Ultra-fast OpenGL engine with native graphics protocols (`kitty` protocol) and gapless glyph rendering.
-  - **[WezTerm](https://wezfurlong.org/wezterm/):** Exceptional font fallback and contiguous box glyph handling.
-  - **[Alacritty](https://alacritty.org):** Ensure `font.offset.y: 0` and standard line spacing in `alacritty.toml`.
-* **Recommended Monospace Fonts:** [JetBrains Mono](https://www.jetbrains.com/lp/mono/), [Fira Code](https://github.com/tonsky/FiraCode), or any patched [Nerd Font](https://www.nerdfonts.com/).
-
-### 3. How does Limoni maintain 60+ FPS during rapid full-screen animations?
-Limoni features a threshold-based **Adaptive Flush Engine**:
-* **Sparse Diffing (`dirtyRatio < 0.45`):** For typing, metric tickers, and cursor blinks, computes minimal dirty cell regions and emits precise cursor jumps (`CUP`), completing in **`~14.2 µs`** with zero heap allocations.
-* **Full-Stream Redraw (`dirtyRatio >= 0.45`):** When rotating 3D meshes, scrolling large tables, or fading tabs, switching to jump diffing would produce thousands of disjoint escape sequences. Limoni automatically switches to synchronized home (`\x1b[H`) full-stream streaming wrapped in DEC synchronized update mode (`\x1b[?2026h`), completely eliminating visual tearing and flicker while preserving **`0 B/op`** zero-allocation efficiency.
-
-### 4. Emoji, flags and accented letters
-Limoni stores one **grapheme cluster** per cell — what a reader sees as one character, however many code points it takes. `🇹🇷` (two regional indicators), `👨‍👩‍👧` (five code points joined by ZWJ), `👍🏽` (emoji + skin tone) and `é` written as `e` + U+0301 each occupy one cell, two columns wide for the emoji. Walking runes used to draw the flag as two letters, measure the family as six columns and drop the combining accent.
-
-* **Rules:** segmentation follows UAX #29 for Unicode 17.0 and passes all 766 cases of the official `GraphemeBreakTest.txt`. A cluster's width is its widest code point (East Asian Width, emoji presentation), with VS16 forcing two columns and VS15 one.
-* **Storage:** a cell still holds one `rune`. A multi-code-point cluster is interned once in a shared table and the cell stores a handle to it, so `Cell` stays 16 bytes and single code points — nearly all text — never touch the table. The table is capped at about a million distinct clusters; past that, new clusters degrade to their first code point instead of growing memory.
-* **Terminals:** Limoni requests mode 2027 (`CSI ? 2027 h`), which Ghostty, WezTerm, foot and Contour implement. Terminals without it advance the cursor per code point and may draw a family emoji six columns wide. To stop that from shifting the rest of the row, the diff re-anchors the cursor right after every cluster. The cluster itself can still look wrong on such a terminal, but nothing after it moves.
-* **Opting out:** `LIMONI_GRAPHEME=0` (or `cell.SetGraphemeClusters(false)`) restores one code point per cell and skips the mode 2027 request.
-* **Not converted yet:** text drawn through `Buffer.SetString` and measured with `cell.StringWidth` is cluster-aware. Widgets that cut or place text by rune count — `TextInput`, `TextArea`, table and toast truncation, among others — can still split a cluster where they truncate.
+<table>
+  <tr>
+    <td><img src="assets/treeview.gif" alt="TreeView with image preview" /></td>
+    <td><img src="assets/chart.gif" alt="Charts" /></td>
+  </tr>
+  <tr>
+    <td align="center"><code>go run ./examples/treeview</code></td>
+    <td align="center"><code>go run ./examples/charts</code></td>
+  </tr>
+</table>
 
 ---
 
-## 📂 Examples & Showcase Applications
+## Two ways to write an app
 
-Explore runnable demo applications inside the [`examples/`](./examples) directory. See the full [**Examples Directory Guide (docs/examples.md)**](./docs/examples.md) for details on all available apps.
-
-| Example | Description | Run Command |
+| | Immediate mode | Declarative (Elm architecture) |
 | :--- | :--- | :--- |
-| **[`3d_viewer`](./examples/3d_viewer)** | Professional 3D model viewer supporting `.obj`, `.stl`, `.ply`, texture mapping & Lambertian/Gouraud shaders. | `go run ./examples/3d_viewer` |
-| **[`todo`](./examples/todo)** | Full-featured TEA Todo app with tags, priorities, filters, fuzzy search, and progress bars. | `go run ./examples/todo` |
-| **[`dashboard`](./examples/dashboard)** | DevOps monitoring dashboard with CPU/Memory sparklines, live process table & streaming logs. | `go run ./examples/dashboard` |
-| **[`table_virtual`](./examples/table_virtual)** | 1,000,000 row virtual table showcasing `0 B/op` zero-allocation 120 FPS streaming. | `go run ./examples/table_virtual` |
-| **[`colors_and_styles`](./examples/colors_and_styles)** | 24-bit TrueColor gradients, 256-color ANSI palettes, text modifiers & A11y themes. | `go run ./examples/colors_and_styles` |
-| **[`ssh_server`](./examples/ssh_server)** | Remote terminal server streaming interactive 60 FPS Limoni sessions over network/SSH sockets. | `go run ./examples/ssh_server` |
-| **[`custom_widget`](./examples/custom_widget)** | Developer guide for implementing custom `widgets.Widget` components (Analog Meter / Gauge). | `go run ./examples/custom_widget` |
-| **[`composable`](./examples/composable)** | Declarative Lego-style UI composition with `VStack`, `HStack`, `Border`, and zero-alloc flex solvers. | `go run ./examples/composable` |
-| **[`simple`](./examples/simple)** | Minimal 50-line starting boilerplate with direct rendering and keyboard navigation. | `go run ./examples/simple` |
-| **[`agent_checklist`](./examples/agent_checklist)** | A release checklist built to be driven by an AI agent through `limoni-mcp`, with a secret token field the agent can type into but never read. | `go run -tags limoni_debug ./examples/agent_checklist` |
-| **[`demo`](./examples/demo)** | **Interactive 3D Lemon Model (GLB/ASCII/Braille/Half-Block) & Feature Trailer.** | `go run ./examples/demo` |
-| **[`showcase`](./examples/showcase)** | Full multi-tab suite with matrix rain, forms, 3D models, DevTools HUD (`F12`), and command palette. | `go run ./examples/showcase` |
-| **[`wasm`](./examples/wasm)** | In-browser WebAssembly demo running on xterm.js. | `go run ./examples/wasm` |
-| **[`animation`](./examples/animation)** | Physics-based animations, color transitions, and easing curves. | `go run ./examples/animation` |
-| **[`forms`](./examples/forms)** | Text inputs, text areas, radios, checkboxes, and sliders. | `go run ./examples/forms` |
-| **[`layer_demo`](./examples/layer_demo)** | Layered modals, popups, and focus isolation. | `go run ./examples/layer_demo` |
+| **Entry point** | `limoni.Run(func(f, ev) bool)` | `limoni.RunProgram(ctx, model)` |
+| **State lives in** | your closure | a `limoni.Model` with `Init` / `Update` / `View` |
+| **Best for** | dashboards, 3D, games, animation | forms, wizards, CRUD tools, async work |
+| **Runtime gives you** | a redraw on every event | commands, cancellation, deterministic ordering, panic recovery, session recording |
+
+Both use the same renderer and widgets and are available from the root package.
+[`examples/counter`](examples/counter) is a complete declarative app in under 80 lines.
+Coming from Bubble Tea? See the [migration guide](docs/bubbletea-migration.md).
 
 ---
 
-## 🌟 Awesome Limoni
+## Widgets
 
-Check out our curated list of real-world apps, tools, and third-party widgets in [**AWESOME.md**](./AWESOME.md).
+| Category | Widgets |
+| :--- | :--- |
+| **Layout** | `VStack` / `HStack` / `ZStack`, `Flex`, `Border`, grid layout (`layout.GridLayout`), `Block` (with border merging), `Viewport`, `Dialog`, `Popup` |
+| **Data** | `Table` (virtual), `List` (virtual), `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
+| **Charts** | `LineChart` (Braille), `BarChart`, `PieChart` |
+| **Input** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select`, `Slider`, `ColorPicker` |
+| **Navigation** | `Tabs`, `Scrollbar`, `CommandPalette`, fuzzy search, keybinding manager |
+| **Feedback** | `Spinner`, `Toast` |
+| **Graphics** | `Canvas` (Braille / block), 3D meshes, `Image` |
+| **Text** | `Markdown`, `Label`, `Paragraph` |
+| **Tooling** | `DevTools` HUD (`F12`), themes, validation |
 
-> Built something cool with Limoni? Open a Pull Request and add your project to [AWESOME.md](./AWESOME.md)!
-
-## 💡 Engineering Philosophy & Acknowledgements
-
-Limoni was conceived to push the boundaries of terminal performance in Go, bringing Rust-grade latency and memory determinism to the Go ecosystem.
-
-> [!NOTE]
-> AI tools were used for generating initial boilerplates, documentation drafts, and test cases, while the core architecture, memory layout, and debugging were directed and implemented by the author.
-
-### Transparency & Tooling
-In the spirit of modern open-source transparency:
-- **AI-Accelerated Scaffolding:** Modern AI developer tools (such as Claude and Gemini assistants) were utilized during development as high-velocity accelerators for generating boilerplate scaffolding, initial unit test cases, and draft documentation.
-- **Human Systems Architecture:** The low-level systems engineering—specifically the flat 1D contiguous cell grid, cache-aligned 16-byte structs, sub-microsecond ANSI differential encoder, stack-allocated context pipeline, zero-allocation layout negotiation, and native Unix/Windows terminal drivers—was conceived, profiled, benchmarked, and directed by the author.
-
-We believe that combining ambitious low-level systems engineering with modern development acceleration leads to more robust, performant, and well-tested software for the entire community.
+→ [Widget gallery](docs/widget-gallery.md) · [Widget reference](docs/widgets-reference.md)
 
 ---
 
-## 🤝 Contributing
+## Examples
 
-Contributions, issues, and feature requests are welcome!
-Please make sure to review our [**Code of Conduct**](./CODE_OF_CONDUCT.md) before participating.
+| Example | What it shows |
+| :--- | :--- |
+| [`demo`](examples/demo) | The feature trailer: a 3D lemon in ASCII, Braille and half-blocks |
+| [`showcase`](examples/showcase) | Tabs, forms, matrix rain, 3D, command palette, DevTools (`F12`) |
+| [`3d_viewer`](examples/3d_viewer) | OBJ/STL/PLY viewer with shading and orbit controls (`-fps 240`) |
+| [`dashboard`](examples/dashboard) | Live CPU and memory sparklines, a process table, streaming logs |
+| [`table_virtual`](examples/table_virtual) | A one-million-row table |
+| [`agent_checklist`](examples/agent_checklist) | An app built to be driven by an AI agent, and tested with `uitest` |
+| [`todo`](examples/todo) | A declarative todo app with tags, filters and fuzzy search |
+| [`counter`](examples/counter) | The smallest declarative app |
+| [`composable`](examples/composable) | Layout with `VStack`, `HStack`, `Border`, `Flex` |
+| [`forms`](examples/forms) · [`layer_demo`](examples/layer_demo) · [`treeview`](examples/treeview) · [`charts`](examples/charts) | Inputs, modals, file tree, charts |
+| [`ssh_server`](examples/ssh_server) · [`wasm`](examples/wasm) | Serving over SSH, running in the browser |
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 🛡️ Security Policy
-
-Please read our [**Security Policy**](./SECURITY.md) to report vulnerabilities responsibly.
-
----
-
-## 📜 Code of Conduct
-
-This project adheres to the [**Contributor Covenant v2.1**](./CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+Run any of them with `go run ./examples/<name>`, or without cloning:
+`go run github.com/thebanri/limoni/examples/3d_viewer@latest`.
+All examples: [docs/examples.md](docs/examples.md).
 
 ---
 
-## 📄 License
+## Documentation
 
-Distributed under the **Apache License 2.0**. See `LICENSE` for more information.
+| | |
+| :--- | :--- |
+| [Getting started](docs/getting-started.md) | Install, first app, both application models |
+| [Architecture](docs/architecture.md) | The flat cell grid, the diff, why the draw path doesn't allocate |
+| [Layout](docs/layout-guide.md) · [Widgets](docs/widgets-reference.md) · [Core API](docs/core-api.md) | Reference |
+| [Semantic automation](docs/automation.md) | The automation socket, `limoni-mcp`, `uitest` and the security model |
+| [Session recording](docs/session-recording.md) | Record and replay sessions as regression tests |
+| [Graphics](docs/graphics-and-canvas.md) · [Animation](docs/animation-and-physics.md) · [Accessibility](docs/accessibility-and-theming.md) | Feature guides |
+| [Drivers and platforms](docs/drivers-and-platforms.md) | Unix, Windows, WebAssembly, SSH |
+| [How it compares](docs/comparison.md) | Against Bubble Tea v1/v2, Lip Gloss and Ratatui, with the caveats |
+| [Benchmarks](docs/benchmarks.md) | Every measured number and how to reproduce it |
+| [Rendering FAQ](docs/faq.md) | Hairline gaps, recommended terminals, emoji |
+| [Stability](docs/stability.md) · [Changelog](CHANGELOG.md) | What may change before 1.0 |
 
-<p align="center">
-  Made with 🍋 by <a href="https://github.com/thebanri">thebanri</a> and contributors.
-</p>
+Turkish documentation: [docs/tr](docs/tr/README.md).
+
+---
+
+## Status
+
+Limoni is **pre-1.0**. Patch releases don't break the API; minor releases may, and
+every break is listed in the [changelog](CHANGELOG.md). The core renderer, layout and
+widgets are settling; the automation, `uitest` and session packages are new and
+experimental. See [docs/stability.md](docs/stability.md) for what has to happen
+before v1.0.
+
+## Community and contributing
+
+- **Questions and ideas:** [GitHub Discussions](https://github.com/thebanri/limoni/discussions)
+- **Bugs:** [open an issue](https://github.com/thebanri/limoni/issues/new/choose). The template asks for your terminal emulator, since most rendering bugs depend on it.
+- **First contribution:** issues labelled [`good first issue`](https://github.com/thebanri/limoni/labels/good%20first%20issue) are scoped to one file and say how to verify the change. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Built something?** Add it to [AWESOME.md](AWESOME.md).
+
+AI assistants (Claude, Gemini) were used during development for scaffolding, tests
+and documentation drafts. The architecture was designed, profiled and benchmarked
+by the author, and the benchmark harness exists to check claims, from people or tools.
+
+[Security policy](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · Apache License 2.0

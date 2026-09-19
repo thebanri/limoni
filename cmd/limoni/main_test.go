@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -83,6 +84,63 @@ func TestProjectName(t *testing.T) {
 	for in, want := range cases {
 		if got := projectName(in); got != want {
 			t.Fatalf("projectName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestGeneratedGoDirectiveMatchesModule guards the trap that once made the
+// scaffold emit "go 1.26.5": a generated project must not demand a newer Go
+// than Limoni itself does.
+func TestGeneratedGoDirectiveMatchesModule(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var declared string
+	for _, line := range strings.Split(string(data), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			declared = strings.TrimSpace(v)
+			break
+		}
+	}
+	if declared == "" {
+		t.Fatal("no go directive in Limoni's go.mod")
+	}
+	if goVersion != strings.TrimSuffix(declared, ".0") {
+		t.Fatalf("scaffold writes go %s, Limoni's go.mod declares go %s", goVersion, declared)
+	}
+}
+
+// TestScaffoldBuilds compiles the generated application against this
+// checkout. Parsing is not enough: the template once imported packages
+// through paths that had since moved.
+func TestScaffoldBuilds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module; skipped in -short")
+	}
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := scaffold(dir, "example.com/scaffoldcheck", false, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	gomod := filepath.Join(dir, "go.mod")
+	f, err := os.OpenFile(gomod, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString("\nrequire github.com/thebanri/limoni v0.0.0\nreplace github.com/thebanri/limoni => " + root + "\n")
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"mod", "tidy"}, {"build", "-o", os.DevNull, "."}, {"vet", "."}} {
+		cmd := exec.Command("go", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)
 		}
 	}
 }

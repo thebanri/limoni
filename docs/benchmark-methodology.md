@@ -208,6 +208,24 @@ timer granularity dominates. Neither is quoted as a ratio.
   Limoni's runner reuses buffers it owns, and this runner allocates a `Cell`
   per glyph because that is Ultraviolet's API shape.
 
+#### The 4,700× that was a harness bug
+
+The first version of this runner drove Ultraviolet's `TerminalRenderer`
+directly and reported that Limoni was **4,700× faster** on `empty-frame`. That
+figure was an artifact of the harness and says nothing about either library.
+
+`TerminalRenderer` returns early when no line is marked as touched, and it is
+`TerminalScreen` that resets those marks. By going around the screen, the
+harness left every line marked touched, so every frame re-scanned the whole
+buffer. An unchanged frame took ~195 µs. Once the marks were reset it took
+~42 ns, the same order as Limoni's own clean-frame fast path. The runner was
+rewritten against `uv.TerminalScreen`, and its numbers were withheld until then
+(commit `82d52c2`).
+
+This is where the rule this document follows comes from: *a number that looks
+too good is a bug in the harness until proven otherwise.* §2.5 has a second
+example, where the rule caught an impossible regression.
+
 #### Reproducing
 
 ```bash

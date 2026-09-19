@@ -1,13 +1,13 @@
 package main
 
-// scaffoldFile, üretilecek tek bir proje dosyasını tanımlar.
+// scaffoldFile describes one generated project file.
 type scaffoldFile struct {
 	Name     string
 	Template string
 }
 
-// scaffoldFiles, `limoni init` ve `limoni new` tarafından üretilen dosya kümesidir.
-// Şablonlardaki {{.Module}} ve {{.Name}} yer tutucuları render sırasında değiştirilir.
+// scaffoldFiles is the file set `limoni init` and `limoni new` write.
+// {{.Module}}, {{.Name}} and {{.GoVersion}} are filled in when rendering.
 var scaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Template: goModTemplate},
 	{Name: "main.go", Template: mainTemplate},
@@ -15,26 +15,27 @@ var scaffoldFiles = []scaffoldFile{
 	{Name: "README.md", Template: readmeTemplate},
 }
 
-// goModTemplate, limoni bağımlılığını bilinçli olarak sabitlemez.
-// Sürüm, `go mod tidy` (veya `go get github.com/thebanri/limoni`) ile çözülür.
+// goModTemplate deliberately leaves the limoni requirement out: `go mod tidy`
+// (or `go get github.com/thebanri/limoni`) resolves the latest release.
+//
+// The go directive must never be newer than the one in Limoni's own go.mod —
+// a newer one forces every user onto that exact toolchain. The test
+// TestGeneratedGoDirectiveMatchesModule keeps the two in step.
 const goModTemplate = `module {{.Module}}
 
-go 1.26.5
+go {{.GoVersion}}
 `
 
-const mainTemplate = `// {{.Name}}, Limoni Init/Update/View runtime'ı ile yazılmış bir terminal uygulamasıdır.
+const mainTemplate = `// {{.Name}} is a terminal application built with Limoni's declarative
+// (Elm architecture) runtime: Init, Update and View on a model.
 package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 
-	"github.com/thebanri/limoni/core/driver"
-	"github.com/thebanri/limoni/core/engine"
-	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -42,51 +43,39 @@ type model struct {
 	presses int
 }
 
-func (m *model) Init() []engine.Cmd { return nil }
+func (m *model) Init() []limoni.Cmd { return nil }
 
-func (m *model) Update(msg engine.Msg) engine.UpdateResult {
-	switch ev := msg.(type) {
-	case engine.KeyPressMsg:
-		if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
-			return engine.UpdateResult{Quit: true}
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	switch msg := msg.(type) {
+	case limoni.KeyPressMsg:
+		if msg.Key.Type == limoni.KeyEsc || (msg.Key.Type == limoni.KeyRune && msg.Key.Ch == 'q') {
+			return limoni.UpdateResult{Quit: true}
 		}
 		m.presses++
-		return engine.UpdateResult{Redraw: true}
-	case engine.ResizeMsg:
-		return engine.UpdateResult{Redraw: true}
+		return limoni.UpdateResult{Redraw: true}
+	case limoni.ResizeMsg:
+		return limoni.UpdateResult{Redraw: true}
 	}
-	return engine.UpdateResult{}
+	return limoni.UpdateResult{}
 }
 
-func (m *model) View(f *terminal.Frame) {
+func (m *model) View(f *limoni.Frame) {
 	f.SetTheme(widgets.DarkTheme())
-	f.RenderWidget(widgets.Block{
+	f.RenderWidget(limoni.Block{
 		Title:         " {{.Name}} ",
-		Borders:       widgets.BorderAll,
-		BorderSymbols: widgets.SymbolsRounded,
+		Borders:       limoni.BorderAll,
+		BorderSymbols: limoni.SymbolsRounded,
 		Padding:       widgets.UniformInsets(1),
-		Child: &widgets.Paragraph{
-			Text: fmt.Sprintf("Merhaba Limoni!\n\nTuş basışı: %d\n\nÇıkmak için q veya Esc.", m.presses),
+		Child: &limoni.Paragraph{
+			Text: fmt.Sprintf("Hello from Limoni!\n\nKeys pressed: %d\n\nPress q or Esc to quit.", m.presses),
 			Wrap: true,
 		},
-	}, f.Buffer.Area)
+	}, f.Area())
 }
 
 func main() {
-	b := driver.NewBackend(os.Stdin, os.Stdout)
-	term, err := terminal.New(b)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "limoni:", err)
-		os.Exit(1)
-	}
-
-	program := engine.New(engine.WithModel(&model{}), engine.WithFPS(60))
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
-	if err := program.RunTerminal(ctx, term, b); err != nil && !errors.Is(err, context.Canceled) {
-		fmt.Fprintln(os.Stderr, "limoni:", err)
+	if err := limoni.RunProgram(context.Background(), &model{}, limoni.WithProgramFPS(60)); err != nil {
+		fmt.Fprintln(os.Stderr, "{{.Name}}:", err)
 		os.Exit(1)
 	}
 }
@@ -99,23 +88,24 @@ const gitignoreTemplate = `{{.Name}}
 
 const readmeTemplate = `# {{.Name}}
 
-[Limoni](https://github.com/thebanri/limoni) ile oluşturulmuş terminal uygulaması.
+A terminal application built with [Limoni](https://github.com/thebanri/limoni).
 
-## Çalıştırma
+## Run
 
 ` + "```bash" + `
-go get github.com/thebanri/limoni
 go mod tidy
 go run .
 ` + "```" + `
 
-## Yapı
+## Layout
 
-- ` + "`main.go`" + ` — ` + "`engine.Model`" + ` arayüzünü uygulayan Init/Update/View döngüsü.
-- Klavye: ` + "`q`" + ` veya ` + "`Esc`" + ` çıkış.
+- ` + "`main.go`" + ` — a model with ` + "`Init`" + `, ` + "`Update`" + ` and ` + "`View`" + `, run by ` + "`limoni.RunProgram`" + `.
+- Keys: ` + "`q`" + ` or ` + "`Esc`" + ` quits.
 
-## Sonraki adımlar
+## Next steps
 
-- ` + "`widgets`" + ` paketindeki Block, Table, List, TextInput, Canvas gibi bileşenleri ` + "`View`" + ` içinde kullanın.
-- Deterministik testler için ` + "`testkit.NewTerminal`" + ` ile anlık görüntü (snapshot) testleri yazın.
+- Use widgets from the ` + "`widgets`" + ` package — Table, List, TextInput, Tabs, Canvas — inside ` + "`View`" + `.
+- Test it like a web page with [uitest](https://pkg.go.dev/github.com/thebanri/limoni/uitest):
+  ` + "`uitest.Program(t, 80, 24, &model{})`" + `, then find widgets by role and label.
+- Browse the widget gallery: https://github.com/thebanri/limoni/blob/main/docs/widget-gallery.md
 `
