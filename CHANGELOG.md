@@ -20,6 +20,11 @@ a patch bump (`v0.x.y`) does not.
   Limoni will use. The bug report template asks for it.
 - `DiffOptions.ClusterWidths`: skip cursor re-anchoring after grapheme clusters
   on terminals measured to draw them as units.
+- **`limoni.App`, `NewApp` and `RunWithContext`.** Immediate-mode
+  applications can run several to a process (one per SSH session, say), each
+  with its own terminal and wakeup, and stop when a context is cancelled.
+  `limoni.Wakeup()` now wakes every running app. `examples/ssh_server` uses it
+  instead of a hand-written loop.
 - `cell.Truncate`: the longest prefix of a string that fits a column count,
   cut at grapheme cluster boundaries, without allocating.
 - `CommandPalette.Title` and `CommandPalette.Placeholder`, and the

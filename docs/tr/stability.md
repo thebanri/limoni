@@ -31,11 +31,12 @@ karar verebilirsiniz.
 
 v1.0 şu koşullar sağlanınca etiketlenecek:
 
-1. Örnek izolasyonu tamamlanır, yani tek bir süreçte iki Limoni uygulaması
-   çalışabilir, ve immediate mode context desteği kazanır (`RunWithContext`).
-2. Terminal yetenekleri ortam değişkenlerinden tahmin edilmek yerine terminale
-   sorularak öğrenilir.
-3. Metin kesen widget'lar grapheme cluster'ları doğru işler.
+1. ~~Örnek izolasyonu: tek bir süreçte iki Limoni uygulaması çalışabilir ve
+   immediate mode context desteği kazanır (`RunWithContext`).~~ v0.3.0'dan sonra tamamlandı.
+2. ~~Terminal yetenekleri ortam değişkenlerinden tahmin edilmek yerine terminale
+   sorularak öğrenilir.~~ v0.3.0'dan sonra tamamlandı.
+3. ~~Metin kesen widget'lar grapheme cluster'ları doğru işler.~~ v0.3.0'dan
+   sonra tamamlandı; Markdown'ın satır kaydırması hariç.
 4. Deneysel paketler bu repo dışında en az bir uygulamada kullanılır ve bu
    kullanımdan gelen geri bildirimle API'leri bir kez gözden geçirilir.
 

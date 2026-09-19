@@ -97,7 +97,10 @@ from the root package; the runtime itself lives in `core/engine`. Options that
 collide with the immediate-mode `AppOption` names are spelled
 `WithProgramFPS` / `WithProgramCatchCtrlC` / `WithoutProgramQuitKeys`.
 
-Declarative mode is context-aware. Immediate mode is not yet — see open work.
+Both modes are context-aware: `limoni.RunWithContext(ctx, fn)` and
+`limoni.NewApp(term, opts...).Run(ctx, fn)` for immediate mode. An `App` owns
+its wakeup channel, so several run in one process (one per SSH session in
+`examples/ssh_server`); package-level `limoni.Wakeup()` wakes all of them.
 
 Note: `.agents/skills/limoni_development/skill.md` still refers to `runtime.New`.
 The package was renamed to `core/engine`; that doc is stale in places.
@@ -186,11 +189,13 @@ Bubble Tea v2 benchmark runner with a documented baseline.
 
 ## Open work, roughly in priority order
 
-1. **Instance isolation and `RunWithContext`.** `limoni.Wakeup` writes to a
-   package-level channel, so two Limoni applications cannot run in one process —
-   yet `examples/ssh_server` exists and multi-session SSH is a stated target. Make
-   the wakeup channel instance-bound and give immediate mode a context-aware entry
-   point. Keep `limoni.Run` as a default-instance wrapper for compatibility.
+1. **Instance isolation — done.** `limoni.App` carries its own wakeup channel
+   and terminal; `Run` and `RunWithContext` build one on stdio. Verified with
+   two concurrent `ssh -tt` sessions against `examples/ssh_server`: both
+   animate, quitting one leaves the other running.
+   `TestAppsInOneProcessAreIsolated` alternates wakeups between two apps; with
+   a shared channel it fails, because the goroutine that waited first takes
+   every wakeup. A version that woke only one app first passed with the bug.
 
 2. **Terminal capability handshake — done, keep it honest.** Setup sends
    `driver.ProbeQueries` (XTVERSION, DECRQM 2026/2027, Kitty keyboard query, two

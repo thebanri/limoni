@@ -28,10 +28,12 @@ decide how tightly to pin it.
 
 v1.0 will be tagged when:
 
-1. Instance isolation lands, so that two Limoni apps can run in one process, and
-   immediate mode is context-aware (`RunWithContext`).
-2. Terminal capabilities are probed rather than guessed from environment variables.
-3. Widgets that truncate text are grapheme-cluster aware.
+1. ~~Instance isolation, so that two Limoni apps can run in one process, and
+   context-aware immediate mode (`RunWithContext`).~~ Done after v0.3.0.
+2. ~~Terminal capabilities are probed rather than guessed from environment
+   variables.~~ Done after v0.3.0.
+3. ~~Widgets that truncate text are grapheme-cluster aware.~~ Done after v0.3.0,
+   except Markdown's word wrap.
 4. The experimental packages have been used by at least one application outside
    this repository, and their API has had one round of changes from that use.
 
