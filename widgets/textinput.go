@@ -279,8 +279,11 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	isFocused := ti.Focused || (ti.ID != "" && ctx.FocusedID == ti.ID)
 
-	// Tıklama olayında odağı üzerine al
-	if ctx.RegisterClick != nil && ctx.SetFocus != nil {
+	// A click focuses the input. Registered as data where the frame supports
+	// it, so drawing does not allocate a closure.
+	if ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: ti.ID})
+	} else if ctx.RegisterClick != nil && ctx.SetFocus != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			ctx.SetFocus(ti.ID)
 		})

@@ -105,7 +105,7 @@ default, only the same user can connect, and secret fields are never exposed.
 
 ### 2. Fast where you can feel it
 
-- **Zero heap allocations on the draw path**, enforced in CI, so animations do not stutter from GC pauses.
+- **Zero heap allocations per frame** for the renderer, every widget's drawing, and the click handling of the common input widgets, enforced in CI, so animations don't stutter from GC pauses. Widgets with drag or custom handlers (Table, Slider, Dialog, …) still allocate a closure each. [The details](docs/architecture.md#5-allocation-free-interactive-frames).
 - **Few bytes per frame.** Blank runs become `ECH`/`EL` and repeats become `REP`: a full-screen redraw is **377 bytes**, and an idle app sends **nothing**. Bytes, not CPU, are what you feel over SSH.
 - **Virtual tables and lists.** One million rows scroll at ~2.7 ms a frame, because only visible rows are touched.
 

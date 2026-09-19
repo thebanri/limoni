@@ -107,7 +107,10 @@ func (a TextArea) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(a.ID)
 	}
-	if ctx.RegisterClick != nil {
+	// A click focuses the widget; registered as data, so it does not allocate.
+	if ctx.RegisterClickAction != nil && a.ID != "" {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: a.ID})
+	} else if ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(a.ID)

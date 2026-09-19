@@ -519,7 +519,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 				for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 					reg := t.frame.ClickRegions[i]
 					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-						reg.Handler(ev)
+						reg.Fire(ev, t.frame)
 						if t.frame.mouseCaptureRequest != nil {
 							t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 							t.frame.mouseCaptureRequest = nil
@@ -547,7 +547,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 				reg := t.frame.ClickRegions[i]
 				if reg.LayerID == modal.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-					reg.Handler(ev)
+					reg.Fire(ev, t.frame)
 					if t.frame.mouseCaptureRequest != nil {
 						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 						t.frame.mouseCaptureRequest = nil
@@ -569,7 +569,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		reg := t.frame.ClickRegions[i]
 		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-			reg.Handler(ev)
+			reg.Fire(ev, t.frame)
 			if t.frame.mouseCaptureRequest != nil {
 				t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 				t.frame.mouseCaptureRequest = nil

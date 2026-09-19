@@ -178,7 +178,7 @@ jobs:
           # Every widget benchmark, not a hand-picked list: TextInput allocated
           # on every frame for months because it was not on the list.
           go test ./widgets -run '^$' -bench . -benchmem | tee -a bench.txt
-          go test ./benchmarks -run '^$' -bench 'BenchmarkEmptyFrame|BenchmarkMouseHitTest|BenchmarkHundredLayers|BenchmarkTenThousandRowTable' -benchmem | tee -a bench.txt
+          go test ./benchmarks -run '^$' -bench 'BenchmarkEmptyFrame|BenchmarkMouseHitTest|BenchmarkHundredLayers|BenchmarkTenThousandRowTable|BenchmarkInteractiveFrame' -benchmem | tee -a bench.txt
           awk '
             function budget(name) {
               if (name ~ /^BenchmarkTenThousandRowTable/) return 16

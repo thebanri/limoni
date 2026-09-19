@@ -25,6 +25,15 @@ a patch bump (`v0.x.y`) does not.
   with its own terminal and wakeup, and stop when a context is cancelled.
   `limoni.Wakeup()` now wakes every running app. `examples/ssh_server` uses it
   instead of a hand-written loop.
+- **Allocation-free interactive frames.** `cell.ClickAction` with
+  `Context.RegisterClickAction`, and `Context.RegisterScroll`, register what a
+  click or the mouse wheel does as data instead of as a closure built every
+  frame. Checkbox, Radio, TextInput, TextArea, List, Paragraph, RichText,
+  Markdown, Progress, Sparkline and Image use them. The frame also stopped
+  wrapping every click handler in a second closure, and stopped building a
+  theme closure for every widget. `BenchmarkInteractiveFrame` (a checkbox, an
+  input, a list and a block through a real Terminal with a theme) went from 19
+  allocations and 816 B per frame to zero, 4% faster, and CI gates it.
 - `cell.Truncate`: the longest prefix of a string that fits a column count,
   cut at grapheme cluster boundaries, without allocating.
 - `CommandPalette.Title` and `CommandPalette.Placeholder`, and the

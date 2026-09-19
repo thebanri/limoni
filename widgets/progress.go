@@ -31,7 +31,10 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if p.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(p.ID)
 	}
-	if p.ID != "" && ctx.RegisterClick != nil {
+	// A click focuses the widget; registered as data, so it does not allocate.
+	if ctx.RegisterClickAction != nil && p.ID != "" {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: p.ID})
+	} else if p.ID != "" && ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(p.ID)

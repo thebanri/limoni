@@ -30,7 +30,10 @@ func (rb RadioButton) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	isFocused := (ctx.FocusedID == rb.ID)
 
 	// Tıklama olayında odağı al ve seçimi güncelle
-	if ctx.RegisterClick != nil {
+	if ctx.RegisterClickAction != nil {
+		// Focus and select, registered as data: no allocation per frame.
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: rb.ID, Assign: rb.Selected, Value: rb.Value})
+	} else if ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(rb.ID)

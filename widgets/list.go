@@ -212,8 +212,14 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		offset = l.State.Offset
 	}
 
-	// Fare tekerleği olaylarını dinle ve kaydır
-	if ctx.RegisterMouse != nil && l.State != nil {
+	// The mouse wheel scrolls the list.
+	if ctx.RegisterScroll != nil && l.State != nil {
+		maxOffset := totalItems - int(ctx.Area.Height)
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		ctx.RegisterScroll(ctx.Area, &l.State.Offset, maxOffset)
+	} else if ctx.RegisterMouse != nil && l.State != nil {
 		st := l.State
 		viewHeight := int(ctx.Area.Height)
 		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
@@ -327,7 +333,11 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		// Otomatik fare yönlendirme köprüsünü bağla
-		if ctx.RegisterClick != nil && l.State != nil {
+		if ctx.RegisterClickAction != nil && l.State != nil {
+			// Clicking a row selects it and focuses the list, as data.
+			ctx.RegisterClickAction(cell.Rect{X: area.X, Y: currY, Width: area.Width, Height: 1},
+				cell.ClickAction{Focus: l.ID, Select: &l.State.Selected, Index: itemIdx})
+		} else if ctx.RegisterClick != nil && l.State != nil {
 			st := l.State
 			id := l.ID
 			setFocus := ctx.SetFocus
