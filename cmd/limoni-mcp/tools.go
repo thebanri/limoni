@@ -205,8 +205,8 @@ func newTools(a *app) []tool {
 			},
 		},
 		{
-			name:        "click",
-			title:       "Click a widget",
+			name:  "click",
+			title: "Click a widget",
 			description: "Clicks the centre of the one widget the selector matches, then returns the tree after the application redraws. Refused if the selector matches more than one widget. " +
 				"Clicking toggles a checkbox; to make a step safe to repeat, pass ensure: checked, unchecked or selected, and the widget is clicked only if it is not already in that state.",
 			properties: selectorProperties(map[string]any{

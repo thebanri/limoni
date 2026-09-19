@@ -151,6 +151,19 @@ The only dependencies are `golang.org/x/sys` and `golang.org/x/crypto`.
 
 ---
 
+## Built with Limoni: zest
+
+[**zest**](cmd/zest) is a log viewer and Limoni's flagship app. It follows files and pipes, colours by
+level, and filters a million lines without stalling. A 67 MiB, 1,000,000-line log is on screen in about half
+a second.
+
+```bash
+go install github.com/thebanri/limoni/cmd/zest@latest
+zest -demo 1000000        # or: zest app.log, kubectl logs -f pod | zest
+```
+
+---
+
 ## Two ways to write an app
 
 | | Immediate mode | Declarative (Elm architecture) |
