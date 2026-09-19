@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -199,6 +201,15 @@ func (s *Server) serve(conn net.Conn) {
 		// One explanatory line, then the connection is gone. A client from the
 		// wrong user learns only that it was refused.
 		_ = json.NewEncoder(conn).Encode(Response{Err: err.Error()})
+		// Read what the client already sent before closing. Closing a socket
+		// with unread data makes Windows reset the connection, and the client
+		// then reads a reset instead of this explanation. Bounded, so a
+		// refused client cannot hold the connection open.
+		if cw, ok := conn.(interface{ CloseWrite() error }); ok {
+			_ = cw.CloseWrite()
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, _ = io.Copy(io.Discard, io.LimitReader(conn, 64<<10))
 		return
 	}
 	scanner := bufio.NewScanner(conn)
