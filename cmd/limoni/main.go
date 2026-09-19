@@ -4,6 +4,7 @@
 //
 //	limoni init [module-path]   Create a Limoni application in the current directory.
 //	limoni new <name>           Create directory <name> and write an application into it.
+//	limoni doctor               Ask the terminal what it supports, for bug reports.
 //	limoni version              Print version information.
 package main
 
@@ -52,6 +53,8 @@ func run(args []string, out io.Writer) error {
 		return runInit(args[1:], out)
 	case "new":
 		return runNew(args[1:], out)
+	case "doctor":
+		return runDoctor(out)
 	case "version":
 		fmt.Fprintf(out, "limoni scaffold (limoni %s)\n", limoniVersion)
 		return nil
@@ -70,6 +73,7 @@ func usage(out io.Writer) {
 Commands:
   limoni init [module-path]  Create an application in the current directory
   limoni new <name>          Create directory <name> and write an application into it
+  limoni doctor              Ask the terminal what it supports; paste this in bug reports
   limoni version             Print version information
 
 Options:

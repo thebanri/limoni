@@ -9,7 +9,7 @@
 | **Fare Etkileşimi** | **Hücresel Koordinat & Z-Index Yönlendirme** | Yok (manuel koordinat hesabı) | SGR fare olayları; dahili hit-testing yok | Manuel koordinat |
 | **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Hücre diff + `ECH`/`REP`/`ICH`/`DCH` + kaydırma optimizasyonu | Çift tamponlu diff |
 | **Grapheme Cluster** | **UAX #29 cluster'ları, Unicode 17.0, resmî 766 kırılım testinin tamamı geçiyor** + Mod 2027 isteği; desteklemeyen terminaller için her cluster'dan sonra imleç yeniden konumlanır | `uniseg` | `uniseg` + Mod 2027 müzakeresi | `unicode-width` |
-| **Yetenek Tespiti** | Yalnızca ortam değişkenleri | Ortam / terminfo | Çalışma anında sorgulama (terminfo'suz) | terminfo / crossterm |
+| **Yetenek Tespiti** | **Çalışma anında sorgulama (XTVERSION, DECRQM, DA1) ve ölçüm**: REP ve grapheme cluster genişliği bir isimden çıkarılmaz, imleci hareket ettirerek test edilir. Ortam değişkenleri yedek olarak kullanılır | Ortam / terminfo | Çalışma anında sorgulama (terminfo'suz) | terminfo / crossterm |
 | **Büyük Veri / Tablolar**| **1M satır sanallaştırma (sürekli kaydırma altında ~2,6 ms/kare)** | Yüksek GC yükü | v1'e göre iyileştirilmiş | Her karede tüm satırları yeniden kurar — `Table` satır iterator'ının sahibidir |
 | **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY/GLB) & Shaders** | Harici eklenti gerekir | Harici eklenti gerekir | Eklenti gerekir |
 | **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Kısıtlı / Manuel | Deneysel |

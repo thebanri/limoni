@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/core/grapheme"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -23,8 +25,13 @@ type CapabilityProfile struct {
 	// RepeatChar enables REP (CSI n b) for runs of one glyph. Also ECMA-48, but
 	// unevenly implemented — a terminal without it would print the escape and
 	// corrupt the frame — so it stays off unless the terminal is recognised.
-	// This becomes a runtime query once the capability handshake lands.
+	// The capability handshake turns it on for terminals that name themselves
+	// (XTVERSION) and are known to implement it.
 	RepeatChar bool
+	// ClusterWidths is on when the terminal confirmed mode 2027: it measures a
+	// grapheme cluster as one unit, as Limoni does, so the diff need not
+	// re-anchor the cursor after each one. Only the handshake sets it.
+	ClusterWidths bool
 }
 
 // DetectCapabilities automatically detects the active terminal's capability profile using environment variables.
@@ -101,4 +108,58 @@ func DetectCapabilities() CapabilityProfile {
 	}
 
 	return profile
+}
+
+// knownTerminals lists what Limoni knows about terminals that answer XTVERSION,
+// keyed by the lower-cased name before the version. Only positive knowledge is
+// recorded: a terminal missing here keeps what the environment suggested.
+var knownTerminals = map[string]struct{ trueColor, rep bool }{
+	"xterm":    {trueColor: false, rep: true}, // 24-bit SGR is accepted but may be approximated
+	"kitty":    {trueColor: true, rep: true},
+	"wezterm":  {trueColor: true, rep: true},
+	"foot":     {trueColor: true, rep: true},
+	"ghostty":  {trueColor: true, rep: true},
+	"contour":  {trueColor: true, rep: true},
+	"iterm2":   {trueColor: true, rep: true},
+	"xterm.js": {trueColor: true, rep: true},
+	// tmux interprets REP itself before redrawing on the outer terminal, so
+	// REP is safe whatever runs outside it. Colour depth depends on tmux's
+	// own configuration and the outer terminal, so it is left alone.
+	"tmux": {trueColor: false, rep: true},
+}
+
+// WithReport refines a profile guessed from the environment with what the
+// terminal said about itself during the capability handshake. It only acts on
+// answers: a question the terminal ignored leaves the guess in place. The
+// LIMONI_NO_SYNC and LIMONI_REP overrides still win.
+func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile {
+	if r.SyncOutput != driver.ModeUnknown && os.Getenv("LIMONI_NO_SYNC") != "1" {
+		p.SyncOutput = r.SyncOutput.Recognized()
+	}
+	// A terminal draws clusters the way the buffer lays them out if it says
+	// so (mode 2027 on) or if it was measured doing it.
+	p.ClusterWidths = grapheme.Clusters() && (r.GraphemeClusters.Enabled() || r.ClusterWidth == 2)
+
+	if known, ok := knownTerminals[strings.ToLower(r.Name)]; ok {
+		if known.trueColor {
+			p.TrueColor, p.Colors256 = true, true
+		}
+		if known.rep {
+			p.RepeatChar = true
+		}
+	}
+	// A measurement beats both the name and the environment.
+	switch r.Repeat {
+	case driver.Yes:
+		p.RepeatChar = true
+	case driver.No:
+		p.RepeatChar = false
+	}
+	switch os.Getenv("LIMONI_REP") {
+	case "1":
+		p.RepeatChar = true
+	case "0":
+		p.RepeatChar = false
+	}
+	return p
 }

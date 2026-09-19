@@ -192,12 +192,19 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    the wakeup channel instance-bound and give immediate mode a context-aware entry
    point. Keep `limoni.Run` as a default-instance wrapper for compatibility.
 
-2. **Terminal capability handshake.** `DetectCapabilities` only reads `TERM`,
-   `COLORTERM` and `TERM_PROGRAM`, which is wrong inside tmux, over SSH with an
-   unhelpful `TERM`, and in emulators that do not advertise themselves. Add a
-   short, timeout-guarded probe at startup: DA1, XTVERSION, DECRQM for modes 2026
-   and 2027, and the Kitty keyboard query — falling back to the current guess.
-   `Terminal.SetCapabilities` already exists as the manual override.
+2. **Terminal capability handshake — done, keep it honest.** Setup sends
+   `driver.ProbeQueries` (XTVERSION, DECRQM 2026/2027, Kitty keyboard query, two
+   cursor-position *measurements* for REP and cluster width, DA1 last as the
+   sentinel). The event loops fold replies into `driver.TerminalReport` and
+   never forward them; `Terminal.Draw` applies them via
+   `CapabilityProfile.WithReport` and repaints fully if they land after a
+   frame. Measured on this machine: kitty 0.48.2 and Konsole 26.08.1 draw a
+   ZWJ family 2 columns wide without mode 2027; Alacritty draws it 6. That is
+   why measurement beats the name table. `limoni doctor` shows the whole
+   decision; verify changes in real terminals with it (via `script -q -c` to
+   capture), not only with the in-memory tests. Not yet used: DA1 sixel and
+   the Kitty keyboard flags are recorded but do not drive image protocol
+   selection or keyboard enhancement.
 
 3. **Agent-facing semantics.** `cmd/limoni-mcp` serves the automation socket
    as MCP tools, and a headless Claude Code run completed
@@ -224,9 +231,10 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    diff re-anchors the cursor after each cluster so terminals without 2027 do
    not shift the row. What remains is widgets that truncate or position text by
    `[]rune` — TextInput, TextArea, Table, Toast, Dialog, Fuzzy and others — which
-   can cut a cluster. Mode 2027 should also be probed (item 2) instead of sent
-   blindly. To regenerate tables for a new Unicode version, download the UCD
-   files listed in `gen.go`, run it, and replace the conformance test data.
+   can cut a cluster. Mode 2027 is still *set* unconditionally, but whether the
+   terminal honours it (or draws clusters as units anyway) is now probed. To
+   regenerate tables for a new Unicode version, download the UCD files listed
+   in `gen.go`, run it, and replace the conformance test data.
 
 5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
    notifications, no mouse shape, no window title, no suspend/resume.
