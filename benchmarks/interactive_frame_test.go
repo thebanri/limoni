@@ -3,6 +3,7 @@ package benchmarks
 import (
 	"testing"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
@@ -98,5 +99,42 @@ func TestInteractiveFrameHandlesClicks(t *testing.T) {
 	term.RouteMouseEvent(driver.MouseEvent{Button: driver.MouseScrollUp, X: 1, Y: 3})
 	if s.list.State.Offset != 2 {
 		t.Errorf("wheel up left offset %d, want 2", s.list.State.Offset)
+	}
+}
+
+// A widget inside a Block used to be invisible to the semantic tree — the
+// frame only described widgets it rendered itself — and it lost every
+// Context field Block did not copy by hand, the click actions among them.
+func TestNestedWidgetsAreDescribedAndStayAllocationFree(t *testing.T) {
+	term := newBenchTerminal(t)
+	checked := false
+	box := &widgets.Checkbox{ID: "nested", Checked: &checked, Label: "Nested"}
+	block := &widgets.Block{Title: "outer", Borders: widgets.BorderAll, Child: box}
+	var tree []accessibility.AccessibilityNode
+	draw := func(f *terminal.Frame) {
+		f.RenderWidget(block, cell.NewRect(0, 0, 30, 5))
+		if tree == nil {
+			tree = f.AccessibilityTree()
+		}
+	}
+
+	if err := term.Draw(draw); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, n := range tree {
+		if n.ID == "nested" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the checkbox inside the block is not in the semantic tree")
+	}
+	term.RouteMouseEvent(driver.MouseEvent{Button: driver.MouseLeft, X: 2, Y: 1})
+	if !checked {
+		t.Fatal("clicking the nested checkbox did not toggle it")
+	}
+	if a := testing.AllocsPerRun(100, func() { _ = term.Draw(draw) }); a != 0 {
+		t.Fatalf("a frame with a nested checkbox allocates %.0f times", a)
 	}
 }

@@ -59,6 +59,14 @@ type Context struct {
 
 	// ThemeStyle resolves a semantic theme role into a style inherited from the frame.
 	ThemeStyle func(role string) Style
+
+	// Describe registers a nested widget in the semantic tree. The frame
+	// registers the widgets it is asked to render; a container that draws a
+	// child itself — Block's Child, a component tree — calls Describe after
+	// drawing it, or the child is invisible to screen readers, tests and
+	// agents. w is the child; if it provides no semantic node, nothing
+	// happens. Passing an interface value does not allocate.
+	Describe func(w any, area Rect)
 }
 
 // ClickAction describes what a left click does, without a closure. Every
