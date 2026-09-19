@@ -51,6 +51,11 @@ a patch bump (`v0.x.y`) does not.
   [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
 
 ### Fixed
+- An idle application sent an empty synchronized-update pair every frame
+  (960 bytes/s at 60 FPS). A frame that changes nothing now writes nothing.
+- `limoni new` generated a `go.mod` requiring Go 1.26.5 and code against
+  `core/engine`. It now targets Go 1.25 and the root package, and a test builds
+  the generated project.
 - The WebAssembly demo called `Program.Run` and rendered nothing; it also ran
   in 16 colours because capability detection read absent environment variables.
 - Tab did nothing at the top of a `limoni.Run` callback because the focus list
