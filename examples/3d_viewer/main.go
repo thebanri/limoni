@@ -48,7 +48,6 @@ func generateDefaultTexture() image.Image {
 	return img
 }
 
-
 type AppState struct {
 	RotX, RotY, RotZ float64
 	AutoRotate       bool
