@@ -164,6 +164,8 @@ go install github.com/thebanri/limoni/cmd/zest@latest
 zest -demo 1000000        # or: zest app.log, kubectl logs -f pod | zest
 ```
 
+Or [try it in the browser](https://thebanri.github.io/limoni/): the "Logs · zest" scene.
+
 ---
 
 ## Two ways to write an app

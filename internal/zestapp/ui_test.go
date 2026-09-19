@@ -1,4 +1,4 @@
-package main
+package zestapp
 
 import (
 	"strconv"
@@ -22,8 +22,8 @@ func TestViewerEndToEnd(t *testing.T) {
 		s.add([]byte(`{"level":"` + level + `","msg":"job ` + strconv.Itoa(i) + ` done","worker":"w` + strconv.Itoa(i%4) + `"}`))
 	}
 	v := &view{src: s}
-	u := newUI("test.log", s, v)
-	page := uitest.Run(t, 120, 20, u.frame)
+	u := newViewer("test.log", s, v)
+	page := uitest.Run(t, 120, 20, u.Frame)
 	v.wake = func() {}
 
 	log := page.GetByID("log")
@@ -65,8 +65,8 @@ func TestClearingTheFilterKeepsTheFoundLine(t *testing.T) {
 		s.add([]byte("line " + strconv.Itoa(i)))
 	}
 	v := &view{src: s}
-	u := newUI("t", s, v)
-	page := uitest.Run(t, 80, 22, u.frame)
+	u := newViewer("t", s, v)
+	page := uitest.Run(t, 80, 22, u.Frame)
 	v.wake = func() {}
 
 	page.Press("/")

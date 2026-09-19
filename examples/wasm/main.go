@@ -22,6 +22,7 @@ import (
 	"github.com/thebanri/limoni/core/engine"
 	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
+	"github.com/thebanri/limoni/internal/zestapp"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -45,6 +46,11 @@ type playground struct {
 	series   []float64
 	logState *widgets.ViewportState
 	logLines []string
+
+	// zest, the log viewer, runs as a scene of its own. Its demo log is
+	// generated the first time the scene is opened.
+	zest        *zestapp.Viewer
+	zestStarted bool
 }
 
 var (
@@ -73,9 +79,11 @@ func newPlayground() *playground {
 	m.scenes = []scene{
 		{title: "3D", view: (*playground).viewCube},
 		{title: "Charts", view: (*playground).viewCharts},
+		{title: "Logs · zest", view: (*playground).viewZest},
 		{title: "Scroll", view: (*playground).viewScroll},
 		{title: "About", view: (*playground).viewAbout},
 	}
+	m.zest = zestapp.NewViewer("demo log")
 	return m
 }
 
@@ -121,6 +129,13 @@ func (m *playground) Update(msg engine.Msg) engine.UpdateResult {
 }
 
 func (m *playground) handleKey(key driver.KeyEvent) engine.UpdateResult {
+	// In the zest scene every key but Tab belongs to the viewer, digits
+	// included: they pick its minimum level. Esc and q would quit zest; in
+	// a browser tab there is nothing to quit to, so they are just ignored.
+	if m.scenes[m.active].title == "Logs · zest" && key.Type != driver.KeyTab {
+		m.zest.Key(key)
+		return engine.UpdateResult{Redraw: true}
+	}
 	switch key.Type {
 	case driver.KeyTab:
 		if key.Shift {
@@ -196,7 +211,7 @@ func (m *playground) View(frame *terminal.Frame) {
 	frame.RenderWidget(widgets.Spinner{
 		Set:        widgets.SpinnerBraille,
 		Since:      m.started,
-		Label:      "  [1-4] scene   [Tab] next   [↑↓ PgUp/PgDn] scroll   [Space] count: " + fmt.Sprint(m.count),
+		Label:      "  [1-5] scene   [Tab] next   [↑↓ PgUp/PgDn] scroll   [Space] count: " + fmt.Sprint(m.count),
 		Style:      accent,
 		LabelStyle: muted,
 	}, statusArea)
@@ -417,6 +432,17 @@ func maxOf(values []float64) float64 {
 		}
 	}
 	return out
+}
+
+// viewZest shows zest, Limoni's log viewer, on a generated log of 200,000
+// lines that keeps growing. The same code as the zest command; only the size
+// of the demo differs, to be kind to a browser tab's memory.
+func (m *playground) viewZest(frame *terminal.Frame, area cell.Rect) {
+	if !m.zestStarted {
+		m.zestStarted = true
+		go func() { _ = m.zest.GenerateDemo(context.Background(), 200_000) }()
+	}
+	m.zest.Draw(frame, area)
 }
 
 func minOf(values []float64) float64 {

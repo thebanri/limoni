@@ -32,6 +32,9 @@ of the line above it. So filtering to errors keeps the whole trace.
 
 **Rotation:** a followed file that shrinks (copytruncate) is read again from the start.
 
+There's also a [browser version](https://thebanri.github.io/limoni/): the "Logs · zest" scene of the
+playground, running the same code as WebAssembly on a 200,000-line demo log.
+
 ## How fast
 
 Measured on an AMD Ryzen 5 5600 in kitty 0.48.2, 130×24, with a build of this commit:

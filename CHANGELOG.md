@@ -16,6 +16,9 @@ a patch bump (`v0.x.y`) does not.
   0.54 s, measured in kitty.
   Clearing a filter keeps the found line selected and centred, so its
   context is right there.
+- The browser playground has a "Logs · zest" scene: zest on a 200,000-line
+  demo log, running as WebAssembly. The module grows from 1.25 MB to 1.70 MB
+  gzipped, mostly `encoding/json` for the details pane.
 - `widgets.LogView`: a virtual log pane with follow mode, a line-number
   gutter, level colours, case-insensitive highlighting and sideways scrolling,
   allocation-free (`BenchmarkLogViewDraw`: 100,000 lines, 0 B/op). With

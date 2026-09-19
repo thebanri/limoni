@@ -1,4 +1,4 @@
-package main
+package zestapp
 
 import (
 	"strconv"
@@ -22,8 +22,8 @@ func TestSelectingWhileLinesArrive(t *testing.T) {
 	}
 	add(5000)
 	v := &view{src: s}
-	u := newUI("t", s, v)
-	page := uitest.Run(t, 120, 20, u.frame)
+	u := newViewer("t", s, v)
+	page := uitest.Run(t, 120, 20, u.Frame)
 	v.wake = func() {}
 	page.Press("5")
 	page.Press("/")
