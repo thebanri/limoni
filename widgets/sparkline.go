@@ -28,7 +28,10 @@ func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if s.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(s.ID)
 	}
-	if s.ID != "" && ctx.RegisterClick != nil {
+	// A click focuses the widget; registered as data, so it does not allocate.
+	if ctx.RegisterClickAction != nil && s.ID != "" {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: s.ID})
+	} else if s.ID != "" && ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(s.ID)

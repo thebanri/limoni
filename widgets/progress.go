@@ -31,7 +31,10 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if p.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(p.ID)
 	}
-	if p.ID != "" && ctx.RegisterClick != nil {
+	// A click focuses the widget; registered as data, so it does not allocate.
+	if ctx.RegisterClickAction != nil && p.ID != "" {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: p.ID})
+	} else if p.ID != "" && ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(p.ID)
@@ -75,7 +78,7 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	if p.ShowPercent && ctx.Area.Width >= 5 {
 		text := itoa(int(ratio*100)) + "%"
-		start := int(ctx.Area.X) + (int(ctx.Area.Width)-len([]rune(text)))/2
+		start := int(ctx.Area.X) + (int(ctx.Area.Width)-cell.StringWidth(text))/2
 		buf.SetString(uint16(start), ctx.Area.Y, text, ctx.Style.Merge(p.Style))
 	}
 }

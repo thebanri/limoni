@@ -1,7 +1,8 @@
 package widgets
 
 import (
-	"strings"
+	"strconv"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -160,6 +161,12 @@ type CommandPalette struct {
 	ItemStyle   cell.Style // Normal öğe stili
 	SelStyle    cell.Style // Seçili öğe stili
 	DetailStyle cell.Style // Kısayol/detay stili
+
+	// Title is drawn in the top border. Empty means " ⌘ Commands ".
+	Title string
+	// Placeholder is shown while the query is empty. Empty means
+	// "Search commands...".
+	Placeholder string
 }
 
 func (cp CommandPalette) panelArea(area cell.Rect) cell.Rect {
@@ -333,18 +340,13 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			c.Style = borderStyle
 		}
 	}
-	// Başlık
-	title := " ⌘ Komut Paleti "
-	titleRunes := []rune(title)
-	titleStart := startX + 2
-	titleStyle := cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
-	titleX := titleStart
-	for _, r := range titleRunes {
-		if titleX >= startX+paletW-1 {
-			break
-		}
-		titleX += drawRune(buf, titleX, startY, r, titleStyle)
+	// Title, in the top border.
+	title := cp.Title
+	if title == "" {
+		title = " ⌘ Commands "
 	}
+	titleStyle := cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
+	setEllipsized(buf, uint16(startX+2), uint16(startY), title, titleStyle, paletW-3, "…")
 
 	// Alt çizgi
 	bottomY := startY + paletH - 1
@@ -395,37 +397,27 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	// Arama metni
-	queryText := cp.State.Query.Value()
-	if queryText == "" {
-		// Placeholder
-		placeholder := "Komut ara..."
-		phRunes := []rune(placeholder)
+	// Query text, or the placeholder. Measured in columns and cut at cluster
+	// boundaries, like TextInput.
+	textX := startX + 1 + searchIconWidth
+	textW := paletW - 2 - searchIconWidth
+	if cp.State.Query.Value() == "" {
+		placeholder := cp.Placeholder
+		if placeholder == "" {
+			placeholder = "Search commands..."
+		}
 		phStyle := cell.Style{Fg: cell.NewColorRGB(120, 120, 140), Bg: inputStyle.Bg}
-		for i, r := range phRunes {
-			x := startX + 1 + searchIconWidth + i
-			if x >= startX+paletW-1 {
-				break
-			}
-			drawRune(buf, x, inputY, r, phStyle)
-		}
+		setEllipsized(buf, uint16(textX), uint16(inputY), placeholder, phStyle, textW, "…")
 	} else {
-		qRunes := []rune(queryText)
-		for i, r := range qRunes {
-			x := startX + 1 + searchIconWidth + i
-			if x >= startX+paletW-1 {
-				break
-			}
-			drawRune(buf, x, inputY, r, inputStyle)
-		}
+		buf.SetStringWithin(uint16(textX), uint16(inputY), cp.State.Query.Value(), inputStyle, uint16(max(textW, 0)))
 	}
 
-	// İmleç
-	cursorX := startX + 1 + searchIconWidth + cp.State.Query.Cursor
+	// Cursor.
+	cursorX := textX + cp.State.Query.cursorColumn()
 	if cursorX < startX+paletW-1 {
 		if c := buf.Get(uint16(cursorX), uint16(inputY)); c != nil {
-			c.Style = cell.Style{Fg: inputStyle.Bg, Bg: inputStyle.Fg} // Ters renkler
-			if c.Content == ' ' || c.Content == 0 {
+			c.Style = cell.Style{Fg: inputStyle.Bg, Bg: inputStyle.Fg} // inverted
+			if c.Content == 0 {
 				c.Content = ' '
 			}
 		}
@@ -497,50 +489,23 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		// Etiket
-		labelRunes := []rune(item.Label)
-		queryLower := strings.ToLower(cp.State.Query.Value())
-		labelLower := strings.ToLower(item.Label)
-		matchPositions := computeMatchPositions(queryLower, labelLower)
-
+		// Label, with the characters the query matched highlighted.
 		labelStart := startX + 3
-		for ci, r := range labelRunes {
-			x := labelStart + ci
-			if x >= startX+paletW-1 {
-				break
-			}
-			charStyle := rowStyle
-			// Eşleşen harfleri vurgula
-			if _, ok := matchPositions[ci]; ok {
-				charStyle.Fg = cell.NewColorRGB(100, 200, 255)
-				charStyle.Modifier = cell.ModifierBold
-			}
-			if c := buf.Get(uint16(x), uint16(y)); c != nil {
-				c.Content = r
-				c.Style = charStyle
-			}
-		}
+		labelLimit := startX + paletW - 1
+		matchStyle := rowStyle
+		matchStyle.Fg = cell.NewColorRGB(100, 200, 255)
+		matchStyle.Modifier = cell.ModifierBold
+		labelEnd := drawHighlighted(buf, labelStart, y, labelLimit, item.Label, cp.State.Query.Value(), rowStyle, matchStyle)
 
-		// Detay (sağa yasla)
+		// Detail, right-aligned, if it fits beside the label.
 		if item.Detail != "" {
-			detailRunes := []rune(item.Detail)
-			detailLen := utf8.RuneCountInString(item.Detail)
-			detailStart := startX + paletW - 2 - detailLen
-			if detailStart > labelStart+len(labelRunes)+1 {
+			detailStart := startX + paletW - 2 - cell.StringWidth(item.Detail)
+			if detailStart > labelEnd+1 {
 				dStyle := detailStyle
 				if isSelected {
 					dStyle.Bg = selStyle.Bg
 				}
-				for di, r := range detailRunes {
-					x := detailStart + di
-					if x >= startX+paletW-1 || x < startX+1 {
-						continue
-					}
-					if c := buf.Get(uint16(x), uint16(y)); c != nil {
-						c.Content = r
-						c.Style = dStyle
-					}
-				}
+				buf.SetStringWithin(uint16(detailStart), uint16(y), item.Detail, dStyle, uint16(labelLimit-detailStart))
 			}
 		}
 
@@ -560,6 +525,9 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			})
 		}
 		if ctx.RegisterMouse != nil {
+			// A copy, so that capturing it does not move visibleCount to the
+			// heap on frames that register no handlers.
+			visibleCount := visibleCount
 			ctx.RegisterMouse(rowArea, func(ev driver.MouseEvent) {
 				if cp.State == nil {
 					return
@@ -594,14 +562,20 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	// Sonuç sayısı göstergesi (alt satır veya kenarlıkta)
-	totalStr := []rune(strings.Replace(strings.Replace("  X/Y  ", "X", itoa(len(cp.State.Filtered)), 1), "Y", itoa(len(cp.State.AllItems)), 1))
-	countStart := startX + paletW - 2 - len(totalStr)
+	// Result count, "  filtered/total  ", in the bottom border. Built in a
+	// stack buffer: formatting it as a string allocated on every frame.
+	var countBuf [48]byte
+	count := append(countBuf[:0], "  "...)
+	count = strconv.AppendInt(count, int64(len(cp.State.Filtered)), 10)
+	count = append(count, '/')
+	count = strconv.AppendInt(count, int64(len(cp.State.AllItems)), 10)
+	count = append(count, "  "...)
+	countStart := startX + paletW - 2 - len(count)
 	if countStart > startX+1 {
 		countStyle := cell.Style{Fg: cell.NewColorRGB(80, 80, 100), Bg: bgStyle.Bg}
-		for i, r := range totalStr {
+		for i, ch := range count {
 			if c := buf.Get(uint16(countStart+i), uint16(bottomY)); c != nil {
-				c.Content = r
+				c.Content = rune(ch)
 				c.Style = countStyle
 			}
 		}
@@ -630,20 +604,34 @@ func drawRune(buf *buffer.Buffer, x, y int, r rune, style cell.Style) int {
 	return width
 }
 
-// computeMatchPositions, fuzzy arama sonucu eşleşen karakter konumlarını döndürür.
-func computeMatchPositions(queryLower, targetLower string) map[int]bool {
-	positions := make(map[int]bool)
-	qRunes := []rune(queryLower)
-	tRunes := []rune(targetLower)
-
-	qi := 0
-	for ti := 0; ti < len(tRunes) && qi < len(qRunes); ti++ {
-		if tRunes[ti] == qRunes[qi] {
-			positions[ti] = true
-			qi++
+// drawHighlighted draws label from x, stopping before limit, and styles the
+// clusters that the query matches as a case-insensitive subsequence — the
+// fuzzy match the palette filters by. It returns the column after the label.
+// It does not allocate; the previous version built a map and lowered both
+// strings for every row on every frame.
+func drawHighlighted(buf *buffer.Buffer, x, y, limit int, label, query string, style, match cell.Style) int {
+	for rest := label; rest != ""; {
+		cluster, w, next := cell.NextCluster(rest)
+		rest = next
+		if w == 0 {
+			continue
 		}
+		if x+w > limit {
+			break
+		}
+		st := style
+		if query != "" {
+			q, qsize := utf8.DecodeRuneInString(query)
+			c, _ := utf8.DecodeRuneInString(cluster)
+			if unicode.ToLower(c) == unicode.ToLower(q) {
+				st = match
+				query = query[qsize:]
+			}
+		}
+		buf.SetStringWithin(uint16(x), uint16(y), cluster, st, uint16(w))
+		x += w
 	}
-	return positions
+	return x
 }
 
 // itoa, basit int -> string dönüşümü.

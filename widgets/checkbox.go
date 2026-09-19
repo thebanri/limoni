@@ -28,8 +28,11 @@ func (cb Checkbox) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	isFocused := (ctx.FocusedID == cb.ID)
 
-	// Tıklama olayında odağı al ve değeri tersine çevir
-	if ctx.RegisterClick != nil {
+	// A click focuses the checkbox and flips it, registered as data so the
+	// draw does not allocate a closure.
+	if ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: cb.ID, Toggle: cb.Checked})
+	} else if ctx.RegisterClick != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(cb.ID)
@@ -52,7 +55,12 @@ func (cb Checkbox) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		prefix = "[x] "
 	}
 
-	buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, prefix+cb.Label, textStyle, ctx.Area.Width)
+	// Prefix and label written separately: concatenating them allocated on
+	// every frame.
+	n := buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, prefix, textStyle, ctx.Area.Width)
+	if n < ctx.Area.Width {
+		buf.SetStringWithin(ctx.Area.X+n, ctx.Area.Y, cb.Label, textStyle, ctx.Area.Width-n)
+	}
 }
 
 // SizeHint, onay kutusunun kaplayacağı tek satırlık alanı ve en boy ihtiyacını döner.

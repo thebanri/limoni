@@ -91,5 +91,12 @@ table's absolute numbers were not re-measured, rather than quietly editing rows.
 Widgets that cut or place text by `[]rune` — `TextInput`, `TextArea`, `Table`,
 `Toast`, `Dialog`, `Fuzzy` — can split a cluster at the truncation point.
 Drawing and measuring are cluster-aware; positioning inside those widgets is not.
-Mode 2027 is also sent blindly; it should be probed with DECRQM once the
-capability handshake lands.
+
+## The handshake decides whether re-anchoring is needed
+
+`driver.ProbeQueries` asks DECRQM 2027 *and measures*: it writes a ZWJ family
+emoji and reads the cursor back. `CapabilityProfile.ClusterWidths` (→
+`DiffOptions.ClusterWidths`) is true when mode 2027 is on or the family measured
+2 columns; the diff then skips `appendClusterResync`. Keep the
+`cell.IsCluster(...) && !opts.ClusterWidths` order: the other order cost 5% on
+`BenchmarkDiff_FullChanges`, because the option load ran for every cell.

@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -214,8 +212,14 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		offset = l.State.Offset
 	}
 
-	// Fare tekerleği olaylarını dinle ve kaydır
-	if ctx.RegisterMouse != nil && l.State != nil {
+	// The mouse wheel scrolls the list.
+	if ctx.RegisterScroll != nil && l.State != nil {
+		maxOffset := totalItems - int(ctx.Area.Height)
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		ctx.RegisterScroll(ctx.Area, &l.State.Offset, maxOffset)
+	} else if ctx.RegisterMouse != nil && l.State != nil {
 		st := l.State
 		viewHeight := int(ctx.Area.Height)
 		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
@@ -329,7 +333,11 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		// Otomatik fare yönlendirme köprüsünü bağla
-		if ctx.RegisterClick != nil && l.State != nil {
+		if ctx.RegisterClickAction != nil && l.State != nil {
+			// Clicking a row selects it and focuses the list, as data.
+			ctx.RegisterClickAction(cell.Rect{X: area.X, Y: currY, Width: area.Width, Height: 1},
+				cell.ClickAction{Focus: l.ID, Select: &l.State.Selected, Index: itemIdx})
+		} else if ctx.RegisterClick != nil && l.State != nil {
 			st := l.State
 			id := l.ID
 			setFocus := ctx.SetFocus
@@ -386,7 +394,7 @@ func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		return 0, 0
 	}
 
-	symbolLen := utf8.RuneCountInString(l.HighlightSymbol)
+	symbolLen := cell.StringWidth(l.HighlightSymbol)
 	maxW := 0
 
 	if l.Provider != nil {
@@ -395,14 +403,14 @@ func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
 			limit = 100
 		}
 		for i := 0; i < limit; i++ {
-			w := utf8.RuneCountInString(l.Provider.ItemAt(i)) + symbolLen
+			w := cell.StringWidth(l.Provider.ItemAt(i)) + symbolLen
 			if w > maxW {
 				maxW = w
 			}
 		}
 	} else {
 		for _, item := range l.Items {
-			w := utf8.RuneCountInString(item) + symbolLen
+			w := cell.StringWidth(item) + symbolLen
 			if w > maxW {
 				maxW = w
 			}

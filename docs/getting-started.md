@@ -186,6 +186,36 @@ func main() {
 
 ---
 
+## ⏹️ Stopping, Waking, and Running Several Apps
+
+`limoni.RunWithContext` is `limoni.Run` with a context. Cancelling the context
+restores the terminal and returns `ctx.Err()`:
+
+```go
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+defer stop()
+err := limoni.RunWithContext(ctx, draw, limoni.WithFPS(30))
+```
+
+A background goroutine that changed some state calls `limoni.Wakeup()` to
+get a frame drawn without waiting for input.
+
+To run an app on a terminal you created yourself, such as one per SSH session,
+use `limoni.NewApp`. Each `App` has its own wakeup, so any number can run in one
+process:
+
+```go
+term, _ := terminal.New(driver.NewSSHBackend(session))
+app := limoni.NewApp(term, limoni.WithFPS(30))
+go func() { for range updates { app.Wakeup() } }() // wakes this session only
+err := app.Run(ctx, draw)
+```
+
+`limoni.Wakeup()` wakes every running app. [`examples/ssh_server`](../examples/ssh_server)
+serves one app per SSH connection this way.
+
+---
+
 ## 🎨 Fluent Styling & Color Helpers
 
 Limoni provides intuitive helpers for colors and modifiers:

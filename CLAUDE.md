@@ -97,7 +97,10 @@ from the root package; the runtime itself lives in `core/engine`. Options that
 collide with the immediate-mode `AppOption` names are spelled
 `WithProgramFPS` / `WithProgramCatchCtrlC` / `WithoutProgramQuitKeys`.
 
-Declarative mode is context-aware. Immediate mode is not yet — see open work.
+Both modes are context-aware: `limoni.RunWithContext(ctx, fn)` and
+`limoni.NewApp(term, opts...).Run(ctx, fn)` for immediate mode. An `App` owns
+its wakeup channel, so several run in one process (one per SSH session in
+`examples/ssh_server`); package-level `limoni.Wakeup()` wakes all of them.
 
 Note: `.agents/skills/limoni_development/skill.md` still refers to `runtime.New`.
 The package was renamed to `core/engine`; that doc is stale in places.
@@ -186,18 +189,27 @@ Bubble Tea v2 benchmark runner with a documented baseline.
 
 ## Open work, roughly in priority order
 
-1. **Instance isolation and `RunWithContext`.** `limoni.Wakeup` writes to a
-   package-level channel, so two Limoni applications cannot run in one process —
-   yet `examples/ssh_server` exists and multi-session SSH is a stated target. Make
-   the wakeup channel instance-bound and give immediate mode a context-aware entry
-   point. Keep `limoni.Run` as a default-instance wrapper for compatibility.
+1. **Instance isolation — done.** `limoni.App` carries its own wakeup channel
+   and terminal; `Run` and `RunWithContext` build one on stdio. Verified with
+   two concurrent `ssh -tt` sessions against `examples/ssh_server`: both
+   animate, quitting one leaves the other running.
+   `TestAppsInOneProcessAreIsolated` alternates wakeups between two apps; with
+   a shared channel it fails, because the goroutine that waited first takes
+   every wakeup. A version that woke only one app first passed with the bug.
 
-2. **Terminal capability handshake.** `DetectCapabilities` only reads `TERM`,
-   `COLORTERM` and `TERM_PROGRAM`, which is wrong inside tmux, over SSH with an
-   unhelpful `TERM`, and in emulators that do not advertise themselves. Add a
-   short, timeout-guarded probe at startup: DA1, XTVERSION, DECRQM for modes 2026
-   and 2027, and the Kitty keyboard query — falling back to the current guess.
-   `Terminal.SetCapabilities` already exists as the manual override.
+2. **Terminal capability handshake — done, keep it honest.** Setup sends
+   `driver.ProbeQueries` (XTVERSION, DECRQM 2026/2027, Kitty keyboard query, two
+   cursor-position *measurements* for REP and cluster width, DA1 last as the
+   sentinel). The event loops fold replies into `driver.TerminalReport` and
+   never forward them; `Terminal.Draw` applies them via
+   `CapabilityProfile.WithReport` and repaints fully if they land after a
+   frame. Measured on this machine: kitty 0.48.2 and Konsole 26.08.1 draw a
+   ZWJ family 2 columns wide without mode 2027; Alacritty draws it 6. That is
+   why measurement beats the name table. `limoni doctor` shows the whole
+   decision; verify changes in real terminals with it (via `script -q -c` to
+   capture), not only with the in-memory tests. Not yet used: DA1 sixel and
+   the Kitty keyboard flags are recorded but do not drive image protocol
+   selection or keyboard enhancement.
 
 3. **Agent-facing semantics.** `cmd/limoni-mcp` serves the automation socket
    as MCP tools, and a headless Claude Code run completed
@@ -205,8 +217,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    API over the same tree (in-process `Run`/`Program`, remote `Connect`).
    Lists expose visible rows as children, from a buffer in `ListState` so the
    draw path stays allocation-free — which is why `Frame.AccessibilityTree`
-   deep-copies and `f.Accessibility` must not be kept past a frame. Still
-   missing: `Table` rows, `TreeView` items and `Tabs` are flat; custom widgets
+   deep-copies and `f.Accessibility` must not be kept past a frame. Table rows,
+   TreeView items and Tabs are children too, and `Check`/`Uncheck`/`Select`
+   (MCP: `click` with `ensure`) are idempotent. Still missing: custom widgets
    embedding `widgets.Accessible` are not focusable, so Tab skips them. Test
    the bridge against a real app in a PTY as well as with `go test` — the Tab
    bug below was invisible to unit tests.
@@ -222,11 +235,13 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    checked by `GraphemeBreakTest.txt`), `Cell` stores multi-code-point clusters
    as interned handles ≥ `cell.RuneClusterBase`, setup sends mode 2027, and the
    diff re-anchors the cursor after each cluster so terminals without 2027 do
-   not shift the row. What remains is widgets that truncate or position text by
-   `[]rune` — TextInput, TextArea, Table, Toast, Dialog, Fuzzy and others — which
-   can cut a cluster. Mode 2027 should also be probed (item 2) instead of sent
-   blindly. To regenerate tables for a new Unicode version, download the UCD
-   files listed in `gen.go`, run it, and replace the conformance test data.
+   not shift the row. Widgets are converted: use `cell.StringWidth` for widths,
+   `cell.Truncate` to cut, `setEllipsized`/`setClipped` to draw cut text without
+   allocating, and `clusterBounds` for cursor movement. Still by rune: Markdown's
+   word wrap (`runesWidth`) and fuzzy match highlighting in `fuzzy.go`. Mode 2027 is still *set* unconditionally, but whether the
+   terminal honours it (or draws clusters as units anyway) is now probed. To
+   regenerate tables for a new Unicode version, download the UCD files listed
+   in `gen.go`, run it, and replace the conformance test data.
 
 5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
    notifications, no mouse shape, no window title, no suspend/resume.

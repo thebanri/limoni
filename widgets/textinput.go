@@ -1,7 +1,8 @@
 package widgets
 
 import (
-	"strings"
+	"slices"
+	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
@@ -10,13 +11,24 @@ import (
 	"github.com/thebanri/limoni/layout"
 )
 
-// TextInputState, metin giriş kutusunun veri durumunu (text ve imleç konumu) saklar.
+// TextInputState holds the text of an input box and the cursor position.
+//
+// Text is a slice of code points and Cursor an index into it, but editing
+// moves by grapheme cluster: Backspace after a family emoji removes the whole
+// family, not just its last person, and the arrow keys never stop inside a
+// flag. Code that sets Cursor directly should put it on a cluster boundary;
+// one inside a cluster is drawn at the start of that cluster.
 type TextInputState struct {
 	Text   []rune
 	Cursor int
+
+	// text is Text as UTF-8, rebuilt only when Text changes, so drawing and
+	// the accessibility node read it without converting on every frame.
+	text  string
+	built []rune // the Text that text was built from
 }
 
-// NewTextInputState, yeni bir TextInputState örneği oluşturur.
+// NewTextInputState creates an empty TextInputState.
 func NewTextInputState() *TextInputState {
 	return &TextInputState{
 		Text:   make([]rune, 0, 64),
@@ -24,18 +36,70 @@ func NewTextInputState() *TextInputState {
 	}
 }
 
-// Value, metin kutusundaki veriyi string olarak döner.
+// Value returns the text as a string.
 func (state *TextInputState) Value() string {
-	return string(state.Text)
+	return state.str()
 }
 
-// SetValue, metin kutusunun içeriğini günceller ve imleci sona taşır.
+// SetValue replaces the text and moves the cursor to the end.
 func (state *TextInputState) SetValue(s string) {
 	state.Text = []rune(s)
 	state.Cursor = len(state.Text)
 }
 
-// HandleKey, basılan tuşu metin kutusuna uygular. Değer veya imleç değiştiyse true döner.
+// str returns Text as a string, converting only when Text has changed since
+// the last call. Comparing is cheap next to allocating on every frame.
+func (state *TextInputState) str() string {
+	if !slices.Equal(state.built, state.Text) {
+		state.text = string(state.Text)
+		state.built = append(state.built[:0], state.Text...)
+	}
+	return state.text
+}
+
+// cursorColumn returns how many columns the text before the cursor takes.
+func (state *TextInputState) cursorColumn() int {
+	col, runeIdx := 0, 0
+	for rest := state.str(); rest != "" && runeIdx < state.Cursor; {
+		cluster, w, next := cell.NextCluster(rest)
+		col += w
+		runeIdx += utf8.RuneCountInString(cluster)
+		rest = next
+	}
+	return col
+}
+
+// clusterAround returns the rune indexes of the grapheme cluster boundaries
+// immediately before and after rune index i of the text.
+func (state *TextInputState) clusterAround(i int) (before, after int) {
+	return clusterBounds(state.str(), i)
+}
+
+// clusterBounds returns the rune indexes of the grapheme cluster boundaries
+// immediately before and after rune index i of text. At a boundary, before is
+// the start of the cluster ending at i and after the end of the one starting
+// there; inside a cluster, they are that cluster's start and end.
+func clusterBounds(text string, i int) (before, after int) {
+	before, after = 0, utf8.RuneCountInString(text)
+	start := 0
+	for rest := text; rest != ""; {
+		cluster, _, next := cell.NextCluster(rest)
+		end := start + utf8.RuneCountInString(cluster)
+		if start < i && end > i { // i is inside this cluster
+			return start, end
+		}
+		if end <= i {
+			before = start
+		}
+		if start >= i {
+			return before, end
+		}
+		start, rest = end, next
+	}
+	return before, after
+}
+
+// HandleKey applies a key press. It reports whether the text or the cursor changed.
 func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 	switch key.Type {
 	case driver.KeyRune:
@@ -60,13 +124,13 @@ func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 
 	case driver.KeyArrowLeft:
 		if state.Cursor > 0 {
-			state.Cursor--
+			state.Cursor, _ = state.clusterAround(state.Cursor)
 			return true
 		}
 
 	case driver.KeyArrowRight:
 		if state.Cursor < len(state.Text) {
-			state.Cursor++
+			_, state.Cursor = state.clusterAround(state.Cursor)
 			return true
 		}
 
@@ -89,29 +153,32 @@ func (state *TextInputState) insert(r rune) {
 	if r == '\r' {
 		return
 	}
-	// Araya karakter ekleme
+	state.Cursor = clampInt(state.Cursor, 0, len(state.Text))
 	state.Text = append(state.Text, 0)
 	copy(state.Text[state.Cursor+1:], state.Text[state.Cursor:])
 	state.Text[state.Cursor] = r
 	state.Cursor++
 }
 
+// backspace removes the whole grapheme cluster before the cursor.
 func (state *TextInputState) backspace() bool {
-	if state.Cursor == 0 {
+	if state.Cursor <= 0 {
 		return false
 	}
-	// İmlecin solundaki karakteri sil
-	state.Text = append(state.Text[:state.Cursor-1], state.Text[state.Cursor:]...)
-	state.Cursor--
+	state.Cursor = clampInt(state.Cursor, 0, len(state.Text))
+	start, _ := state.clusterAround(state.Cursor)
+	state.Text = append(state.Text[:start], state.Text[state.Cursor:]...)
+	state.Cursor = start
 	return true
 }
 
+// delete removes the whole grapheme cluster after the cursor.
 func (state *TextInputState) delete() bool {
 	if state.Cursor >= len(state.Text) {
 		return false
 	}
-	// İmlecin altındaki karakteri sil
-	state.Text = append(state.Text[:state.Cursor], state.Text[state.Cursor+1:]...)
+	_, end := state.clusterAround(state.Cursor)
+	state.Text = append(state.Text[:state.Cursor], state.Text[end:]...)
 	return true
 }
 
@@ -197,7 +264,9 @@ func (ti *TextInput) WithFocused(focused bool) *TextInput {
 	return ti
 }
 
-// Draw, metin kutusunu çizer, tıklandığında odak almasını sağlar ve aktif odaklıysa software cursor gösterir.
+// Draw draws the input, takes focus when clicked, and shows a software cursor
+// while focused. It does not allocate: the text is converted to a string only
+// when it changes, and clusters are measured in place.
 func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ti.ID == "" || ti.State == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
@@ -210,8 +279,11 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	isFocused := ti.Focused || (ti.ID != "" && ctx.FocusedID == ti.ID)
 
-	// Tıklama olayında odağı üzerine al
-	if ctx.RegisterClick != nil && ctx.SetFocus != nil {
+	// A click focuses the input. Registered as data where the frame supports
+	// it, so drawing does not allocate a closure.
+	if ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: ti.ID})
+	} else if ctx.RegisterClick != nil && ctx.SetFocus != nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			ctx.SetFocus(ti.ID)
 		})
@@ -238,108 +310,129 @@ func (ti TextInput) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
-	// Metni veya placeholder'ı çiz
-	textStr := ti.State.Value()
+	// Placeholder when empty.
+	textStr := ti.State.str()
 	if textStr == "" && ti.Placeholder != "" {
 		phStyle := boxStyle.Merge(ti.PlaceholderStyle)
-		phRunes := []rune(ti.Placeholder)
-		if len(phRunes) > visibleWidth {
-			phRunes = phRunes[:visibleWidth]
-		}
-		buf.SetString(ctx.Area.X, ctx.Area.Y, string(phRunes), phStyle)
-
-		// Boşken ilk karakter üzerinde software cursor çiz
+		buf.SetStringWithin(ctx.Area.X, ctx.Area.Y, ti.Placeholder, phStyle, ctx.Area.Width)
 		if isFocused {
-			if c := buf.Get(ctx.Area.X, ctx.Area.Y); c != nil {
-				c.Style.Modifier |= cell.ModifierReverse
-				c.Style.Bg = cell.NewColorRGB(255, 255, 255)
-				c.Style.Fg = cell.NewColorRGB(0, 0, 0)
-				c.Style.Modifier |= cell.ModifierBold
-			}
+			paintCursor(buf, ctx.Area.X, ctx.Area.Y)
 		}
+		return
+	}
+
+	mask := ti.MaskRune
+	if mask == 0 {
+		mask = '•'
+	}
+	maskWidth := cell.RuneWidth(mask)
+	if maskWidth < 1 {
+		maskWidth = 1
+	}
+
+	// First pass: find the cursor's column, measuring whole grapheme clusters
+	// so a wide character or an emoji sequence takes the columns it is drawn in.
+	cursorCol, col, runeIdx := -1, 0, 0
+	for rest := textStr; rest != ""; {
+		cluster, cw, next := cell.NextCluster(rest)
+		n := utf8.RuneCountInString(cluster)
+		if cursorCol < 0 && runeIdx+n > ti.State.Cursor {
+			cursorCol = col
+		}
+		col += ti.displayWidth(cluster, cw, maskWidth)
+		runeIdx += n
+		rest = next
+	}
+	if cursorCol < 0 {
+		cursorCol = col
+	}
+
+	// Scroll horizontally so the cursor cell stays visible.
+	startCol := 0
+	if cursorCol >= visibleWidth {
+		startCol = cursorCol - visibleWidth + 1
+	}
+
+	s, e := ti.SelectionStart, ti.SelectionEnd
+	hasSelection := s != -1 && e != -1 && s != e
+	if s > e {
+		s, e = e, s
+	}
+	selStyle := boxStyle
+	if ti.SelectionStyle.Bg != 0 || ti.SelectionStyle.Fg != 0 || ti.SelectionStyle.Modifier != 0 {
+		selStyle = selStyle.Merge(ti.SelectionStyle)
 	} else {
-		var displayText strings.Builder
-		cursorVisualCol := 0
-		mask := ti.MaskRune
-		if mask == 0 {
-			mask = '•'
-		}
-		for idx, r := range ti.State.Text {
-			if idx == ti.State.Cursor {
-				cursorVisualCol = len([]rune(displayText.String()))
-			}
-			if ti.Secret {
-				// One mask glyph per character, newlines included: the expanded
-				// " ↵ " marker would reveal where the line breaks are.
-				displayText.WriteRune(mask)
-				continue
-			}
-			if r == '\n' {
-				displayText.WriteString(" ↵ ")
-			} else {
-				displayText.WriteRune(r)
-			}
-		}
-		if ti.State.Cursor >= len(ti.State.Text) {
-			cursorVisualCol = len([]rune(displayText.String()))
-		}
+		selStyle.Bg = cell.NewColorRGB(255, 255, 255)
+		selStyle.Fg = cell.NewColorRGB(0, 0, 0)
+		selStyle.Modifier |= cell.ModifierBold
+	}
 
-		runes := []rune(displayText.String())
-
-		// Horizontal scrolling / Viewport calculation
-		startOffset := 0
-		if cursorVisualCol >= visibleWidth {
-			startOffset = cursorVisualCol - visibleWidth + 1
+	// Second pass: draw the clusters inside the visible window. A cluster cut
+	// by the left edge is left blank rather than drawn in half.
+	col, runeIdx = 0, 0
+	for rest := textStr; rest != ""; {
+		cluster, cw, next := cell.NextCluster(rest)
+		n := utf8.RuneCountInString(cluster)
+		w := ti.displayWidth(cluster, cw, maskWidth)
+		if col-startCol+w > visibleWidth {
+			break
 		}
-		if startOffset > len(runes) {
-			startOffset = len(runes)
-		}
-		visibleRunes := runes[startOffset:]
-		if len(visibleRunes) > visibleWidth {
-			visibleRunes = visibleRunes[:visibleWidth]
-		}
-
-		s := ti.SelectionStart
-		e := ti.SelectionEnd
-		hasSelection := (s != -1 && e != -1 && s != e)
-		if s > e {
-			s, e = e, s
-		}
-
-		for i, r := range visibleRunes {
-			charIdx := startOffset + i
+		if col >= startCol && w > 0 {
 			st := boxStyle
-			if hasSelection && charIdx >= s && charIdx < e {
-				if ti.SelectionStyle.Bg != 0 || ti.SelectionStyle.Fg != 0 || ti.SelectionStyle.Modifier != 0 {
-					st = st.Merge(ti.SelectionStyle)
-				} else {
-					st.Bg = cell.NewColorRGB(255, 255, 255)
-					st.Fg = cell.NewColorRGB(0, 0, 0)
-					st.Modifier |= cell.ModifierBold
-				}
+			if hasSelection && runeIdx >= s && runeIdx < e {
+				st = selStyle
 			}
-			colX := ctx.Area.X + uint16(i)
-			if colX < ctx.Area.X+ctx.Area.Width {
-				buf.SetCell(colX, ctx.Area.Y, cell.Cell{
-					Content: r,
-					Style:   st,
-				})
+			x := ctx.Area.X + uint16(col-startCol)
+			switch {
+			case ti.Secret:
+				// One mask per character as the reader sees it: a cluster, not
+				// a code point, so the mask does not reveal how emoji are built.
+				putGlyph(buf, x, ctx.Area.Y, mask, maskWidth, st)
+			case cluster == "\n":
+				buf.SetStringWithin(x, ctx.Area.Y, " ↵ ", st, 3)
+			default:
+				buf.SetStringWithin(x, ctx.Area.Y, cluster, st, uint16(w))
 			}
 		}
+		col += w
+		runeIdx += n
+		rest = next
+	}
 
-		// Eğer odaklıysa software cursor çiz: harfin üzeri beyaz, yazı siyah
-		if isFocused {
-			relCursor := cursorVisualCol - startOffset
-			if relCursor >= 0 && relCursor < visibleWidth {
-				cursorX := ctx.Area.X + uint16(relCursor)
-				if c := buf.Get(cursorX, ctx.Area.Y); c != nil {
-					c.Style.Modifier |= cell.ModifierReverse
-					c.Style.Bg = cell.NewColorRGB(255, 255, 255)
-					c.Style.Fg = cell.NewColorRGB(0, 0, 0)
-					c.Style.Modifier |= cell.ModifierBold
-				}
-			}
+	if isFocused {
+		if rel := cursorCol - startCol; rel >= 0 && rel < visibleWidth {
+			paintCursor(buf, ctx.Area.X+uint16(rel), ctx.Area.Y)
 		}
+	}
+}
+
+// displayWidth is how many columns a cluster takes in the input: the mask's
+// width when secret, three for the " ↵ " that stands for a newline, and its
+// own width otherwise. Other control characters take none.
+func (ti TextInput) displayWidth(cluster string, width, maskWidth int) int {
+	switch {
+	case ti.Secret:
+		return maskWidth
+	case cluster == "\n":
+		return 3
+	}
+	return width
+}
+
+// putGlyph writes one code point that may be two columns wide.
+func putGlyph(buf *buffer.Buffer, x, y uint16, r rune, width int, st cell.Style) {
+	buf.SetCell(x, y, cell.Cell{Content: r, Style: st})
+	if width == 2 {
+		buf.SetCell(x+1, y, cell.Cell{Content: cell.RuneContinuation, Style: st})
+	}
+}
+
+// paintCursor draws the software cursor: the cell under it inverted.
+func paintCursor(buf *buffer.Buffer, x, y uint16) {
+	if c := buf.Get(x, y); c != nil {
+		c.Style.Modifier |= cell.ModifierReverse | cell.ModifierBold
+		c.Style.Bg = cell.NewColorRGB(255, 255, 255)
+		c.Style.Fg = cell.NewColorRGB(0, 0, 0)
 	}
 }
 
@@ -370,7 +463,7 @@ func (ti TextInput) AccessibilityNode(bounds cell.Rect, focused bool) accessibil
 	if ti.Secret {
 		state |= accessibility.StateSensitive
 	} else if ti.State != nil {
-		val = string(ti.State.Text)
+		val = ti.State.str()
 	}
 	return accessibility.AccessibilityNode{
 		ID:     ti.ID,

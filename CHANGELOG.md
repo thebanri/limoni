@@ -8,6 +8,78 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- **Terminal capability handshake.** Setup asks the terminal for its name
+  (XTVERSION), mode 2026/2027 support (DECRQM), Kitty keyboard support and DA1.
+  It also *measures* whether REP works and how wide a grapheme cluster is
+  drawn, by writing a few cells and asking where the cursor went. Answers
+  refine the environment-based guess on the next frame, and force a full
+  repaint if they arrive after one. Tested against kitty 0.48.2, Alacritty and
+  Konsole 26.08.1. `LIMONI_PROBE=0` turns it off.
+- `limoni doctor` prints what the terminal reported and which capabilities
+  Limoni will use. The bug report template asks for it.
+- `DiffOptions.ClusterWidths`: skip cursor re-anchoring after grapheme clusters
+  on terminals measured to draw them as units.
+- **`limoni.App`, `NewApp` and `RunWithContext`.** Immediate-mode
+  applications can run several to a process (one per SSH session, say), each
+  with its own terminal and wakeup, and stop when a context is cancelled.
+  `limoni.Wakeup()` now wakes every running app. `examples/ssh_server` uses it
+  instead of a hand-written loop.
+- **Allocation-free interactive frames.** `cell.ClickAction` with
+  `Context.RegisterClickAction`, and `Context.RegisterScroll`, register what a
+  click or the mouse wheel does as data instead of as a closure built every
+  frame. Checkbox, Radio, TextInput, TextArea, List, Paragraph, RichText,
+  Markdown, Progress, Sparkline and Image use them. The frame also stopped
+  wrapping every click handler in a second closure, and stopped building a
+  theme closure for every widget. `BenchmarkInteractiveFrame` (a checkbox, an
+  input, a list and a block through a real Terminal with a theme) went from 19
+  allocations and 816 B per frame to zero, 4% faster, and CI gates it.
+- **More of the screen is addressable.** Table rows (`row`, with a `cell` per
+  column), TreeView items (`tree-item`, with expanded state) and tabs
+  (`tab-list`/`tab`, via the new `Tabs.State`) are semantic nodes, so a test or
+  an agent finds "the row reading beta" and clicks it.
+- `uitest`: `Check`, `Uncheck` and `Select`, which click only when needed and
+  wait for the result. `limoni-mcp`'s `click` takes `ensure` for the same.
+- `cell.Truncate`: the longest prefix of a string that fits a column count,
+  cut at grapheme cluster boundaries, without allocating.
+- `CommandPalette.Title` and `CommandPalette.Placeholder`, and the
+  `Shading*` constants for `Viewer3D.Shading`.
+
+### Changed
+- `Tabs` report the role `tab-list` instead of `list`.
+- `CommandPalette` shows English text by default ("⌘ Commands",
+  "Search commands..."). It used to show Turkish text to every user.
+- `Validator` default messages are English, and `MinLength`/`MaxLength`
+  count grapheme clusters, not code points.
+- `Viewer3D.Shading` takes `ShadingTexture`, `ShadingFlat`, `ShadingLambert`,
+  `ShadingWireframe` and `ShadingGouraud`. The Turkish names it shipped with
+  still work.
+
+### Fixed
+- Replies to terminal queries were dropped or misread: a Kitty keyboard reply
+  (`CSI ? flags u`) was parsed as a key press, and DA1 replies longer than 32
+  bytes were cut off, so the rest arrived as keystrokes.
+- Parsing a CSI sequence allocated. Keys, mouse reports and replies now parse
+  without allocating.
+- Widgets measured text in code points and cut it by rune. `TextInput`
+  drew 日本 as blanks, split emoji sequences into their parts, and left
+  "man ZWJ woman ZWJ" behind after one Backspace. `TextInput` and `TextArea`
+  now edit by grapheme cluster. Table, Toast, Select, Popup, TextArea,
+  CommandPalette, the charts, TreeView, List, Progress and VirtualDataView
+  measure in columns and cut on cluster boundaries.
+- TreeView guide lines vanished below an ancestor with later siblings:
+  Flatten built each node's ancestry with an `append` that siblings shared, so
+  a later sibling overwrote an earlier one's flags. It now uses a bit mask and
+  a reused buffer, and no longer allocates per frame.
+- A Table allocated its draw scratch and two maps after every garbage
+  collection, because it kept them in a `sync.Pool`. A table with `State` now
+  keeps them there.
+- Table cells cut to fit could produce invalid UTF-8 (`"e\xcc"`) when the
+  text contained a combining mark.
+- `TextInput` and `CommandPalette` allocated on every frame, and Table
+  allocated for every truncated cell. All three are now allocation-free, and
+  CI checks every widget benchmark instead of four.
+
 ## [v0.3.0] — 2026-09-19
 
 ### Breaking

@@ -9,7 +9,7 @@
 | **Mouse Interaction** | **Spatial Hit-Testing & Z-Index Routing** | None (manual coordinate math) | SGR mouse events; no built-in hit-testing | Manual coordinates |
 | **Double Buffering & Diff** | **Sub-microsecond dirty-cell diff + Adaptive flush** | None (entire strings dumped to stdout) | Cell diff + `ECH`/`REP`/`ICH`/`DCH` + scroll optimization | Double-buffered diff |
 | **Grapheme Clusters** | **UAX #29 clusters, Unicode 17.0, all 766 official break tests pass** + Mode 2027 request; cursor re-anchored after each cluster for terminals without it | `uniseg` | `uniseg` + Mode 2027 negotiation | `unicode-width` |
-| **Capability Detection** | Environment variables only | Environment / terminfo | Runtime queries (no terminfo) | terminfo / crossterm |
+| **Capability Detection** | **Runtime queries (XTVERSION, DECRQM, DA1) plus measurement**: REP and grapheme-cluster width are tested by moving the cursor, not inferred from a name. Environment variables are the fallback | Environment / terminfo | Runtime queries (no terminfo) | terminfo / crossterm |
 | **Large Datasets / Tables**| **Virtual paging (1M rows, ~2.6 ms/frame under continuous scroll)** | High GC load on scroll | Improved vs v1 | Rebuilds every row each frame — `Table` owns its row iterator |
 | **3D & Vector Graphics**| **Built-in 3D (OBJ/STL/PLY/GLB) & Gouraud Shaders** | Third-party / custom | Third-party / custom | Addons required |
 | **Accessibility (A11y)** | **Screen-reader & semantic tree built-in** | Limited / Manual | Limited / Manual | Experimental |

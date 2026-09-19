@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -27,13 +25,19 @@ type TreeViewState struct {
 	expandedMap map[string]bool
 	flatCache   []flatTreeNode
 	cacheValid  bool
+
+	// nodes holds the visible items' semantic nodes, reused every frame.
+	nodes []accessibility.AccessibilityNode
 }
 
 type flatTreeNode struct {
 	node      *TreeNode
 	depth     int
 	isLast    bool
-	parentEnd []bool
+	// ends has bit d set when the ancestor at depth d is the last of its
+	// siblings, which decides whether a guide line continues through that
+	// column. Depths past 63 draw a guide.
+	ends uint64
 }
 
 // NewTreeViewState creates a new initialized TreeViewState.
@@ -232,35 +236,40 @@ func (s *TreeViewState) HandleKey(ev driver.KeyEvent, roots []TreeNode) bool {
 	return false
 }
 
-// Flatten produces a visible linear list of nodes based on current expansion state.
+// Flatten produces a visible linear list of nodes based on current expansion
+// state. With a state, the list is built in a buffer the state reuses, so it
+// does not allocate once it has grown to the tree's visible size; the result
+// is valid until the next call.
 func (s *TreeViewState) Flatten(roots []TreeNode) []flatTreeNode {
 	var flat []flatTreeNode
-	var traverse func(nodes []TreeNode, depth int, parentEnd []bool)
-	traverse = func(nodes []TreeNode, depth int, parentEnd []bool) {
-		for i := range nodes {
-			node := &nodes[i]
-			isLast := i == len(nodes)-1
-			curParentEnd := append(parentEnd, isLast)
+	if s != nil {
+		flat = s.flatCache[:0]
+	}
+	flat = s.flatten(flat, roots, 0, 0)
+	if s != nil {
+		s.flatCache = flat
+	}
+	return flat
+}
 
-			flat = append(flat, flatTreeNode{
-				node:      node,
-				depth:     depth,
-				isLast:    isLast,
-				parentEnd: curParentEnd,
-			})
+func (s *TreeViewState) flatten(flat []flatTreeNode, nodes []TreeNode, depth int, ends uint64) []flatTreeNode {
+	for i := range nodes {
+		node := &nodes[i]
+		isLast := i == len(nodes)-1
+		own := ends
+		if isLast && depth < 64 {
+			own |= 1 << uint(depth)
+		}
+		flat = append(flat, flatTreeNode{node: node, depth: depth, isLast: isLast, ends: own})
 
-			expanded := node.Expanded
-			if s != nil {
-				expanded = s.IsExpanded(node.ID, node.Expanded)
-			}
-
-			if expanded && len(node.Children) > 0 {
-				traverse(node.Children, depth+1, curParentEnd)
-			}
+		expanded := node.Expanded
+		if s != nil {
+			expanded = s.IsExpanded(node.ID, node.Expanded)
+		}
+		if expanded && len(node.Children) > 0 {
+			flat = s.flatten(flat, node.Children, depth+1, own)
 		}
 	}
-
-	traverse(roots, 0, nil)
 	return flat
 }
 
@@ -380,6 +389,7 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		indent = 2
 	}
 
+	state.nodes = state.nodes[:0]
 	for i := 0; i < visibleHeight; i++ {
 		rowIdx := state.Offset + i
 		if rowIdx >= len(flat) {
@@ -389,6 +399,21 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		item := flat[rowIdx]
 		currY := area.Y + uint16(i)
 		isSel := item.node.ID == state.SelectedID
+
+		// One semantic node per visible item, so an agent or a test can find
+		// "config.yaml" by name, see whether a folder is expanded, and click it.
+		nodeState := accessibility.NodeState(0)
+		if isSel {
+			nodeState |= accessibility.StateSelected
+		}
+		if len(item.node.Children) > 0 && state.IsExpanded(item.node.ID, item.node.Expanded) {
+			nodeState |= accessibility.StateExpanded
+		}
+		state.nodes = append(state.nodes, accessibility.AccessibilityNode{
+			ID: item.node.ID, Role: accessibility.RoleTreeItem, Label: item.node.Label, State: nodeState,
+			Bounds:   cell.Rect{X: area.X, Y: currY, Width: area.Width, Height: 1},
+			Position: rowIdx + 1, SetSize: len(flat),
+		})
 		rowStyle := baseStyle.Merge(item.node.Style)
 		if isSel {
 			rowStyle = selStyle
@@ -408,7 +433,7 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if t.ShowGuides && item.depth > 0 {
 			for d := 0; d < item.depth; d++ {
 				guideChar := ' '
-				if d < len(item.parentEnd)-1 && !item.parentEnd[d] {
+				if d >= 64 || item.ends&(1<<uint(d)) == 0 {
 					guideChar = '│'
 				}
 				buf.SetCell(cursorX, currY, cell.Cell{Content: guideChar, Style: guideStyle})
@@ -425,14 +450,14 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				expChar = "▼ "
 			}
 			buf.SetString(cursorX, currY, expChar, rowStyle)
-			cursorX += uint16(utf8.RuneCountInString(expChar))
+			cursorX += uint16(cell.StringWidth(expChar))
 		} else if t.ShowGuides && item.depth > 0 {
 			branchChar := "├─ "
 			if item.isLast {
 				branchChar = "└─ "
 			}
 			buf.SetString(cursorX, currY, branchChar, guideStyle)
-			cursorX += uint16(utf8.RuneCountInString(branchChar))
+			cursorX += uint16(cell.StringWidth(branchChar))
 		} else {
 			buf.SetString(cursorX, currY, "  ", rowStyle)
 			cursorX += 2
@@ -440,8 +465,10 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Draw Node Icon
 		if item.node.Icon != "" {
-			buf.SetString(cursorX, currY, item.node.Icon+" ", rowStyle)
-			cursorX += uint16(utf8.RuneCountInString(item.node.Icon) + 1)
+			// Icon and space written separately: concatenating them
+			// allocated once per visible row per frame.
+			cursorX += buf.SetString(cursorX, currY, item.node.Icon, rowStyle)
+			cursorX += buf.SetString(cursorX, currY, " ", rowStyle)
 		}
 
 		// Draw Node Label
@@ -499,12 +526,17 @@ func (t TreeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibilit
 	if t.State != nil {
 		selID = t.State.SelectedID
 	}
+	var items []accessibility.AccessibilityNode
+	if t.State != nil {
+		items = t.State.nodes
+	}
 	return accessibility.AccessibilityNode{
-		ID:     t.ID,
-		Role:   accessibility.RoleTree,
-		Label:  "Tree View",
-		Value:  selID,
-		State:  st,
-		Bounds: bounds,
+		ID:       t.ID,
+		Role:     accessibility.RoleTree,
+		Label:    "Tree View",
+		Value:    selID,
+		State:    st,
+		Bounds:   bounds,
+		Children: items,
 	}
 }

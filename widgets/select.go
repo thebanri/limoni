@@ -95,7 +95,7 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		indicator = " ▴"
 	}
 	if ctx.Area.Width > 2 {
-		buf.SetString(ctx.Area.X+1, ctx.Area.Y, clipString(label+indicator, int(ctx.Area.Width)-2), fieldStyle)
+		setClipped(buf, ctx.Area.X+1, ctx.Area.Y, label+indicator, fieldStyle, int(ctx.Area.Width)-2)
 	}
 
 	// Fare tıklama ve tekerlek işleyicisi
@@ -183,7 +183,7 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for x := uint16(0); x < ctx.Area.Width; x++ {
 			buf.SetCell(ctx.Area.X+x, y, cell.Cell{Content: ' ', Style: style})
 		}
-		buf.SetString(ctx.Area.X+1, y, clipString(option, int(ctx.Area.Width)-2), style)
+		setClipped(buf, ctx.Area.X+1, y, option, style, int(ctx.Area.Width)-2)
 
 		// Draw scroll indicators on the right edge if there is overflow
 		if i == startIdx && startIdx > 0 && ctx.Area.Width > 2 {

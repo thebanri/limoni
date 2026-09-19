@@ -3,7 +3,6 @@ package widgets
 import (
 	"fmt"
 	"math"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -98,7 +97,7 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			buf.SetString(legendCursor, area.Y, "● ", dotStyle)
 			legendCursor += 2
 			buf.SetString(legendCursor, area.Y, ds.Name+"  ", baseStyle)
-			legendCursor += uint16(utf8.RuneCountInString(ds.Name) + 2)
+			legendCursor += uint16(cell.StringWidth(ds.Name) + 2)
 		}
 	}
 
@@ -130,7 +129,7 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			step := float64(plotW) / float64(numLabels)
 			for i, lbl := range lc.XLabels {
 				lx := plotX + uint16(float64(i)*step)
-				if lx+uint16(utf8.RuneCountInString(lbl)) <= area.X+area.Width {
+				if lx+uint16(cell.StringWidth(lbl)) <= area.X+area.Width {
 					buf.SetString(lx, labelY, lbl, axisStyle)
 				}
 			}

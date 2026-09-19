@@ -108,7 +108,7 @@ hiçbir zaman dışarı verilmez.
 
 ### 2. Hissedilen yerde hızlı
 
-- **Çizim yolunda sıfır heap tahsisatı.** CI'da zorunlu tutuluyor, böylece animasyonlar GC duraklamalarıyla takılmaz.
+- **Kare başına sıfır heap tahsisatı.** Render motoru, tüm widget'ların çizimi ve yaygın girdi widget'larının tıklama işlemesi bunun kapsamında ve CI'da zorunlu tutuluyor, böylece animasyonlar GC duraklamalarıyla takılmaz. Sürükleme veya özel işleyici kullanan widget'lar (Table, Slider, Dialog, …) hâlâ her biri için bir closure tahsis ediyor. [Ayrıntılar](docs/architecture.md#5-allocation-free-interactive-frames).
 - **Kare başına az bayt.** Boş diziler `ECH`/`EL`, tekrarlar `REP` olarak gönderilir. Tam ekran yenileme **377 bayt** tutar, boşta bekleyen bir uygulama ise **hiç bayt göndermez**. SSH üzerinde hissettiğin şey CPU değil, gönderilen bayttır.
 - **Sanal tablo ve listeler.** Yalnızca görünen satırlar işlendiği için bir milyon satır kare başına ~2,7 ms'de kayar.
 
