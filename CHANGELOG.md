@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.4.0] — 2026-09-19
+
 ### Added
 - **Terminal capability handshake.** Setup asks the terminal for its name
   (XTVERSION), mode 2026/2027 support (DECRQM), Kitty keyboard support and DA1.
@@ -194,7 +196,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/thebanri/limoni/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/thebanri/limoni/compare/v0.2.7...v0.3.0
 [v0.2.7]: https://github.com/thebanri/limoni/compare/v0.2.6...v0.2.7
 [v0.2.6]: https://github.com/thebanri/limoni/compare/v0.2.5...v0.2.6
