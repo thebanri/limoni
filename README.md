@@ -153,6 +153,8 @@ The only dependencies are `golang.org/x/sys` and `golang.org/x/crypto`.
 
 ## Built with Limoni: zest
 
+<p align="center"><img src="assets/zest.gif" alt="zest filtering a million-line log to billing errors, opening a line's details, then clearing the filter to show it in context" width="100%" /></p>
+
 [**zest**](cmd/zest) is a log viewer and Limoni's flagship app. It follows files and pipes, colours by
 level, and filters a million lines without stalling. A 67 MiB, 1,000,000-line log is on screen in about half
 a second.

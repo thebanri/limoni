@@ -56,3 +56,26 @@ func TestViewerEndToEnd(t *testing.T) {
 		t.Fatal("the viewer did not quit")
 	}
 }
+
+// Clearing a filter keeps the reader on the line they found, with its
+// neighbours around it, instead of jumping to the top.
+func TestClearingTheFilterKeepsTheFoundLine(t *testing.T) {
+	s := &store{}
+	for i := 1; i <= 3000; i++ {
+		s.add([]byte("line " + strconv.Itoa(i)))
+	}
+	v := &view{src: s}
+	u := newUI("t", s, v)
+	page := uitest.Run(t, 80, 22, u.frame)
+	v.wake = func() {}
+
+	page.Press("/")
+	page.GetByID("filter").Type("line 1234")
+	page.Press("enter")
+	page.GetByRole("list-item", "line 1234").Select()
+	page.Press("esc")
+
+	page.Expect(page.GetByRole("list-item", "line 1234")).ToBeSelected()
+	page.Expect(page.GetByRole("list-item", "line 1233")).ToBeVisible() // the context above
+	page.Expect(page.GetByRole("list-item", "line 1235")).ToBeVisible() // and below
+}

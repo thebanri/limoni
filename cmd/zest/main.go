@@ -175,8 +175,9 @@ type ui struct {
 	details bool
 	help    bool
 
-	minLevel widgets.LogLevel
-	detail   detailCache
+	minLevel   widgets.LogLevel
+	detail     detailCache
+	paneHeight int // rows of the log pane last frame
 
 	started   time.Time
 	rateLines int
@@ -202,6 +203,7 @@ func (u *ui) frame(f *limoni.Frame, ev *limoni.Event) bool {
 	u.drawHeader(f, rows[0])
 
 	body := rows[1]
+	u.paneHeight = int(body.Height)
 	if u.details && body.Width >= 60 {
 		cols := limoni.SplitHorizontal(body, limoni.Fill(), limoni.Percentage(40))
 		f.RenderWidget(u.log, cols[0])
@@ -240,9 +242,8 @@ func (u *ui) key(k driver.KeyEvent) bool {
 		return false
 	}
 	switch {
-	case k.Type == driver.KeyEsc && u.filter.Value() != "":
-		u.filter.SetValue("")
-		u.view.setFilter("", u.minLevel)
+	case k.Type == driver.KeyEsc && (u.filter.Value() != "" || u.minLevel > widgets.LevelUnknown):
+		u.clearFilter()
 	case k.Type == driver.KeyEsc && u.details:
 		u.details = false
 	case k.Type == driver.KeyEsc, k.Type == driver.KeyRune && k.Ch == 'q':
@@ -274,6 +275,25 @@ func (u *ui) key(k driver.KeyEvent) bool {
 // levelKeys maps keys 1–6 to the minimum level shown: everything, then
 // debug, info, warn, error and fatal and above.
 var levelKeys = [6]widgets.LogLevel{widgets.LevelUnknown, widgets.LevelDebug, widgets.LevelInfo, widgets.LevelWarn, widgets.LevelError, widgets.LevelFatal}
+
+// clearFilter shows every line again and keeps the reader on the line they
+// had found, so its surroundings are right there: find the error with a
+// filter, clear it, read what happened around it.
+func (u *ui) clearFilter() {
+	src := -1
+	if sel := u.state.Selected; sel >= 0 && sel < u.view.Len() {
+		src = u.view.source(sel)
+	}
+	u.filter.SetValue("")
+	u.minLevel = widgets.LevelUnknown
+	u.view.setFilter("", widgets.LevelUnknown)
+	if src >= 0 {
+		// Unfiltered, a line's position is its number. Put it in the middle
+		// of the pane, with what came before and after around it.
+		u.state.Select(src)
+		u.state.Offset = max(0, src-u.paneHeight/2)
+	}
+}
 
 var (
 	headerStyle = cell.Style{Fg: cell.NewColorRGB(20, 20, 20), Bg: cell.NewColorRGB(250, 210, 60), Modifier: cell.ModifierBold}
@@ -365,7 +385,7 @@ Enter      details: the selected line's fields, pretty-printed
 f          follow new lines on and off (scrolling up pauses it)
 ↑ ↓ j k    move · PgUp PgDn page · Home g top · End G bottom
 ← →        scroll sideways
-Esc        clear the filter, close details, then quit
+Esc        clear filters (staying on the line), close details, quit
 q          quit`
 
 func (u *ui) drawHelp(f *limoni.Frame, area limoni.Rect) {

@@ -1,5 +1,7 @@
 # 🍋 zest
 
+<p align="center"><img src="../../assets/zest.gif" alt="zest filtering a million-line log" width="100%" /></p>
+
 A terminal log viewer built on [Limoni](../../README.md). It opens a file or reads a pipe, follows it as it
 grows, colours lines by level, and filters a million lines without the UI stalling.
 
@@ -21,7 +23,8 @@ zest -demo 1000000                    # a generated, still-growing log to try it
 | `↑ ↓ j k`, `PgUp PgDn`, `Home g`, `End G` | move |
 | `← →` | scroll sideways |
 | `?` | help |
-| `Esc`, `q` | clear the filter, close details, quit |
+| `Esc` | clear the filter and level, staying on the selected line with its context around it; then close details; then quit |
+| `q` | quit |
 
 **Levels** are read from JSON (`"level"`, `"lvl"`, `"severity"`), logfmt (`level=warn`) and plain text
 (`ERROR`, `[WARN]`, `panic:`…). An indented line with no level of its own, such as a stack frame, takes the level

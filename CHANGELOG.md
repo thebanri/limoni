@@ -14,6 +14,8 @@ a patch bump (`v0.x.y`) does not.
   levels in JSON, logfmt and plain text, filters in the background, and shows
   pretty-printed JSON details. A 1,000,000-line, 67 MiB log is on screen in
   0.54 s, measured in kitty.
+  Clearing a filter keeps the found line selected and centred, so its
+  context is right there.
 - `widgets.LogView`: a virtual log pane with follow mode, a line-number
   gutter, level colours, case-insensitive highlighting and sideways scrolling,
   allocation-free (`BenchmarkLogViewDraw`: 100,000 lines, 0 B/op). With
