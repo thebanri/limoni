@@ -187,3 +187,36 @@ func TestLogViewDrawDoesNotAllocate(t *testing.T) {
 		t.Fatalf("Draw allocates %.0f times", a)
 	}
 }
+
+// A filtered source numbers its lines as they are numbered in the whole log.
+type everyTenth struct{ *testLog }
+
+func (e everyTenth) Len() int             { return e.testLog.Len() / 10 }
+func (e everyTenth) Line(i int) string    { return e.testLog.Line(i * 10) }
+func (e everyTenth) LineNumber(i int) int { return i*10 + 1 }
+
+func TestLogViewNumbersFilteredLinesByTheirSource(t *testing.T) {
+	lv := &LogView{Source: everyTenth{numberedLog(1000)}, State: NewLogViewState(), LineNumbers: true}
+	buf := drawLog(lv, 30, 3)
+	if got := rowAt(buf, 2); got != "991 line 991" {
+		t.Fatalf("last row %q, want \"991 line 991\"", got)
+	}
+}
+
+// Clicking a line while following pauses, so the line the reader picked does
+// not scroll away as new lines arrive.
+func TestLogViewClickingALinePausesFollowing(t *testing.T) {
+	src := numberedLog(10)
+	st := NewLogViewState()
+	lv := &LogView{Source: src, State: st}
+	drawLog(lv, 20, 3)
+	st.Selected = 8 // what a ClickAction does
+	src.add("line 11", LevelInfo)
+	buf := drawLog(lv, 20, 3)
+	if st.Follow {
+		t.Fatal("still following after a click selected a line")
+	}
+	if got := rowAt(buf, 0); got != "line 8" {
+		t.Fatalf("the view moved: first row %q", got)
+	}
+}

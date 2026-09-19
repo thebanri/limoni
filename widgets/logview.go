@@ -25,6 +25,13 @@ type LevelSource interface {
 	Level(i int) LogLevel
 }
 
+// LineNumberSource is an optional extension of LogSource for a source that
+// shows a subset of a larger log, such as a filtered view: the gutter then
+// shows each line's number in the full log, not its position in the subset.
+type LineNumberSource interface {
+	LineNumber(i int) int
+}
+
 // LogLevel is a line's severity.
 type LogLevel uint8
 
@@ -71,12 +78,13 @@ type LogViewState struct {
 
 	height    int // rows drawn last frame, for paging
 	followOff int // the Offset Follow set last frame; a different one means the wheel moved it
+	lastSel   int // Selected as of last frame; a different one means a click selected a line
 	nodes     []accessibility.AccessibilityNode
 }
 
 // NewLogViewState returns a state that follows new lines and selects nothing.
 func NewLogViewState() *LogViewState {
-	return &LogViewState{Selected: -1, Follow: true}
+	return &LogViewState{Selected: -1, Follow: true, lastSel: -1}
 }
 
 // HandleKey moves the selection or the view: arrows and j/k by a line, Page
@@ -205,8 +213,10 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	maxOffset := max(0, total-height)
 
 	// The mouse wheel moves Offset directly. If it moved away from where
-	// Follow put it last frame, the reader scrolled: stop following.
-	if s.Follow && s.Offset != s.followOff {
+	// Follow put it last frame, the reader scrolled: stop following. A click
+	// sets Selected directly; a line the reader picked must not scroll away
+	// under them either.
+	if s.Follow && (s.Offset != s.followOff || (s.Selected >= 0 && s.Selected != s.lastSel)) {
 		s.Follow = false
 	}
 	if s.Follow {
@@ -217,6 +227,7 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if s.Selected >= total {
 		s.Selected = total - 1
 	}
+	s.lastSel = s.Selected
 
 	if lv.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(lv.ID)
@@ -240,9 +251,20 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	levels, _ := lv.Source.(LevelSource)
 
+	numbers, _ := lv.Source.(LineNumberSource)
+	lineNumber := func(i int) int {
+		if numbers != nil {
+			return numbers.LineNumber(i)
+		}
+		return i + 1
+	}
 	gutter := uint16(0)
 	if lv.LineNumbers {
-		gutter = uint16(digits(total)) + 1
+		widest := total
+		if total > 0 {
+			widest = lineNumber(total - 1) // numbers only grow down the log
+		}
+		gutter = uint16(digits(widest)) + 1
 		if gutter >= area.Width {
 			gutter = 0
 		}
@@ -285,7 +307,7 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		if gutter > 0 {
 			var num [20]byte
-			n := strconv.AppendInt(num[:0], int64(i+1), 10)
+			n := strconv.AppendInt(num[:0], int64(lineNumber(i)), 10)
 			x := textX - 1 - uint16(len(n))
 			for _, ch := range n {
 				buf.SetCell(x, y, cell.Cell{Content: rune(ch), Style: gutterStyle})
