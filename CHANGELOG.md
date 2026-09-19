@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.5.0] — 2026-09-20
+
 ### Added
 - **zest** (`cmd/zest`), a log viewer and Limoni's flagship app. It follows
   files (surviving truncation) and pipes (keys through `/dev/tty`), detects
@@ -223,7 +225,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/thebanri/limoni/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/thebanri/limoni/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/thebanri/limoni/compare/v0.2.7...v0.3.0
 [v0.2.7]: https://github.com/thebanri/limoni/compare/v0.2.6...v0.2.7
