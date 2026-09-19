@@ -26,6 +26,8 @@ type appConfig struct {
 	automationPath   string
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
+	title            string
+	hasTitle         bool
 }
 
 // AutomationPolicy decides what an application's automation socket lets out.
@@ -46,6 +48,15 @@ type AutomationPolicy struct {
 	// AllowUnverifiedPeers accepts connections on platforms that cannot report
 	// the connecting user. Without it, those platforms refuse every connection.
 	AllowUnverifiedPeers bool
+}
+
+// WithTitle sets the terminal window title (OSC 2) when Run starts.
+// Control characters in the title are stripped; see Terminal.SetTitle.
+func WithTitle(title string) AppOption {
+	return func(c *appConfig) {
+		c.title = title
+		c.hasTitle = true
+	}
 }
 
 // WithInline renders the application in place, in a band of the given height,
@@ -118,6 +129,9 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 		return err
 	}
 	defer term.Close()
+	if cfg.hasTitle {
+		term.SetTitle(cfg.title)
+	}
 	return runLoop(term, appFn, cfg)
 }
 

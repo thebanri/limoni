@@ -162,6 +162,40 @@ func (t *Terminal) Capabilities() CapabilityProfile {
 	return t.caps
 }
 
+// SetTitle sets the terminal window title with OSC 2 (`ESC ] 2 ; <title> BEL`).
+//
+// Control characters are stripped first so a title containing ESC or BEL
+// cannot inject further escape sequences. An empty title still writes OSC 2
+// (some emulators treat that as "clear the title").
+func (t *Terminal) SetTitle(title string) {
+	if t == nil || t.driver == nil {
+		return
+	}
+	clean := sanitizeWindowTitle(title)
+	seq := make([]byte, 0, 4+len(clean)+1)
+	seq = append(seq, 0x1b, ']', '2', ';')
+	seq = append(seq, clean...)
+	seq = append(seq, 0x07)
+	_, _ = t.driver.Write(seq)
+}
+
+// sanitizeWindowTitle drops C0 controls and DEL so OSC 2 cannot be nested
+// or terminated from inside the payload.
+func sanitizeWindowTitle(title string) string {
+	if title == "" {
+		return ""
+	}
+	out := make([]byte, 0, len(title))
+	for i := 0; i < len(title); i++ {
+		c := title[i]
+		if c < 0x20 || c == 0x7F {
+			continue
+		}
+		out = append(out, c)
+	}
+	return string(out)
+}
+
 // Draw initiates a frame drawing pass. It detects terminal resize, clears the front buffer,
 // executes the user draw callback fn, computes the differential ANSI stream, and writes changes
 // in a single synchronized I/O pass.
