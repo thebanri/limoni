@@ -37,6 +37,7 @@ type fakeApp struct {
 	focus   string
 	events  []driver.Event
 	delayed bool // publish a "done" label a while after the first frame
+	agree   bool // a checkbox that a click toggles
 }
 
 func startFakeApp(t *testing.T, socket string, policy automation.Policy) *fakeApp {
@@ -91,6 +92,11 @@ func (a *fakeApp) publishLocked() {
 		{ID: "remove-2", Role: accessibility.RoleButton, Label: "Remove", Bounds: cell.NewRect(40, 3, 8, 1)},
 		{ID: "token", Role: accessibility.RoleInput, Label: "API token", Value: secretToken, State: accessibility.StateSensitive | focused("token"), Bounds: cell.NewRect(0, 14, 30, 1)},
 	}
+	agreeState := accessibility.NodeState(0)
+	if a.agree {
+		agreeState = accessibility.StateChecked
+	}
+	tree = append(tree, accessibility.AccessibilityNode{ID: "agree", Role: accessibility.RoleCheckbox, Label: "Agree", State: agreeState, Bounds: cell.NewRect(0, 18, 10, 1)})
 	if a.delayed {
 		tree = append(tree, accessibility.AccessibilityNode{ID: "sync", Role: accessibility.RoleProgress, Label: "Sync done", Bounds: cell.NewRect(0, 16, 20, 1)})
 	}
@@ -127,6 +133,8 @@ func (a *fakeApp) loop(stop chan struct{}) {
 			switch {
 			case ev.Type == driver.EventKey && ev.Key.Type == driver.KeyRune && a.focus == "name":
 				a.name += string(ev.Key.Ch)
+			case ev.Type == driver.EventMouse && ev.Mouse.Y == 18:
+				a.agree = !a.agree
 			case ev.Type == driver.EventMouse && ev.Mouse.X >= 40 && ev.Mouse.Y == 0:
 				a.tasks = append(a.tasks, a.name)
 				a.name = ""
@@ -651,5 +659,32 @@ func TestInputThatEndsTheApplicationIsReportedAsDone(t *testing.T) {
 	text, isError := c.call("press_key", map[string]any{"key": "esc"})
 	if isError || !strings.Contains(text, "pressed esc; the application then closed its automation socket") {
 		t.Errorf("isError=%t %q", isError, text)
+	}
+}
+
+// click with ensure is safe to repeat: the second call finds the checkbox
+// already checked and clicks nothing, where a plain click would uncheck it.
+func TestClickWithEnsureIsIdempotent(t *testing.T) {
+	socket := socketPath(t)
+	app := startFakeApp(t, socket, automation.Policy{AllowInput: true})
+	c := startBridge(t, socket)
+
+	first := c.mustCall("click", map[string]any{"id": "agree", "ensure": "checked"})
+	if !strings.Contains(first, "clicked checkbox#agree") || strings.Contains(first, "still not") {
+		t.Errorf("first ensure-click:\n%s", first)
+	}
+	second := c.mustCall("click", map[string]any{"id": "agree", "ensure": "checked"})
+	if !strings.Contains(second, "already checked; nothing was clicked") {
+		t.Errorf("second ensure-click clicked again:\n%s", second)
+	}
+	app.mu.Lock()
+	agree, clicks := app.agree, len(app.events)
+	app.mu.Unlock()
+	if !agree || clicks != 1 {
+		t.Fatalf("agree=%v after %d clicks, want checked after 1", agree, clicks)
+	}
+
+	if text, isError := c.call("click", map[string]any{"id": "agree", "ensure": "on"}); !isError || !strings.Contains(text, "ensure must be") {
+		t.Errorf("bad ensure value accepted: %s", text)
 	}
 }

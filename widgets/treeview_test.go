@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -105,5 +106,47 @@ func TestTreeView_Draw(t *testing.T) {
 	w, h := tree.SizeHint(area)
 	if w != 40 || h != 2 {
 		t.Errorf("expected SizeHint (40, 2), got (%d, %d)", w, h)
+	}
+}
+
+// Guide lines continue through the columns of every ancestor that has a
+// sibling below it. Flatten used to build each node's ancestry with
+// append(parentEnd, isLast), whose siblings shared one backing array, so a
+// later sibling overwrote earlier ones: here the lines for a1 and a1x
+// vanished from their descendants' rows.
+func TestTreeGuidesFollowEveryAncestor(t *testing.T) {
+	leaf := func(id string) TreeNode { return TreeNode{ID: id, Label: id} }
+	roots := []TreeNode{
+		{ID: "a", Label: "a", Expanded: true, Children: []TreeNode{
+			{ID: "a1", Label: "a1", Expanded: true, Children: []TreeNode{
+				{ID: "a1x", Label: "a1x", Expanded: true, Children: []TreeNode{leaf("p"), leaf("q")}},
+				{ID: "a1y", Label: "a1y", Expanded: true, Children: []TreeNode{leaf("r")}},
+			}},
+			leaf("a2"),
+		}},
+		{ID: "b", Label: "b", Expanded: true, Children: []TreeNode{leaf("b1"), leaf("b2")}},
+	}
+	area := cell.NewRect(0, 0, 14, 11)
+	buf := buffer.NewBuffer(area)
+	TreeView{ID: "t", Roots: roots, State: NewTreeViewState(), ShowGuides: true}.Draw(cell.NewContext(area, cell.Style{}), buf)
+
+	want := []string{
+		"▼ a",
+		"│ ▼ a1",
+		"│ │ ▼ a1x",
+		"│ │ │ ├─ p",
+		"│ │ │ └─ q",
+		"│ │ ▼ a1y",
+		"│ │   └─ r",
+		"│ └─ a2",
+		"▼ b",
+		"  ├─ b1",
+		"  └─ b2",
+	}
+	got := strings.Split(buf.Snapshot(), "\n")
+	for i, line := range want {
+		if i >= len(got) || strings.TrimRight(got[i], " ") != line {
+			t.Fatalf("row %d:\n got %q\nwant %q\nscreen:\n%s", i, strings.TrimRight(got[i], " "), line, buf.Snapshot())
+		}
 	}
 }

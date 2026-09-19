@@ -125,12 +125,14 @@ LIMONI_DEMO_SOCKET=$XDG_RUNTIME_DIR/limoni-checklist.sock \
 
 ## Known gaps
 
-- `Table` rows, `TreeView` items and `Tabs` are flat — only `List` exposes
-  children. Same pattern applies: a reused buffer on the widget's state.
+- Table rows (`row` + `cell`), TreeView items and Tabs (`tab-list`/`tab`, only
+  with `Tabs.State`) are now children. Table and Tabs build their nodes *during
+  Draw* — only Draw knows which filtered/sorted row is on which screen row — so
+  a node built without a Draw has no children. Table's `cellNodes` is sized
+  before the row loop because rows hold sub-slices of it.
 - Custom widgets embedding `widgets.Accessible` are not focusable, so Tab skips
   them (the example's buttons are click-only).
 - Declarative mode does not route clicks to frame click handlers, so
   `Locator.Type`'s click-to-focus cannot work there; focus with keys instead.
-- Actions are not idempotent (`click` toggles). Playwright-style `check`,
-  `uncheck` and `select` — no-ops when already in the requested state — are the
-  obvious next step for agents that repeat a step.
+- `click` toggles. `Locator.Check/Uncheck/Select` and MCP `click` with
+  `ensure` are the idempotent forms; use them in any step that may be repeated.

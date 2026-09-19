@@ -217,8 +217,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    API over the same tree (in-process `Run`/`Program`, remote `Connect`).
    Lists expose visible rows as children, from a buffer in `ListState` so the
    draw path stays allocation-free — which is why `Frame.AccessibilityTree`
-   deep-copies and `f.Accessibility` must not be kept past a frame. Still
-   missing: `Table` rows, `TreeView` items and `Tabs` are flat; custom widgets
+   deep-copies and `f.Accessibility` must not be kept past a frame. Table rows,
+   TreeView items and Tabs are children too, and `Check`/`Uncheck`/`Select`
+   (MCP: `click` with `ensure`) are idempotent. Still missing: custom widgets
    embedding `widgets.Accessible` are not focusable, so Tab skips them. Test
    the bridge against a real app in a PTY as well as with `go test` — the Tab
    bug below was invisible to unit tests.

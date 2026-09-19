@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -27,7 +28,7 @@ func TestInteractiveWidgetsProvideAccessibilityNodes(t *testing.T) {
 	}{
 		{"list", List{ID: "l", Items: []string{"alpha", "beta", "gamma"}, State: &ListState{Selected: 1}}, accessibility.RoleList, "beta", 2, 3},
 		{"select", Select{ID: "s", Options: []string{"one", "two"}, State: &SelectState{Selected: 1}}, accessibility.RoleList, "two", 2, 2},
-		{"tabs", Tabs{ID: "t", Titles: []string{"a", "b", "c"}, Selected: 2}, accessibility.RoleList, "c", 3, 3},
+		{"tabs", Tabs{ID: "t", Titles: []string{"a", "b", "c"}, Selected: 2}, accessibility.RoleTabList, "c", 3, 3},
 		{"table", Table{ID: "tb", Rows: []TableRow{NewRow("r1"), NewRow("r2")}, State: &TableState{Selected: 0}}, accessibility.RoleTable, "r1", 1, 2},
 		{"dialog", Dialog{ID: "d", Title: "Confirm", Message: "Are you sure?"}, accessibility.RoleDialog, "Are you sure?", 0, 0},
 		{"textarea", TextArea{ID: "ta", State: &TextAreaState{Text: []rune("hello")}}, accessibility.RoleInput, "hello", 0, 0},
@@ -122,5 +123,33 @@ func TestSecretTextInputNeverDrawsOrExposesItsValue(t *testing.T) {
 	line := accessibility.Mode{ScreenReader: true}.LineMode([]accessibility.AccessibilityNode{node})
 	if strings.Contains(line, "hunter2") || !strings.Contains(line, "sensitive") {
 		t.Errorf("screen reader line = %q", line)
+	}
+}
+
+// Drawing and describing a table, a tab bar and a tree, with their row, tab
+// and item children, allocates nothing once the buffers have grown.
+func TestStructuredNodesDoNotAllocate(t *testing.T) {
+	area := cell.NewRect(0, 0, 40, 6)
+	buf := buffer.NewBuffer(area)
+	ctx := cell.NewContext(area, cell.Style{})
+	table := &Table{ID: "tb", Rows: []TableRow{NewRow("r1", "a"), NewRow("r2", "b")}, State: NewTableState(),
+		Constraints: []TableConstraint{{Type: ConstraintFixed, Value: 10}, {Type: ConstraintFixed, Value: 10}}}
+	tabs := &Tabs{ID: "t", Titles: []string{"a", "b"}, Selected: 1, State: &TabsState{}}
+	tree := &TreeView{ID: "tr", Roots: []TreeNode{{ID: "x", Label: "x"}, {ID: "y", Label: "y"}}, State: NewTreeViewState()}
+	run := func() {
+		table.Draw(ctx, buf)
+		_ = table.AccessibilityNode(area, false)
+		tabs.Draw(ctx, buf)
+		_ = tabs.AccessibilityNode(area, false)
+		tree.Draw(ctx, buf)
+		_ = tree.AccessibilityNode(area, false)
+	}
+	run()
+	runtime.GC() // a collection must not make the next frame allocate
+	if n := len(table.AccessibilityNode(area, false).Children); n != 2 {
+		t.Fatalf("table exposes %d rows, want 2", n)
+	}
+	if got := testing.AllocsPerRun(50, func() { run(); runtime.GC() }); got != 0 {
+		t.Errorf("drawing and describing allocated %v times per run, want 0", got)
 	}
 }

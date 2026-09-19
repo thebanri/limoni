@@ -80,6 +80,14 @@ type TableState struct {
 	lastViewportH  int
 	lastTableID    string
 	lastFocusFn    func(string)
+
+	// rowNodes and cellNodes hold the visible rows' semantic nodes, written
+	// during Draw (the only place that knows which data row, after filtering
+	// and sorting, lands on which screen row) and reused every frame.
+	rowNodes  []accessibility.AccessibilityNode
+	cellNodes []accessibility.AccessibilityNode
+
+	scratch *tableDrawScratch // Draw's working buffers, kept across frames
 }
 
 func (ts *TableState) initHandlers() {
@@ -513,8 +521,19 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			t.Constraints[i] = TableConstraint{Type: ConstraintPercentage, Value: pct}
 		}
 	}
-	scratch := tableDrawScratchPool.Get().(*tableDrawScratch)
-	defer tableDrawScratchPool.Put(scratch)
+	// A table with State keeps its scratch buffers there. A sync.Pool is
+	// emptied by every garbage collection, so drawing from one allocated a
+	// fresh scratch and two maps after each GC.
+	var scratch *tableDrawScratch
+	if t.State != nil {
+		if t.State.scratch == nil {
+			t.State.scratch = &tableDrawScratch{}
+		}
+		scratch = t.State.scratch
+	} else {
+		scratch = tableDrawScratchPool.Get().(*tableDrawScratch)
+		defer tableDrawScratchPool.Put(scratch)
+	}
 	if scratch.owner == nil {
 		scratch.owner = make(map[[2]int][2]int)
 	}
@@ -831,6 +850,15 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// yaratır. Bunun yerine tüm satır bloğu tek bir fare bölgesiyle kaydedilir ve
 	// hedef satır indeksi olay koordinatından hesaplanır.
 	perRowClick := ctx.RegisterMouse == nil && ctx.RegisterClick != nil
+	if t.State != nil {
+		t.State.rowNodes = t.State.rowNodes[:0]
+		// Sized before the loop: rows keep sub-slices of cellNodes, which a
+		// later append must not move.
+		if need := visibleRows * len(widths); cap(t.State.cellNodes) < need {
+			t.State.cellNodes = make([]accessibility.AccessibilityNode, 0, need)
+		}
+		t.State.cellNodes = t.State.cellNodes[:0]
+	}
 	for rIdx := 0; rIdx < visibleRows; rIdx++ {
 		offset := drawOffset
 		actualRowIdx := rIdx + offset
@@ -851,6 +879,9 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, owner, cellsMap, gridStyle, row.Style)
+		if t.State != nil {
+			t.State.appendRowNode(t, ctx.Area, row, currY, actualRowIdx, rowCount, widths, isSelected)
+		}
 		currY++
 		drawnRows++
 	}
@@ -1380,11 +1411,48 @@ func getIntersectionChar(up, down, left, right bool) rune {
 	return ' '
 }
 
+// appendRowNode records the semantic node for one drawn row, with a cell
+// child per column. Nothing is allocated once the buffers have grown to the
+// table's visible size.
+func (ts *TableState) appendRowNode(t Table, area cell.Rect, row TableRow, y uint16, index, count int, widths []uint16, selected bool) {
+	start := len(ts.cellNodes)
+	for c := 0; c < len(widths) && len(ts.cellNodes) < cap(ts.cellNodes); c++ {
+		text := ""
+		if c < len(row.Cells) {
+			text = row.Cells[c].Text
+		}
+		ts.cellNodes = append(ts.cellNodes, accessibility.AccessibilityNode{
+			Role:   accessibility.RoleCell,
+			Label:  text,
+			Bounds: cell.Rect{X: t.columnX(area, widths, c), Y: y, Width: widths[c], Height: 1},
+		})
+	}
+	label := ""
+	if len(row.Cells) > 0 {
+		label = row.Cells[0].Text
+	}
+	state := accessibility.NodeState(0)
+	if selected {
+		state = accessibility.StateSelected
+	}
+	ts.rowNodes = append(ts.rowNodes, accessibility.AccessibilityNode{
+		Role:     accessibility.RoleRow,
+		Label:    label,
+		State:    state,
+		Bounds:   cell.Rect{X: area.X, Y: y, Width: area.Width, Height: 1},
+		Position: index + 1,
+		SetSize:  count,
+		Children: ts.cellNodes[start:len(ts.cellNodes):len(ts.cellNodes)],
+	})
+}
+
 // AccessibilityNode returns the semantic node description for Table.
 //
-// The node describes the selected row rather than enumerating rows: a table
-// may hold a million of them, and building a child per row would allocate on
-// every frame.
+// The node carries the selected row's first cell as its value and one row
+// child per visible row, each labelled by its first cell and holding a cell
+// child per column. A table of a million rows exposes the ones on screen.
+// The rows come from the last Draw, which knows how filtering and sorting
+// placed them; a Table without State stays flat.
 func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
 	state := accessibility.NodeState(0)
 	if focused {
@@ -1420,5 +1488,13 @@ func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.A
 		Bounds:   bounds,
 		Position: position,
 		SetSize:  count,
+		Children: t.rowNodes(),
 	}
+}
+
+func (t Table) rowNodes() []accessibility.AccessibilityNode {
+	if t.State == nil {
+		return nil
+	}
+	return t.State.rowNodes
 }
