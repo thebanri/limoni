@@ -8,6 +8,33 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- **zest** (`cmd/zest`), a log viewer and Limoni's flagship app. It follows
+  files (surviving truncation) and pipes (keys through `/dev/tty`), detects
+  levels in JSON, logfmt and plain text, filters in the background, and shows
+  pretty-printed JSON details. A 1,000,000-line, 67 MiB log is on screen in
+  0.54 s, measured in kitty.
+  Clearing a filter keeps the found line selected and centred, so its
+  context is right there.
+- The browser playground has a "Logs · zest" scene: zest on a 200,000-line
+  demo log, running as WebAssembly. The module grows from 1.25 MB to 1.70 MB
+  gzipped, mostly `encoding/json` for the details pane.
+- `widgets.LogView`: a virtual log pane with follow mode, a line-number
+  gutter, level colours, case-insensitive highlighting and sideways scrolling,
+  allocation-free (`BenchmarkLogViewDraw`: 100,000 lines, 0 B/op). With
+  `LineNumberSource` a filtered view keeps the original line numbers.
+- `Context.Describe`: a container that draws a child itself registers the
+  child in the semantic tree with it.
+
+### Fixed
+- Widgets inside a `Block` (and inside component trees, via `AsComponent`)
+  were missing from the semantic tree, so screen readers, tests and agents
+  could not see most of a real application's content.
+- `Block` built its child's context by copying fields one by one, so every
+  field added to `Context` later never reached nested widgets. That included
+  the click actions and wheel scrolling from v0.4.0, so nested checkboxes fell
+  back to allocating closures and a nested scroll view lost the wheel.
+
 ## [v0.4.0] — 2026-09-19
 
 ### Added

@@ -156,6 +156,23 @@ Yalnızca iki bağımlılık var: `golang.org/x/sys` ve `golang.org/x/crypto`.
 
 ---
 
+## Limoni ile yapıldı: zest
+
+<p align="center"><img src="assets/zest.gif" alt="zest bir milyon satırlık logu billing hatalarına süzüyor, bir satırın ayrıntılarını açıyor, ardından filtreyi kaldırıp satırı bağlamıyla gösteriyor" width="100%" /></p>
+
+[**zest**](cmd/zest) bir log görüntüleyici ve Limoni'nin amiral gemisi uygulaması. Dosyaları ve pipe'ları
+takip eder, satırları seviyeye göre renklendirir ve bir milyon satırı donmadan filtreler. 67 MiB'lık,
+1.000.000 satırlık bir log yaklaşık yarım saniyede ekrana gelir.
+
+```bash
+go install github.com/thebanri/limoni/cmd/zest@latest
+zest -demo 1000000        # ya da: zest app.log, kubectl logs -f pod | zest
+```
+
+Ya da [tarayıcıda dene](https://thebanri.github.io/limoni/): "Logs · zest" sekmesi.
+
+---
+
 ## Uygulama yazmanın iki yolu
 
 | | Immediate mode | Bildirimsel (Elm mimarisi) |

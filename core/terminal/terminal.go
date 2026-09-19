@@ -300,7 +300,10 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini tampona ekle (en arka piksel katmanı) ──
-	proto := graphics.DetectProtocol()
+	// The protocol detected when the terminal was created (or set with
+	// SetCapabilities). Detecting it again here read a dozen environment
+	// variables on every frame, and on Windows each read allocates.
+	proto := t.caps.GraphicsProto
 	if proto != graphics.ProtocolHalfBlock {
 		imageRegions := t.clippedImageRegions()
 		if len(imageRegions) > 0 {

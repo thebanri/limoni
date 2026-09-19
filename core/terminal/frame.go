@@ -134,6 +134,7 @@ type Frame struct {
 
 	clickClosure       func(cell.Rect, func())
 	clickActionClosure func(cell.Rect, cell.ClickAction)
+	describeClosure    func(any, cell.Rect)
 	scrollClosure      func(cell.Rect, *int, int)
 	themeStyleClosure  func(string) cell.Style
 	// clickActions holds this frame's ClickActions; regions refer to them by
@@ -278,6 +279,18 @@ func (f *Frame) initClosures() {
 			// allocation for every clickable widget on every frame.
 			f.ClickRegions = append(f.ClickRegions, ClickRegion{Area: clickArea, onClick: handler, LayerID: layerID})
 		}
+	}
+
+	f.describeClosure = func(w any, area cell.Rect) {
+		provider, ok := w.(accessibility.Provider)
+		if !ok {
+			return
+		}
+		node := provider.AccessibilityNode(area, false)
+		if f.FocusManager != nil && f.FocusManager.IsFocused(node.ID) {
+			node.State |= accessibility.StateFocused
+		}
+		f.RegisterAccessibility(node)
 	}
 
 	f.clickActionClosure = func(clickArea cell.Rect, action cell.ClickAction) {
@@ -939,6 +952,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Assign pre-allocated closures to avoid heap allocation on draw loops
 	ctx.RegisterClick = f.clickClosure
 	ctx.RegisterClickAction = f.clickActionClosure
+	ctx.Describe = f.describeClosure
 	ctx.RegisterScroll = f.scrollClosure
 	ctx.RegisterMouse = f.mouseClosure
 	ctx.RegisterEvent = f.eventClosure

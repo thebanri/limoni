@@ -247,7 +247,8 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    notifications, no mouse shape, no window title, no suspend/resume.
 
 6. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
-   syntax-highlighted code view, log view, big text, calendar, autocomplete.
+   syntax-highlighted code view, big text, calendar, autocomplete. (Log view is
+   done: `widgets.LogView`, used by `cmd/zest`.)
 
 7. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
    alongside Braille (2×4). Sextants help where Braille fonts are missing.

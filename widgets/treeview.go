@@ -31,9 +31,9 @@ type TreeViewState struct {
 }
 
 type flatTreeNode struct {
-	node      *TreeNode
-	depth     int
-	isLast    bool
+	node   *TreeNode
+	depth  int
+	isLast bool
 	// ends has bit d set when the ancestor at depth d is the last of its
 	// siblings, which decides whether a guide line continues through that
 	// column. Depths past 63 draw a guide.
