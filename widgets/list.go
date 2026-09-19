@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -386,7 +384,7 @@ func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
 		return 0, 0
 	}
 
-	symbolLen := utf8.RuneCountInString(l.HighlightSymbol)
+	symbolLen := cell.StringWidth(l.HighlightSymbol)
 	maxW := 0
 
 	if l.Provider != nil {
@@ -395,14 +393,14 @@ func (l List) SizeHint(maxArea cell.Rect) (width, height uint16) {
 			limit = 100
 		}
 		for i := 0; i < limit; i++ {
-			w := utf8.RuneCountInString(l.Provider.ItemAt(i)) + symbolLen
+			w := cell.StringWidth(l.Provider.ItemAt(i)) + symbolLen
 			if w > maxW {
 				maxW = w
 			}
 		}
 	} else {
 		for _, item := range l.Items {
-			w := utf8.RuneCountInString(item) + symbolLen
+			w := cell.StringWidth(item) + symbolLen
 			if w > maxW {
 				maxW = w
 			}

@@ -25,11 +25,11 @@ func TestViewer3D(t *testing.T) {
 	viewer.Draw(ctx, buf)
 
 	// Solid Shading
-	viewer.Shading = "Dolu Renkli"
+	viewer.Shading = ShadingFlat
 	viewer.Draw(ctx, buf)
 
 	// Lambertian Shading
-	viewer.Shading = "Gölgeli"
+	viewer.Shading = ShadingLambert
 	viewer.Draw(ctx, buf)
 
 	// Gouraud Shading
@@ -68,4 +68,14 @@ func TestViewer3D(t *testing.T) {
 		graphics.UV{}, graphics.UV{}, graphics.UV{},
 		nil,
 	)
+}
+
+// The Turkish names Viewer3D shipped with keep drawing the same thing as the
+// constants that replaced them.
+func TestViewer3DAcceptsOriginalShadingNames(t *testing.T) {
+	for old, now := range map[string]string{"Dokulu": ShadingTexture, "Dolu Renkli": ShadingFlat, "Gölgeli": ShadingLambert} {
+		if got := canonicalShading(old); got != now {
+			t.Errorf("canonicalShading(%q) = %q, want %q", old, got, now)
+		}
+	}
 }

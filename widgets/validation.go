@@ -1,6 +1,10 @@
 package widgets
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/thebanri/limoni/core/grapheme"
+)
 
 // Validator contains common field validation rules.
 type Validator struct {
@@ -11,24 +15,28 @@ type Validator struct {
 	Message   string
 }
 
+// Validate returns an error message for value, or "" if it passes. Lengths
+// count characters as a reader sees them: a family emoji or an accented
+// letter written with a combining mark is one character, not several code
+// points. The default messages are English; set Message to localise.
 func (v Validator) Validate(value string) string {
 	if v.Required && value == "" {
 		if v.Message != "" {
 			return v.Message
 		}
-		return "Bu alan zorunludur."
+		return "This field is required."
 	}
-	if v.MinLength > 0 && len([]rune(value)) < v.MinLength {
+	if v.MinLength > 0 && grapheme.Count(value) < v.MinLength {
 		if v.Message != "" {
 			return v.Message
 		}
-		return "Değer çok kısa."
+		return "Too short."
 	}
-	if v.MaxLength > 0 && len([]rune(value)) > v.MaxLength {
+	if v.MaxLength > 0 && grapheme.Count(value) > v.MaxLength {
 		if v.Message != "" {
 			return v.Message
 		}
-		return "Değer çok uzun."
+		return "Too long."
 	}
 	if v.Pattern != "" {
 		matched, err := regexp.MatchString(v.Pattern, value)
@@ -36,7 +44,7 @@ func (v Validator) Validate(value string) string {
 			if v.Message != "" {
 				return v.Message
 			}
-			return "Geçersiz format."
+			return "Invalid format."
 		}
 	}
 	return ""

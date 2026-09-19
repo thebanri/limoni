@@ -124,7 +124,7 @@ func (t Text) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				style = style.Merge(ctx.ThemeStyle(span.Role))
 			}
 			style = style.Merge(span.Style)
-			spanWidth := visualWidth(span.Text)
+			spanWidth := cell.StringWidth(span.Text)
 			if span.OnClick != nil && ctx.RegisterClick != nil && spanWidth > 0 {
 				clickX := uint16(x)
 				clickWidth := uint16(spanWidth)
@@ -176,7 +176,7 @@ func (t Text) Measure(maxArea cell.Rect) layout.Measure {
 func richLineWidth(line Line) int {
 	width := 0
 	for _, span := range line.Spans {
-		width += visualWidth(span.Text)
+		width += cell.StringWidth(span.Text)
 	}
 	return width
 }

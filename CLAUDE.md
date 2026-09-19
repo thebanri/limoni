@@ -229,9 +229,10 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    checked by `GraphemeBreakTest.txt`), `Cell` stores multi-code-point clusters
    as interned handles ≥ `cell.RuneClusterBase`, setup sends mode 2027, and the
    diff re-anchors the cursor after each cluster so terminals without 2027 do
-   not shift the row. What remains is widgets that truncate or position text by
-   `[]rune` — TextInput, TextArea, Table, Toast, Dialog, Fuzzy and others — which
-   can cut a cluster. Mode 2027 is still *set* unconditionally, but whether the
+   not shift the row. Widgets are converted: use `cell.StringWidth` for widths,
+   `cell.Truncate` to cut, `setEllipsized`/`setClipped` to draw cut text without
+   allocating, and `clusterBounds` for cursor movement. Still by rune: Markdown's
+   word wrap (`runesWidth`) and fuzzy match highlighting in `fuzzy.go`. Mode 2027 is still *set* unconditionally, but whether the
    terminal honours it (or draws clusters as units anyway) is now probed. To
    regenerate tables for a new Unicode version, download the UCD files listed
    in `gen.go`, run it, and replace the conformance test data.

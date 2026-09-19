@@ -20,6 +20,19 @@ a patch bump (`v0.x.y`) does not.
   Limoni will use. The bug report template asks for it.
 - `DiffOptions.ClusterWidths`: skip cursor re-anchoring after grapheme clusters
   on terminals measured to draw them as units.
+- `cell.Truncate`: the longest prefix of a string that fits a column count,
+  cut at grapheme cluster boundaries, without allocating.
+- `CommandPalette.Title` and `CommandPalette.Placeholder`, and the
+  `Shading*` constants for `Viewer3D.Shading`.
+
+### Changed
+- `CommandPalette` shows English text by default ("⌘ Commands",
+  "Search commands..."). It used to show Turkish text to every user.
+- `Validator` default messages are English, and `MinLength`/`MaxLength`
+  count grapheme clusters, not code points.
+- `Viewer3D.Shading` takes `ShadingTexture`, `ShadingFlat`, `ShadingLambert`,
+  `ShadingWireframe` and `ShadingGouraud`. The Turkish names it shipped with
+  still work.
 
 ### Fixed
 - Replies to terminal queries were dropped or misread: a Kitty keyboard reply
@@ -27,6 +40,17 @@ a patch bump (`v0.x.y`) does not.
   bytes were cut off, so the rest arrived as keystrokes.
 - Parsing a CSI sequence allocated. Keys, mouse reports and replies now parse
   without allocating.
+- Widgets measured text in code points and cut it by rune. `TextInput`
+  drew 日本 as blanks, split emoji sequences into their parts, and left
+  "man ZWJ woman ZWJ" behind after one Backspace. `TextInput` and `TextArea`
+  now edit by grapheme cluster. Table, Toast, Select, Popup, TextArea,
+  CommandPalette, the charts, TreeView, List, Progress and VirtualDataView
+  measure in columns and cut on cluster boundaries.
+- Table cells cut to fit could produce invalid UTF-8 (`"e\xcc"`) when the
+  text contained a combining mark.
+- `TextInput` and `CommandPalette` allocated on every frame, and Table
+  allocated for every truncated cell. All three are now allocation-free, and
+  CI checks every widget benchmark instead of four.
 
 ## [v0.3.0] — 2026-09-19
 

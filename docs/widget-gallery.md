@@ -552,7 +552,7 @@ Viewer3D is a high-level widget that renders 3D models with rotation, lighting, 
 | `RotZ` | `float64` |  |
 | `Distance` | `float64` | Distance is the camera distance from the object (default: 3.5). |
 | `Scale` | `float64` | Scale is the zoom/scale multiplier (default: 1.0). |
-| `Shading` | `string` | Shading mode: "Dokulu" (Texture mapped), "Wireframe", "Dolu Renkli" (Flat), "Gölgeli" (Lambertian), "Gouraud" (Smooth interpolated). |
+| `Shading` | `string` | `ShadingTexture`, `ShadingWireframe`, `ShadingFlat`, `ShadingLambert` or `ShadingGouraud`. The original names "Dokulu", "Dolu Renkli" and "Gölgeli" are still accepted. |
 | `Wireframe` | `bool` | Wireframe overlays edges on top of shaded faces. |
 | `WireframeStyle` | `cell.Style` | WireframeStyle is the cell style for wireframe lines. |
 | `FocusedStyle` | `cell.Style` | FocusedStyle is applied to wireframe/highlight when the viewer is focused. |

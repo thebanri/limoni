@@ -75,7 +75,7 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	if p.ShowPercent && ctx.Area.Width >= 5 {
 		text := itoa(int(ratio*100)) + "%"
-		start := int(ctx.Area.X) + (int(ctx.Area.Width)-len([]rune(text)))/2
+		start := int(ctx.Area.X) + (int(ctx.Area.Width)-cell.StringWidth(text))/2
 		buf.SetString(uint16(start), ctx.Area.Y, text, ctx.Style.Merge(p.Style))
 	}
 }

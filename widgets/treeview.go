@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -425,14 +423,14 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				expChar = "▼ "
 			}
 			buf.SetString(cursorX, currY, expChar, rowStyle)
-			cursorX += uint16(utf8.RuneCountInString(expChar))
+			cursorX += uint16(cell.StringWidth(expChar))
 		} else if t.ShowGuides && item.depth > 0 {
 			branchChar := "├─ "
 			if item.isLast {
 				branchChar = "└─ "
 			}
 			buf.SetString(cursorX, currY, branchChar, guideStyle)
-			cursorX += uint16(utf8.RuneCountInString(branchChar))
+			cursorX += uint16(cell.StringWidth(branchChar))
 		} else {
 			buf.SetString(cursorX, currY, "  ", rowStyle)
 			cursorX += 2
@@ -441,7 +439,7 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// Draw Node Icon
 		if item.node.Icon != "" {
 			buf.SetString(cursorX, currY, item.node.Icon+" ", rowStyle)
-			cursorX += uint16(utf8.RuneCountInString(item.node.Icon) + 1)
+			cursorX += uint16(cell.StringWidth(item.node.Icon) + 1)
 		}
 
 		// Draw Node Label

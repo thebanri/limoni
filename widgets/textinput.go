@@ -57,26 +57,42 @@ func (state *TextInputState) str() string {
 	return state.text
 }
 
+// cursorColumn returns how many columns the text before the cursor takes.
+func (state *TextInputState) cursorColumn() int {
+	col, runeIdx := 0, 0
+	for rest := state.str(); rest != "" && runeIdx < state.Cursor; {
+		cluster, w, next := cell.NextCluster(rest)
+		col += w
+		runeIdx += utf8.RuneCountInString(cluster)
+		rest = next
+	}
+	return col
+}
+
 // clusterAround returns the rune indexes of the grapheme cluster boundaries
-// immediately before and after rune index i. At a boundary, before is the
-// start of the cluster ending at i and after the end of the one starting there.
+// immediately before and after rune index i of the text.
 func (state *TextInputState) clusterAround(i int) (before, after int) {
-	before, after = 0, len(state.Text)
+	return clusterBounds(state.str(), i)
+}
+
+// clusterBounds returns the rune indexes of the grapheme cluster boundaries
+// immediately before and after rune index i of text. At a boundary, before is
+// the start of the cluster ending at i and after the end of the one starting
+// there; inside a cluster, they are that cluster's start and end.
+func clusterBounds(text string, i int) (before, after int) {
+	before, after = 0, utf8.RuneCountInString(text)
 	start := 0
-	rest := state.str()
-	for rest != "" {
+	for rest := text; rest != ""; {
 		cluster, _, next := cell.NextCluster(rest)
 		end := start + utf8.RuneCountInString(cluster)
-		if end < i || (end == i && start < i) {
+		if start < i && end > i { // i is inside this cluster
+			return start, end
+		}
+		if end <= i {
 			before = start
 		}
-		if start >= i && end > i {
-			after = end
-			break
-		}
-		if start < i && end > i { // i is inside this cluster
-			before, after = start, end
-			break
+		if start >= i {
+			return before, end
 		}
 		start, rest = end, next
 	}

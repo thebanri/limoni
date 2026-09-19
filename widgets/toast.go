@@ -3,7 +3,6 @@ package widgets
 import (
 	"fmt"
 	"time"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -235,22 +234,12 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Title Line
 		titleStyle := cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
-		titleText := t.Title
 		maxTextW := int(toastWidth) - 4
-		if utf8.RuneCountInString(titleText) > maxTextW {
-			runes := []rune(titleText)
-			titleText = string(runes[:maxTextW-1]) + "…"
-		}
-		buf.SetString(startX+2, startY+1, titleText, titleStyle)
+		setEllipsized(buf, startX+2, startY+1, t.Title, titleStyle, maxTextW, "…")
 
 		// Message Line
 		msgStyle := cell.Style{Fg: cell.NewColorRGB(160, 175, 195), Bg: bgStyle.Bg}
-		msgText := t.Message
-		if utf8.RuneCountInString(msgText) > maxTextW {
-			runes := []rune(msgText)
-			msgText = string(runes[:maxTextW-1]) + "…"
-		}
-		buf.SetString(startX+2, startY+2, msgText, msgStyle)
+		setEllipsized(buf, startX+2, startY+2, t.Message, msgStyle, maxTextW, "…")
 
 		// Progress / Remaining Time Indicator on Bottom Border
 		if t.Duration > 0 {

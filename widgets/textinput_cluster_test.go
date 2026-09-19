@@ -11,9 +11,9 @@ import (
 
 // Written as escapes so an editor cannot normalise them away.
 const (
-	tiFamily = "\U0001F468‍\U0001F469‍\U0001F467" // 5 code points, 2 columns
+	tiFamily = "\U0001F468\u200D\U0001F469\u200D\U0001F467" // 5 code points, 2 columns
 	tiFlag   = "\U0001F1F9\U0001F1F7"                       // 2 code points, 2 columns
-	tiEAcute = "é"                                    // 2 code points, 1 column
+	tiEAcute = "e\u0301"                                    // 2 code points, 1 column
 )
 
 func key(t driver.KeyType) driver.KeyEvent { return driver.KeyEvent{Type: t} }
@@ -126,4 +126,32 @@ func rowText(buf *buffer.Buffer, width uint16) string {
 		sb.WriteString(cell.ClusterText(c.Content))
 	}
 	return strings.TrimRight(sb.String(), " ")
+}
+
+// TextArea edits by cluster too.
+func TestTextAreaEditsWholeClusters(t *testing.T) {
+	s := NewTextAreaState()
+	s.SetValue("a" + tiFamily)
+	s.HandleKey(key(driver.KeyBackspace))
+	if s.Value() != "a" {
+		t.Fatalf("after Backspace: %q", s.Value())
+	}
+	s.SetValue(tiFlag + "b")
+	s.Cursor = 0
+	s.HandleKey(key(driver.KeyArrowRight))
+	if s.Cursor != 2 {
+		t.Fatalf("Right moved to rune %d, want 2 (past the flag)", s.Cursor)
+	}
+}
+
+func TestClusterBounds(t *testing.T) {
+	text := "a" + tiFamily + "b" // runes: a=0, family=1..5, b=6
+	for _, tc := range []struct{ i, before, after int }{
+		{0, 0, 1}, {1, 0, 6}, {3, 1, 6}, {6, 1, 7}, {7, 6, 7},
+	} {
+		b, a := clusterBounds(text, tc.i)
+		if b != tc.before || a != tc.after {
+			t.Errorf("clusterBounds(%d) = %d, %d; want %d, %d", tc.i, b, a, tc.before, tc.after)
+		}
+	}
 }

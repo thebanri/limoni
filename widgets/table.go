@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
@@ -1150,8 +1149,18 @@ func (t Table) drawSpanRow(
 		}
 
 		// Metni keserek sadece ilk satıra yazdır (top-left) - clipping-aware
-		clipped := clipString(cellVal.Text, int(cellW))
-		drawTextClipped(buf, currX, y, clipped, cellStyle, clipLeft, clipRight)
+		// Cut at a cluster boundary and draw the "..." separately, so a cell
+		// that does not fit costs no allocation.
+		if text := cellVal.Text; cell.StringWidth(text) <= int(cellW) {
+			drawTextClipped(buf, currX, y, text, cellStyle, clipLeft, clipRight)
+		} else if cellW <= 3 {
+			prefix, _ := cell.Truncate(text, int(cellW))
+			drawTextClipped(buf, currX, y, prefix, cellStyle, clipLeft, clipRight)
+		} else {
+			prefix, w := cell.Truncate(text, int(cellW)-3)
+			drawTextClipped(buf, currX, y, prefix, cellStyle, clipLeft, clipRight)
+			drawTextClipped(buf, currX+uint16(w), y, "...", cellStyle, clipLeft, clipRight)
+		}
 
 		// Sütunlar arası dikey ızgara çizgisini çiz (birleştirilmiş alanın dışındaysa)
 		if t.DrawGrid && colIdx < colsCount-1 {
@@ -1174,46 +1183,40 @@ func (t Table) drawSpanRow(
 }
 
 // drawTextClipped draws text on a buffer with precise left and right pixel clipping boundaries.
-func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.Style, clipLeft, clipRight uint16) {
+func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.Style, clipLeft, clipRight uint16) uint16 {
 	if y >= buf.Area.Height || startX >= clipRight {
-		return
+		return 0
+	}
+	if clipRight > buf.Area.Width {
+		clipRight = buf.Area.Width
 	}
 
+	// One grapheme cluster per cell, as Buffer.SetString does: walking runes
+	// dropped combining accents and split flags and emoji sequences.
 	currX := startX
-	input := s
-	for len(input) > 0 {
-		r, size := utf8.DecodeRuneInString(input)
-		if r == utf8.RuneError {
-			break
-		}
-
-		w := cell.RuneWidth(r)
+	for input := s; input != ""; {
+		cluster, w, rest := cell.NextCluster(input)
+		input = rest
 		if w == 0 {
-			input = input[size:]
 			continue
 		}
 		if currX+uint16(w) > clipRight {
-			break // Exceeds right boundary
+			break
 		}
-
-		// Only write to buffer if it is within the horizontal clipping range
+		// Only cells inside the horizontal clipping range are written.
 		if currX >= clipLeft {
 			idx := y*buf.Area.Width + currX
 			buf.Invalidate()
-			buf.Content[idx].Content = r
+			buf.Content[idx].Content = cell.ClusterContent(cluster, w)
 			buf.Content[idx].Style = style
-
-			if w == 2 {
-				if currX+1 < clipRight {
-					buf.Content[idx+1].Content = cell.RuneContinuation
-					buf.Content[idx+1].Style = style
-				}
+			if w == 2 && currX+1 < clipRight {
+				buf.Content[idx+1].Content = cell.RuneContinuation
+				buf.Content[idx+1].Style = style
 			}
 		}
-
 		currX += uint16(w)
-		input = input[size:]
 	}
+	return currX - startX
 }
 
 func sortTableRows(rows []TableRow, column int, descending bool) {
@@ -1282,62 +1285,49 @@ func (t Table) Measure(maxArea cell.Rect) layout.Measure {
 	}
 }
 
+// clipString fits s into maxW columns, ending it in "..." when it had to be
+// cut. It cuts at grapheme cluster boundaries and measures clusters, not code
+// points. Drawing code should prefer setClipped, which does the same without
+// building a new string.
 func clipString(s string, maxW int) string {
 	if maxW <= 0 {
 		return ""
 	}
-
-	width := 0
-	for _, r := range s {
-		runeWidth := cell.RuneWidth(r)
-		if runeWidth == 0 {
-			continue
-		}
-		if width+runeWidth > maxW {
-			break
-		}
-		width += runeWidth
-	}
-	if width == visualWidth(s) {
+	if cell.StringWidth(s) <= maxW {
 		return s
 	}
 	if maxW <= 3 {
-		return clipToWidth(s, maxW)
+		prefix, _ := cell.Truncate(s, maxW)
+		return prefix
 	}
-	return clipToWidth(s, maxW-3) + "..."
+	prefix, _ := cell.Truncate(s, maxW-3)
+	return prefix + "..."
 }
 
-func visualWidth(s string) int {
-	width := 0
-	for _, r := range s {
-		width += cell.RuneWidth(r)
-	}
-	return width
+// setClipped draws s at (x, y) the way clipString would cut it, without
+// allocating: the kept prefix and the "..." are written separately.
+func setClipped(buf *buffer.Buffer, x, y uint16, s string, style cell.Style, maxW int) uint16 {
+	return setEllipsized(buf, x, y, s, style, maxW, "...")
 }
 
-func clipToWidth(s string, maxW int) string {
+// setEllipsized draws s within maxW columns. If it does not fit, it is cut at a
+// grapheme cluster boundary and followed by suffix. The suffix is dropped when
+// there is no room for it and at least one column of text.
+func setEllipsized(buf *buffer.Buffer, x, y uint16, s string, style cell.Style, maxW int, suffix string) uint16 {
 	if maxW <= 0 {
-		return ""
+		return 0
 	}
-	width := 0
-	end := 0
-	for _, r := range s {
-		runeWidth := cell.RuneWidth(r)
-		if runeWidth == 0 {
-			continue
-		}
-		if width+runeWidth > maxW {
-			break
-		}
-		width += runeWidth
-		end += len(string(r))
+	if cell.StringWidth(s) <= maxW {
+		return buf.SetStringWithin(x, y, s, style, uint16(maxW))
 	}
-	return s[:end]
-}
-
-// Runes count in string helper
-func strLen(s string) int {
-	return utf8.RuneCountInString(s)
+	sw := cell.StringWidth(suffix)
+	if maxW <= sw {
+		prefix, w := cell.Truncate(s, maxW)
+		return buf.SetStringWithin(x, y, prefix, style, uint16(w))
+	}
+	prefix, w := cell.Truncate(s, maxW-sw)
+	n := buf.SetStringWithin(x, y, prefix, style, uint16(w))
+	return n + buf.SetStringWithin(x+n, y, suffix, style, uint16(sw))
 }
 
 // getIntersectionChar, etrafındaki etkin çizgilerin durumuna göre doğru ızgara kavşak karakterini seçer.
