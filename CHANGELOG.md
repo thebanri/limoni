@@ -14,6 +14,10 @@ a patch bump (`v0.x.y`) does not.
   it, re-runs the capability handshake and repaints. Unsupported backends
   (remote, browser, Windows) say so and deliver the key instead.
 
+### Changed
+- The comments in `graphics/` are in English (issue #10), thanks to
+  [@chenzeyan54-commits](https://github.com/chenzeyan54-commits).
+
 ## [v0.6.0] — 2026-09-20
 
 ### Added
