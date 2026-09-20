@@ -133,6 +133,7 @@ and the [methodology](docs/benchmark-methodology.md#the-4700-that-was-a-harness-
 | 📝 **Markdown** | GFM rendering with a scrollable reader |
 | ♿ **Accessibility** | A semantic tree, a screen-reader line mode, `NO_COLOR`, high contrast, reduced motion |
 | 🧬 **Unicode** | UAX #29 grapheme clusters (Unicode 17.0, all 766 conformance tests), so flags and emoji families take one cell |
+| 🔗 **Hyperlinks** | OSC 8 links, in markdown or any style — and where the terminal cannot show them, the address is printed instead |
 | 📃 **Inline mode** | Render in a band of the normal screen, like `gum`, with scrollback intact |
 | ⏺️ **Session replay** | Record a session, replay it as a regression test ([docs](docs/session-recording.md)) |
 | 🌐 **Everywhere** | Linux, macOS, BSD, Windows, WebAssembly in the browser, SSH sessions |

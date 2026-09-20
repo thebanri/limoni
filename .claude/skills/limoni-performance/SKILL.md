@@ -24,6 +24,16 @@ benchmarks said `0 B/op`:
 | `sync.Pool` | every GC empties it, so the next frame allocated a scratch and two maps | keep scratch on the widget's state |
 | `os.Getenv` on Windows | `graphics.DetectProtocol()` per frame: ~12 env reads, 21 allocations on Windows only | detect once, keep it in `CapabilityProfile` |
 | Interface boxing by the caller | `RenderWidget(widgets.Checkbox{...})` copies the struct to the heap | hold widgets by pointer |
+| A struct growing past 128 bytes | one `bool` added to the end of `cell.Context` → 144 B/op in *every* widget with a fallback click closure | keep `Context` ≤ 128 bytes; put new fields in an existing padding hole |
+
+**The 128-byte cliff.** A closure captures a variable by value only while it
+is small; above 128 bytes the compiler captures by reference, which moves the
+variable to the heap. `cell.Context` is passed to every `Draw` and captured by
+the fallback click closures, so one extra field at the end of it turned every
+widget from `0 B/op` to `144 B/op` — while the code around it was unchanged.
+`go build -gcflags=-m` says which it is: `leaking param: ctx` is free,
+`moved to heap: ctx` is an allocation per call. `TestContextStaysUnder128Bytes`
+guards the size; new fields go in the padding after `Style`.
 
 ## Finding them
 

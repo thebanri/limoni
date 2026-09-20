@@ -33,6 +33,10 @@ type DiffOptions struct {
 	// SyncOutput wraps the frame in synchronized update mode (?2026) so the
 	// terminal presents it atomically instead of tearing.
 	SyncOutput bool
+	// Hyperlinks allows OSC 8, which makes a styled span clickable. A
+	// terminal that does not implement OSC 8 should ignore it, but not all of
+	// them do, so it is off unless the terminal is recognised.
+	Hyperlinks bool
 	// ClusterWidths says the terminal confirmed mode 2027: it advances the
 	// cursor by a grapheme cluster's width, as the buffer does. The encoder
 	// then trusts the cursor after a cluster instead of re-anchoring it.
@@ -111,7 +115,7 @@ func DiffSparse(front, back *Buffer, out []byte, trueColor, colors256 bool) ([]b
 }
 
 func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, error) {
-	trueColor, colors256 := opts.TrueColor, opts.Colors256
+	trueColor, colors256, links := opts.TrueColor, opts.Colors256, opts.Hyperlinks
 	width := front.Area.Width
 	height := front.Area.Height
 
@@ -235,7 +239,7 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 						out = appendCursor(out, x, y)
 					}
 					if frontCell.Style != currentStyle {
-						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
+						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, links, front.StyleCache)
 					}
 					out = append(out, "\x1b["...)
 					out = strconv.AppendInt(out, int64(run), 10)
@@ -254,7 +258,7 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 						out = appendCursor(out, x, y)
 					}
 					if frontCell.Style != currentStyle {
-						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
+						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, links, front.StyleCache)
 					}
 					out = cell.AppendContent(out, frontCell.Content)
 					out = append(out, "\x1b["...)
@@ -279,7 +283,7 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 			}
 
 			if frontCell.Style != currentStyle {
-				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
+				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, links, front.StyleCache)
 			}
 
 			w := 1
@@ -313,7 +317,7 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 	var defaultStyle cell.Style
 	defaultStyle.Reset()
 	if currentStyle != defaultStyle {
-		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256, front.StyleCache)
+		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256, links, front.StyleCache)
 	}
 
 	front.IsDirty = false
@@ -335,7 +339,7 @@ func DiffFullStream(front, back *Buffer, out []byte, trueColor, colors256 bool) 
 }
 
 func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, error) {
-	trueColor, colors256 := opts.TrueColor, opts.Colors256
+	trueColor, colors256, links := opts.TrueColor, opts.Colors256, opts.Hyperlinks
 	if front.Area.Width != back.Area.Width || front.Area.Height != back.Area.Height {
 		back.Resize(front.Area)
 	}
@@ -419,7 +423,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 				}
 				if tailBlank && width-x >= minEraseRun {
 					if tailStyle != currentStyle {
-						out, currentStyle = appendStyle(out, currentStyle, tailStyle, trueColor, colors256, front.StyleCache)
+						out, currentStyle = appendStyle(out, currentStyle, tailStyle, trueColor, colors256, links, front.StyleCache)
 					}
 					out = append(out, "\x1b[K"...)
 					break
@@ -439,7 +443,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 				}
 				if run >= minRepeatRun {
 					if frontCell.Style != currentStyle {
-						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
+						out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, links, front.StyleCache)
 					}
 					out = cell.AppendContent(out, frontCell.Content)
 					out = append(out, "\x1b["...)
@@ -452,7 +456,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 
 			// Lazy SGR style emission: only emit escape sequences when style changes
 			if frontCell.Style != currentStyle {
-				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, front.StyleCache)
+				out, currentStyle = appendStyle(out, currentStyle, frontCell.Style, trueColor, colors256, links, front.StyleCache)
 			}
 
 			// Emit character rune
@@ -471,7 +475,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 	var defaultStyle cell.Style
 	defaultStyle.Reset()
 	if currentStyle != defaultStyle {
-		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256, front.StyleCache)
+		out, _ = appendStyle(out, currentStyle, defaultStyle, trueColor, colors256, links, front.StyleCache)
 	}
 
 	// Close synchronized update if this function opened it
@@ -520,6 +524,9 @@ func appendCursor(out []byte, x, y uint16) []byte {
 }
 
 func getStyleBytes(target cell.Style, trueColor, colors256 bool, cache map[cell.Style][]byte) []byte {
+	// Links are emitted by appendStyle, not cached: one entry per style is
+	// worth keeping, one per style-and-URL is not.
+	target.Link = 0
 	if cache == nil {
 		var out []byte
 		var cur cell.Style
@@ -544,12 +551,25 @@ func getStyleBytes(target cell.Style, trueColor, colors256 bool, cache map[cell.
 	return out
 }
 
-func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256 bool, cache map[cell.Style][]byte) ([]byte, cell.Style) {
+func appendStyle(out []byte, cur, target cell.Style, trueColor, colors256, links bool, cache map[cell.Style][]byte) ([]byte, cell.Style) {
 	if !trueColor {
 		target = target.Downsample(trueColor, colors256)
 	}
 	if cur == target {
 		return out, cur
+	}
+
+	// A hyperlink is not SGR: `ESC[0m` does not close it, and the cached
+	// style bytes below are built without it. So it is emitted here, once per
+	// change, and then the two styles agree on the link for the SGR work.
+	if cur.Link != target.Link {
+		if links {
+			out = appendLink(out, target.Link)
+		}
+		cur.Link = target.Link
+		if cur == target {
+			return out, cur
+		}
 	}
 
 	// If we are resetting anyway, we can use the cached target bytes directly!
@@ -573,7 +593,9 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 	// 1. Modifiers removed
 	if (cur.Modifier & ^target.Modifier) != 0 {
 		out = append(out, "\x1b[0m"...)
+		link := cur.Link // SGR reset does not close a hyperlink.
 		cur.Reset()
+		cur.Link = link
 	}
 
 	// 2. Foreground color change
@@ -702,6 +724,28 @@ func appendStyleRaw(out []byte, cur, target cell.Style, trueColor, colors256 boo
 	}
 
 	return out, cur
+}
+
+// appendLink switches the hyperlink the following cells belong to, with
+// OSC 8. The id parameter matters: the diff emits cells in the order it finds
+// them, so one link's text can arrive in several pieces and on several rows,
+// and terminals use the id to treat those pieces as one link when the pointer
+// hovers over them. The handle serves as that id, which is exactly its job.
+//
+// The zero handle closes the link, as OSC 8 requires, with both fields empty.
+func appendLink(out []byte, id cell.LinkID) []byte {
+	out = append(out, "\x1b]8;"...)
+	if id != 0 {
+		out = append(out, "id="...)
+		out = appendUint16(out, uint16(id))
+	}
+	out = append(out, ';')
+	if id != 0 {
+		out = append(out, cell.LinkURL(id)...)
+	}
+	// ST rather than BEL: BEL inside OSC 8 is accepted but deprecated, and a
+	// terminal that does not know the sequence skips more reliably to ST.
+	return append(out, "\x1b\\"...)
 }
 
 func appendUint8(out []byte, v uint8) []byte {

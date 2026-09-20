@@ -136,3 +136,36 @@ title built from a file name or a log line cannot smuggle an escape sequence
 through. Saving and restoring uses XTWINOPS (`CSI 22;2t` / `CSI 23;2t`);
 terminals that do not implement it ignore both, and the title then simply
 stays as the application set it.
+
+---
+
+## 7. Hyperlinks (OSC 8)
+
+```go
+f.Buffer.SetString(2, 1, "the changelog", limoni.Hyperlink(url).Underline())
+```
+
+`limoni.Hyperlink(url)` — or `Style.WithLink(url)` on a style you already
+have — makes the text a link. `widgets.Markdown` uses it for `[text](url)`,
+so a markdown pane renders real clickable links.
+
+A link belongs to the *cell*, not to a span of text, because the diff writes
+cells in whatever order it finds them. Storing the URL in each cell would put
+a pointer in every one of them and end the flat 16-byte-cell design, so URLs
+are interned and the cell keeps a 16-bit handle — in the two bytes `Style`
+was padding with anyway. The handle is also the `id=` parameter of OSC 8,
+which is what lets a terminal treat a link split across rows as one link when
+the pointer hovers it.
+
+**Terminals that cannot show links are never sent the sequence.** OSC 8 is
+supposed to be ignored where it is unknown, but not every terminal obeys
+that, and a URL printed into the middle of a frame is worse than no link. So
+it is capability-gated like REP: on for kitty, WezTerm, foot, Ghostty,
+iTerm2, Konsole, Contour, the VTE terminals, Windows Terminal and Alacritty,
+off elsewhere, and `LIMONI_HYPERLINKS=1` or `=0` overrides either way.
+`limoni doctor` prints the decision.
+
+Widgets can read the same capability from `ctx.Hyperlinks`, which is how
+Markdown decides whether to print the address as well: with links, the label
+alone is drawn; without them, `text (https://…)`, so a reader who cannot
+click still sees where it points.

@@ -12,7 +12,7 @@ func TestParseInlineStyles(t *testing.T) {
 	baseStyle := cell.Style{}
 	text := "Normal **Bold** *Italic* `Code` Normal"
 
-	segs := parseInlineStyles(text, baseStyle)
+	segs := parseInlineStyles(text, baseStyle, false)
 
 	// Segments: [Normal , Bold,  , Italic,  , Code,  Normal]
 	if len(segs) != 7 {
@@ -85,7 +85,7 @@ func TestMarkdownScrollOffsetClamping(t *testing.T) {
 
 func TestMarkdownVisualLineCountIncludesWrapping(t *testing.T) {
 	md := &Markdown{Content: "This is a deliberately long line that must wrap across multiple rows."}
-	md.parse(cell.Style{})
+	md.parse(cell.Style{}, false)
 	if got := md.visualLineCount(10); got <= 1 {
 		t.Fatalf("visual line count = %d, want wrapped content to occupy multiple rows", got)
 	}

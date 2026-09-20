@@ -83,7 +83,7 @@ func runDoctor(out io.Writer) error {
 	}
 
 	fmt.Fprintln(out, "\nEnvironment")
-	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME"} {
+	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_HYPERLINKS", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME"} {
 		if v, ok := os.LookupEnv(name); ok {
 			fmt.Fprintf(out, "  %-16s  %s\n", name, v)
 		}
@@ -101,6 +101,7 @@ func runDoctor(out io.Writer) error {
 	row("256 colours", detected.Colors256, final.Colors256)
 	row("synchronized output", detected.SyncOutput, final.SyncOutput)
 	row("REP (repeat glyph)", detected.RepeatChar, final.RepeatChar)
+	row("OSC 8 hyperlinks", detected.Hyperlinks, final.Hyperlinks)
 	row("cluster widths (2027)", detected.ClusterWidths, final.ClusterWidths)
 	return nil
 }

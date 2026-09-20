@@ -247,8 +247,25 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    regenerate tables for a new Unicode version, download the UCD files listed
    in `gen.go`, run it, and replace the conformance test data.
 
-5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
-   notifications, no mouse shape. A window title (OSC 2) is open as issue #16.
+5. **Missing terminal integration.** No OSC 9/777 notifications, no mouse
+   shape. The window title (OSC 2) is done: `WithTitle`, pushed and popped
+   with XTWINOPS so an app does not leave its name on the user's terminal.
+
+   OSC 8 hyperlinks are done. The link lives in the *cell*, as a 16-bit
+   handle into an interned URL table, in the two bytes `Style` was already
+   padding with — `Cell` is still 16 bytes. The handle doubles as the OSC 8
+   `id=`, which is what makes a link split across rows one link. It is
+   capability-gated like REP, and widgets read `ctx.Hyperlinks` to decide
+   whether the address still has to be printed as text.
+
+   Two things that cost time and will again: TERM for kitty is
+   *`xterm-kitty`* and for Ghostty *`xterm-ghostty`*, so a `HasPrefix`
+   table silently finds neither — match anywhere in TERM. And `cell.Context`
+   must stay at or under **128 bytes**: past that, a closure capturing it
+   captures by reference rather than by value, which moves the whole Context
+   to the heap. Adding one `bool` at the end of the struct cost 144 B/op in
+   every widget with a fallback click closure; moved into the padding after
+   `Style` it costs nothing. `TestContextStaysUnder128Bytes` guards it.
 
    Suspend/resume is done: `WithSuspend()` / `Terminal.Suspend()`. Restore the
    screen and termios *before* `SIGTSTP` — a test with a real pty checks that
