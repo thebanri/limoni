@@ -36,7 +36,7 @@ func ParseRichText(text string, baseStyle Style, resolver StyleResolver) []Cell 
 		if ch == '<' {
 			// Parse tag
 			closeIndex := strings.IndexByte(text[i:], '>')
-			if closeIndex != -1 {
+			if closeIndex != -1 && isTagContent(text[i+1:i+closeIndex]) {
 				tagContent := text[i+1 : i+closeIndex]
 				i += closeIndex + 1
 
@@ -65,6 +65,21 @@ func ParseRichText(text string, baseStyle Style, resolver StyleResolver) []Cell 
 	}
 
 	return cells
+}
+
+// isTagContent reports whether what stands between '<' and '>' is markup
+// rather than ordinary prose. A tag never opens or closes with a space, so
+// "2 < 3 and 4 > 1" is text and is drawn as written — before this check the
+// whole comparison was read as a tag and vanished from the output. Spaces
+// inside a tag are still fine: `<fg=red, bold>` works.
+func isTagContent(content string) bool {
+	if content == "" {
+		return false
+	}
+	if content[0] == ' ' || content[0] == '\t' || content[len(content)-1] == ' ' || content[len(content)-1] == '\t' {
+		return false
+	}
+	return true
 }
 
 func parseTagStyle(tagContent string, parentStyle Style, resolver StyleResolver) Style {

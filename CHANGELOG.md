@@ -8,6 +8,12 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Fixed
+- `RichText` swallowed ordinary prose that looked like a tag: `2 < 3 and 4 > 1`
+  rendered as `2  1`, because everything between `<` and `>` was read as
+  markup. A tag never opens or closes with a space, so text like that is now
+  drawn as written. Spaces inside a real tag — `<fg=red, bold>` — still work.
+
 ### Added
 - OSC 8 hyperlinks: `limoni.Hyperlink(url)`, `Style.WithLink(url)`, and
   `widgets.Markdown` rendering `[text](url)` as a clickable link. The URL is
