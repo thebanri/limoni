@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.8.0] — 2026-09-20
+
 ### Changed
 - The module is 3.7 MB instead of 14.3 MB. The README's demo GIFs are what
   made up the difference, and `assets/` now carries its own `go.mod`, so a
@@ -34,6 +36,10 @@ a patch bump (`v0.x.y`) does not.
 - `cell.Context.Hyperlinks`, so a widget can render link markup to suit the
   terminal it is drawing into.
 - `examples/hyperlinks`.
+- Tests: coverage across the library packages is 72%, from 68%. `core/cell`
+  went 39→92%, `core/engine` 55→80%, the root package 49→73%, `component`
+  58→71% and `core/terminal` 65→70%. `apps/globe` is covered by its own
+  tests, including the flow an agent drives.
 
 ## [v0.7.0] — 2026-09-20
 
@@ -294,7 +300,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.8.0...HEAD
+[v0.8.0]: https://github.com/thebanri/limoni/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/thebanri/limoni/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/thebanri/limoni/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/thebanri/limoni/compare/v0.4.0...v0.5.0
