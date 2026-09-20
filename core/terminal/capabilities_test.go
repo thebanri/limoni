@@ -76,3 +76,44 @@ func TestDetectCapabilitiesRespectsNoSyncEscapeHatch(t *testing.T) {
 		t.Fatal("LIMONI_NO_SYNC=1 should disable synchronized output")
 	}
 }
+
+// TERM is not a prefix table: kitty calls itself "xterm-kitty" and Ghostty
+// "xterm-ghostty", which a prefix match reads as plain xterm — and xterm has
+// no OSC 8. This was found by running the example in a real terminal and
+// seeing no hyperlink on the wire.
+func TestHyperlinkDetectionFromTERM(t *testing.T) {
+	cases := map[string]bool{
+		"xterm-kitty":      true,
+		"xterm-ghostty":    true,
+		"foot-extra":       true,
+		"alacritty":        true,
+		"konsole-256color": true,
+		"xterm-256color":   false,
+		"screen":           false,
+		"dumb":             false,
+	}
+	for term, want := range cases {
+		t.Setenv("TERM", term)
+		t.Setenv("TERM_PROGRAM", "")
+		t.Setenv("VTE_VERSION", "")
+		t.Setenv("WT_SESSION", "")
+		t.Setenv("KONSOLE_VERSION", "")
+		t.Setenv("LIMONI_HYPERLINKS", "")
+		if got := DetectCapabilities().Hyperlinks; got != want {
+			t.Errorf("TERM=%q: hyperlinks = %v, want %v", term, got, want)
+		}
+	}
+}
+
+func TestHyperlinksCanBeForcedEitherWay(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("LIMONI_HYPERLINKS", "1")
+	if !DetectCapabilities().Hyperlinks {
+		t.Error("LIMONI_HYPERLINKS=1 did not turn hyperlinks on")
+	}
+	t.Setenv("TERM", "xterm-kitty")
+	t.Setenv("LIMONI_HYPERLINKS", "0")
+	if DetectCapabilities().Hyperlinks {
+		t.Error("LIMONI_HYPERLINKS=0 did not turn hyperlinks off")
+	}
+}

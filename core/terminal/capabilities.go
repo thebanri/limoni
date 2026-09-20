@@ -28,6 +28,11 @@ type CapabilityProfile struct {
 	// The capability handshake turns it on for terminals that name themselves
 	// (XTVERSION) and are known to implement it.
 	RepeatChar bool
+	// Hyperlinks enables OSC 8, which turns a styled span into a clickable
+	// link. A terminal that does not implement it is supposed to swallow the
+	// sequence, and most do — but the ones that do not would print the URL
+	// into the frame, so it stays off unless the terminal is recognised.
+	Hyperlinks bool
 	// ClusterWidths is on when the terminal confirmed mode 2027: it measures a
 	// grapheme cluster as one unit, as Limoni does, so the diff need not
 	// re-anchor the cursor after each one. Only the handshake sets it.
@@ -53,7 +58,8 @@ func DetectCapabilities() CapabilityProfile {
 	if runtime.GOOS == "js" {
 		profile.TrueColor = true
 		profile.Colors256 = true
-		// xterm.js implements REP.
+		// xterm.js implements REP. Hyperlinks need an addon the page may not
+		// have loaded, and there is no way to ask, so they stay off.
 		profile.RepeatChar = true
 		return profile
 	}
@@ -99,7 +105,36 @@ func DetectCapabilities() CapabilityProfile {
 		strings.HasPrefix(term, "alacritty"), strings.HasPrefix(term, "wezterm"):
 		profile.RepeatChar = true
 	}
+	// OSC 8 is implemented by the VTE terminals (GNOME, Tilix), kitty, foot,
+	// WezTerm, Ghostty, iTerm2, Konsole, Windows Terminal and Alacritty since
+	// 0.11. As with REP, an unrecognised terminal keeps it off.
+	switch {
+	case termProg == "kitty", termProg == "WezTerm", termProg == "Ghostty",
+		termProg == "foot", termProg == "iTerm.app", termProg == "vscode":
+		profile.Hyperlinks = true
+	}
+	// Matched anywhere in TERM, not at the front: kitty sets TERM to
+	// "xterm-kitty" and Ghostty to "xterm-ghostty", so a prefix test finds
+	// neither and quietly leaves hyperlinks off — which is exactly what
+	// happened the first time this was tried in a real terminal.
+	for _, name := range hyperlinkTerms {
+		if strings.Contains(term, name) {
+			profile.Hyperlinks = true
+			break
+		}
+	}
+	if os.Getenv("VTE_VERSION") != "" || os.Getenv("WT_SESSION") != "" ||
+		os.Getenv("KONSOLE_VERSION") != "" {
+		profile.Hyperlinks = true
+	}
+
 	// Escape hatches in both directions, until the handshake can ask.
+	switch os.Getenv("LIMONI_HYPERLINKS") {
+	case "1":
+		profile.Hyperlinks = true
+	case "0":
+		profile.Hyperlinks = false
+	}
 	switch os.Getenv("LIMONI_REP") {
 	case "1":
 		profile.RepeatChar = true
@@ -110,17 +145,21 @@ func DetectCapabilities() CapabilityProfile {
 	return profile
 }
 
+// hyperlinkTerms are the TERM fragments of terminals that implement OSC 8.
+var hyperlinkTerms = []string{"kitty", "ghostty", "foot", "wezterm", "alacritty", "konsole", "contour", "vte", "gnome"}
+
 // knownTerminals lists what Limoni knows about terminals that answer XTVERSION,
 // keyed by the lower-cased name before the version. Only positive knowledge is
 // recorded: a terminal missing here keeps what the environment suggested.
-var knownTerminals = map[string]struct{ trueColor, rep bool }{
+var knownTerminals = map[string]struct{ trueColor, rep, links bool }{
 	"xterm":    {trueColor: false, rep: true}, // 24-bit SGR is accepted but may be approximated
-	"kitty":    {trueColor: true, rep: true},
-	"wezterm":  {trueColor: true, rep: true},
-	"foot":     {trueColor: true, rep: true},
-	"ghostty":  {trueColor: true, rep: true},
-	"contour":  {trueColor: true, rep: true},
-	"iterm2":   {trueColor: true, rep: true},
+	"kitty":    {trueColor: true, rep: true, links: true},
+	"wezterm":  {trueColor: true, rep: true, links: true},
+	"foot":     {trueColor: true, rep: true, links: true},
+	"ghostty":  {trueColor: true, rep: true, links: true},
+	"contour":  {trueColor: true, rep: true, links: true},
+	"iterm2":   {trueColor: true, rep: true, links: true},
+	"konsole":  {trueColor: true, rep: true, links: true},
 	"xterm.js": {trueColor: true, rep: true},
 	// tmux interprets REP itself before redrawing on the outer terminal, so
 	// REP is safe whatever runs outside it. Colour depth depends on tmux's
@@ -147,6 +186,9 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 		if known.rep {
 			p.RepeatChar = true
 		}
+		if known.links {
+			p.Hyperlinks = true
+		}
 	}
 	// A measurement beats both the name and the environment.
 	switch r.Repeat {
@@ -160,6 +202,12 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 		p.RepeatChar = true
 	case "0":
 		p.RepeatChar = false
+	}
+	switch os.Getenv("LIMONI_HYPERLINKS") {
+	case "1":
+		p.Hyperlinks = true
+	case "0":
+		p.Hyperlinks = false
 	}
 	return p
 }

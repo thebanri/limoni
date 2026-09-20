@@ -24,6 +24,7 @@ type Markdown struct {
 	lastStyle     cell.Style
 	lastWidth     uint16
 	lastBaseStyle cell.Style
+	lastLinks     bool
 	cachedLines   []markdownLine
 	cachedRows    [][]cell.Cell
 }
@@ -85,14 +86,20 @@ type rawSegment struct {
 	Style cell.Style
 }
 
-func (m *Markdown) parse(baseStyle cell.Style) {
-	if m.Content == m.lastContent && m.Style == m.lastStyle && baseStyle == m.lastBaseStyle && m.cachedLines != nil {
+// parse turns the source into styled lines. links says whether the terminal
+// can show OSC 8 hyperlinks, which changes the output: with them, `[text](url)`
+// renders as a clickable "text"; without them the address is written out too,
+// because a reader who cannot click it still needs to see where it points.
+func (m *Markdown) parse(baseStyle cell.Style, links bool) {
+	if m.Content == m.lastContent && m.Style == m.lastStyle && baseStyle == m.lastBaseStyle &&
+		links == m.lastLinks && m.cachedLines != nil {
 		return
 	}
 
 	m.lastContent = m.Content
 	m.lastStyle = m.Style
 	m.lastBaseStyle = baseStyle
+	m.lastLinks = links
 	m.lastWidth = 0
 	m.cachedLines = nil
 	m.cachedRows = nil
@@ -136,7 +143,7 @@ func (m *Markdown) parse(baseStyle cell.Style) {
 			prefix = "• "
 		}
 
-		rawSegments := parseInlineStyles(line, lineStyle)
+		rawSegments := parseInlineStyles(line, lineStyle, links)
 		var segments []StyledSegment
 		for _, rawSeg := range rawSegments {
 			words := strings.Split(rawSeg.Text, " ")
@@ -188,7 +195,7 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			baseStyle.Bg = base.Bg
 		}
 	}
-	m.parse(baseStyle)
+	m.parse(baseStyle, ctx.Hyperlinks)
 
 	y := ctx.Area.Y
 	rows := m.visualRows(ctx.Area.Width, baseStyle)
@@ -433,7 +440,11 @@ func clampMarkdownOffset(offset, maxOffset int) int {
 
 func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	baseStyle := cell.Style{}.Merge(m.Style)
-	m.parse(baseStyle)
+	// SizeHint has no draw context, so it measures with whatever the last
+	// draw used. Before the first draw that is the wider form, with the URLs
+	// written out, which errs towards asking for too much room rather than
+	// too little.
+	m.parse(baseStyle, m.lastLinks)
 
 	h := uint16(0)
 	for _, line := range m.cachedLines {
@@ -477,7 +488,50 @@ func (m *Markdown) Measure(maxArea cell.Rect) layout.Measure {
 	}
 }
 
-func parseInlineStyles(text string, baseStyle cell.Style) []rawSegment {
+// markdownLinkStyle is how a link is drawn whether or not the terminal can
+// make it clickable, so that link text is recognisable either way.
+func markdownLinkStyle(baseStyle cell.Style) cell.Style {
+	return baseStyle.Merge(cell.Style{
+		Fg:       cell.NewColorRGB(100, 160, 255),
+		Modifier: cell.ModifierUnderline,
+	})
+}
+
+// parseMarkdownLink reads `[label](url)` starting at the opening bracket. It
+// returns ok=false for anything that is not a complete link — a lone bracket,
+// a reference-style link, an unclosed URL — which is then drawn as the
+// literal text it is.
+func parseMarkdownLink(runes []rune, start int) (label, url string, next int, ok bool) {
+	n := len(runes)
+	i := start + 1
+	labelStart := i
+	for i < n && runes[i] != ']' {
+		if runes[i] == '[' || runes[i] == '\n' {
+			return "", "", 0, false
+		}
+		i++
+	}
+	if i >= n || i+1 >= n || runes[i+1] != '(' {
+		return "", "", 0, false
+	}
+	label = string(runes[labelStart:i])
+	i += 2
+	urlStart := i
+	for i < n && runes[i] != ')' {
+		if runes[i] == ' ' {
+			// `[text](url "title")` — the title is not rendered, and a bare
+			// space in a URL means this is not one.
+			return "", "", 0, false
+		}
+		i++
+	}
+	if i >= n || label == "" || i == urlStart {
+		return "", "", 0, false
+	}
+	return label, string(runes[urlStart:i]), i + 1, true
+}
+
+func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegment {
 	var segments []rawSegment
 	runes := []rune(text)
 	var curr []rune
@@ -508,6 +562,29 @@ func parseInlineStyles(text string, baseStyle cell.Style) []rawSegment {
 				style.Modifier |= cell.ModifierItalic
 			}
 			i++
+		} else if runes[i] == '[' {
+			label, url, next, isLink := parseMarkdownLink(runes, i)
+			if !isLink {
+				curr = append(curr, runes[i])
+				i++
+				continue
+			}
+			if len(curr) > 0 {
+				segments = append(segments, rawSegment{Text: string(curr), Style: style})
+				curr = nil
+			}
+			linkStyle := markdownLinkStyle(style)
+			if links {
+				linkStyle = linkStyle.WithLink(url)
+			}
+			segments = append(segments, rawSegment{Text: label, Style: linkStyle})
+			if !links {
+				segments = append(segments, rawSegment{
+					Text:  " (" + url + ")",
+					Style: style.Merge(cell.Style{Modifier: cell.ModifierDim}),
+				})
+			}
+			i = next
 		} else if runes[i] == '`' {
 			if len(curr) > 0 {
 				segments = append(segments, rawSegment{Text: string(curr), Style: style})

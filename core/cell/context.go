@@ -17,6 +17,20 @@ type Context struct {
 	// Style carries cascading styles (colors, modifiers) inherited from parent containers.
 	Style Style
 
+	// Hyperlinks reports whether the terminal can show OSC 8 links. A widget
+	// that renders link markup uses it to decide whether the URL still has to
+	// be written out as text: with hyperlinks the label alone is clickable,
+	// without them the reader would otherwise have no way to see the address.
+	//
+	// Its position in this struct is not cosmetic. Context must stay at or
+	// under 128 bytes: above that, a closure capturing it captures by
+	// reference instead of by value, which moves the whole Context to the
+	// heap — one allocation per widget per frame, in every widget with a
+	// fallback click closure. Declared here it lands in the padding after
+	// Style and costs nothing; declared after FocusedID it cost 144 B/op
+	// across the entire widget catalogue.
+	Hyperlinks bool
+
 	// RegisterClick is a callback bridge populated by the terminal layer
 	// allowing widgets to register clickable regions during rendering.
 	//
@@ -101,6 +115,10 @@ func NewContext(area Rect, style Style) Context {
 // Modifiers (Bold, Italic, etc.) are combined using a bitwise OR operation.
 func (s Style) Merge(other Style) Style {
 	merged := s
+
+	if other.Link != 0 {
+		merged.Link = other.Link
+	}
 
 	if other.Fg.Type() != ColorDefault {
 		merged.Fg = other.Fg

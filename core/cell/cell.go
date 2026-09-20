@@ -69,12 +69,14 @@ const (
 )
 
 // Style defines the color and visual styling of a terminal cell.
-// Memory Alignment: 4 (Fg) + 4 (Bg) + 2 (Modifier) = 10 bytes,
-// padded to 12 bytes by the Go compiler.
+// Memory Alignment: 4 (Fg) + 4 (Bg) + 2 (Modifier) + 2 (Link) = 12 bytes,
+// which is what the compiler padded the first three to anyway: the hyperlink
+// handle is free.
 type Style struct {
 	Fg       Color    // 4 bytes
 	Bg       Color    // 4 bytes
 	Modifier Modifier // 2 bytes
+	Link     LinkID   // 2 bytes — 0 for the overwhelming majority of cells
 }
 
 // Reset restores the style to its default values.
@@ -82,6 +84,7 @@ func (s *Style) Reset() {
 	s.Fg = NewColorDefault()
 	s.Bg = NewColorDefault()
 	s.Modifier = ModifierReset
+	s.Link = 0
 }
 
 // AddModifier adds a new modifier flag and returns the updated Style.

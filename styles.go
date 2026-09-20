@@ -85,3 +85,15 @@ func Dim() Style {
 func Reverse() Style {
 	return cell.NewStyle().Reverse()
 }
+
+// Hyperlink returns a Style whose text is a link to url, written as OSC 8.
+// Terminals that support it show the span as clickable; those that do not are
+// never sent the sequence, and the text is drawn unchanged.
+//
+//	f.SetString(2, 1, "the changelog", limoni.Hyperlink(url).Underline())
+//
+// Style.WithLink adds a link to a style you already have. The URL is interned,
+// so calling either on the draw path does not allocate.
+func Hyperlink(url string) Style {
+	return cell.NewStyle().WithLink(url)
+}

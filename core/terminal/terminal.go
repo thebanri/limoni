@@ -305,6 +305,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t.front.Clear()
 	// Tıklama bölgeleri kaydını sıfırla
 	t.frame.Reset()
+	t.frame.Hyperlinks = t.caps.Hyperlinks
 	if t.frame.FocusManager != nil {
 		t.frame.FocusManager.Clear()
 	}
@@ -441,6 +442,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		Colors256:  t.caps.Colors256,
 		EraseChar:  t.caps.EraseChar,
 		RepeatChar: t.caps.RepeatChar,
+		Hyperlinks: t.caps.Hyperlinks,
 		// A terminal that confirmed mode 2027 needs no cursor re-anchoring
 		// after each grapheme cluster.
 		ClusterWidths: t.caps.ClusterWidths,

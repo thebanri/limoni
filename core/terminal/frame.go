@@ -120,6 +120,10 @@ type Frame struct {
 	Theme    widgets.Theme
 	ThemeSet bool
 
+	// Hyperlinks mirrors the terminal's OSC 8 capability into every draw
+	// context; see cell.Context.Hyperlinks.
+	Hyperlinks bool
+
 	// WidgetStats, bu çizim karesinde çizilen widget'ların render sürelerini saklar.
 	WidgetStats []WidgetStat
 	// Accessibility holds this frame's semantic nodes. Children may point into
@@ -940,6 +944,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 
 	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
 	ctx := cell.NewContext(area, defStyle)
+	ctx.Hyperlinks = f.Hyperlinks
 	if f.ThemeSet {
 		// Built once: a closure made here was an allocation per widget per
 		// frame whenever a theme was set.

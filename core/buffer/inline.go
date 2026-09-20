@@ -80,7 +80,7 @@ func DiffInline(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 				}
 				if run >= minRepeatRun {
 					if c.Style != currentStyle {
-						out, currentStyle = appendStyle(out, currentStyle, c.Style, opts.TrueColor, opts.Colors256, front.StyleCache)
+						out, currentStyle = appendStyle(out, currentStyle, c.Style, opts.TrueColor, opts.Colors256, opts.Hyperlinks, front.StyleCache)
 					}
 					out = cell.AppendContent(out, c.Content)
 					out = append(out, "\x1b["...)
@@ -92,7 +92,7 @@ func DiffInline(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 			}
 
 			if c.Style != currentStyle {
-				out, currentStyle = appendStyle(out, currentStyle, c.Style, opts.TrueColor, opts.Colors256, front.StyleCache)
+				out, currentStyle = appendStyle(out, currentStyle, c.Style, opts.TrueColor, opts.Colors256, opts.Hyperlinks, front.StyleCache)
 			}
 			if isBlankCell(c) {
 				out = append(out, ' ')
@@ -110,7 +110,7 @@ func DiffInline(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 		var defaultStyle cell.Style
 		defaultStyle.Reset()
 		if currentStyle != defaultStyle {
-			out, currentStyle = appendStyle(out, currentStyle, defaultStyle, opts.TrueColor, opts.Colors256, front.StyleCache)
+			out, currentStyle = appendStyle(out, currentStyle, defaultStyle, opts.TrueColor, opts.Colors256, opts.Hyperlinks, front.StyleCache)
 		}
 		out = append(out, "\x1b[K"...)
 	}

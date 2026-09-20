@@ -138,6 +138,7 @@ hatanın nasıl yakalandığını anlatıyor.
 | 📝 **Markdown** | Kaydırılabilir okuyuculu GFM çizimi |
 | ♿ **Erişilebilirlik** | Semantik ağaç, ekran okuyucu satır modu, `NO_COLOR`, yüksek kontrast, azaltılmış hareket |
 | 🧬 **Unicode** | UAX #29 grapheme cluster'ları (Unicode 17.0, 766 uygunluk testinin tamamı geçiyor), böylece bayraklar ve aile emojileri tek hücre kaplar |
+| 🔗 **Köprüler** | OSC 8 bağlantıları, markdown içinde ya da herhangi bir stilde — terminal gösteremiyorsa adres metin olarak yazılır |
 | 📃 **Inline mod** | `gum` gibi normal ekranın bir bandında çizer, terminal geçmişi (scrollback) korunur |
 | ⏺️ **Oturum tekrarı** | Bir oturumu kaydet, regresyon testi olarak tekrar oynat ([doküman](docs/tr/session-recording.md)) |
 | 🌐 **Her yerde** | Linux, macOS, BSD, Windows, tarayıcıda WebAssembly, SSH oturumları |

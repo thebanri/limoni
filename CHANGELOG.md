@@ -8,6 +8,18 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- OSC 8 hyperlinks: `limoni.Hyperlink(url)`, `Style.WithLink(url)`, and
+  `widgets.Markdown` rendering `[text](url)` as a clickable link. The URL is
+  interned and the cell keeps a 16-bit handle in the padding `Style` already
+  had, so a link costs no memory and the draw path stays allocation-free.
+  Capability-gated: terminals that cannot show links are not sent the
+  sequence and are given the address as text instead. `LIMONI_HYPERLINKS`
+  overrides, `limoni doctor` shows the decision.
+- `cell.Context.Hyperlinks`, so a widget can render link markup to suit the
+  terminal it is drawing into.
+- `examples/hyperlinks`.
+
 ## [v0.7.0] — 2026-09-20
 
 ### Added
