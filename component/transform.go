@@ -24,6 +24,10 @@ type transformComponent struct {
 // in its bounding area after the child has drawn. The transform runs
 // in-place on the buffer cells with no heap allocation.
 //
+// "Every rune in the bounding area" includes the blanks around the child's
+// text: a transform that maps space to something visible will fill the
+// padding with it. Guard whitespace the way Mask does when that matters.
+//
 // Example:
 //
 //	limoni.Transform(limoni.Label("hello"), unicode.ToUpper) // renders "HELLO"
