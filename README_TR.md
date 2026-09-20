@@ -235,7 +235,7 @@ Tüm örnekler: [docs/tr/examples.md](docs/tr/examples.md).
 | | |
 | :--- | :--- |
 | [Başlangıç](docs/tr/getting-started.md) | Kurulum, ilk uygulama, iki uygulama modeli |
-| [Mimari](docs/architecture.md) | Düz hücre ızgarası, diff ve çizim yolunun neden bellek tahsis etmediği |
+| [Mimari](docs/tr/architecture.md) | Düz hücre ızgarası, diff ve çizim yolunun neden bellek tahsis etmediği |
 | [Düzen](docs/tr/layout-guide.md) · [Widget'lar](docs/tr/widgets-reference.md) · [Çekirdek API](docs/tr/core-api.md) | Referans |
 | [Semantik otomasyon](docs/tr/automation.md) | Otomasyon soketi, `limoni-mcp`, `uitest` ve güvenlik modeli |
 | [Oturum kaydı](docs/tr/session-recording.md) | Oturumları kaydedip regresyon testi olarak oynatma |

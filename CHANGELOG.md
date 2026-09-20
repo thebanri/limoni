@@ -23,6 +23,9 @@ a patch bump (`v0.x.y`) does not.
 ### Changed
 - The comments in `graphics/` are in English (issue #10), thanks to
   [@chenzeyan54-commits](https://github.com/chenzeyan54-commits).
+- `docs/tr/architecture.md`: the architecture guide in Turkish, contributed by
+  [@Voyagerroc-Lab](https://github.com/Voyagerroc-Lab), with the
+  allocation-free interactive frames section added.
 
 ## [v0.6.0] — 2026-09-20
 
