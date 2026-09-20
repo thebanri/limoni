@@ -35,4 +35,16 @@ func TestClipboard_WriteClipboard(t *testing.T) {
 	if buf.Len() == 0 {
 		t.Fatal("expected buffer to have written bytes")
 	}
+
+	if err := WriteClipboard(nil, "fail"); err == nil {
+		t.Error("expected error when passing nil writer to WriteClipboard")
+	}
+}
+
+func TestClipboard_ReadClipboardRequest(t *testing.T) {
+	req := ReadClipboardRequest()
+	want := "\x1b]52;c;?\x07"
+	if req != want {
+		t.Errorf("ReadClipboardRequest() = %q, want %q", req, want)
+	}
 }

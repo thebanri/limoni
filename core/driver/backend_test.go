@@ -209,3 +209,31 @@ func TestParseStringSequencesKittyAPCAndOSC(t *testing.T) {
 		t.Fatalf("Expected consumed=0 for incomplete APC sequence, got %d", consumed)
 	}
 }
+
+func TestBackendWriteSyncUpdateAndCellPixelSize(t *testing.T) {
+	io := NewMemoryTerminalIO(nil, 80, 24)
+	b := NewPortableBackend(io)
+
+	// Write directly via Backend
+	n, err := b.Write([]byte("direct output"))
+	if err != nil || n != 13 {
+		t.Fatalf("Write: n=%d, err=%v", n, err)
+	}
+
+	// Synchronized updates
+	b.StartSyncUpdate()
+	b.EndSyncUpdate()
+	out := string(io.Output())
+	if !strings.Contains(out, "\x1b[?2026h") {
+		t.Error("StartSyncUpdate did not write start sequence")
+	}
+	if !strings.Contains(out, "\x1b[?2026l") {
+		t.Error("EndSyncUpdate did not write end sequence")
+	}
+
+	// Cell pixel size defaults for portable IO
+	x, y, err := b.CellPixelSize()
+	if err != nil || x != 10 || y != 20 {
+		t.Errorf("CellPixelSize: (%d, %d, %v), want (10, 20, nil)", x, y, err)
+	}
+}
