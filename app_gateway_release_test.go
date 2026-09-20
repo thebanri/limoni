@@ -3,6 +3,7 @@
 package limoni
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestReleaseBuildRefusesAutomation(t *testing.T) {
 	}
 	defer term.Close()
 
-	err = runLoop(term, func(*Frame, *Event) bool { return false }, appConfig{automationPath: "/tmp/never.sock"})
+	err = testApp(term, appConfig{automationPath: "/tmp/never.sock"}).Run(context.Background(), func(*Frame, *Event) bool { return false })
 	if !errors.Is(err, ErrAutomationNotCompiled) {
 		t.Fatalf("runLoop = %v, want ErrAutomationNotCompiled", err)
 	}

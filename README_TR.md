@@ -56,11 +56,12 @@ func main() {
 }
 ```
 
-Hemen çalışan bir proje de oluşturabilirsin:
+Hemen çalışan ve testi hazır yazılmış bir proje de oluşturabilirsin:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam
+go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam    # -template counter|dashboard|form|ssh
 cd uygulamam && go mod tidy && go run .
+go test ./...                                                         # her şablon bir uitest testiyle gelir
 ```
 
 **Sonraki adımlar:** [Başlangıç rehberi](docs/tr/getting-started.md) · [Widget galerisi](docs/widget-gallery.md) · [Örnekler](#örnekler)
@@ -108,7 +109,7 @@ hiçbir zaman dışarı verilmez.
 
 ### 2. Hissedilen yerde hızlı
 
-- **Çizim yolunda sıfır heap tahsisatı.** CI'da zorunlu tutuluyor, böylece animasyonlar GC duraklamalarıyla takılmaz.
+- **Kare başına sıfır heap tahsisatı.** Render motoru, tüm widget'ların çizimi ve yaygın girdi widget'larının tıklama işlemesi bunun kapsamında ve CI'da zorunlu tutuluyor, böylece animasyonlar GC duraklamalarıyla takılmaz. Sürükleme veya özel işleyici kullanan widget'lar (Table, Slider, Dialog, …) hâlâ her biri için bir closure tahsis ediyor. [Ayrıntılar](docs/architecture.md#5-allocation-free-interactive-frames).
 - **Kare başına az bayt.** Boş diziler `ECH`/`EL`, tekrarlar `REP` olarak gönderilir. Tam ekran yenileme **377 bayt** tutar, boşta bekleyen bir uygulama ise **hiç bayt göndermez**. SSH üzerinde hissettiğin şey CPU değil, gönderilen bayttır.
 - **Sanal tablo ve listeler.** Yalnızca görünen satırlar işlendiği için bir milyon satır kare başına ~2,7 ms'de kayar.
 
@@ -153,6 +154,23 @@ Yalnızca iki bağımlılık var: `golang.org/x/sys` ve `golang.org/x/crypto`.
     <td align="center"><code>go run ./examples/charts</code></td>
   </tr>
 </table>
+
+---
+
+## Limoni ile yapıldı: zest
+
+<p align="center"><img src="assets/zest.gif" alt="zest bir milyon satırlık logu billing hatalarına süzüyor, bir satırın ayrıntılarını açıyor, ardından filtreyi kaldırıp satırı bağlamıyla gösteriyor" width="100%" /></p>
+
+[**zest**](cmd/zest) bir log görüntüleyici ve Limoni'nin amiral gemisi uygulaması. Dosyaları ve pipe'ları
+takip eder, satırları seviyeye göre renklendirir ve bir milyon satırı donmadan filtreler. 67 MiB'lık,
+1.000.000 satırlık bir log yaklaşık yarım saniyede ekrana gelir.
+
+```bash
+go install github.com/thebanri/limoni/cmd/zest@latest
+zest -demo 1000000        # ya da: zest app.log, kubectl logs -f pod | zest
+```
+
+Ya da [tarayıcıda dene](https://thebanri.github.io/limoni/): "Logs · zest" sekmesi.
 
 ---
 

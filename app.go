@@ -1,20 +1,94 @@
 package limoni
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"time"
 )
 
-var wakeupChan = make(chan struct{}, 1)
+// App is one immediate-mode application running on one terminal. Several can
+// run in the same process — an SSH server gives each session its own — and
+// each has its own wakeup signal.
+//
+// Run and RunWithContext create an App on the process's own terminal; use
+// NewApp to run one on a terminal you created, such as one over an SSH channel.
+type App struct {
+	term   *Terminal
+	cfg    appConfig
+	wakeup chan struct{}
+}
 
-// Wakeup signals the render loop to re-render a frame immediately without waiting for terminal input.
-// Safe to call concurrently from any goroutine (tickers, background workers, etc.).
-func Wakeup() {
-	select {
-	case wakeupChan <- struct{}{}:
-	default:
-		// Sinyal kanalda bekliyorsa fazladan yığılma yapmaması için atla
+// NewApp prepares an application on term. The caller owns term: App.Run does
+// not close it.
+func NewApp(term *Terminal, opts ...AppOption) *App {
+	a := &App{term: term, wakeup: make(chan struct{}, 1)}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&a.cfg)
+		}
 	}
+	return a
+}
+
+// Wakeup asks this application to draw a frame without waiting for input.
+// It is safe to call from any goroutine; calls made while a wakeup is already
+// pending coalesce into one frame.
+func (a *App) Wakeup() {
+	select {
+	case a.wakeup <- struct{}{}:
+	default:
+	}
+}
+
+// Run runs the application until appFn returns false, the terminal's input
+// ends, or ctx is cancelled, in which case it returns ctx.Err().
+func (a *App) Run(ctx context.Context, appFn func(f *Frame, ev *Event) bool) error {
+	running.add(a)
+	defer running.remove(a)
+	if a.cfg.hasTitle {
+		// Push the title the user had, so exiting does not leave the
+		// application's name on their terminal.
+		a.term.SaveTitle()
+		defer a.term.RestoreTitle()
+		a.term.SetTitle(a.cfg.title)
+	}
+	return runLoop(ctx, a.term, appFn, a.cfg, a.wakeup)
+}
+
+// running tracks the Apps that are running, so that the package-level Wakeup
+// can reach them.
+var running = &appSet{apps: map[*App]struct{}{}}
+
+type appSet struct {
+	mu   sync.RWMutex
+	apps map[*App]struct{}
+}
+
+func (s *appSet) add(a *App) {
+	s.mu.Lock()
+	s.apps[a] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *appSet) remove(a *App) {
+	s.mu.Lock()
+	delete(s.apps, a)
+	s.mu.Unlock()
+}
+
+// Wakeup asks every running application in the process to draw a frame
+// without waiting for input. It is safe to call from any goroutine.
+//
+// With one application — the usual case, and the only one before App
+// existed — that is the application. Where several run, prefer App.Wakeup,
+// which wakes only the one whose state changed.
+func Wakeup() {
+	running.mu.RLock()
+	for a := range running.apps {
+		a.Wakeup()
+	}
+	running.mu.RUnlock()
 }
 
 // AppOption configures the application lifecycle in Run.
@@ -26,6 +100,7 @@ type appConfig struct {
 	automationPath   string
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
+	suspendOnCtrlZ   bool
 	title            string
 	hasTitle         bool
 }
@@ -50,12 +125,24 @@ type AutomationPolicy struct {
 	AllowUnverifiedPeers bool
 }
 
-// WithTitle sets the terminal window title (OSC 2) when Run starts.
-// Control characters in the title are stripped; see Terminal.SetTitle.
+// WithTitle sets the terminal window title with OSC 2 when the application
+// starts. Control characters in the title are stripped; see Terminal.SetTitle.
 func WithTitle(title string) AppOption {
 	return func(c *appConfig) {
 		c.title = title
 		c.hasTitle = true
+	}
+}
+
+// WithSuspend makes Ctrl+Z hand the terminal back to the shell and stop the
+// application, as it does in vim or less; `fg` brings it back and the screen
+// is repainted. Without it, Ctrl+Z reaches the application as an ordinary key.
+//
+// It has no effect where there is no shell to return to — a remote backend,
+// the browser, Windows — and the key is delivered as usual there.
+func WithSuspend() AppOption {
+	return func(c *appConfig) {
+		c.suspendOnCtrlZ = true
 	}
 }
 
@@ -117,6 +204,12 @@ func WithoutDefaultQuitKeys() AppOption {
 // By default, Ctrl+C automatically terminates the application gracefully,
 // unless WithCatchCtrlC(true) or WithoutDefaultQuitKeys() is supplied.
 func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
+	return RunWithContext(context.Background(), appFn, opts...)
+}
+
+// RunWithContext is Run that also stops when ctx is cancelled, restoring the
+// terminal and returning ctx.Err().
+func RunWithContext(ctx context.Context, appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 	var cfg appConfig
 	for _, opt := range opts {
 		if opt != nil {
@@ -129,10 +222,8 @@ func Run(appFn func(f *Frame, ev *Event) bool, opts ...AppOption) error {
 		return err
 	}
 	defer term.Close()
-	if cfg.hasTitle {
-		term.SetTitle(cfg.title)
-	}
-	return runLoop(term, appFn, cfg)
+	app := &App{term: term, cfg: cfg, wakeup: make(chan struct{}, 1)}
+	return app.Run(ctx, appFn)
 }
 
 // ErrAutomationNotCompiled is returned by Run when WithAutomation is used in a
@@ -154,7 +245,10 @@ type gateway interface {
 // runLoop is Run's body with the terminal supplied, so the loop — including
 // the automation wiring — can be exercised against a headless terminal instead
 // of only against a tty.
-func runLoop(term *Terminal, appFn func(f *Frame, ev *Event) bool, cfg appConfig) error {
+func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event) bool, cfg appConfig, wakeup <-chan struct{}) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var err error
 	term.StartEventLoop()
 
@@ -214,6 +308,17 @@ func runLoop(term *Terminal, appFn func(f *Frame, ev *Event) bool, cfg appConfig
 			if !cfg.catchCtrlC && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'c' || ev.Key.Ch == 'C') {
 				return nil
 			}
+			if cfg.suspendOnCtrlZ && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'z' || ev.Key.Ch == 'Z') {
+				// Hands the terminal back until the shell resumes us; the
+				// frame after it repaints the screen the shell wrote over.
+				if err := term.Suspend(); err == nil {
+					if err := handle(nil); err != nil {
+						return err
+					}
+					continue
+				}
+				// Unsupported here: the key is the application's, as usual.
+			}
 			if err := handle(&ev); err != nil {
 				return err
 			}
@@ -226,8 +331,11 @@ func runLoop(term *Terminal, appFn func(f *Frame, ev *Event) bool, cfg appConfig
 				return err
 			}
 
-		case <-wakeupChan:
-			// Arka plandaki goroutine'den Wakeup() çağrıldığında tetiklenir
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-wakeup:
+			// Wakeup from another goroutine: draw without an event.
 			if err := handle(nil); err != nil {
 				return err
 			}

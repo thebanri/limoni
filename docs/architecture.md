@@ -79,7 +79,50 @@ Limoni's rendering hot paths are rigorously benchmarked to verify zero heap allo
 
 ---
 
-## 5. Unicode East Asian Width & Hardware Cursor Sync
+## 5. Allocation-Free Interactive Frames
+
+The widget benchmarks call `Draw` directly. A real frame also registers what
+clicks and the mouse wheel do, and that is where allocations used to hide: a
+closure built during `Draw` is a heap allocation, every widget, every frame.
+`BenchmarkInteractiveFrame` in `benchmarks/` draws a checkbox, a text input,
+a list and a block through a real `Terminal` with a theme set. It measured 19
+allocations and 816 B per frame, and now measures zero. CI keeps it there.
+
+Two things make that possible, and your own widgets should follow them.
+
+**Register actions as data, not closures.** `cell.ClickAction` covers the
+common cases: focus a widget, toggle a `*bool`, set an `*int`. The frame copies
+it, so nothing is allocated:
+
+```go
+func (w MyToggle) Draw(ctx cell.Context, buf *buffer.Buffer) {
+	if ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: w.ID, Toggle: w.On})
+	}
+	// ... draw
+}
+```
+
+`ctx.RegisterScroll(area, &state.Offset, max)` does the same for the mouse
+wheel. `ctx.RegisterClick(area, func() {...})` still works for anything else,
+at the cost of one allocation per frame.
+
+**Where it stands.** Checkbox, Radio, TextInput, TextArea, List, Paragraph,
+RichText, Markdown (focus), Progress, Sparkline and Image register actions.
+Tabs, Viewport and Markdown scrolling, Table, TreeView, Select, Popup, Dialog,
+Slider, Scrollbar, ColorPicker, CommandPalette, Toast, VirtualDataView,
+Viewer3D and `component`'s interactive modifiers still register closures,
+because they drag, call application callbacks, or handle several buttons. Each
+of those costs one allocation per frame until it is converted.
+
+**Hold widgets by pointer.** `f.RenderWidget(widgets.Checkbox{...}, area)`
+converts a struct value to the `Widget` interface, and a struct larger than a
+pointer is copied to the heap to do that. Build the widget once and pass
+`&checkbox` (or keep a `*widgets.Checkbox`) and the conversion is free.
+
+---
+
+## 6. Unicode East Asian Width & Hardware Cursor Sync
 
 Emojis (`🔴`, `🚀`, `☕`) and fullwidth characters take up 2 terminal columns, while narrow glyphs take 1 column. Incorrect width calculations can misalign the hardware cursor and shift vertical borders (`│`):
 
@@ -89,7 +132,7 @@ Emojis (`🔴`, `🚀`, `☕`) and fullwidth characters take up 2 terminal colum
 
 ---
 
-## 6. Engine Safety & Deterministic Command Dispatch
+## 7. Engine Safety & Deterministic Command Dispatch
 
 - **Deterministic Ordering**: `Cmd` commands execute asynchronously across worker goroutines, but their results are buffered and delivered to `Update` in strict dispatch sequence order.
 - **Strict Cancellation Precedence**: When context cancellation (`ctx.Done()`) or shutdown occurs, pending command results and queued messages are immediately discarded, preventing state mutation after termination.
@@ -97,6 +140,6 @@ Emojis (`🔴`, `🚀`, `☕`) and fullwidth characters take up 2 terminal colum
 
 ---
 
-## 7. Unified Root Facade (`github.com/thebanri/limoni`)
+## 8. Unified Root Facade (`github.com/thebanri/limoni`)
 
 To eliminate complex nested package imports for everyday development, core primitives, widget builders, layout engines, and runtime launchers are re-exported through the root `package limoni`.

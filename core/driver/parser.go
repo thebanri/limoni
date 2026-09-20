@@ -98,13 +98,18 @@ func ParseEvent(buf []byte) (Event, int) {
 	}
 }
 
-// parseCSI \x1b[ ile başlayan kontrol dizilerini çözümler.
+// maxCSIParams bounds the parameters kept from one CSI sequence. Keys use at
+// most three; DA1 replies list a dozen or so attributes. Parameters beyond the
+// bound are dropped rather than growing a slice on the input path.
+const maxCSIParams = 32
+
+// parseCSI decodes a control sequence introduced by ESC [.
 func parseCSI(buf []byte) (Event, int) {
 	if len(buf) < 3 {
 		return Event{}, 0
 	}
 
-	// CSI dizisinin son komut karakterini (A-Z, a-z veya ~) bul
+	// Find the final byte. Keys and replies end in a letter or '~'.
 	endIdx := -1
 	for i := 2; i < len(buf); i++ {
 		c := buf[i]
@@ -114,40 +119,68 @@ func parseCSI(buf []byte) (Event, int) {
 		}
 	}
 
-	// Komut bitiş karakteri bulunamadıysa dizinin tamamlanmasını bekle
+	// No final byte yet: wait for the rest of the sequence.
 	if endIdx == -1 {
-		// Sonsuz döngü ve bellek şişmesini engellemek için geçersiz uzunlukta dizi kontrolü
-		if len(buf) > 32 {
+		// A DA1 reply with many attributes can run past 32 bytes; give up only
+		// on something no terminal would send.
+		if len(buf) > 128 {
 			return Event{}, 1
 		}
 		return Event{}, 0
 	}
 
 	cmd := buf[endIdx]
-	paramsStr := string(buf[2:endIdx])
+	raw := buf[2:endIdx]
 	consumed := endIdx + 1
 
-	// Noktalı virgül (;) ile ayrılmış parametreleri sayı dizisine dönüştür
-	var params []int
-	var currentVal int
-	hasVal := false
-	for i := 0; i < len(paramsStr); i++ {
-		c := paramsStr[i]
-		if c >= '0' && c <= '9' {
+	// A private marker ('<', '=', '>', '?') may open the parameters, and
+	// intermediate bytes (0x20–0x2F, e.g. '$') may close them. Keys carry
+	// neither, except SGR mouse ('<'); terminal replies carry both.
+	var marker, intermediate byte
+	if len(raw) > 0 && raw[0] >= '<' && raw[0] <= '?' {
+		marker = raw[0]
+	}
+	if n := len(raw); n > 0 && raw[n-1] >= 0x20 && raw[n-1] <= 0x2F {
+		intermediate = raw[n-1]
+	}
+
+	if marker == '<' && (cmd == 'M' || cmd == 'm') {
+		return parseSGRMouse(raw[1:], cmd, consumed)
+	}
+
+	// Split the ;-separated parameters into a fixed array: no allocation.
+	var store [maxCSIParams]int
+	n := 0
+	currentVal, hasVal := 0, false
+	for _, c := range raw {
+		switch {
+		case c >= '0' && c <= '9':
 			currentVal = currentVal*10 + int(c-'0')
 			hasVal = true
-		} else if c == ';' {
-			if hasVal {
-				params = append(params, currentVal)
-				currentVal = 0
-				hasVal = false
-			} else {
-				params = append(params, 0)
+		case c == ';':
+			if n < maxCSIParams {
+				store[n] = currentVal
+				n++
 			}
+			currentVal, hasVal = 0, false
 		}
 	}
-	if hasVal {
-		params = append(params, currentVal)
+	if hasVal && n < maxCSIParams {
+		store[n] = currentVal
+		n++
+	}
+	params := store[:n]
+
+	if marker == '?' {
+		return parseReplyCSI(params, cmd, intermediate), consumed
+	}
+	if cmd == 'R' && marker == 0 && intermediate == 0 && len(params) == 2 {
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyCursor, Row: params[0], Col: params[1]}}, consumed
+	}
+	if marker != 0 || intermediate != 0 {
+		// Some other reply (DA2 is CSI > ... c): consume it so its bytes never
+		// reach the application as keystrokes.
+		return Event{}, consumed
 	}
 
 	// Komut karakterine göre olayı oluştur
@@ -170,11 +203,6 @@ func parseCSI(buf []byte) (Event, int) {
 		return Event{Type: EventFocus, Focus: FocusEvent{Gained: true}}, consumed
 	case 'O': // Focus Lost
 		return Event{Type: EventFocus, Focus: FocusEvent{Gained: false}}, consumed
-	case 'M', 'm':
-		// SGR Fare Protokolü kontrolü (\x1b[<btn;x;yM veya \x1b[<btn;x;ym)
-		if len(paramsStr) > 0 && paramsStr[0] == '<' {
-			return parseSGRMouse(paramsStr, cmd, consumed)
-		}
 	case 'u':
 		// Kitty keyboard protocol / CSI u format: \x1b[<keycode>;<modifiers>u
 		if len(params) == 0 {
@@ -301,27 +329,59 @@ func decodeModifiers(code int) (shift, alt, ctrl bool) {
 	return
 }
 
-// parseSGRMouse SGR fare formatını (\x1b[<btn;x;yM/m) çözümleyip MouseEvent üretir.
-func parseSGRMouse(paramsStr string, cmd byte, consumed int) (Event, int) {
-	s := paramsStr[1:] // Başındaki '<' karakterini atla
+// parseReplyCSI decodes the replies to the queries in ProbeQueries that are
+// CSI sequences with a '?' marker.
+func parseReplyCSI(params []int, cmd, intermediate byte) Event {
+	switch {
+	case cmd == 'c' && intermediate == 0:
+		// DA1: CSI ? class ; attr ; attr ... c
+		var attrs uint64
+		for i, p := range params {
+			if i > 0 && p >= 0 && p < 64 {
+				attrs |= 1 << uint(p)
+			}
+		}
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyPrimaryDA, Attributes: attrs}}
+	case cmd == 'y' && intermediate == '$' && len(params) >= 2:
+		// DECRPM: CSI ? mode ; setting $ y
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyMode, Mode: params[0], Setting: params[1]}}
+	case cmd == 'u' && intermediate == 0:
+		// Kitty keyboard flags: CSI ? flags u. Without the marker this would be
+		// read as a key press of the code point "flags".
+		flags := 0
+		if len(params) > 0 {
+			flags = params[0]
+		}
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyKittyKeyboard, Flags: flags}}
+	}
+	return Event{}
+}
 
-	var params []int
-	var currentVal int
-	for i := 0; i < len(s); i++ {
-		c := s[i]
+// parseSGRMouse decodes an SGR mouse report, CSI < btn ; x ; y M (press) or
+// m (release). raw is the parameter text after the '<'.
+func parseSGRMouse(raw []byte, cmd byte, consumed int) (Event, int) {
+	var params [3]int
+	n := 0
+	currentVal := 0
+	for _, c := range raw {
 		if c >= '0' && c <= '9' {
 			currentVal = currentVal*10 + int(c-'0')
 		} else if c == ';' {
-			params = append(params, currentVal)
+			if n < len(params) {
+				params[n] = currentVal
+			}
+			n++
 			currentVal = 0
 		}
 	}
-	params = append(params, currentVal)
+	if n < len(params) {
+		params[n] = currentVal
+	}
+	n++
 
-	if len(params) < 3 {
+	if n < 3 {
 		return Event{}, consumed
 	}
-
 	btnCode := params[0]
 	mouseX := params[1]
 	mouseY := params[2]
@@ -402,13 +462,13 @@ func parseStringSequence(buf []byte) (Event, int) {
 	for i := 2; i < len(buf); i++ {
 		// BEL (\x07) terminator (common in OSC)
 		if buf[i] == '\x07' {
-			return Event{Type: EventNone}, i + 1
+			return stringSequenceEvent(buf[:i]), i + 1
 		}
 		// ST (\x1b\) terminator
 		if buf[i] == '\x1b' {
 			if i+1 < len(buf) {
 				if buf[i+1] == '\\' {
-					return Event{Type: EventNone}, i + 2
+					return stringSequenceEvent(buf[:i]), i + 2
 				}
 			} else {
 				// ESC at the buffer boundary; wait for next byte to check for ST
@@ -423,4 +483,14 @@ func parseStringSequence(buf []byte) (Event, int) {
 		return Event{Type: EventNone}, 2
 	}
 	return Event{}, 0
+}
+
+// stringSequenceEvent interprets a complete string sequence, without its
+// terminator. Only the XTVERSION reply (DCS > | text) carries anything Limoni
+// uses; every other one is consumed silently.
+func stringSequenceEvent(seq []byte) Event {
+	if len(seq) >= 4 && seq[1] == 'P' && seq[2] == '>' && seq[3] == '|' {
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyVersion, Version: string(seq[4:])}}
+	}
+	return Event{Type: EventNone}
 }

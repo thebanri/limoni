@@ -63,7 +63,9 @@ Ephemeral draw context passed down to widgets:
 - `ctx.Area`: Active bounding rectangle.
 - `ctx.Style`: Inherited style from parent container or theme.
 - `ctx.ThemeStyle(role)`: Resolves semantic theme colors (`"surface"`, `"border"`, `"text"`).
-- `ctx.RegisterClick(area, handler)`: Registers clickable zones.
+- `ctx.RegisterClickAction(area, cell.ClickAction{Focus: id, Toggle: &on})`: Registers what a click does, as data. It allocates nothing; prefer it.
+- `ctx.RegisterScroll(area, &offset, max)`: Mouse-wheel scrolling of `offset` within `[0, max]`, allocation-free.
+- `ctx.RegisterClick(area, handler)`: Registers a click closure, for anything the two above cannot express. It costs one allocation per frame.
 - `ctx.RegisterMouse(area, handler)`: Registers mouse hover, drag, and scroll zones.
 - `ctx.RegisterFocus(id)`: Registers focusable element boundaries.
 

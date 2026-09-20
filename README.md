@@ -56,11 +56,12 @@ func main() {
 }
 ```
 
-Or generate a project that runs straight away:
+Or generate a project that runs straight away, with a test already written:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new myapp
+go run github.com/thebanri/limoni/cmd/limoni@latest new myapp    # -template counter|dashboard|form|ssh
 cd myapp && go mod tidy && go run .
+go test ./...                                                     # a uitest test comes with every template
 ```
 
 **Next:** [Getting started](docs/getting-started.md) · [Widget gallery](docs/widget-gallery.md) · [Examples](#examples)
@@ -105,7 +106,7 @@ default, only the same user can connect, and secret fields are never exposed.
 
 ### 2. Fast where you can feel it
 
-- **Zero heap allocations on the draw path**, enforced in CI, so animations do not stutter from GC pauses.
+- **Zero heap allocations per frame** for the renderer, every widget's drawing, and the click handling of the common input widgets, enforced in CI, so animations don't stutter from GC pauses. Widgets with drag or custom handlers (Table, Slider, Dialog, …) still allocate a closure each. [The details](docs/architecture.md#5-allocation-free-interactive-frames).
 - **Few bytes per frame.** Blank runs become `ECH`/`EL` and repeats become `REP`: a full-screen redraw is **377 bytes**, and an idle app sends **nothing**. Bytes, not CPU, are what you feel over SSH.
 - **Virtual tables and lists.** One million rows scroll at ~2.7 ms a frame, because only visible rows are touched.
 
@@ -148,6 +149,23 @@ The only dependencies are `golang.org/x/sys` and `golang.org/x/crypto`.
     <td align="center"><code>go run ./examples/charts</code></td>
   </tr>
 </table>
+
+---
+
+## Built with Limoni: zest
+
+<p align="center"><img src="assets/zest.gif" alt="zest filtering a million-line log to billing errors, opening a line's details, then clearing the filter to show it in context" width="100%" /></p>
+
+[**zest**](cmd/zest) is a log viewer and Limoni's flagship app. It follows files and pipes, colours by
+level, and filters a million lines without stalling. A 67 MiB, 1,000,000-line log is on screen in about half
+a second.
+
+```bash
+go install github.com/thebanri/limoni/cmd/zest@latest
+zest -demo 1000000        # or: zest app.log, kubectl logs -f pod | zest
+```
+
+Or [try it in the browser](https://thebanri.github.io/limoni/): the "Logs · zest" scene.
 
 ---
 

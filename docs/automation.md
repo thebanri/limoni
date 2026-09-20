@@ -98,7 +98,17 @@ Every action is logged, so a failure arrives with the steps that led to it, and 
 
 One API, three targets: `uitest.Run` for an immediate-mode draw function, `uitest.Program` for a declarative model running through its real message loop (commands included), and `uitest.Connect` for a running binary over its automation socket. [`examples/agent_checklist`](../examples/agent_checklist) is tested with it, and is the same application an agent drives through `limoni-mcp`.
 
-Lists expose their visible rows as `list-item` children, so a row is addressed by its text rather than by counting key presses.
+Structured widgets expose what is visible as children, so an item is addressed by its text rather than by counting key presses: a list's rows are `list-item`s, a table's rows are `row`s (labelled by their first cell, with a `cell` child per column), a tab bar is a `tab-list` of `tab`s (pass `State: &widgets.TabsState{}`), and a tree's visible items are `tree-item`s, marked expanded or not.
+
+Clicking toggles, so a step that runs twice undoes itself. `Check`, `Uncheck` and `Select` click only when the widget is not already in that state, and then wait until it is:
+
+```go
+page.GetByID("agree").Check()               // a no-op if already checked
+page.GetByRole("row", "beta").Select()
+page.GetByRole("tab", "Logs").Select()
+```
+
+Through MCP the same is `click` with `ensure: "checked" | "unchecked" | "selected"`.
 
 > [!WARNING]
 > **This opens a control channel into a running process.** It is built in layers so that each one fails closed on its own.

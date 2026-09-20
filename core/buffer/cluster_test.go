@@ -297,3 +297,85 @@ func TestDiffResyncsTheCursorAfterAClusterOnLegacyTerminals(t *testing.T) {
 		})
 	}
 }
+
+// A terminal that confirmed mode 2027 advances by the cluster's width, so the
+// re-anchoring above is wasted bytes there: the encoder trusts the cursor
+// instead, and every cell still lands where the buffer put it.
+func TestDiffTrustsTheCursorWhenTheTerminalMeasuresClusters(t *testing.T) {
+	area := cell.NewRect(0, 0, 30, 2)
+	front := NewBuffer(area)
+	front.SetString(0, 0, family+"A"+heartEmo+"B"+flagTR+"C", cell.Style{})
+	front.SetString(0, 1, eAcute+"D"+conjunct+"E", cell.Style{})
+	want := map[byte]int{'A': 2, 'B': 5, 'C': 8, 'D': 1, 'E': 3}
+	opts := DiffOptions{ClusterWidths: true}
+
+	for _, path := range []struct {
+		name string
+		diff func(DiffOptions) ([]byte, error)
+	}{
+		{"sparse", func(o DiffOptions) ([]byte, error) { return diffSparse(front, NewBuffer(area), nil, o) }},
+		{"stream", func(o DiffOptions) ([]byte, error) { return diffFullStream(front, NewBuffer(area), nil, o) }},
+		{"inline", func(o DiffOptions) ([]byte, error) { return DiffInline(front, NewBuffer(area), nil, o) }},
+	} {
+		t.Run(path.name, func(t *testing.T) {
+			out, err := path.diff(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := clusterScreen(t, out)
+			for letter, col := range want {
+				if got[letter] != col {
+					t.Errorf("%c landed in column %d, want %d: %q", letter, got[letter], col, out)
+				}
+			}
+			legacy, err := path.diff(DiffOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(out) >= len(legacy) {
+				t.Errorf("trusting the cursor saved nothing: %d bytes vs %d", len(out), len(legacy))
+			}
+		})
+	}
+}
+
+// clusterScreen replays out on a terminal with mode 2027: the cursor advances
+// by each grapheme cluster's width, as cell.StringWidth measures it.
+func clusterScreen(t *testing.T, out []byte) map[byte]int {
+	t.Helper()
+	landed := map[byte]int{}
+	col := 0
+	s := string(out)
+	for i := 0; i < len(s); {
+		switch {
+		case s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[':
+			j := i + 2
+			for j < len(s) && (s[j] < 0x40 || s[j] > 0x7E) {
+				j++
+			}
+			params, final := s[i+2:j], s[j]
+			switch final {
+			case 'H':
+				col = 0
+				if k := strings.IndexByte(params, ';'); k >= 0 {
+					col = atoi(params[k+1:]) - 1
+				}
+			case 'G':
+				col = atoi(params) - 1
+			}
+			i = j + 1
+		case s[i] == '\r':
+			col, i = 0, i+1
+		case s[i] == '\n':
+			i++
+		default:
+			cluster, width, _ := cell.NextCluster(s[i:])
+			if c := cluster[0]; len(cluster) == 1 && c >= 'A' && c <= 'Z' {
+				landed[c] = col
+			}
+			col += width
+			i += len(cluster)
+		}
+	}
+	return landed
+}

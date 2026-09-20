@@ -1,0 +1,19 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/thebanri/limoni/uitest"
+)
+
+// The application runs through its real message loop, without a terminal,
+// and is checked through its semantic tree — the same tree a screen reader
+// or an AI agent sees.
+func TestCountsKeyPresses(t *testing.T) {
+	page := uitest.Program(t, 60, 12, &model{})
+	page.Press("x")
+	page.Press("y")
+	page.Expect(page.GetByID("presses")).ToContainValue("Keys pressed: 2")
+	page.Press("q")
+	page.ExpectExit()
+}

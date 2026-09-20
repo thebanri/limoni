@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -26,6 +27,8 @@ type Backend struct {
 	closeErr     error
 	inlineHeight uint16
 	inlineMu     sync.RWMutex
+	replies      replyCollector
+	looping      atomic.Bool
 }
 
 // NewBackend yeni bir Windows Backend örneği oluşturur.
@@ -77,6 +80,7 @@ func (b *Backend) Setup() error {
 		if height := b.Inline(); height > 0 {
 			setupCmds = inlineSetupCmds(height)
 		}
+		setupCmds = b.replies.withProbe(setupCmds)
 		_, err := b.portableIO.Write([]byte(setupCmds))
 		return err
 	}
@@ -91,6 +95,7 @@ func (b *Backend) Setup() error {
 	if height := b.Inline(); height > 0 {
 		setupCmds = inlineSetupCmds(height)
 	}
+	setupCmds = b.replies.withProbe(setupCmds)
 	if _, err := b.out.WriteString(setupCmds); err != nil {
 		b.Close()
 		return fmt.Errorf("ekran hazirlik kodlari gonderilemedi: %w", err)
@@ -102,6 +107,10 @@ func (b *Backend) Setup() error {
 // Close terminali eski ayarlarına döndürür ve alternatif ekrandan çıkar.
 func (b *Backend) Close() error {
 	b.closeOnce.Do(func() {
+		// Let answers to the startup queries arrive before the console is
+		// restored, or they land in the shell as text.
+		b.replies.drain(b.looping.Load())
+
 		select {
 		case <-b.done:
 		default:
@@ -136,6 +145,7 @@ func (b *Backend) Events() <-chan Event {
 // StartEventLoop Windows konsolunda girdi ve olay döngüsünü başlatır.
 func (b *Backend) StartEventLoop() {
 	b.startOnce.Do(func() {
+		b.looping.Store(true)
 		b.startEventLoop()
 	})
 }
@@ -222,7 +232,9 @@ func (b *Backend) startEventLoop() {
 						ev, consumed = ParseEvent(readBuf)
 					}
 					if consumed > 0 {
-						b.events <- ev
+						if ev.Type != EventNone && !b.replies.record(ev) {
+							b.events <- ev
+						}
 						readBuf = readBuf[consumed:]
 					} else {
 						break

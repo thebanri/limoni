@@ -45,6 +45,17 @@ if (typeof globalThis.__limoni_input === "function") {
 }
 await new Promise((r) => setTimeout(r, 600));
 
+// The zest scene: open it, let the generated log load, show only errors.
+// Output is captured separately so the checks below see this scene's bytes.
+const beforeZest = captured.length;
+if (typeof globalThis.__limoni_input === "function") {
+  globalThis.__limoni_input("3"); // "Logs · zest"
+  await new Promise((r) => setTimeout(r, 2500));
+  globalThis.__limoni_input("5"); // errors and worse
+  await new Promise((r) => setTimeout(r, 1500));
+}
+const zestOut = captured.slice(beforeZest);
+
 const checks = [
   ["alternate screen  (?1049h)", "\x1b[?1049h"],
   ["HIDE CURSOR       (?25l)", "\x1b[?25l"],
@@ -73,5 +84,22 @@ console.log(`  ${resizeRegistered ? "OK     " : "MISSING"}  __limoni_resize brid
 const truecolor = /\x1b\[[0-9;]*?[34]8;2;/.test(captured);
 console.log(`  ${truecolor ? "OK     " : "MISSING"}  truecolor SGR (38;2 / 48;2)`);
 
+// zest ran: its header, the growing line count, an error line from the demo
+// log, and the level filter taking effect. A cell diff sends each string at
+// most once, so these look for fragments rather than whole screens.
+const zestChecks = [
+  ["zest header", "zest"],
+  ["line count", " lines"],
+  ["an error line", "upstream request"],
+  ["level filter applied", "level ≥ error"],
+];
+let zestMissing = 0;
+console.log(`\nzest scene: ${zestOut.length} bytes`);
+for (const [label, fragment] of zestChecks) {
+  const ok = zestOut.includes(fragment);
+  if (!ok) zestMissing++;
+  console.log(`  ${ok ? "OK     " : "MISSING"}  ${label}`);
+}
+
 console.log(`\nfirst 120 bytes emitted: ${JSON.stringify(captured.slice(0, 120))}`);
-process.exit(missing === 0 && inputRegistered && resizeRegistered ? 0 : 1);
+process.exit(missing === 0 && zestMissing === 0 && inputRegistered && resizeRegistered ? 0 : 1);

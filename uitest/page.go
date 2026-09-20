@@ -396,6 +396,21 @@ func (p *Page) Exited() bool {
 	return errors.Is(err, errExited)
 }
 
+// ExpectExit waits for the application to quit and fails the test if it has
+// not within the page's timeout. Prefer it to Exited after the key that
+// quits: a declarative program quits through its message loop, a moment
+// after the key is delivered.
+func (p *Page) ExpectExit() {
+	p.t.Helper()
+	deadline := time.Now().Add(p.timeout)
+	for !p.Exited() {
+		if time.Now().After(deadline) {
+			p.t.Fatalf("uitest: the application did not exit within %s", p.timeout)
+		}
+		time.Sleep(pollInterval)
+	}
+}
+
 func parseChord(chord string) (driver.KeyEvent, string, error) {
 	var ctrl, alt, shift bool
 	name := chord

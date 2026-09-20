@@ -3,7 +3,6 @@ package widgets
 import (
 	"fmt"
 	"math"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -145,7 +144,7 @@ func (bc BarChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			// Value label above bar
 			if bc.ShowValues && fullRows <= chartHeight {
 				valText := formatter(bar.Value)
-				valX := cursorX + uint16((barWidth-utf8.RuneCountInString(valText))/2)
+				valX := cursorX + uint16((barWidth-cell.StringWidth(valText))/2)
 				valY := area.Y + uint16(chartHeight-fullRows)
 				if valY >= area.Y {
 					buf.SetString(valX, valY, valText, labelStyle)
@@ -177,10 +176,8 @@ func (bc BarChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			// Category Label at bottom
 			lblY := area.Y + area.Height - 1
 			lblText := bar.Label
-			if utf8.RuneCountInString(lblText) > barWidth {
-				lblText = string([]rune(lblText)[:barWidth])
-			}
-			lblX := cursorX + uint16((barWidth-utf8.RuneCountInString(lblText))/2)
+			lblText, _ = cell.Truncate(lblText, barWidth)
+			lblX := cursorX + uint16((barWidth-cell.StringWidth(lblText))/2)
 			buf.SetString(lblX, lblY, lblText, labelStyle)
 
 			cursorX += uint16(barWidth + barGap)
@@ -190,7 +187,7 @@ func (bc BarChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// Horizontal Bars: Categories on left, bars growing rightwards
 		maxLabelWidth := 0
 		for _, bar := range bc.Data {
-			l := utf8.RuneCountInString(bar.Label)
+			l := cell.StringWidth(bar.Label)
 			if l > maxLabelWidth {
 				maxLabelWidth = l
 			}

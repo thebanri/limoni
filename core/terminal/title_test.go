@@ -60,3 +60,16 @@ func TestSetTitleEmptyStillWritesOSC2(t *testing.T) {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }
+
+func TestSaveAndRestoreTitleUseXTWINOPS(t *testing.T) {
+	term, io := newTitleTerm(t)
+	before := len(io.Output())
+	term.SaveTitle()
+	term.SetTitle("app")
+	term.RestoreTitle()
+	got := io.Output()[before:]
+	want := []byte("\x1b[22;2t\x1b]2;app\x07\x1b[23;2t")
+	if !bytes.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

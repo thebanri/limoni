@@ -3,7 +3,6 @@ package widgets
 import (
 	"fmt"
 	"math"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -160,9 +159,7 @@ func (pc PieChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if pc.ShowPercentages {
 				text += fmt.Sprintf(" (%.1f%%)", sa.percent)
 			}
-			if utf8.RuneCountInString(text) > int(legendMaxW)-2 {
-				text = string([]rune(text)[:legendMaxW-2])
-			}
+			text, _ = cell.Truncate(text, int(legendMaxW)-2)
 			buf.SetString(legendX+2, ly, text, baseStyle)
 		}
 	}

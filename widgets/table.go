@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
@@ -81,6 +80,14 @@ type TableState struct {
 	lastViewportH  int
 	lastTableID    string
 	lastFocusFn    func(string)
+
+	// rowNodes and cellNodes hold the visible rows' semantic nodes, written
+	// during Draw (the only place that knows which data row, after filtering
+	// and sorting, lands on which screen row) and reused every frame.
+	rowNodes  []accessibility.AccessibilityNode
+	cellNodes []accessibility.AccessibilityNode
+
+	scratch *tableDrawScratch // Draw's working buffers, kept across frames
 }
 
 func (ts *TableState) initHandlers() {
@@ -514,8 +521,19 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			t.Constraints[i] = TableConstraint{Type: ConstraintPercentage, Value: pct}
 		}
 	}
-	scratch := tableDrawScratchPool.Get().(*tableDrawScratch)
-	defer tableDrawScratchPool.Put(scratch)
+	// A table with State keeps its scratch buffers there. A sync.Pool is
+	// emptied by every garbage collection, so drawing from one allocated a
+	// fresh scratch and two maps after each GC.
+	var scratch *tableDrawScratch
+	if t.State != nil {
+		if t.State.scratch == nil {
+			t.State.scratch = &tableDrawScratch{}
+		}
+		scratch = t.State.scratch
+	} else {
+		scratch = tableDrawScratchPool.Get().(*tableDrawScratch)
+		defer tableDrawScratchPool.Put(scratch)
+	}
 	if scratch.owner == nil {
 		scratch.owner = make(map[[2]int][2]int)
 	}
@@ -832,6 +850,15 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// yaratır. Bunun yerine tüm satır bloğu tek bir fare bölgesiyle kaydedilir ve
 	// hedef satır indeksi olay koordinatından hesaplanır.
 	perRowClick := ctx.RegisterMouse == nil && ctx.RegisterClick != nil
+	if t.State != nil {
+		t.State.rowNodes = t.State.rowNodes[:0]
+		// Sized before the loop: rows keep sub-slices of cellNodes, which a
+		// later append must not move.
+		if need := visibleRows * len(widths); cap(t.State.cellNodes) < need {
+			t.State.cellNodes = make([]accessibility.AccessibilityNode, 0, need)
+		}
+		t.State.cellNodes = t.State.cellNodes[:0]
+	}
 	for rIdx := 0; rIdx < visibleRows; rIdx++ {
 		offset := drawOffset
 		actualRowIdx := rIdx + offset
@@ -852,6 +879,9 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		t.drawSpanRow(ctx, buf, currY, actualRowIdx, widths, isSelected, owner, cellsMap, gridStyle, row.Style)
+		if t.State != nil {
+			t.State.appendRowNode(t, ctx.Area, row, currY, actualRowIdx, rowCount, widths, isSelected)
+		}
 		currY++
 		drawnRows++
 	}
@@ -1150,8 +1180,18 @@ func (t Table) drawSpanRow(
 		}
 
 		// Metni keserek sadece ilk satıra yazdır (top-left) - clipping-aware
-		clipped := clipString(cellVal.Text, int(cellW))
-		drawTextClipped(buf, currX, y, clipped, cellStyle, clipLeft, clipRight)
+		// Cut at a cluster boundary and draw the "..." separately, so a cell
+		// that does not fit costs no allocation.
+		if text := cellVal.Text; cell.StringWidth(text) <= int(cellW) {
+			drawTextClipped(buf, currX, y, text, cellStyle, clipLeft, clipRight)
+		} else if cellW <= 3 {
+			prefix, _ := cell.Truncate(text, int(cellW))
+			drawTextClipped(buf, currX, y, prefix, cellStyle, clipLeft, clipRight)
+		} else {
+			prefix, w := cell.Truncate(text, int(cellW)-3)
+			drawTextClipped(buf, currX, y, prefix, cellStyle, clipLeft, clipRight)
+			drawTextClipped(buf, currX+uint16(w), y, "...", cellStyle, clipLeft, clipRight)
+		}
 
 		// Sütunlar arası dikey ızgara çizgisini çiz (birleştirilmiş alanın dışındaysa)
 		if t.DrawGrid && colIdx < colsCount-1 {
@@ -1174,46 +1214,40 @@ func (t Table) drawSpanRow(
 }
 
 // drawTextClipped draws text on a buffer with precise left and right pixel clipping boundaries.
-func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.Style, clipLeft, clipRight uint16) {
+func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.Style, clipLeft, clipRight uint16) uint16 {
 	if y >= buf.Area.Height || startX >= clipRight {
-		return
+		return 0
+	}
+	if clipRight > buf.Area.Width {
+		clipRight = buf.Area.Width
 	}
 
+	// One grapheme cluster per cell, as Buffer.SetString does: walking runes
+	// dropped combining accents and split flags and emoji sequences.
 	currX := startX
-	input := s
-	for len(input) > 0 {
-		r, size := utf8.DecodeRuneInString(input)
-		if r == utf8.RuneError {
-			break
-		}
-
-		w := cell.RuneWidth(r)
+	for input := s; input != ""; {
+		cluster, w, rest := cell.NextCluster(input)
+		input = rest
 		if w == 0 {
-			input = input[size:]
 			continue
 		}
 		if currX+uint16(w) > clipRight {
-			break // Exceeds right boundary
+			break
 		}
-
-		// Only write to buffer if it is within the horizontal clipping range
+		// Only cells inside the horizontal clipping range are written.
 		if currX >= clipLeft {
 			idx := y*buf.Area.Width + currX
 			buf.Invalidate()
-			buf.Content[idx].Content = r
+			buf.Content[idx].Content = cell.ClusterContent(cluster, w)
 			buf.Content[idx].Style = style
-
-			if w == 2 {
-				if currX+1 < clipRight {
-					buf.Content[idx+1].Content = cell.RuneContinuation
-					buf.Content[idx+1].Style = style
-				}
+			if w == 2 && currX+1 < clipRight {
+				buf.Content[idx+1].Content = cell.RuneContinuation
+				buf.Content[idx+1].Style = style
 			}
 		}
-
 		currX += uint16(w)
-		input = input[size:]
 	}
+	return currX - startX
 }
 
 func sortTableRows(rows []TableRow, column int, descending bool) {
@@ -1282,62 +1316,49 @@ func (t Table) Measure(maxArea cell.Rect) layout.Measure {
 	}
 }
 
+// clipString fits s into maxW columns, ending it in "..." when it had to be
+// cut. It cuts at grapheme cluster boundaries and measures clusters, not code
+// points. Drawing code should prefer setClipped, which does the same without
+// building a new string.
 func clipString(s string, maxW int) string {
 	if maxW <= 0 {
 		return ""
 	}
-
-	width := 0
-	for _, r := range s {
-		runeWidth := cell.RuneWidth(r)
-		if runeWidth == 0 {
-			continue
-		}
-		if width+runeWidth > maxW {
-			break
-		}
-		width += runeWidth
-	}
-	if width == visualWidth(s) {
+	if cell.StringWidth(s) <= maxW {
 		return s
 	}
 	if maxW <= 3 {
-		return clipToWidth(s, maxW)
+		prefix, _ := cell.Truncate(s, maxW)
+		return prefix
 	}
-	return clipToWidth(s, maxW-3) + "..."
+	prefix, _ := cell.Truncate(s, maxW-3)
+	return prefix + "..."
 }
 
-func visualWidth(s string) int {
-	width := 0
-	for _, r := range s {
-		width += cell.RuneWidth(r)
-	}
-	return width
+// setClipped draws s at (x, y) the way clipString would cut it, without
+// allocating: the kept prefix and the "..." are written separately.
+func setClipped(buf *buffer.Buffer, x, y uint16, s string, style cell.Style, maxW int) uint16 {
+	return setEllipsized(buf, x, y, s, style, maxW, "...")
 }
 
-func clipToWidth(s string, maxW int) string {
+// setEllipsized draws s within maxW columns. If it does not fit, it is cut at a
+// grapheme cluster boundary and followed by suffix. The suffix is dropped when
+// there is no room for it and at least one column of text.
+func setEllipsized(buf *buffer.Buffer, x, y uint16, s string, style cell.Style, maxW int, suffix string) uint16 {
 	if maxW <= 0 {
-		return ""
+		return 0
 	}
-	width := 0
-	end := 0
-	for _, r := range s {
-		runeWidth := cell.RuneWidth(r)
-		if runeWidth == 0 {
-			continue
-		}
-		if width+runeWidth > maxW {
-			break
-		}
-		width += runeWidth
-		end += len(string(r))
+	if cell.StringWidth(s) <= maxW {
+		return buf.SetStringWithin(x, y, s, style, uint16(maxW))
 	}
-	return s[:end]
-}
-
-// Runes count in string helper
-func strLen(s string) int {
-	return utf8.RuneCountInString(s)
+	sw := cell.StringWidth(suffix)
+	if maxW <= sw {
+		prefix, w := cell.Truncate(s, maxW)
+		return buf.SetStringWithin(x, y, prefix, style, uint16(w))
+	}
+	prefix, w := cell.Truncate(s, maxW-sw)
+	n := buf.SetStringWithin(x, y, prefix, style, uint16(w))
+	return n + buf.SetStringWithin(x+n, y, suffix, style, uint16(sw))
 }
 
 // getIntersectionChar, etrafındaki etkin çizgilerin durumuna göre doğru ızgara kavşak karakterini seçer.
@@ -1390,11 +1411,48 @@ func getIntersectionChar(up, down, left, right bool) rune {
 	return ' '
 }
 
+// appendRowNode records the semantic node for one drawn row, with a cell
+// child per column. Nothing is allocated once the buffers have grown to the
+// table's visible size.
+func (ts *TableState) appendRowNode(t Table, area cell.Rect, row TableRow, y uint16, index, count int, widths []uint16, selected bool) {
+	start := len(ts.cellNodes)
+	for c := 0; c < len(widths) && len(ts.cellNodes) < cap(ts.cellNodes); c++ {
+		text := ""
+		if c < len(row.Cells) {
+			text = row.Cells[c].Text
+		}
+		ts.cellNodes = append(ts.cellNodes, accessibility.AccessibilityNode{
+			Role:   accessibility.RoleCell,
+			Label:  text,
+			Bounds: cell.Rect{X: t.columnX(area, widths, c), Y: y, Width: widths[c], Height: 1},
+		})
+	}
+	label := ""
+	if len(row.Cells) > 0 {
+		label = row.Cells[0].Text
+	}
+	state := accessibility.NodeState(0)
+	if selected {
+		state = accessibility.StateSelected
+	}
+	ts.rowNodes = append(ts.rowNodes, accessibility.AccessibilityNode{
+		Role:     accessibility.RoleRow,
+		Label:    label,
+		State:    state,
+		Bounds:   cell.Rect{X: area.X, Y: y, Width: area.Width, Height: 1},
+		Position: index + 1,
+		SetSize:  count,
+		Children: ts.cellNodes[start:len(ts.cellNodes):len(ts.cellNodes)],
+	})
+}
+
 // AccessibilityNode returns the semantic node description for Table.
 //
-// The node describes the selected row rather than enumerating rows: a table
-// may hold a million of them, and building a child per row would allocate on
-// every frame.
+// The node carries the selected row's first cell as its value and one row
+// child per visible row, each labelled by its first cell and holding a cell
+// child per column. A table of a million rows exposes the ones on screen.
+// The rows come from the last Draw, which knows how filtering and sorting
+// placed them; a Table without State stays flat.
 func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
 	state := accessibility.NodeState(0)
 	if focused {
@@ -1430,5 +1488,13 @@ func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.A
 		Bounds:   bounds,
 		Position: position,
 		SetSize:  count,
+		Children: t.rowNodes(),
 	}
+}
+
+func (t Table) rowNodes() []accessibility.AccessibilityNode {
+	if t.State == nil {
+		return nil
+	}
+	return t.State.rowNodes
 }

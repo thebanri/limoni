@@ -1,8 +1,6 @@
 package widgets
 
 import (
-	"unicode/utf8"
-
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
@@ -109,7 +107,7 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// 1. BUTON ÇİZİMİ (Her zaman görünür)
 	btnStyle := ctx.Style.Merge(p.Style)
 	btnText := " " + p.Label + " ▾ "
-	btnW := uint16(utf8.RuneCountInString(btnText))
+	btnW := uint16(cell.StringWidth(btnText))
 	btnH := uint16(1)
 
 	// Buton arka planını doldur
@@ -121,7 +119,7 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Buton metnini yaz
-	buf.SetString(ctx.Area.X, ctx.Area.Y, clipString(btnText, int(ctx.Area.Width)), btnStyle)
+	setClipped(buf, ctx.Area.X, ctx.Area.Y, btnText, btnStyle, int(ctx.Area.Width))
 	_ = btnW
 	_ = btnH
 
@@ -151,7 +149,7 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Menü genişliğini en uzun öğeye göre hesapla
 	menuW := uint16(0)
 	for _, item := range p.Items {
-		itemLen := uint16(utf8.RuneCountInString(item.Text)) + 2 // " " padding
+		itemLen := uint16(cell.StringWidth(item.Text)) + 2 // " " padding
 		if itemLen > menuW {
 			menuW = itemLen
 		}
@@ -228,7 +226,7 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Öğe metnini yaz (kenarlık payıyla)
 		displayText := " " + item.Text
-		buf.SetString(menuX+1, itemY, clipString(displayText, int(menuW)-2), itemStyle)
+		setClipped(buf, menuX+1, itemY, displayText, itemStyle, int(menuW)-2)
 
 		// Seçili öğe göstergesi
 		if isSelected && !item.Disabled {
@@ -274,7 +272,7 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 // SizeHint, popup'ın buton yüksekliğini ve varsayılan genişliğini döndürür.
 func (p Popup) SizeHint(maxArea cell.Rect) (width, height uint16) {
-	btnW := uint16(utf8.RuneCountInString(p.Label)) + 4 // " ▾ " padding
+	btnW := uint16(cell.StringWidth(p.Label)) + 4 // " ▾ " padding
 	if btnW > maxArea.Width {
 		btnW = maxArea.Width
 	}

@@ -50,3 +50,89 @@ To connect:
 ```bash
 nc localhost 2222
 ```
+
+---
+
+## 4. Terminal Capability Handshake
+
+Environment variables are a poor guide to what a terminal can do. Inside tmux
+`TERM` is `screen` or `tmux-256color`, over SSH it is whatever the client sent,
+and many emulators set nothing that identifies them. So when a backend sets up
+the terminal, it also asks the terminal directly:
+
+| Query | What it answers |
+| :--- | :--- |
+| `CSI > 0 q` (XTVERSION) | the terminal's name and version, e.g. `kitty(0.48.2)`, `tmux 3.5a` |
+| `CSI ? 2026 $ p` (DECRQM) | whether synchronized output is supported |
+| `CSI ? 2027 $ p` (DECRQM) | whether grapheme-cluster mode is supported and on |
+| `CSI ? u` | whether the Kitty keyboard protocol is available |
+| a space, `CSI 1 b`, `CSI 6 n` | **measured**: whether REP really repeats a glyph |
+| a ZWJ family emoji, `CSI 6 n` | **measured**: how many columns the terminal draws a cluster |
+| `CSI c` (DA1) | sent last, as a sentinel: every terminal answers it, in order |
+
+The two measurements write a few cells, ask where the cursor went, then erase
+them and restore the cursor before anything is drawn. They matter because a
+name does not settle the question. On the same machine, kitty 0.48.2 and
+Konsole 26.08.1 report mode 2027 as unsupported or don't answer it, yet both
+draw the family emoji two columns wide. Alacritty draws it six columns wide.
+Limoni skips the per-cluster cursor re-anchoring on the first two and keeps it
+on Alacritty.
+
+The replies arrive as input. The backend's event loop takes them out of the
+stream, so an application never sees them as key presses, and folds them into
+a `driver.TerminalReport`. `Terminal.Draw` checks for new answers on every
+frame; checking costs one atomic load. If answers arrive after the first
+frame, which is common over SSH, and they change the profile, the screen is
+repainted in full. `Terminal.SetCapabilities` still has the final word, and
+`Backend.Close` waits up to 150 ms for replies still in flight, so they do not
+end up printed in your shell.
+
+To see what your terminal reports, and what Limoni makes of it:
+
+```bash
+go run github.com/thebanri/limoni/cmd/limoni@latest doctor
+```
+
+Include that output in rendering bug reports. Escape hatches:
+`LIMONI_PROBE=0` sends no queries, `LIMONI_REP=0|1` forces REP off or on, and
+`LIMONI_NO_SYNC=1` disables synchronized output.
+
+---
+
+## 5. Suspending with Ctrl+Z
+
+`limoni.WithSuspend()` makes Ctrl+Z behave the way it does in `vim` or `less`:
+the application hands the terminal back to the shell and stops; `fg` brings it
+back and the screen is repainted.
+
+```go
+limoni.Run(draw, limoni.WithSuspend())
+```
+
+The order is what matters. Limoni leaves the alternate screen and raw mode
+*before* raising `SIGTSTP`, or the shell inherits a terminal with no echo and
+the application's screen still on it. On resume it re-enters raw mode, sends
+the setup sequence, asks the terminal again what it supports (it may be a
+different terminal), and forces a full repaint, because the shell has written
+over the screen in the meantime.
+
+`Terminal.Suspend()` does the same for an application that would rather bind
+its own key. Both return `driver.ErrSuspendUnsupported` where there is no shell
+to return to — a remote or in-memory backend, the browser, Windows — and with
+`WithSuspend` the key is then delivered to the application as usual.
+
+---
+
+## 6. The window title
+
+`limoni.WithTitle("zest — app.log")` sets the terminal's window title with
+OSC 2 while the application runs, and puts the previous one back on the way
+out. `Terminal.SetTitle`, `SaveTitle` and `RestoreTitle` are there for an
+application that wants to change the title as its state changes — a file name,
+a progress figure.
+
+Control characters are stripped from the title before it is written, so a
+title built from a file name or a log line cannot smuggle an escape sequence
+through. Saving and restoring uses XTWINOPS (`CSI 22;2t` / `CSI 23;2t`);
+terminals that do not implement it ignore both, and the title then simply
+stays as the application set it.
