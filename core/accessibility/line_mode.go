@@ -36,6 +36,14 @@ func (r Role) String() string {
 		return "tree"
 	case RoleTreeItem:
 		return "tree-item"
+	case RoleRow:
+		return "row"
+	case RoleCell:
+		return "cell"
+	case RoleTabList:
+		return "tab-list"
+	case RoleTab:
+		return "tab"
 	default:
 		return "generic"
 	}

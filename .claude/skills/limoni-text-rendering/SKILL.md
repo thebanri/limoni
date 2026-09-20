@@ -86,10 +86,43 @@ git worktree remove /tmp/base
 Then follow the repo's benchmark honesty rules: publish the delta and say the
 table's absolute numbers were not re-measured, rather than quietly editing rows.
 
-## Still open
+## Widgets: the tools, and what still walks runes
 
-Widgets that cut or place text by `[]rune` — `TextInput`, `TextArea`, `Table`,
-`Toast`, `Dialog`, `Fuzzy` — can split a cluster at the truncation point.
-Drawing and measuring are cluster-aware; positioning inside those widgets is not.
-Mode 2027 is also sent blindly; it should be probed with DECRQM once the
-capability handshake lands.
+Widgets measure in columns and cut on cluster boundaries. Use these, never
+`utf8.RuneCountInString` as a width or `string([]rune(s)[:n])` to cut:
+
+| Need | Use |
+| :--- | :--- |
+| width of a string | `cell.StringWidth` |
+| longest prefix fitting n columns | `cell.Truncate(s, n)` — a substring, no allocation |
+| draw cut text with "…" / "..." | `setEllipsized` / `setClipped` (widgets) — prefix and suffix drawn separately, no concatenation |
+| cursor movement / deletion by cluster | `clusterBounds(text, runeIndex)` (widgets) |
+| skip columns when scrolling sideways | `skipColumns` (logview.go) |
+
+Traps paid for here:
+- Table's old `clipToWidth` skipped zero-width runes without advancing the byte
+  offset and returned `"e\xcc"` — invalid UTF-8. Check `utf8.ValidString` in
+  truncation tests.
+- TextInput put one rune per cell: 日本 drew as blanks (the second rune
+  overwrote the first's continuation cell) and Backspace left "man ZWJ woman
+  ZWJ" behind. `TextInputState.Text` stays `[]rune` for compatibility; a cached
+  string (`str()`) is rebuilt only when Text changes, which is what keeps Draw
+  allocation-free.
+- **Tests must spell combining characters as escapes.** Writing a Go test
+  through a heredoc or an editor turned `\u200D` and `\u0301` into the literal
+  characters, which a normaliser can silently rewrite. Check with
+  `python3 -c "print([hex(ord(c)) for c in set(open(f).read()) if ord(c) in (0x301,0x200d)])"`.
+- Every fix above has a test that fails on the old code: run new tests in a
+  worktree of the previous commit before trusting them.
+
+Still by rune: Markdown's word wrap (`runesWidth`) and fuzzy-match
+highlighting in `fuzzy.go`.
+
+## The handshake decides whether re-anchoring is needed
+
+`driver.ProbeQueries` asks DECRQM 2027 *and measures*: it writes a ZWJ family
+emoji and reads the cursor back. `CapabilityProfile.ClusterWidths` (→
+`DiffOptions.ClusterWidths`) is true when mode 2027 is on or the family measured
+2 columns; the diff then skips `appendClusterResync`. Keep the
+`cell.IsCluster(...) && !opts.ClusterWidths` order: the other order cost 5% on
+`BenchmarkDiff_FullChanges`, because the option load ran for every cell.

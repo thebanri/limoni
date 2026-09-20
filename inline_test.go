@@ -1,6 +1,7 @@
 package limoni
 
 import (
+	"context"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -28,20 +29,21 @@ func TestInlineModeEmitsRelativeFrames(t *testing.T) {
 
 	var stop atomic.Bool
 	var frames atomic.Int32
+	app := testApp(term, appConfig{catchCtrlC: true, inlineHeight: 5})
 	done := make(chan error, 1)
 	go func() {
-		done <- runLoop(term, func(f *Frame, ev *Event) bool {
+		done <- app.Run(context.Background(), func(f *Frame, ev *Event) bool {
 			if frames.Add(1) > 1 && stop.Load() {
 				return false
 			}
 			f.RenderWidget(widgets.NewLabel("inline frame"), NewRect(0, 0, 20, 1))
 			return true
-		}, appConfig{catchCtrlC: true, inlineHeight: 5})
+		})
 	}()
 
 	// Let the first frame render, then ask the loop to finish.
 	stop.Store(true)
-	Wakeup()
+	app.Wakeup()
 	if err := <-done; err != nil {
 		t.Fatalf("run loop: %v", err)
 	}

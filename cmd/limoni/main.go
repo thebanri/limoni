@@ -4,6 +4,7 @@
 //
 //	limoni init [module-path]   Create a Limoni application in the current directory.
 //	limoni new <name>           Create directory <name> and write an application into it.
+//	limoni doctor               Ask the terminal what it supports, for bug reports.
 //	limoni version              Print version information.
 package main
 
@@ -27,6 +28,8 @@ type scaffoldData struct {
 	Name          string
 	LimoniVersion string
 	GoVersion     string
+	Template      string
+	Readme        string
 }
 
 // goVersion is the go directive written into generated go.mod files. It is
@@ -52,6 +55,8 @@ func run(args []string, out io.Writer) error {
 		return runInit(args[1:], out)
 	case "new":
 		return runNew(args[1:], out)
+	case "doctor":
+		return runDoctor(out)
 	case "version":
 		fmt.Fprintf(out, "limoni scaffold (limoni %s)\n", limoniVersion)
 		return nil
@@ -70,6 +75,8 @@ func usage(out io.Writer) {
 Commands:
   limoni init [module-path]  Create an application in the current directory
   limoni new <name>          Create directory <name> and write an application into it
+                             (-template counter|dashboard|form|ssh; each comes with a uitest test)
+  limoni doctor              Ask the terminal what it supports; paste this in bug reports
   limoni version             Print version information
 
 Options:
@@ -81,6 +88,7 @@ func runInit(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(out)
 	force := fs.Bool("force", false, "overwrite existing files")
+	tmplFlag := fs.String("template", "counter", "project template: "+templateNames())
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -94,7 +102,7 @@ func runInit(args []string, out io.Writer) error {
 	if module == "" {
 		module = filepath.Base(dir)
 	}
-	return scaffold(dir, module, *force, out)
+	return scaffold(dir, module, *tmplFlag, *force, out)
 }
 
 func runNew(args []string, out io.Writer) error {
@@ -102,6 +110,7 @@ func runNew(args []string, out io.Writer) error {
 	fs.SetOutput(out)
 	force := fs.Bool("force", false, "overwrite existing files")
 	moduleFlag := fs.String("module", "", "module path for go.mod (default: the project name)")
+	tmplFlag := fs.String("template", "counter", "project template: "+templateNames())
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -119,19 +128,39 @@ func runNew(args []string, out io.Writer) error {
 	if err := os.MkdirAll(target, 0o755); err != nil {
 		return err
 	}
-	return scaffold(target, module, *force, out)
+	return scaffold(target, module, *tmplFlag, *force, out)
 }
 
-// scaffold renders the template set into dir.
-func scaffold(dir, module string, force bool, out io.Writer) error {
+// templateNames lists the templates for the usage text.
+func templateNames() string {
+	var b strings.Builder
+	for i, t := range projectTemplates {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(t.Name)
+	}
+	return b.String()
+}
+
+// scaffold renders a project template into dir.
+func scaffold(dir, module, templateName string, force bool, out io.Writer) error {
 	name := projectName(module)
 	if name == "" {
 		return fmt.Errorf("invalid module path %q", module)
 	}
-	data := scaffoldData{Module: module, Name: name, LimoniVersion: limoniVersion, GoVersion: goVersion}
+	tmpl, err := findTemplate(templateName)
+	if err != nil {
+		return err
+	}
+	files, err := filesFor(tmpl)
+	if err != nil {
+		return err
+	}
+	data := scaffoldData{Module: module, Name: name, LimoniVersion: limoniVersion, GoVersion: goVersion, Template: tmpl.Name, Readme: tmpl.Readme}
 
-	rendered := make(map[string][]byte, len(scaffoldFiles))
-	for _, file := range scaffoldFiles {
+	rendered := make(map[string][]byte, len(files))
+	for _, file := range files {
 		path := filepath.Join(dir, file.Name)
 		if !force {
 			if _, err := os.Stat(path); err == nil {
@@ -160,11 +189,12 @@ func scaffold(dir, module string, force bool, out io.Writer) error {
 	}
 	fmt.Fprintln(out, "  go mod tidy")
 	fmt.Fprintln(out, "  go run .")
+	fmt.Fprintln(out, "  go test ./...")
 	return nil
 }
 
 func render(name, body string, data scaffoldData) ([]byte, error) {
-	tpl, err := template.New(name).Parse(body)
+	tpl, err := template.New(name).Delims("[[", "]]").Parse(body)
 	if err != nil {
 		return nil, err
 	}

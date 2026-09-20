@@ -33,6 +33,11 @@ type DiffOptions struct {
 	// SyncOutput wraps the frame in synchronized update mode (?2026) so the
 	// terminal presents it atomically instead of tearing.
 	SyncOutput bool
+	// ClusterWidths says the terminal confirmed mode 2027: it advances the
+	// cursor by a grapheme cluster's width, as the buffer does. The encoder
+	// then trusts the cursor after a cluster instead of re-anchoring it.
+	// Leave it false unless the terminal answered DECRQM for 2027 as set.
+	ClusterWidths bool
 }
 
 // minEraseRun and minRepeatRun are the lengths at which a control sequence
@@ -289,7 +294,7 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 			}
 
 			cursorX += uint16(w)
-			if cursorX >= width || cell.IsCluster(frontCell.Content) {
+			if cursorX >= width || (cell.IsCluster(frontCell.Content) && !opts.ClusterWidths) {
 				// A terminal without mode 2027 may advance by a different
 				// amount for a cluster, so its cursor position is unknown
 				// and the next write addresses its cell explicitly.
@@ -455,7 +460,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 				out = append(out, ' ')
 			} else {
 				out = cell.AppendContent(out, frontCell.Content)
-				if cell.IsCluster(frontCell.Content) {
+				if cell.IsCluster(frontCell.Content) && !opts.ClusterWidths {
 					out = appendClusterResync(out, frontCell.Content, x, width)
 				}
 			}

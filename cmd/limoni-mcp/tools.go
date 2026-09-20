@@ -67,7 +67,8 @@ The application decides what leaves the process. Secret fields never show a valu
 
 var roleNames = []string{
 	"button", "checkbox", "input", "list", "list-item", "table", "dialog",
-	"progress", "image", "radio-button", "slider", "tree", "tree-item", "generic",
+	"progress", "image", "radio-button", "slider", "tree", "tree-item",
+	"row", "cell", "tab-list", "tab", "generic",
 }
 
 // selectorProperties is the schema shared by every tool that takes a selector.
@@ -204,12 +205,19 @@ func newTools(a *app) []tool {
 			},
 		},
 		{
-			name:        "click",
-			title:       "Click a widget",
-			description: "Clicks the centre of the one widget the selector matches, then returns the tree after the application redraws. Refused if the selector matches more than one widget.",
-			properties:  selectorProperties(nil),
+			name:  "click",
+			title: "Click a widget",
+			description: "Clicks the centre of the one widget the selector matches, then returns the tree after the application redraws. Refused if the selector matches more than one widget. " +
+				"Clicking toggles a checkbox; to make a step safe to repeat, pass ensure: checked, unchecked or selected, and the widget is clicked only if it is not already in that state.",
+			properties: selectorProperties(map[string]any{
+				"ensure": map[string]any{"type": "string", "enum": []string{"checked", "unchecked", "selected"},
+					"description": "Click only if the widget is not already in this state, then confirm it reached it. Makes the call idempotent."},
+			}),
 			run: func(ctx context.Context, raw json.RawMessage) (string, error) {
-				var args selectorArgs
+				var args struct {
+					selectorArgs
+					Ensure string `json:"ensure"`
+				}
 				if err := decodeArgs(raw, &args); err != nil {
 					return "", err
 				}
@@ -217,12 +225,43 @@ func newTools(a *app) []tool {
 				if sel.IsEmpty() {
 					return "", fmt.Errorf("click needs a selector: give at least one of id, role, label, label_contains, value")
 				}
+				var inState func(accessibility.NodeState) bool
+				switch args.Ensure {
+				case "":
+				case "checked":
+					inState = func(s accessibility.NodeState) bool { return s&accessibility.StateChecked != 0 }
+				case "unchecked":
+					inState = func(s accessibility.NodeState) bool { return s&accessibility.StateChecked == 0 }
+				case "selected":
+					inState = func(s accessibility.NodeState) bool { return s&accessibility.StateSelected != 0 }
+				default:
+					return "", fmt.Errorf("ensure must be checked, unchecked or selected, not %q", args.Ensure)
+				}
+				if inState != nil {
+					found, err := a.do(ctx, automation.Request{Op: automation.OpFind, Selector: sel}, true)
+					if err != nil {
+						return "", err
+					}
+					if len(found.Nodes) == 1 && inState(found.Nodes[0].State) {
+						tree, err := a.tree(ctx)
+						if err != nil {
+							return "", err
+						}
+						return fmt.Sprintf("%s is already %s; nothing was clicked.\n\n%s", describe(found.Nodes[0]), args.Ensure, outline(tree)), nil
+					}
+				}
 				resp, nodes, changed, err := a.act(ctx, automation.Request{Op: automation.OpClick, Selector: sel})
 				target := sel.String()
 				if len(resp.Nodes) == 1 {
 					target = describe(resp.Nodes[0])
 				}
-				return a.afterAction(ctx, "clicked "+target, nodes, changed, err)
+				what := "clicked " + target
+				if inState != nil && err == nil {
+					if after, ferr := a.do(ctx, automation.Request{Op: automation.OpFind, Selector: sel}, true); ferr == nil && len(after.Nodes) == 1 && !inState(after.Nodes[0].State) {
+						what += fmt.Sprintf(", but it is still not %s — the click may have gone to something else, or the widget does not change state on click", args.Ensure)
+					}
+				}
+				return a.afterAction(ctx, what, nodes, changed, err)
 			},
 		},
 		{

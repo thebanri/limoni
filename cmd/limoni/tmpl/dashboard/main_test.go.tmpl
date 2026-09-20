@@ -1,0 +1,25 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/thebanri/limoni/uitest"
+)
+
+// The draw function runs in process, without a terminal, and is checked
+// through its semantic tree by role and label, the way Playwright checks a
+// web page.
+func TestSelectingAServiceShowsIt(t *testing.T) {
+	d := newDashboard()
+	page := uitest.Run(t, 80, 24, d.draw)
+
+	rows := page.GetByRole("row", "").Within(page.GetByID("services"))
+	page.Expect(rows).ToHaveCount(5)
+
+	page.GetByRole("row", "billing").Click()
+	page.Expect(page.GetByRole("row", "billing")).ToBeSelected()
+	page.Expect(page.GetByID("status")).ToContainValue("billing:")
+
+	page.Press("q")
+	page.ExpectExit()
+}

@@ -35,6 +35,37 @@ type ClickRegion struct {
 	LayerID string
 	// MouseOnly, MouseNone hareket/hover olaylarının da bu bölgeye yönlendirilmesini sağlar.
 	MouseOnly bool
+
+	// onClick, action and scroll are the allocation-free alternatives to
+	// Handler, set by RegisterClick, RegisterClickAction and RegisterScroll.
+	// Exactly one of Handler, onClick, action or scroll is set.
+	onClick   func()
+	action    int // 1-based index into the frame's click actions
+	scroll    *int
+	scrollMax int
+}
+
+// Fire runs the region's handler for ev.
+func (r ClickRegion) Fire(ev driver.MouseEvent, f *Frame) {
+	switch {
+	case r.Handler != nil:
+		r.Handler(ev)
+	case r.onClick != nil:
+		r.onClick()
+	case r.action > 0 && f != nil && r.action <= len(f.clickActions):
+		f.runClickAction(f.clickActions[r.action-1])
+	case r.scroll != nil:
+		switch ev.Button {
+		case driver.MouseScrollUp:
+			if *r.scroll > 0 {
+				*r.scroll--
+			}
+		case driver.MouseScrollDown:
+			if *r.scroll < r.scrollMax {
+				*r.scroll++
+			}
+		}
+	}
 }
 
 // ImageRegion, ekranda grafik olarak çizdirilmek istenen bir resmi ve bu resmin
@@ -101,7 +132,14 @@ type Frame struct {
 	currentLayerID        string
 	eventCtx              driver.EventContext
 
-	clickClosure    func(cell.Rect, func())
+	clickClosure       func(cell.Rect, func())
+	clickActionClosure func(cell.Rect, cell.ClickAction)
+	describeClosure    func(any, cell.Rect)
+	scrollClosure      func(cell.Rect, *int, int)
+	themeStyleClosure  func(string) cell.Style
+	// clickActions holds this frame's ClickActions; regions refer to them by
+	// index, so the slice can grow without invalidating anything.
+	clickActions    []cell.ClickAction
 	mouseClosure    func(cell.Rect, func(driver.MouseEvent))
 	eventClosure    func(cell.Rect, driver.EventPhase, func(*driver.EventContext))
 	captureClosure  func(func(driver.MouseEvent))
@@ -192,6 +230,37 @@ func getWidgetTypeName(w widgets.Widget) string {
 	return name
 }
 
+// clickLayer returns the layer a click region drawn now belongs to, or false
+// if the widget is outside the active modal and must not receive clicks.
+func (f *Frame) clickLayer(area cell.Rect) (string, bool) {
+	if !f.currentIsOutsideModal {
+		return f.currentLayerID, true
+	}
+	if topModal := f.TopmostModal(); topModal != nil && ContainsRect(topModal.Area, area) {
+		return topModal.ID, true
+	}
+	if f.ActiveModal != nil && ContainsRect(f.ActiveModal.Area, area) {
+		return f.ActiveModal.ID, true
+	}
+	return "", false
+}
+
+// runClickAction performs a ClickAction.
+func (f *Frame) runClickAction(a cell.ClickAction) {
+	if a.Focus != "" && f.FocusManager != nil {
+		f.FocusManager.SetFocused(a.Focus)
+	}
+	if a.Toggle != nil {
+		*a.Toggle = !*a.Toggle
+	}
+	if a.Select != nil {
+		*a.Select = a.Index
+	}
+	if a.Assign != nil {
+		*a.Assign = a.Value
+	}
+}
+
 func (f *Frame) initClosures() {
 	f.clickClosure = func(clickArea cell.Rect, handler func()) {
 		layerID := f.currentLayerID
@@ -205,9 +274,40 @@ func (f *Frame) initClosures() {
 				return
 			}
 		}
-		f.RegisterClickHandlerInLayer(clickArea, func(ev driver.MouseEvent) {
-			handler()
-		}, layerID)
+		if handler != nil {
+			// Stored as it is: wrapping it in a func(ev) closure was a heap
+			// allocation for every clickable widget on every frame.
+			f.ClickRegions = append(f.ClickRegions, ClickRegion{Area: clickArea, onClick: handler, LayerID: layerID})
+		}
+	}
+
+	f.describeClosure = func(w any, area cell.Rect) {
+		provider, ok := w.(accessibility.Provider)
+		if !ok {
+			return
+		}
+		node := provider.AccessibilityNode(area, false)
+		if f.FocusManager != nil && f.FocusManager.IsFocused(node.ID) {
+			node.State |= accessibility.StateFocused
+		}
+		f.RegisterAccessibility(node)
+	}
+
+	f.clickActionClosure = func(clickArea cell.Rect, action cell.ClickAction) {
+		layerID, ok := f.clickLayer(clickArea)
+		if !ok {
+			return
+		}
+		f.clickActions = append(f.clickActions, action)
+		f.ClickRegions = append(f.ClickRegions, ClickRegion{Area: clickArea, action: len(f.clickActions), LayerID: layerID})
+	}
+
+	f.scrollClosure = func(area cell.Rect, offset *int, max int) {
+		layerID, ok := f.clickLayer(area)
+		if !ok || offset == nil {
+			return
+		}
+		f.ClickRegions = append(f.ClickRegions, ClickRegion{Area: area, scroll: offset, scrollMax: max, LayerID: layerID, MouseOnly: true})
 	}
 
 	f.mouseClosure = func(mouseArea cell.Rect, handler func(ev driver.MouseEvent)) {
@@ -331,6 +431,7 @@ func (f *Frame) SetTheme(theme widgets.Theme) {
 
 func (f *Frame) Reset() {
 	f.ClickRegions = f.ClickRegions[:0]
+	f.clickActions = f.clickActions[:0]
 	f.EventRegions = f.EventRegions[:0]
 	f.ImageRegions = f.ImageRegions[:0]
 	f.ActiveModal = nil
@@ -840,11 +941,19 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Temiz stil ve sınırlandırılmış alan ile çizim bağlamı oluştur
 	ctx := cell.NewContext(area, defStyle)
 	if f.ThemeSet {
-		ctx.ThemeStyle = func(role string) cell.Style { return f.Theme.RoleStyle(role) }
+		// Built once: a closure made here was an allocation per widget per
+		// frame whenever a theme was set.
+		if f.themeStyleClosure == nil {
+			f.themeStyleClosure = func(role string) cell.Style { return f.Theme.RoleStyle(role) }
+		}
+		ctx.ThemeStyle = f.themeStyleClosure
 	}
 
 	// Assign pre-allocated closures to avoid heap allocation on draw loops
 	ctx.RegisterClick = f.clickClosure
+	ctx.RegisterClickAction = f.clickActionClosure
+	ctx.Describe = f.describeClosure
+	ctx.RegisterScroll = f.scrollClosure
 	ctx.RegisterMouse = f.mouseClosure
 	ctx.RegisterEvent = f.eventClosure
 	ctx.CaptureMouse = f.captureClosure

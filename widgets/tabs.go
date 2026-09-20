@@ -49,6 +49,16 @@ type Tabs struct {
 
 	// OnSelect is invoked with the tab index when a tab is clicked.
 	OnSelect func(index int)
+
+	// State, when set, holds a buffer the tab bar reuses to expose each
+	// visible tab in the semantic tree, so tests and agents can find a tab by
+	// its title and click it. Without it the bar is one node.
+	State *TabsState
+}
+
+// TabsState holds what Tabs reuses between frames.
+type TabsState struct {
+	nodes []accessibility.AccessibilityNode
 }
 
 // divider resolves the configured separator.
@@ -125,6 +135,9 @@ func (t Tabs) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	x := area.X
 	limit := area.X + area.Width
+	if t.State != nil {
+		t.State.nodes = t.State.nodes[:0]
+	}
 
 	for i, title := range t.Titles {
 		if i > 0 && dividerWidth > 0 {
@@ -153,6 +166,22 @@ func (t Tabs) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				c.Content = ' '
 				c.Style = style
 			}
+		}
+
+		if t.State != nil {
+			w := tabWidth
+			if x+w > limit {
+				w = limit - x
+			}
+			st := accessibility.NodeState(0)
+			if i == t.Selected {
+				st = accessibility.StateSelected
+			}
+			t.State.nodes = append(t.State.nodes, accessibility.AccessibilityNode{
+				Role: accessibility.RoleTab, Label: title, State: st,
+				Bounds:   cell.Rect{X: x, Y: area.Y, Width: w, Height: 1},
+				Position: i + 1, SetSize: len(t.Titles),
+			})
 		}
 
 		textX := x + pad
@@ -199,9 +228,14 @@ func (t Tabs) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Ac
 		position = t.Selected + 1
 	}
 
+	var tabs []accessibility.AccessibilityNode
+	if t.State != nil {
+		tabs = t.State.nodes
+	}
 	return accessibility.AccessibilityNode{
 		ID:       t.ID,
-		Role:     accessibility.RoleList,
+		Role:     accessibility.RoleTabList,
+		Children: tabs,
 		Label:    "Tabs",
 		Value:    value,
 		State:    state,

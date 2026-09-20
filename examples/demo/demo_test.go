@@ -818,4 +818,3 @@ func TestExitDialogModalClickIsolation(t *testing.T) {
 		t.Errorf("Modal click bled through to background sidebar button! Expected ActiveTab=0, got %d", state.ActiveTab)
 	}
 }
-

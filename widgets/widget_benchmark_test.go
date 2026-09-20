@@ -216,3 +216,32 @@ func BenchmarkImageDrawHalfBlock(b *testing.B) {
 func rect(x, y, w, h int) image.Rectangle {
 	return image.Rect(x, y, x+w, y+h)
 }
+
+func BenchmarkLogViewDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	src := &testLog{}
+	for i := 0; i < 100000; i++ {
+		lv := LevelInfo
+		if i%7 == 0 {
+			lv = LevelWarn
+		}
+		src.add(`{"level":"info","msg":"request served","status":200,"path":"/api/v1/items"}`, lv)
+	}
+	w := &LogView{ID: "log", Source: src, State: NewLogViewState(), LineNumbers: true, Highlight: "served"}
+	w.Draw(ctx, buf)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkButtonDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	pressed := 0
+	onPress := func() { pressed++ }
+	w := Button{ID: "save", Label: "Save", OnPress: onPress}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}

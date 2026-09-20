@@ -20,6 +20,10 @@ const (
 	RoleSlider
 	RoleTree
 	RoleTreeItem
+	RoleRow
+	RoleCell
+	RoleTabList
+	RoleTab
 )
 
 type NodeState uint32

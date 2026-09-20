@@ -16,6 +16,7 @@ type Backend struct {
 	height       uint16
 	inlineHeight uint16
 	inlineMu     sync.RWMutex
+	replies      replyCollector
 }
 
 // NewBackend creates a new WASM Backend instance.
@@ -68,9 +69,11 @@ func (b *Backend) Setup() error {
 						ev, consumed = ParseEvent(bytes)
 					}
 					if consumed > 0 {
-						select {
-						case b.events <- ev:
-						default:
+						if ev.Type != EventNone && !b.replies.record(ev) {
+							select {
+							case b.events <- ev:
+							default:
+							}
 						}
 						bytes = bytes[consumed:]
 					} else {
@@ -107,6 +110,9 @@ func (b *Backend) Setup() error {
 	if height := b.Inline(); height > 0 {
 		setup = inlineSetupCmds(height)
 	}
+	// xterm.js answers the probe. There is no shell to leak late replies
+	// into, so Close does not wait for them here.
+	setup = b.replies.withProbe(setup)
 	_, err := b.Write([]byte(setup))
 	return err
 }

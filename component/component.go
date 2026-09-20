@@ -707,6 +707,11 @@ func AsComponent(w widgets.Widget) Component {
 
 func (a *WidgetAdapter) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	a.w.Draw(ctx, buf)
+	// A widget inside a component tree is drawn here, not by the frame, so
+	// it registers its semantic node here too.
+	if ctx.Describe != nil {
+		ctx.Describe(a.w, ctx.Area)
+	}
 }
 
 func (a *WidgetAdapter) LayoutInfo(maxArea cell.Rect) LayoutProps {

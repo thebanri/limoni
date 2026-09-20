@@ -102,7 +102,7 @@ func (t *Terminal) Mouse(ev driver.MouseEvent) bool {
 		} else if ev.Button != driver.MouseLeft {
 			continue
 		}
-		region.Handler(ev)
+		region.Fire(ev, t.frame)
 		t.capture = t.frame.TakeMouseCapture()
 		return true
 	}

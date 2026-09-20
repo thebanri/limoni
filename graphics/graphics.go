@@ -29,7 +29,7 @@ func CropImage(img image.Image, crop image.Rectangle) image.Image {
 	return out
 }
 
-// Protocol, terminalin desteklediği grafik protokol türünü temsil eder.
+// Protocol represents the graphics protocol supported by the terminal.
 type Protocol int
 
 const (
@@ -40,7 +40,7 @@ const (
 	ProtocolHalfBlock
 )
 
-// DetectProtocol, terminal ortam değişkenlerini inceleyerek en uygun resim protokolünü otomatik seçer.
+// DetectProtocol automatically selects the most suitable image protocol by examining terminal environment variables.
 func DetectProtocol() Protocol {
 	switch strings.ToLower(os.Getenv("LIMONI_GRAPHICS")) {
 	case "kitty":
@@ -87,13 +87,13 @@ func DetectProtocol() Protocol {
 		return ProtocolHalfBlock
 	}
 
-	// Bilinmeyen terminallerde escape sequence basıp ekranı bozmak yerine
-	// güvenli hücre tabanlı fallback kullanılır. Native protocol açıkça
-	// LIMONI_GRAPHICS veya bilinen terminal env ile seçilebilir.
+	// Instead of corrupting the screen with escape sequences on unknown terminals,
+	// use a safe cell-based fallback. Native protocols can be explicitly selected
+	// via LIMONI_GRAPHICS or known terminal environments.
 	return ProtocolHalfBlock
 }
 
-// GetImageID, resim piksellerinden FNV-1a hash algoritmasıyla 32-bit benzersiz bir ID üretir.
+// GetImageID generates a unique 32-bit ID from image pixels using the FNV-1a hash algorithm.
 func GetImageID(img image.Image) uint32 {
 	if img == nil {
 		return 0
@@ -268,9 +268,9 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 	return dst
 }
 
-// ResizeImageContain resmi aspect ratio'sunu koruyarak hedef alana sığdırır.
-// Hedef canvas tam boyuttadır; kullanılmayan alan kaynak görselin sol üst
-// pikseliyle doldurulur. Böylece native protokoller görseli esnetmez.
+// ResizeImageContain fits the image into the target area while preserving its aspect ratio.
+// The target canvas is full-sized; unused areas are filled with the top-left pixel
+// of the source image. This prevents native protocols from stretching the image.
 func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image {
 	if img == nil || w <= 0 || h <= 0 {
 		return img
@@ -311,7 +311,7 @@ func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image
 	return dst
 }
 
-// buildPalette, resimdeki piksellerden maksimum maxColors boyutunda dinamik bir renk paleti oluşturur.
+// buildPalette creates a dynamic color palette from image pixels with a maximum of maxColors.
 func buildPalette(img image.Image, maxColors int) color.Palette {
 	bounds := img.Bounds()
 	var pal color.Palette
@@ -331,8 +331,8 @@ func buildPalette(img image.Image, maxColors int) color.Palette {
 	return pal
 }
 
-// chunkKittyPayload, Kitty protokolü için base64 verisini 4096 byte'lık parçalara ayırarak kodlar.
-// Kitty terminali 4096 byte'tan büyük tekil parçaları protokol gereği kabul etmemektedir.
+// chunkKittyPayload encodes base64 data for the Kitty protocol by splitting it into 4096-byte chunks.
+// Kitty terminal does not accept single chunks larger than 4096 bytes per the protocol.
 func chunkKittyPayload(controlKeys string, b64Data string) string {
 	chunkSize := 4096
 	totalLen := len(b64Data)
@@ -342,23 +342,20 @@ func chunkKittyPayload(controlKeys string, b64Data string) string {
 	}
 
 	var buf bytes.Buffer
-	// İlk parça (more chunks: m=1)
 	buf.WriteString(fmt.Sprintf("\x1b_G%s,m=1;%s\x1b\\", controlKeys, b64Data[:chunkSize]))
 
-	// Orta parçalar
 	offset := chunkSize
 	for offset+chunkSize < totalLen {
 		buf.WriteString(fmt.Sprintf("\x1b_Gm=1;%s\x1b\\", b64Data[offset:offset+chunkSize]))
 		offset += chunkSize
 	}
 
-	// Son parça (more chunks: m=0)
 	buf.WriteString(fmt.Sprintf("\x1b_Gm=0;%s\x1b\\", b64Data[offset:]))
 
 	return buf.String()
 }
 
-// EncodeKitty, resmi Kitty Graphics Protocol formatında kodlar.
+// EncodeKitty encodes the image in the Kitty Graphics Protocol format.
 func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageID uint32, zIndex int, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
@@ -378,7 +375,7 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 	return chunkKittyPayload(controlKeys, b64Data)
 }
 
-// EncodeIterm2, resmi iTerm2 Inline Image Protocol formatında kodlar.
+// EncodeIterm2 encodes the image in the iTerm2 Inline Image Protocol format.
 func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
@@ -397,7 +394,7 @@ func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16, trans
 	return fmt.Sprintf("\x1b]1337;File=inline=1;width=%d;height=%d;size=%d:%s\a", cols, rows, len(pngBytes), b64Data)
 }
 
-// EncodeSixel, resmi Sixel Graphics formatında kodlar.
+// EncodeSixel encodes the image in the Sixel Graphics format.
 func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
@@ -417,10 +414,9 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 	}
 
 	var buf bytes.Buffer
-	// Sixel Giriş ANSI kodu
+	// Sixel initialization sequence
 	buf.WriteString("\x1bPq\"1;1;")
 
-	// Renk tablosunu (Palette) tanımla
 	for idx, col := range pal {
 		r, g, b, _ := col.RGBA()
 		pctR := int(r * 100 / 65535)
@@ -435,7 +431,7 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 	bandIndices := make([][6]int16, width)
 	colorsInBand := make([]bool, len(pal))
 
-	// Sixel 6 piksellik dikey bantlar halinde kodlama yapar
+	// Sixel encodes in 6-pixel vertical bands
 	for bandY := 0; bandY < height; bandY += 6 {
 		for i := range colorsInBand {
 			colorsInBand[i] = false
@@ -472,7 +468,6 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 				continue
 			}
 
-			// Aktif rengi seç
 			buf.WriteString(fmt.Sprintf("#%d", colorIdx))
 
 			targetIdx := int16(colorIdx)
@@ -514,19 +509,19 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 			}
 			flushRepeat()
 
-			// Satır başına dön (taşıyıcı dönüşü)
+			// Carriage return
 			buf.WriteByte('$')
 		}
-		// Sonraki banda geç (yeni satır)
+		// Move to the next band (newline)
 		buf.WriteByte('-')
 	}
 
-	// Sixel Çıkış ANSI kodu
+	// Sixel exit sequence
 	buf.WriteString("\x1b\\")
 	return buf.String()
 }
 
-// ImageCacheKey, resim escape sequence önbelleği için benzersiz bir anahtar görevi görür.
+// ImageCacheKey serves as a unique key for the image escape sequence cache.
 type ImageCacheKey struct {
 	Img         image.Image
 	Cols        uint16
@@ -543,7 +538,7 @@ var (
 	escapeCacheMu       sync.RWMutex
 )
 
-// GetCachedEscapeSequence, önbellekten veya yeni nesil olarak resmin escape sequence çıktısını döner.
+// GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
 func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
 	key := ImageCacheKey{
 		Img:         img,

@@ -177,6 +177,62 @@ func (l Locator) Click() {
 	l.page.acted("click %s", l)
 }
 
+// Check makes a checkbox checked. It clicks only if the checkbox is not checked
+// already, then waits until it is, so repeating it is harmless. Click toggles:
+// an agent or a test that runs a step twice with Click undoes it.
+func (l Locator) Check() {
+	l.page.t.Helper()
+	l.ensure("check", accessibility.StateChecked, true)
+}
+
+// Uncheck makes a checkbox unchecked, clicking only if it is checked.
+func (l Locator) Uncheck() {
+	l.page.t.Helper()
+	l.ensure("uncheck", accessibility.StateChecked, false)
+}
+
+// Select makes the widget selected — a list item, a table row, a tab, a tree
+// item or a radio button — clicking only if it is not selected already, then
+// waiting until it is.
+func (l Locator) Select() {
+	l.page.t.Helper()
+	l.ensure("select", accessibility.StateSelected, true)
+}
+
+// ensure clicks the widget unless its state already has flag set (or clear,
+// for want false), and then waits for the click to have that effect.
+func (l Locator) ensure(verb string, flag accessibility.NodeState, want bool) {
+	l.page.t.Helper()
+	node, err := l.wait()
+	if err != nil {
+		l.page.t.Fatalf("uitest: %s %s: %v", verb, l, err)
+	}
+	if (node.State&flag != 0) == want {
+		l.page.acted("%s %s: already done", verb, l)
+		return
+	}
+	if node.Bounds.Width == 0 || node.Bounds.Height == 0 {
+		l.page.t.Fatalf("uitest: %s %s: the widget has no area on screen", verb, l)
+	}
+	if err := l.page.app.click(node, l.selectorFor(node)); err != nil {
+		l.page.t.Fatalf("uitest: %s %s: %v", verb, l, err)
+	}
+	_, err = l.page.eventually(func(tree []accessibility.AccessibilityNode) error {
+		now, err := l.one(tree)
+		if err != nil {
+			return err
+		}
+		if (now.State&flag != 0) != want {
+			return fmt.Errorf("clicked, but its state is still %v", now.State.StateNames())
+		}
+		return nil
+	})
+	if err != nil {
+		l.page.t.Fatalf("uitest: %s %s: %v", verb, l, err)
+	}
+	l.page.acted("%s %s", verb, l)
+}
+
 // selectorFor is the selector a remote application resolves a click with. A
 // locator scoped with Within has no single-selector equivalent, so it is
 // pinned to what it resolved to here.

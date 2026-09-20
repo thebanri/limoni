@@ -1,0 +1,121 @@
+// [[.Name]] is a live dashboard built with Limoni's immediate mode: a draw
+// function called for every event and every tick, and a goroutine feeding it
+// data. Replace sample() with your own source.
+package main
+
+import (
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"os"
+	"os/signal"
+	"sync"
+	"time"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/widgets"
+)
+
+type service struct {
+	name    string
+	latency float64 // milliseconds
+	errors  int
+}
+
+type dashboard struct {
+	mu       sync.Mutex
+	load     []float64
+	services []service
+
+	table *widgets.TableState
+}
+
+func newDashboard() *dashboard {
+	d := &dashboard{table: widgets.NewTableState()}
+	for _, name := range []string{"api", "auth", "billing", "search", "worker"} {
+		d.services = append(d.services, service{name: name, latency: 20})
+	}
+	return d
+}
+
+// sample produces a new reading every half second. It runs in its own
+// goroutine and asks for a frame with wake.
+func (d *dashboard) sample(ctx context.Context, wake func()) {
+	r := rand.New(rand.NewPCG(1, 2))
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		d.mu.Lock()
+		d.load = append(d.load, 30+40*r.Float64())
+		if len(d.load) > 200 {
+			d.load = d.load[len(d.load)-200:]
+		}
+		for i := range d.services {
+			d.services[i].latency = max(1, d.services[i].latency+r.NormFloat64()*4)
+			if r.IntN(20) == 0 {
+				d.services[i].errors++
+			}
+		}
+		d.mu.Unlock()
+		wake()
+	}
+}
+
+// draw is called for every key, click, resize and wake-up; returning false
+// quits.
+func (d *dashboard) draw(f *limoni.Frame, ev *limoni.Event) bool {
+	if ev != nil && ev.Type == limoni.EventKey {
+		switch {
+		case ev.Key.Type == limoni.KeyEsc, ev.Key.Type == limoni.KeyRune && ev.Key.Ch == 'q':
+			return false
+		case ev.Key.Type == limoni.KeyUp:
+			d.table.Select(max(0, d.table.Selected-1))
+		case ev.Key.Type == limoni.KeyDown:
+			d.table.Select(min(len(d.services)-1, d.table.Selected+1))
+		}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	f.SetTheme(widgets.DarkTheme())
+	rows := limoni.SplitVertical(f.Area(), limoni.Fixed(8), limoni.Fill(), limoni.Fixed(1))
+
+	f.RenderWidget(limoni.Block{
+		Title: " load ", Borders: limoni.BorderAll, BorderSymbols: limoni.SymbolsRounded,
+		Child: &widgets.Sparkline{ID: "load", Data: d.load, Style: cell.Style{Fg: limoni.Hex("#FFCC00")}},
+	}, rows[0])
+
+	table := &widgets.Table{
+		ID: "services", State: d.table, Header: &widgets.TableRow{Cells: []widgets.TableCell{{Text: "service"}, {Text: "latency"}, {Text: "errors"}}},
+		Constraints: []widgets.TableConstraint{{Type: widgets.ConstraintFixed, Value: 12}, {Type: widgets.ConstraintFixed, Value: 12}, {Type: widgets.ConstraintFill}},
+	}
+	for _, s := range d.services {
+		table.Rows = append(table.Rows, widgets.NewRow(s.name, fmt.Sprintf("%.0f ms", s.latency), fmt.Sprint(s.errors)))
+	}
+	f.RenderWidget(limoni.Block{Title: " services ", Borders: limoni.BorderAll, BorderSymbols: limoni.SymbolsRounded, Child: table}, rows[1])
+
+	status := "↑↓ select · q quit"
+	if sel := d.table.Selected; sel >= 0 && sel < len(d.services) {
+		status = fmt.Sprintf("%s: %.0f ms, %d errors · %s", d.services[sel].name, d.services[sel].latency, d.services[sel].errors, status)
+	}
+	f.RenderWidget(&limoni.Paragraph{ID: "status", Text: status}, rows[2])
+	return true
+}
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	d := newDashboard()
+	go d.sample(ctx, limoni.Wakeup)
+	if err := limoni.RunWithContext(ctx, d.draw); err != nil && ctx.Err() == nil {
+		fmt.Fprintln(os.Stderr, "[[.Name]]:", err)
+		os.Exit(1)
+	}
+}

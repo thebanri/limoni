@@ -9,11 +9,11 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-// createTestImage, test amaçlı 2x2 basit renkli bir resim oluşturur.
+// createTestImage builds a 2x2 image with one pixel of each colour.
 func createTestImage() image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
-	img.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 255})     // Kırmızı
-	img.Set(1, 0, color.RGBA{R: 0, G: 255, B: 0, A: 255})     // Yeşil
+	img.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 255})     // red
+	img.Set(1, 0, color.RGBA{R: 0, G: 255, B: 0, A: 255})     // green
 	img.Set(0, 1, color.RGBA{R: 0, G: 0, B: 255, A: 255})     // Mavi
 	img.Set(1, 1, color.RGBA{R: 255, G: 255, B: 255, A: 255}) // Beyaz
 	return img
@@ -30,7 +30,7 @@ func TestGetImageID(t *testing.T) {
 		t.Errorf("Expected identical images to have same ID, got %d and %d", id1, id2)
 	}
 
-	// Resmi değiştir
+	// Change the image.
 	img3 := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	id3 := GetImageID(img3)
 

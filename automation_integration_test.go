@@ -3,6 +3,7 @@
 package limoni
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -45,9 +46,10 @@ func TestAutomationDrivesARunningApplication(t *testing.T) {
 		t.Fatalf("terminal: %v", err)
 	}
 
+	app := testApp(term, appConfig{automationPath: socket, automationPolicy: AutomationPolicy{AllowInput: true, ExposeScreen: true, AllowUnverifiedPeers: runtime.GOOS == "windows"}, catchCtrlC: true})
 	done := make(chan error, 1)
 	go func() {
-		done <- runLoop(term, func(f *Frame, ev *Event) bool {
+		done <- app.Run(context.Background(), func(f *Frame, ev *Event) bool {
 			if stop.Load() {
 				return false
 			}
@@ -71,12 +73,12 @@ func TestAutomationDrivesARunningApplication(t *testing.T) {
 			}}, NewRect(40, 10, 10, 3))
 
 			return true
-		}, appConfig{automationPath: socket, automationPolicy: AutomationPolicy{AllowInput: true, ExposeScreen: true, AllowUnverifiedPeers: runtime.GOOS == "windows"}, catchCtrlC: true})
+		})
 	}()
 	t.Cleanup(func() {
 		// runLoop exits when the application returns false, so ask it to.
 		stop.Store(true)
-		Wakeup()
+		app.Wakeup()
 		<-done
 		term.Close()
 	})
@@ -227,23 +229,24 @@ func TestAutomationNeverLeaksASecretField(t *testing.T) {
 		t.Fatalf("terminal: %v", err)
 	}
 
+	app := testApp(term, appConfig{
+		automationPath:   socket,
+		automationPolicy: AutomationPolicy{ExposeInputValues: true, ExposeScreen: true, AllowInput: true, AllowUnverifiedPeers: runtime.GOOS == "windows"},
+		catchCtrlC:       true,
+	})
 	done := make(chan error, 1)
 	go func() {
-		done <- runLoop(term, func(f *Frame, ev *Event) bool {
+		done <- app.Run(context.Background(), func(f *Frame, ev *Event) bool {
 			if stop.Load() {
 				return false
 			}
 			f.RenderWidget(&widgets.TextInput{ID: "password", State: pw, Secret: true, Placeholder: "Password"}, NewRect(0, 0, 30, 1))
 			return true
-		}, appConfig{
-			automationPath:   socket,
-			automationPolicy: AutomationPolicy{ExposeInputValues: true, ExposeScreen: true, AllowInput: true, AllowUnverifiedPeers: runtime.GOOS == "windows"},
-			catchCtrlC:       true,
 		})
 	}()
 	t.Cleanup(func() {
 		stop.Store(true)
-		Wakeup()
+		app.Wakeup()
 		<-done
 		term.Close()
 	})

@@ -248,6 +248,36 @@ func StringWidth(text string) int {
 	return width
 }
 
+// Truncate returns the longest prefix of text that fits in maxWidth columns,
+// cut only at grapheme cluster boundaries, and that prefix's width. It returns
+// a substring of text and does not allocate.
+//
+// Use it instead of string([]rune(text)[:n]), which both allocates and can cut
+// a flag, an emoji sequence or an accented letter in half, and which counts
+// code points where the screen counts columns.
+func Truncate(text string, maxWidth int) (prefix string, width int) {
+	if maxWidth <= 0 {
+		return "", 0
+	}
+	for i := 0; i < len(text); {
+		if c := text[i]; c >= 0x20 && c < 0x7F && (i+1 == len(text) || text[i+1] < 0x80) {
+			if width+1 > maxWidth {
+				return text[:i], width
+			}
+			width++
+			i++
+			continue
+		}
+		cluster, w, _ := NextCluster(text[i:])
+		if width+w > maxWidth {
+			return text[:i], width
+		}
+		width += w
+		i += len(cluster)
+	}
+	return text, width
+}
+
 // Downsample maps the color to a compatible representation based on the capabilities.
 func (c Color) Downsample(trueColor, colors256 bool) Color {
 	t := c.Type()

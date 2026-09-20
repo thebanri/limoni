@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -28,6 +29,8 @@ type Backend struct {
 	closeErr   error
 	inline     uint16 // non-zero: render in place, reserving this many rows
 	mu         sync.RWMutex
+	replies    replyCollector
+	looping    atomic.Bool // the event loop that reads replies is running
 }
 
 // SetInline switches the backend to inline rendering: no alternate screen, the
@@ -105,6 +108,7 @@ func (b *Backend) Setup() error {
 	if height := b.Inline(); height > 0 {
 		setupCmds = inlineSetupCmds(height)
 	}
+	setupCmds = b.replies.withProbe(setupCmds)
 	if b.portableIO != nil {
 		_, err := b.portableIO.Write([]byte(setupCmds))
 		return err
@@ -136,6 +140,10 @@ func (b *Backend) Setup() error {
 // Close restores the terminal to its canonical state and exits the alternate screen buffer.
 func (b *Backend) Close() error {
 	b.closeOnce.Do(func() {
+		// Let answers to the startup queries arrive before the terminal is
+		// restored, or they land in the shell as text.
+		b.replies.drain(b.looping.Load())
+
 		// Stop event loop
 		select {
 		case <-b.done:
@@ -178,6 +186,7 @@ func (b *Backend) Events() <-chan Event {
 // StartEventLoop starts the asynchronous event loop polling keyboard, mouse, focus, and resize events.
 func (b *Backend) StartEventLoop() {
 	b.startOnce.Do(func() {
+		b.looping.Store(true)
 		b.startEventLoop()
 	})
 }
@@ -261,10 +270,12 @@ func (b *Backend) startEventLoop() {
 							ev, consumed = ParseEvent(readBuf)
 						}
 						if consumed > 0 {
-							select {
-							case b.events <- ev:
-							case <-b.done:
-								return
+							if ev.Type != EventNone && !b.replies.record(ev) {
+								select {
+								case b.events <- ev:
+								case <-b.done:
+									return
+								}
 							}
 							readBuf = readBuf[consumed:]
 						} else {
@@ -399,7 +410,7 @@ func (b *Backend) startEventLoop() {
 						ev, consumed = ParseEvent(readBuf)
 					}
 					if consumed > 0 {
-						if ev.Type != EventNone {
+						if ev.Type != EventNone && !b.replies.record(ev) {
 							select {
 							case b.events <- ev:
 							case <-b.done:

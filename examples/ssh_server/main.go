@@ -1,16 +1,18 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/thebanri/limoni"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
@@ -226,131 +228,124 @@ func handleSessionChannel(channel ssh.Channel, requests <-chan *ssh.Request) {
 	}
 }
 
+// runTUIApp runs one session's application. Each session gets its own
+// limoni.App, so any number of them run side by side in this process, each
+// animated and woken independently.
 func runTUIApp(t *terminal.Terminal, b *driver.SSHBackend, done chan struct{}, closeSession func()) {
 	defer closeSession()
 
-	ticker := time.NewTicker(33 * time.Millisecond)
-	defer ticker.Stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-done
+		cancel()
+	}()
 
 	rotX, rotY := 0.0, 0.0
 	canvas := widgets.NewCanvas(40, 15)
 
-	draw := func() {
-		t.Draw(func(f *terminal.Frame) {
-			area := f.Buffer.Area
-			f.SetTheme(widgets.DarkTheme())
-
-			rootLay := layout.NewFlexLayout(
-				layout.Vertical,
-				0,
-				layout.Fixed(3), // Header
-				layout.Fill(),   // Body
-				layout.Fixed(1), // Footer
-			)
-			chunks := rootLay.Split(area)
-
-			// Header
-			f.RenderWidget(widgets.Block{
-				Title:          " LIMONI REMOTE SSH APP ",
-				TitleAlignment: widgets.AlignCenter,
-				Borders:        widgets.BorderAll,
-				BorderSymbols:  widgets.SymbolsRounded,
-				BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
-				Child:          text{value: " Interactive remote terminal session over SSH ", style: cell.Style{Fg: cell.NewColorRGB(200, 200, 220)}},
-			}, chunks[0])
-
-			// Body Split: Left 3D Canvas + Right Welcome Markdown
-			bodyLay := layout.NewFlexLayout(
-				layout.Horizontal,
-				1,
-				layout.Fixed(42),
-				layout.Fill(),
-			)
-			bodyChunks := bodyLay.Split(chunks[1])
-
-			// Left 3D Canvas
-			canvasW := bodyChunks[0].Width - 2
-			canvasH := bodyChunks[0].Height - 2
-			canvas.Reset(canvasW, canvasH)
-
-			drawRemoteCube(canvas, canvasW, canvasH, rotX, rotY)
-
-			f.RenderWidget(widgets.Block{
-				Title:         " 3D CUBE ",
-				Borders:       widgets.BorderAll,
-				BorderSymbols: widgets.SymbolsRounded,
-				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
-				Child:         canvas,
-			}, bodyChunks[0])
-
-			// Right Info Panel
-			welcomeText := "# Limoni SSH Server\n\n" +
-				"Interactive TUI running over a remote SSH connection.\n" +
-				"- Automatically captures terminal `window-change` signals.\n" +
-				"- Zero native GUI dependencies with full TrueColor support.\n\n" +
-				"**Shortcuts:**\n" +
-				"- `Arrow Up/Down/Left/Right`: Rotate cube manually.\n" +
-				"- `Esc` or `q`: Disconnect session."
-
-			f.RenderWidget(widgets.Block{
-				Title:         " CONNECTION INFO ",
-				Borders:       widgets.BorderAll,
-				BorderSymbols: widgets.SymbolsRounded,
-				BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
-				PaddingLeft:   2,
-				PaddingRight:  2,
-				Child:         &widgets.Markdown{Content: welcomeText, Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 210)}},
-			}, bodyChunks[1])
-
-			// Footer
-			f.RenderWidget(widgets.Block{
-				Borders: widgets.BorderNone,
-				Style:   cell.Style{Fg: cell.NewColorRGB(120, 120, 130), Bg: cell.NewColorRGB(20, 20, 25)},
-				Child:   text{value: " Arrow Keys: Rotate Cube | Esc/q: Disconnect ", style: cell.Style{Fg: cell.NewColorRGB(130, 130, 130)}},
-			}, chunks[2])
-		})
-	}
-
-	draw()
-
-	for {
-		select {
-		case <-done:
-			return
-		case ev, ok := <-b.Events():
-			if !ok {
-				return
-			}
-			switch ev.Type {
-			case driver.EventKey:
-				if ev.Key.Type == driver.KeyEsc || (ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'q') {
-					return
-				}
-
-				if ev.Key.Type == driver.KeyArrowUp {
-					rotX += 10
-				}
-				if ev.Key.Type == driver.KeyArrowDown {
-					rotX -= 10
-				}
-				if ev.Key.Type == driver.KeyArrowLeft {
-					rotY -= 10
-				}
-				if ev.Key.Type == driver.KeyArrowRight {
-					rotY += 10
-				}
-				draw()
-
-			case driver.EventResize:
-				draw()
-			}
-
-		case <-ticker.C:
+	app := limoni.NewApp(t, limoni.WithFPS(30))
+	err := app.Run(ctx, func(f *limoni.Frame, ev *limoni.Event) bool {
+		if ev == nil {
+			// A tick: keep the cube turning.
 			rotY += 2
 			rotX += 1
-			draw()
+		} else if ev.Type == limoni.EventKey {
+			switch {
+			case ev.Key.Type == limoni.KeyEsc || (ev.Key.Type == limoni.KeyRune && ev.Key.Ch == 'q'):
+				return false
+			case ev.Key.Type == limoni.KeyUp:
+				rotX += 10
+			case ev.Key.Type == limoni.KeyDown:
+				rotX -= 10
+			case ev.Key.Type == limoni.KeyLeft:
+				rotY -= 10
+			case ev.Key.Type == limoni.KeyRight:
+				rotY += 10
+			}
 		}
+		drawSession(f, canvas, rotX, rotY)
+		return true
+	})
+	if err != nil && !errors.Is(err, context.Canceled) {
+		fmt.Fprintln(os.Stderr, "session:", err)
 	}
+}
+
+// drawSession draws one frame of a session.
+func drawSession(f *terminal.Frame, canvas *widgets.Canvas, rotX, rotY float64) {
+
+	area := f.Buffer.Area
+	f.SetTheme(widgets.DarkTheme())
+
+	rootLay := layout.NewFlexLayout(
+		layout.Vertical,
+		0,
+		layout.Fixed(3), // Header
+		layout.Fill(),   // Body
+		layout.Fixed(1), // Footer
+	)
+	chunks := rootLay.Split(area)
+
+	// Header
+	f.RenderWidget(widgets.Block{
+		Title:          " LIMONI REMOTE SSH APP ",
+		TitleAlignment: widgets.AlignCenter,
+		Borders:        widgets.BorderAll,
+		BorderSymbols:  widgets.SymbolsRounded,
+		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
+		Child:          text{value: " Interactive remote terminal session over SSH ", style: cell.Style{Fg: cell.NewColorRGB(200, 200, 220)}},
+	}, chunks[0])
+
+	// Body Split: Left 3D Canvas + Right Welcome Markdown
+	bodyLay := layout.NewFlexLayout(
+		layout.Horizontal,
+		1,
+		layout.Fixed(42),
+		layout.Fill(),
+	)
+	bodyChunks := bodyLay.Split(chunks[1])
+
+	// Left 3D Canvas
+	canvasW := bodyChunks[0].Width - 2
+	canvasH := bodyChunks[0].Height - 2
+	canvas.Reset(canvasW, canvasH)
+
+	drawRemoteCube(canvas, canvasW, canvasH, rotX, rotY)
+
+	f.RenderWidget(widgets.Block{
+		Title:         " 3D CUBE ",
+		Borders:       widgets.BorderAll,
+		BorderSymbols: widgets.SymbolsRounded,
+		BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
+		Child:         canvas,
+	}, bodyChunks[0])
+
+	// Right Info Panel
+	welcomeText := "# Limoni SSH Server\n\n" +
+		"Interactive TUI running over a remote SSH connection.\n" +
+		"- Automatically captures terminal `window-change` signals.\n" +
+		"- Zero native GUI dependencies with full TrueColor support.\n\n" +
+		"**Shortcuts:**\n" +
+		"- `Arrow Up/Down/Left/Right`: Rotate cube manually.\n" +
+		"- `Esc` or `q`: Disconnect session."
+
+	f.RenderWidget(widgets.Block{
+		Title:         " CONNECTION INFO ",
+		Borders:       widgets.BorderAll,
+		BorderSymbols: widgets.SymbolsRounded,
+		BorderStyle:   cell.Style{Fg: cell.NewColorRGB(0, 180, 255)},
+		PaddingLeft:   2,
+		PaddingRight:  2,
+		Child:         &widgets.Markdown{Content: welcomeText, Style: cell.Style{Fg: cell.NewColorRGB(200, 200, 210)}},
+	}, bodyChunks[1])
+
+	// Footer
+	f.RenderWidget(widgets.Block{
+		Borders: widgets.BorderNone,
+		Style:   cell.Style{Fg: cell.NewColorRGB(120, 120, 130), Bg: cell.NewColorRGB(20, 20, 25)},
+		Child:   text{value: " Arrow Keys: Rotate Cube | Esc/q: Disconnect ", style: cell.Style{Fg: cell.NewColorRGB(130, 130, 130)}},
+	}, chunks[2])
 }
 
 func drawRemoteCube(canvas *widgets.Canvas, w, h uint16, rotX, rotY float64) {

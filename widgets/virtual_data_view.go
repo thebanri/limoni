@@ -173,12 +173,10 @@ func virtualRowText(row Row, offset, sticky int) string {
 	rest := sb.String()
 
 	if offset > 0 {
-		runes := []rune(rest)
-		if offset >= len(runes) {
-			rest = ""
-		} else {
-			rest = string(runes[offset:])
-		}
+		// Scroll by columns and whole grapheme clusters: slicing runes could
+		// start the row halfway through an emoji sequence.
+		skipped, _ := cell.Truncate(rest, offset)
+		rest = rest[len(skipped):]
 	}
 	if prefix == "" {
 		return rest

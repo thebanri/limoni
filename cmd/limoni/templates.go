@@ -1,111 +1,85 @@
 package main
 
-// scaffoldFile describes one generated project file.
+import (
+	"embed"
+	"fmt"
+	"io/fs"
+	"path"
+	"sort"
+	"strings"
+)
+
+// The project templates, one directory each, plus the files every project
+// shares. Templates use [[ ]] as delimiters: Go code is full of {{ }} in
+// composite literals such as []T{{...}}.
+//
+//go:embed tmpl
+var templateFS embed.FS
+
+// projectTemplate is one kind of project `limoni new -template` can create.
+type projectTemplate struct {
+	Name    string
+	Summary string
+	Readme  string // a paragraph for the generated README
+}
+
+// projectTemplates lists the templates, the default first.
+var projectTemplates = []projectTemplate{
+	{Name: "counter", Summary: "the smallest declarative app: a model, Update and View",
+		Readme: "A declarative (Elm architecture) application: state lives in `model`, `Update` handles messages, `View` draws. Press keys to count, q to quit."},
+	{Name: "dashboard", Summary: "immediate mode with live data: a sparkline and a table fed by a goroutine",
+		Readme: "An immediate-mode dashboard: `draw` is called for every event, and `sample` feeds it data from a goroutine, waking the app with `limoni.Wakeup`. Replace `sample` with your own source."},
+	{Name: "form", Summary: "a declarative form: text inputs, a checkbox, a button, validation",
+		Readme: "A form with two text inputs, a checkbox and a submit button, navigated with Tab. `submit` holds the validation."},
+	{Name: "ssh", Summary: "serve an app over SSH, one limoni.App per connection",
+		Readme: "Serves an application over SSH: `go run .`, then `ssh -p 2222 localhost`. Each connection gets its own `limoni.App`; your application is in `session.go`. **It accepts anyone and makes a new host key each run** — add authentication and a persistent key before exposing it."},
+}
+
+func findTemplate(name string) (projectTemplate, error) {
+	for _, t := range projectTemplates {
+		if t.Name == name {
+			return t, nil
+		}
+	}
+	var names []string
+	for _, t := range projectTemplates {
+		names = append(names, t.Name)
+	}
+	return projectTemplate{}, fmt.Errorf("unknown template %q: choose one of %s", name, strings.Join(names, ", "))
+}
+
+// scaffoldFile is one file to generate: its name in the project and the
+// template it is rendered from.
 type scaffoldFile struct {
 	Name     string
 	Template string
 }
 
-// scaffoldFiles is the file set `limoni init` and `limoni new` write.
-// {{.Module}}, {{.Name}} and {{.GoVersion}} are filled in when rendering.
-var scaffoldFiles = []scaffoldFile{
-	{Name: "go.mod", Template: goModTemplate},
-	{Name: "main.go", Template: mainTemplate},
-	{Name: ".gitignore", Template: gitignoreTemplate},
-	{Name: "README.md", Template: readmeTemplate},
-}
-
-// goModTemplate deliberately leaves the limoni requirement out: `go mod tidy`
-// (or `go get github.com/thebanri/limoni`) resolves the latest release.
-//
-// The go directive must never be newer than the one in Limoni's own go.mod —
-// a newer one forces every user onto that exact toolchain. The test
-// TestGeneratedGoDirectiveMatchesModule keeps the two in step.
-const goModTemplate = `module {{.Module}}
-
-go {{.GoVersion}}
-`
-
-const mainTemplate = `// {{.Name}} is a terminal application built with Limoni's declarative
-// (Elm architecture) runtime: Init, Update and View on a model.
-package main
-
-import (
-	"context"
-	"fmt"
-	"os"
-
-	"github.com/thebanri/limoni"
-	"github.com/thebanri/limoni/widgets"
-)
-
-type model struct {
-	presses int
-}
-
-func (m *model) Init() []limoni.Cmd { return nil }
-
-func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
-	switch msg := msg.(type) {
-	case limoni.KeyPressMsg:
-		if msg.Key.Type == limoni.KeyEsc || (msg.Key.Type == limoni.KeyRune && msg.Key.Ch == 'q') {
-			return limoni.UpdateResult{Quit: true}
+// filesFor returns the files a project from template t consists of.
+func filesFor(t projectTemplate) ([]scaffoldFile, error) {
+	read := func(p string) (string, error) {
+		b, err := templateFS.ReadFile(p)
+		return string(b), err
+	}
+	files := []scaffoldFile{}
+	for name, src := range map[string]string{"go.mod": "tmpl/go.mod.tmpl", ".gitignore": "tmpl/gitignore.tmpl", "README.md": "tmpl/README.md.tmpl"} {
+		body, err := read(src)
+		if err != nil {
+			return nil, err
 		}
-		m.presses++
-		return limoni.UpdateResult{Redraw: true}
-	case limoni.ResizeMsg:
-		return limoni.UpdateResult{Redraw: true}
+		files = append(files, scaffoldFile{Name: name, Template: body})
 	}
-	return limoni.UpdateResult{}
-}
-
-func (m *model) View(f *limoni.Frame) {
-	f.SetTheme(widgets.DarkTheme())
-	f.RenderWidget(limoni.Block{
-		Title:         " {{.Name}} ",
-		Borders:       limoni.BorderAll,
-		BorderSymbols: limoni.SymbolsRounded,
-		Padding:       widgets.UniformInsets(1),
-		Child: &limoni.Paragraph{
-			Text: fmt.Sprintf("Hello from Limoni!\n\nKeys pressed: %d\n\nPress q or Esc to quit.", m.presses),
-			Wrap: true,
-		},
-	}, f.Area())
-}
-
-func main() {
-	if err := limoni.RunProgram(context.Background(), &model{}, limoni.WithProgramFPS(60)); err != nil {
-		fmt.Fprintln(os.Stderr, "{{.Name}}:", err)
-		os.Exit(1)
+	entries, err := fs.ReadDir(templateFS, path.Join("tmpl", t.Name))
+	if err != nil {
+		return nil, err
 	}
+	for _, e := range entries {
+		body, err := read(path.Join("tmpl", t.Name, e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, scaffoldFile{Name: strings.TrimSuffix(e.Name(), ".tmpl"), Template: body})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+	return files, nil
 }
-`
-
-const gitignoreTemplate = `{{.Name}}
-*.test
-*.out
-`
-
-const readmeTemplate = `# {{.Name}}
-
-A terminal application built with [Limoni](https://github.com/thebanri/limoni).
-
-## Run
-
-` + "```bash" + `
-go mod tidy
-go run .
-` + "```" + `
-
-## Layout
-
-- ` + "`main.go`" + ` — a model with ` + "`Init`" + `, ` + "`Update`" + ` and ` + "`View`" + `, run by ` + "`limoni.RunProgram`" + `.
-- Keys: ` + "`q`" + ` or ` + "`Esc`" + ` quits.
-
-## Next steps
-
-- Use widgets from the ` + "`widgets`" + ` package — Table, List, TextInput, Tabs, Canvas — inside ` + "`View`" + `.
-- Test it like a web page with [uitest](https://pkg.go.dev/github.com/thebanri/limoni/uitest):
-  ` + "`uitest.Program(t, 80, 24, &model{})`" + `, then find widgets by role and label.
-- Browse the widget gallery: https://github.com/thebanri/limoni/blob/main/docs/widget-gallery.md
-`
