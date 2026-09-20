@@ -1,0 +1,113 @@
+// [[.Name]] is a form built with Limoni's declarative (Elm architecture)
+// runtime. Tab moves between fields, Space toggles the checkbox, Enter on
+// the button submits.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/widgets"
+)
+
+// fields, in Tab order.
+const (
+	fieldName = iota
+	fieldEmail
+	fieldTerms
+	fieldSubmit
+	fieldCount
+)
+
+type model struct {
+	focus  int
+	name   *widgets.TextInputState
+	email  *widgets.TextInputState
+	terms  bool
+	result string
+}
+
+func newModel() *model {
+	return &model{name: widgets.NewTextInputState(), email: widgets.NewTextInputState()}
+}
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	press, ok := msg.(limoni.KeyPressMsg)
+	if !ok {
+		_, resized := msg.(limoni.ResizeMsg)
+		return limoni.UpdateResult{Redraw: resized}
+	}
+	key := press.Key
+	switch {
+	case key.Type == limoni.KeyEsc:
+		return limoni.UpdateResult{Quit: true}
+	case key.Type == limoni.KeyTab:
+		if key.Shift {
+			m.focus = (m.focus + fieldCount - 1) % fieldCount
+		} else {
+			m.focus = (m.focus + 1) % fieldCount
+		}
+	case m.focus == fieldName:
+		m.name.HandleKey(key)
+	case m.focus == fieldEmail:
+		m.email.HandleKey(key)
+	case m.focus == fieldTerms && key.Type == limoni.KeySpace:
+		m.terms = !m.terms
+	case m.focus == fieldSubmit && (key.Type == limoni.KeyEnter || key.Type == limoni.KeySpace):
+		m.submit()
+	}
+	return limoni.UpdateResult{Redraw: true}
+}
+
+// submit validates the form and says what happened.
+func (m *model) submit() {
+	switch {
+	case strings.TrimSpace(m.name.Value()) == "":
+		m.result = "Please enter your name."
+	case !strings.Contains(m.email.Value(), "@"):
+		m.result = "That email address has no @."
+	case !m.terms:
+		m.result = "Please accept the terms."
+	default:
+		m.result = fmt.Sprintf("Thanks, %s! We'll write to %s.", m.name.Value(), m.email.Value())
+	}
+}
+
+func (m *model) View(f *limoni.Frame) {
+	f.SetTheme(widgets.DarkTheme())
+	area := f.Area()
+	f.RenderWidget(limoni.Block{Title: " [[.Name]] ", Borders: limoni.BorderAll, BorderSymbols: limoni.SymbolsRounded}, area)
+
+	x, w := area.X+2, min(area.Width-4, 50)
+	label := func(y uint16, text string) {
+		f.RenderWidget(widgets.NewLabel(text), limoni.NewRect(x, y, w, 1))
+	}
+	label(area.Y+2, "Name")
+	f.RenderWidget(&widgets.TextInput{ID: "name", State: m.name, Placeholder: "Name", Focused: m.focus == fieldName}, limoni.NewRect(x, area.Y+3, w, 1))
+	label(area.Y+5, "Email")
+	f.RenderWidget(&widgets.TextInput{ID: "email", State: m.email, Placeholder: "Email", Focused: m.focus == fieldEmail}, limoni.NewRect(x, area.Y+6, w, 1))
+	f.RenderWidget(&widgets.Checkbox{ID: "terms", Checked: &m.terms, Label: "I accept the terms", Style: focusStyle(m.focus == fieldTerms)}, limoni.NewRect(x, area.Y+8, w, 1))
+	f.RenderWidget(&limoni.Button{ID: "submit", Label: "Submit", Style: focusStyle(m.focus == fieldSubmit)}, limoni.NewRect(x, area.Y+10, 12, 1))
+	f.RenderWidget(&limoni.Paragraph{ID: "result", Text: m.result, Wrap: true}, limoni.NewRect(x, area.Y+12, w, 2))
+	f.RenderWidget(widgets.NewLabel("Tab next · Shift+Tab back · Space toggle · Enter submit · Esc quit"), limoni.NewRect(x, area.Y+area.Height-2, area.Width-4, 1))
+}
+
+// focusStyle marks the field the keyboard is on.
+func focusStyle(focused bool) limoni.Style {
+	if focused {
+		return limoni.Style{Modifier: limoni.ModifierReverse}
+	}
+	return limoni.Style{}
+}
+
+func main() {
+	if err := limoni.RunProgram(context.Background(), newModel()); err != nil {
+		fmt.Fprintln(os.Stderr, "[[.Name]]:", err)
+		os.Exit(1)
+	}
+}

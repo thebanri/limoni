@@ -47,6 +47,8 @@ body:
   - type: textarea
     id: env
     attributes:
-      label: Terminal environment
-      description: Output of `echo "$TERM $COLORTERM $TERM_PROGRAM"`. Say if you are in tmux, screen or SSH.
-      render: shell
+      label: limoni doctor
+      description: |
+        Output of `go run github.com/thebanri/limoni/cmd/limoni@latest doctor`, run in the terminal where the bug happens.
+        It asks the terminal what it supports and shows what Limoni decided. Say if you are in tmux, screen or SSH.
+      render: text

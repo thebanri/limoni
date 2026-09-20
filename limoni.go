@@ -42,6 +42,9 @@ type (
 	Insets          = widgets.Insets
 	Block           = widgets.Block
 	Paragraph       = widgets.Paragraph
+	Button          = widgets.Button
+	LogView         = widgets.LogView
+	LogViewState    = widgets.LogViewState
 	List            = widgets.List
 	ListState       = widgets.ListState
 	Table           = widgets.Table

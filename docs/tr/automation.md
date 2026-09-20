@@ -100,6 +100,18 @@ Tek API, üç hedef: immediate-mode çizim fonksiyonu için `uitest.Run`, gerçe
 
 Listeler görünür satırlarını `list-item` alt düğümleri olarak sunar; bir satıra tuş basışı sayarak değil, metniyle ulaşılır.
 
+Yapılandırılmış widget'lar görünen öğelerini alt düğüm olarak sunar, böylece bir öğeye tuşa kaç kez basıldığını saymadan metniyle ulaşılır: listenin satırları `list-item`, tablonun satırları `row` (ilk hücreyle etiketlenir, her sütun için bir `cell` alt düğümü vardır), sekme çubuğu `tab`'lardan oluşan bir `tab-list` (`State: &widgets.TabsState{}` verilmeli), ağacın görünen öğeleri ise açık/kapalı durumuyla `tree-item`.
+
+Tıklama durumu tersine çevirir; iki kez çalışan bir adım kendini geri alır. `Check`, `Uncheck` ve `Select` yalnızca widget o durumda değilse tıklar ve o duruma gelmesini bekler:
+
+```go
+page.GetByID("agree").Check()               // zaten işaretliyse hiçbir şey yapmaz
+page.GetByRole("row", "beta").Select()
+page.GetByRole("tab", "Logs").Select()
+```
+
+MCP üzerinden aynısı `click` aracına `ensure: "checked" | "unchecked" | "selected"` vermektir.
+
 > [!WARNING]
 > **Bu, çalışan bir sürece kontrol kanalı açar.** Her biri kendi başına kapalı başarısız olan katmanlar hâlinde kuruldu.
 >

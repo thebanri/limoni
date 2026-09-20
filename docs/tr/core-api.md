@@ -63,7 +63,9 @@ Widget'ların çizim anında aldığı bağlam nesnesi:
 - `ctx.Area`: Aktif sınırlayıcı alan.
 - `ctx.Style`: Üst kapsayıcıdan veya temadan devralınan stil.
 - `ctx.ThemeStyle(role)`: Anlamsal tema renklerini çözer (`"surface"`, `"border"`, `"text"`).
-- `ctx.RegisterClick(area, handler)`: Tıklanabilir bölgeleri kaydeder.
+- `ctx.RegisterClickAction(area, cell.ClickAction{Focus: id, Toggle: &on})`: Bir tıklamanın ne yapacağını veri olarak kaydeder. Bellek tahsis etmez; bunu tercih et.
+- `ctx.RegisterScroll(area, &offset, max)`: Fare tekerleğiyle `offset` değerini `[0, max]` aralığında kaydırır; bellek tahsis etmez.
+- `ctx.RegisterClick(area, handler)`: Yukarıdaki ikisinin ifade edemediği durumlar için bir tıklama closure'ı kaydeder. Her karede bir bellek tahsisine mal olur.
 - `ctx.RegisterMouse(area, handler)`: Fare gezintisi, sürükleme ve kaydırma bölgelerini kaydeder.
 - `ctx.RegisterFocus(id)`: Odaklanabilir öğe sınırlarını kaydeder.
 

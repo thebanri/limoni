@@ -37,7 +37,6 @@ var defaultApplePNG []byte
 //go:embed profile.png
 var defaultProfilePNG []byte
 
-
 // Theme defines colors for the UI showcase.
 type Theme struct {
 	Name      string

@@ -18,6 +18,7 @@ type Backend struct {
 	done          chan struct{}
 	inlineHeight  uint16
 	inlineMu      sync.RWMutex
+	replies       replyCollector // never sent: this backend writes no setup
 }
 
 func NewBackend(in, out *os.File) *Backend {

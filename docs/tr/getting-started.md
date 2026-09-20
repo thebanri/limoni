@@ -180,6 +180,38 @@ func main() {
 
 ---
 
+## ⏹️ Durdurma, Uyandırma ve Birden Fazla Uygulama
+
+`limoni.RunWithContext`, context alan bir `limoni.Run`'dır. Context iptal
+edildiğinde terminal eski hâline döner ve fonksiyon `ctx.Err()` döndürür:
+
+```go
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+defer stop()
+err := limoni.RunWithContext(ctx, draw, limoni.WithFPS(30))
+```
+
+Arka plandaki bir goroutine bir durumu değiştirdiğinde, girdi beklemeden yeni
+bir kare çizdirmek için `limoni.Wakeup()` çağırır.
+
+Kendi oluşturduğun bir terminalde (örneğin her SSH oturumu için ayrı bir
+terminalde) uygulama çalıştırmak için `limoni.NewApp` kullan. Her `App`'in
+kendi uyandırma kanalı vardır, bu yüzden tek bir süreçte istediğin kadar
+uygulama çalışabilir:
+
+```go
+term, _ := terminal.New(driver.NewSSHBackend(session))
+app := limoni.NewApp(term, limoni.WithFPS(30))
+go func() { for range updates { app.Wakeup() } }() // yalnızca bu oturumu uyandırır
+err := app.Run(ctx, draw)
+```
+
+`limoni.Wakeup()` çalışan bütün uygulamaları uyandırır.
+[`examples/ssh_server`](../../examples/ssh_server) her SSH bağlantısına bu
+şekilde ayrı bir uygulama sunuyor.
+
+---
+
 ## 🎨 Renkler ve Stiller
 
 ```go

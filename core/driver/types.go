@@ -14,6 +14,10 @@ const (
 	EventResize
 	EventFocus
 	EventPaste
+	// EventReply is the terminal answering a query Limoni sent — device
+	// attributes, a mode report, its name and version. Backends consume these
+	// themselves (see TerminalReport); applications do not normally see them.
+	EventReply
 )
 
 // KeyType represents special keyboard keys.
@@ -99,6 +103,44 @@ type FocusEvent struct {
 
 type PasteEvent struct{ Text string }
 
+// ReplyKind says which query a ReplyEvent answers.
+type ReplyKind uint8
+
+const (
+	ReplyNone ReplyKind = iota
+	// ReplyPrimaryDA is the answer to DA1 (CSI c). Every terminal answers it,
+	// which makes it the sentinel: once it arrives, every query sent before it
+	// has been answered or never will be.
+	ReplyPrimaryDA
+	// ReplyMode is a DECRPM mode report (CSI ? mode ; setting $ y).
+	ReplyMode
+	// ReplyVersion is an XTVERSION report (DCS > | name-and-version ST).
+	ReplyVersion
+	// ReplyKittyKeyboard reports the progressive keyboard flags (CSI ? flags u).
+	ReplyKittyKeyboard
+	// ReplyCursor is a cursor position report (CSI row ; col R), the answer to
+	// CSI 6 n. The same bytes are what some terminals send for a modified F3,
+	// which Limoni has never delivered as a key; they are read as a report.
+	ReplyCursor
+)
+
+// ReplyEvent carries a terminal's answer to a query.
+type ReplyEvent struct {
+	Kind ReplyKind
+	// Mode and Setting hold a DECRPM report. Setting follows DECRQM: 0 not
+	// recognised, 1 set, 2 reset, 3 permanently set, 4 permanently reset.
+	Mode, Setting int
+	// Attributes holds the DA1 attribute list as a bit set (attribute n is
+	// bit n, for n < 64). Attribute 4 is sixel graphics.
+	Attributes uint64
+	// Flags holds the Kitty keyboard flags.
+	Flags int
+	// Row and Col hold a cursor position report, 1-based.
+	Row, Col int
+	// Version holds the XTVERSION text, e.g. "kitty(0.39.1)" or "tmux 3.5a".
+	Version string
+}
+
 // Event is a flat, zero-allocation container unifying all TUI event types.
 // Using a value type instead of interfaces prevents heap allocations in high-frequency event loops.
 type Event struct {
@@ -108,6 +150,7 @@ type Event struct {
 	Resize ResizeEvent
 	Focus  FocusEvent
 	Paste  PasteEvent
+	Reply  ReplyEvent
 }
 
 // PlatformCapabilityMatrix reports terminal and OS capability support.

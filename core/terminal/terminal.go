@@ -59,8 +59,17 @@ type Terminal struct {
 	lastFrameDuration time.Duration
 	lastWidgetStats   []WidgetStat
 
-	// Terminal capabilities
-	caps CapabilityProfile
+	// Terminal capabilities: caps is what Draw uses; detected is the
+	// environment's guess that the handshake refines into caps.
+	caps     CapabilityProfile
+	detected CapabilityProfile
+	// capsPinned is set by SetCapabilities: the application's word beats the
+	// handshake.
+	capsPinned bool
+	// reportVersion is the TerminalReport counter last folded into caps.
+	reportVersion uint64
+	// drawn is set once a frame has been written to the terminal.
+	drawn bool
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -80,13 +89,15 @@ func New(b *driver.Backend) (*Terminal, error) {
 
 	focusMgr := NewFocusManager()
 
+	detected := DetectCapabilities()
 	return &Terminal{
 		driver:   b,
 		front:    front,
 		back:     back,
 		frame:    NewFrame(front, focusMgr),
 		writeBuf: make([]byte, 0, 8192), // Başlangıçta 8 KB'lık yazma tamponu tahsis et
-		caps:     DetectCapabilities(),
+		caps:     detected,
+		detected: detected,
 	}, nil
 }
 
@@ -155,11 +166,56 @@ func (t *Terminal) SetCapabilities(profile CapabilityProfile) {
 		return
 	}
 	t.caps = profile
+	t.capsPinned = true
+}
+
+// refreshCapabilities folds new answers from the capability handshake into
+// the profile. The check is one atomic load, so it runs on every frame: the
+// answers arrive asynchronously, usually before the first frame, but on a slow
+// link possibly after it.
+func (t *Terminal) refreshCapabilities() {
+	if t.capsPinned || t.driver == nil {
+		return
+	}
+	if t.driver.TerminalReportVersion() == t.reportVersion {
+		return
+	}
+	report, version := t.driver.TerminalReport()
+	t.reportVersion = version
+	caps := t.detected.WithReport(report)
+	if caps != t.caps && t.drawn {
+		// What is on screen was encoded for the old profile — with REP the
+		// terminal may not have, or cursor positions that assumed other
+		// cluster widths. Only a full repaint puts it right.
+		t.ForceFullRedraw()
+	}
+	t.caps = caps
 }
 
 // Capabilities returns the capability profile of the active terminal.
 func (t *Terminal) Capabilities() CapabilityProfile {
 	return t.caps
+}
+
+// Suspend hands the terminal back to the shell and stops the process, as
+// Ctrl+Z does in any other program. It returns when the shell resumes the
+// application, with raw mode and the screen set up again and the next frame
+// forced to repaint in full — the shell has written over the screen, and the
+// terminal may even be a different one.
+//
+// It returns driver.ErrSuspendUnsupported on a backend with no controlling
+// terminal to give back: a remote or in-memory one, the browser, Windows.
+func (t *Terminal) Suspend() error {
+	if t == nil || t.driver == nil {
+		return nil
+	}
+	if err := t.driver.Suspend(); err != nil {
+		return err
+	}
+	// Answers to the fresh handshake land in the report; take them next frame.
+	t.reportVersion = 0
+	t.ForceFullRedraw()
+	return nil
 }
 
 // Draw initiates a frame drawing pass. It detects terminal resize, clears the front buffer,
@@ -168,6 +224,7 @@ func (t *Terminal) Capabilities() CapabilityProfile {
 // Performance: Employs a zero-allocation design on steady-state redraw passes.
 func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t0 := time.Now()
+	t.refreshCapabilities()
 	// Güncel ekran boyutunu sorgula
 	w, h, err := t.driver.Size()
 	if t.inline > 0 {
@@ -264,7 +321,10 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	}
 
 	// ── 1. ADIM: Kitty/Sixel resimlerini tampona ekle (en arka piksel katmanı) ──
-	proto := graphics.DetectProtocol()
+	// The protocol detected when the terminal was created (or set with
+	// SetCapabilities). Detecting it again here read a dozen environment
+	// variables on every frame, and on Windows each read allocates.
+	proto := t.caps.GraphicsProto
 	if proto != graphics.ProtocolHalfBlock {
 		imageRegions := t.clippedImageRegions()
 		if len(imageRegions) > 0 {
@@ -328,6 +388,9 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		Colors256:  t.caps.Colors256,
 		EraseChar:  t.caps.EraseChar,
 		RepeatChar: t.caps.RepeatChar,
+		// A terminal that confirmed mode 2027 needs no cursor re-anchoring
+		// after each grapheme cluster.
+		ClusterWidths: t.caps.ClusterWidths,
 		// Draw already wrapped the frame in ?2026 above; wrapping again inside
 		// the encoder would nest the sequence.
 		SyncOutput: false,
@@ -357,6 +420,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		if _, err := t.driver.Write(t.writeBuf); err != nil {
 			return err
 		}
+		t.drawn = true
 	}
 
 	dur := time.Since(t0)
@@ -479,7 +543,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 				for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 					reg := t.frame.ClickRegions[i]
 					if reg.LayerID == topLayer.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-						reg.Handler(ev)
+						reg.Fire(ev, t.frame)
 						if t.frame.mouseCaptureRequest != nil {
 							t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 							t.frame.mouseCaptureRequest = nil
@@ -507,7 +571,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 				reg := t.frame.ClickRegions[i]
 				if reg.LayerID == modal.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-					reg.Handler(ev)
+					reg.Fire(ev, t.frame)
 					if t.frame.mouseCaptureRequest != nil {
 						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 						t.frame.mouseCaptureRequest = nil
@@ -529,7 +593,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		reg := t.frame.ClickRegions[i]
 		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-			reg.Handler(ev)
+			reg.Fire(ev, t.frame)
 			if t.frame.mouseCaptureRequest != nil {
 				t.mouseCaptureHandler = t.frame.mouseCaptureRequest
 				t.frame.mouseCaptureRequest = nil

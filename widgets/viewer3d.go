@@ -39,8 +39,10 @@ type Viewer3D struct {
 	// Scale is the zoom/scale multiplier (default: 1.0).
 	Scale float64
 
-	// Shading mode: "Dokulu" (Texture mapped), "Wireframe", "Dolu Renkli" (Flat),
-	// "Gölgeli" (Lambertian), "Gouraud" (Smooth interpolated).
+	// Shading is one of ShadingTexture, ShadingWireframe, ShadingFlat,
+	// ShadingLambert or ShadingGouraud. Empty picks Texture when there is a
+	// texture and Wireframe otherwise. The original Turkish names "Dokulu",
+	// "Dolu Renkli" and "Gölgeli" are still accepted.
 	Shading string
 
 	// Wireframe overlays edges on top of shaded faces.
@@ -103,12 +105,12 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		scaleFactor = 1.0
 	}
 
-	shading := v.Shading
+	shading := canonicalShading(v.Shading)
 	if shading == "" {
 		if texture != nil {
-			shading = "Dokulu"
+			shading = ShadingTexture
 		} else {
-			shading = "Wireframe"
+			shading = ShadingWireframe
 		}
 	}
 
@@ -223,7 +225,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		norm0 := graphics.CalculateNormal(v0, v1, v2)
 
 		switch shading {
-		case "Dokulu":
+		case ShadingTexture:
 			if texture != nil {
 				if isQuad {
 					uv0 := graphics.UV{U: 0.0, V: 1.0}
@@ -262,7 +264,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 			}
 
-		case "Dolu Renkli":
+		case ShadingFlat:
 			if isQuad {
 				canvas.DrawFilledTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, faceStyle)
 				canvas.DrawFilledTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, graphics.Vertex2D{X: p3.x, Y: p3.y}, p0.z, p2.z, p3.z, faceStyle)
@@ -270,7 +272,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				canvas.DrawFilledTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, faceStyle)
 			}
 
-		case "Gölgeli":
+		case ShadingLambert:
 			if isQuad {
 				canvas.DrawLambertTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, norm0, light, faceStyle)
 				v3 := rotated[face[3]]
@@ -280,7 +282,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				canvas.DrawLambertTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, norm0, light, faceStyle)
 			}
 
-		case "Gouraud":
+		case ShadingGouraud:
 			n0, n1, n2 := norm0, norm0, norm0
 			c0 := graphics.ApplyShade(col, light.CalculateIntensity(n0))
 			c1 := graphics.ApplyShade(col, light.CalculateIntensity(n1))
@@ -295,7 +297,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		if shading == "Wireframe" || v.Wireframe {
+		if shading == ShadingWireframe || v.Wireframe {
 			canvas.DrawLine(int(p0.x), int(p0.y), int(p1.x), int(p1.y), wireStyle)
 			canvas.DrawLine(int(p1.x), int(p1.y), int(p2.x), int(p2.y), wireStyle)
 			if isQuad {
@@ -308,4 +310,28 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	canvas.Draw(ctx, buf)
+}
+
+// Shading modes for Viewer3D.Shading.
+const (
+	ShadingTexture   = "Texture"   // texture-mapped, needs a texture and UVs
+	ShadingWireframe = "Wireframe" // edges only
+	ShadingFlat      = "Flat"      // one colour per face
+	ShadingLambert   = "Lambert"   // diffuse lighting per face
+	ShadingGouraud   = "Gouraud"   // lighting interpolated across each face
+)
+
+// canonicalShading maps the names Viewer3D first shipped with, which were
+// Turkish, to the constants above, so applications written against them keep
+// working.
+func canonicalShading(s string) string {
+	switch s {
+	case "Dokulu":
+		return ShadingTexture
+	case "Dolu Renkli":
+		return ShadingFlat
+	case "Gölgeli":
+		return ShadingLambert
+	}
+	return s
 }

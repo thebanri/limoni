@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -355,24 +356,71 @@ func TestCommandPaletteState_HandleKey_ReturnsTrueWhenOpen(t *testing.T) {
 	}
 }
 
-func TestComputeMatchPositions(t *testing.T) {
-	positions := computeMatchPositions("gsg", "grafik sekmesine git")
-	// g-s-g sırasıyla eşleşmeli
-	if len(positions) != 3 {
-		t.Fatalf("positions uzunluğu = %d; 3 bekleniyordu", len(positions))
+// The fuzzy highlight marks the query's characters in order, case-insensitive.
+func TestDrawHighlightedMarksTheFuzzyMatch(t *testing.T) {
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 30, 1))
+	plain := cell.Style{}
+	match := cell.Style{Modifier: cell.ModifierBold}
+	end := drawHighlighted(buf, 0, 0, 30, "Grafik sekmesine git", "gsG", plain, match)
+	if end != 20 {
+		t.Fatalf("label ended at column %d, want 20", end)
 	}
-	// 'g' (0), 's' (7), 'g' (17) konumları
-	for _, p := range []int{0, 7, 17} {
-		if !positions[p] {
-			t.Fatalf("konum %d eşleşme olarak işaretlenmeli", p)
+	for x := uint16(0); x < 20; x++ {
+		want := x == 0 || x == 7 || x == 17
+		if got := buf.Get(x, 0).Style.Modifier&cell.ModifierBold != 0; got != want {
+			t.Errorf("column %d highlighted = %v, want %v", x, got, want)
+		}
+	}
+
+	buf = buffer.NewBuffer(cell.NewRect(0, 0, 30, 1))
+	drawHighlighted(buf, 0, 0, 30, "any text", "", plain, match)
+	for x := uint16(0); x < 8; x++ {
+		if buf.Get(x, 0).Style.Modifier&cell.ModifierBold != 0 {
+			t.Fatalf("empty query highlighted column %d", x)
 		}
 	}
 }
 
-func TestComputeMatchPositions_EmptyQuery(t *testing.T) {
-	positions := computeMatchPositions("", "herhangi bir metin")
-	if len(positions) != 0 {
-		t.Fatalf("boş sorgu için positions uzunluğu = %d; 0 bekleniyordu", len(positions))
+// The palette speaks English by default, can be localised, and draws labels
+// in columns: a wide label no longer overlaps itself, and drawing is free of
+// allocations.
+func TestCommandPaletteTextIsLocalisableAndClusterAware(t *testing.T) {
+	state := NewCommandPaletteState()
+	state.AllItems = []CommandItem{{Label: "日本語 \U0001F1F9\U0001F1F7 open", Detail: "Ctrl+O"}}
+	state.Open()
+	area := cell.NewRect(0, 0, 60, 12)
+
+	read := func(cp CommandPalette) string {
+		buf := buffer.NewBuffer(area)
+		cp.Draw(cell.Context{Area: area}, buf)
+		var sb strings.Builder
+		for y := uint16(0); y < area.Height; y++ {
+			for x := uint16(0); x < area.Width; x++ {
+				if c := buf.Get(x, y); c.Content != cell.RuneContinuation {
+					sb.WriteString(cell.ClusterText(c.Content))
+				}
+			}
+			sb.WriteByte('\n')
+		}
+		return sb.String()
+	}
+
+	screen := read(CommandPalette{ID: "p", State: state})
+	for _, want := range []string{"⌘ Commands", "Search commands...", "日本語 \U0001F1F9\U0001F1F7 open", "Ctrl+O", "1/1"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("screen lacks %q:\n%s", want, screen)
+		}
+	}
+	localised := read(CommandPalette{ID: "p", State: state, Title: " Komutlar ", Placeholder: "Komut ara..."})
+	if !strings.Contains(localised, "Komutlar") || !strings.Contains(localised, "Komut ara...") {
+		t.Errorf("Title/Placeholder ignored:\n%s", localised)
+	}
+
+	buf := buffer.NewBuffer(area)
+	cp := CommandPalette{ID: "p", State: state}
+	cp.Draw(cell.Context{Area: area}, buf)
+	if a := testing.AllocsPerRun(50, func() { cp.Draw(cell.Context{Area: area}, buf) }); a != 0 {
+		t.Errorf("Draw allocates %.0f times per frame", a)
 	}
 }
 

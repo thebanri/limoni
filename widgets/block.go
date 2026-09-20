@@ -444,18 +444,17 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				Width:  area.Width - left - right,
 				Height: area.Height - top - bottom,
 			}
-			// Alt bileşene daraltılmış alan ve birleştirilmiş stil bağlamını aktar
-			childCtx := cell.NewContext(childArea, blockStyle)
-			childCtx.RegisterClick = ctx.RegisterClick
-			childCtx.RegisterMouse = ctx.RegisterMouse
-			childCtx.RegisterEvent = ctx.RegisterEvent
-			childCtx.CaptureMouse = ctx.CaptureMouse
-			childCtx.RegisterImage = ctx.RegisterImage
-			childCtx.RegisterFocus = ctx.RegisterFocus
-			childCtx.SetFocus = ctx.SetFocus
-			childCtx.FocusedID = ctx.FocusedID
-			childCtx.ThemeStyle = ctx.ThemeStyle
+			// The child gets the whole context with a narrower area and the
+			// block's style. Copying fields one by one dropped every field
+			// added to Context later — the click actions and wheel scrolling
+			// among them.
+			childCtx := ctx
+			childCtx.Area = childArea
+			childCtx.Style = blockStyle
 			b.Child.Draw(childCtx, buf)
+			if ctx.Describe != nil {
+				ctx.Describe(b.Child, childArea)
+			}
 		}
 	}
 }
