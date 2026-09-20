@@ -13,14 +13,18 @@ Longer architectural background lives in `.agents/skills/limoni_development/skil
 and `docs/`. This file is the short version plus the things that are easy to get
 wrong.
 
-Two skills in `.claude/skills/` carry the detail for the areas that bite hardest,
-and load themselves when the work touches them:
+Four skills in `.claude/skills/` carry the detail for the areas that bite
+hardest, and load themselves when the work touches them:
 
 - `limoni-agent-surface` — the semantic tree, the automation socket,
   `cmd/limoni-mcp` and `uitest`: invariants, the bugs they came from, and how to
   test an agent surface (unit, mutation, PTY, a real agent).
 - `limoni-text-rendering` — grapheme clusters, widths, mode 2027, the cluster
-  table, and the inlining and fast-path work that paid for segmentation.
+  table, and the tools widgets use to measure and cut text.
+- `limoni-performance` — where allocations hide in a frame, how to find them
+  with a profile, how to compare benchmarks, and the release steps.
+- `limoni-zest` — the log viewer: its store, filtering and LogView, and the
+  four places it is verified.
 
 ---
 
@@ -244,11 +248,18 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    in `gen.go`, run it, and replace the conformance test data.
 
 5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
-   notifications, no mouse shape, no window title, no suspend/resume.
+   notifications, no mouse shape, no suspend/resume (Ctrl+Z). A window title
+   (OSC 2) is open as issue #16.
+
+   Suspend is the one with a design question: on Ctrl+Z the app must restore
+   the terminal, `SIGTSTP` itself, and on `SIGCONT` re-run setup and force a
+   full redraw. The input goroutine stays blocked in `read` meanwhile, which is
+   fine; the handshake must not be re-sent blindly on resume.
 
 6. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
    syntax-highlighted code view, big text, calendar, autocomplete. (Log view is
-   done: `widgets.LogView`, used by `cmd/zest`.)
+   done: `widgets.LogView`, used by `cmd/zest`; `widgets.Button` exists now.)
+   Several are open as `help wanted` issues.
 
 7. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
    alongside Braille (2×4). Sextants help where Braille fonts are missing.
@@ -273,3 +284,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    already in the cell, so adjacent blocks meet in `┬ ┼ ├ ┤ ┴`. It costs a read
    per border cell (~4%) and stays at zero allocations. Only the light set is
    merged — heavy and double lines have no honest junction with light ones.
+
+9. **Test coverage.** 68% across the library packages. awesome-go asks for 80%
+   and will not consider the project before 2027-01-06 anyway (they require five
+   months of history). The thin packages are `core/cell` (42%), the root package
+   (49%), `core/engine` and `core/driver` (55%), `component` (58%). Raising
+   these is good contributor work and honest prerequisite for that listing.

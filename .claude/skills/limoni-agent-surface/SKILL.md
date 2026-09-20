@@ -123,16 +123,74 @@ LIMONI_DEMO_SOCKET=$XDG_RUNTIME_DIR/limoni-checklist.sock \
   go test -v -run TestLiveDemo ./examples/agent_checklist     # terminal 2
 ```
 
+## Structure beyond List
+
+- **Rows, tabs, tree items are children too.** Table rows (`row`, labelled by
+  the first cell, with a `cell` child per column), TreeView items (`tree-item`,
+  with `StateExpanded`) and tabs (`tab-list`/`tab`, only when `Tabs.State` is
+  set). Table and Tabs build their nodes *during Draw* — only Draw knows which
+  filtered and sorted row lands on which screen row — into buffers on their
+  state, so a node built without a Draw has no children. Table's `cellNodes` is
+  sized *before* the row loop: rows keep sub-slices of it, and a later append
+  that grows it would leave them pointing at the old array.
+- **Nested widgets need `ctx.Describe`.** The frame only registered widgets it
+  rendered itself, so a widget drawn as a Block's `Child` or through
+  `AsComponent` was invisible — most of a real app. A container that draws a
+  child itself calls `ctx.Describe(child, area)` after drawing it; Block and
+  `WidgetAdapter` do. New containers must too.
+- **Copy the whole Context.** Block once built its child's context field by
+  field, so every Context field added later (click actions, wheel scrolling,
+  Describe) silently never reached nested widgets. `childCtx := ctx`, then
+  change Area/Style.
+- **Anything on screen an agent must know belongs in the tree.** Text drawn
+  with `SetString` is invisible to it. zest's "Esc clears" hint was plain text
+  and hidden while typing; a real agent cleared a filter with twenty
+  Backspaces. Draw status and key hints as widgets (`Paragraph{ID: "keys"}`).
+
+## uitest, the parts added later
+
+- `Locator.Check/Uncheck/Select` click only when needed and wait for the state;
+  MCP `click` takes `ensure: checked|unchecked|selected`. Use them in any step
+  that may run twice — `click` toggles.
+- `Expect(...).ToContainValue(s)`: a Paragraph's text is its *value* (its label
+  is "Text"), so `ToContainLabel` never matches it.
+- `Locator.Node()` waits for a match, not for a change. After an action, assert
+  with `Expect` (which retries); reading `Node().Value` straight away raced the
+  counter template's redraw.
+- `Page.ExpectExit()` waits for the app to quit. `Exited()` is immediate, and a
+  declarative program quits through its message loop a moment after the key.
+- Declarative mode: type with `page.Type`/`page.Press` into whatever the model
+  focuses; `Locator.Type` clicks to focus, which Program mode does not route.
+
+## Testing with a real agent: what one run taught
+
+A headless run against zest (`--tools ""`, only `mcp__limoni__*`, seeded demo
+log so the answer was known in advance: line 16, service `api`) answered
+correctly in 35 calls, 33 s, $1.08. Its detours were real bugs: Ctrl+U was
+typed as a "u" (TextInput inserted every Ctrl/Alt key — now ignored, readline
+keys implemented) and the missing hints above. Read transcripts for detours,
+not just the final answer. Summarise them from the stream-json with the tool
+calls and the first line of each result.
+
+## Harness traps (each cost a debugging session)
+
+- **Drain the PTY continuously.** A harness that reads the app's output only
+  between tool calls lets the PTY buffer fill; the app blocks in `write`, stops
+  drawing, and every tool reports "the tree did not change" — it looks exactly
+  like an app hang. Pump output on a thread. To tell which it is, redirect the
+  app's stderr to a file and send SIGQUIT: a goroutine dump showing
+  `Terminal.Draw → Backend.Write → syscall.write` is the harness.
+- **`pkill -f <pattern>` kills your own shell** when the pattern appears in the
+  command line that runs it. Stop processes by pid file.
+- **Windows resets AF_UNIX connections closed with unread data.** The server's
+  refusal message was lost because the client's request was still unread; it
+  now half-closes and drains (bounded) before closing. Only the Windows CI
+  runner shows this.
+- **Ground truth first.** Compute the expected answer from a seeded source
+  before running an agent, or a plausible wrong answer passes.
+
 ## Known gaps
 
-- Table rows (`row` + `cell`), TreeView items and Tabs (`tab-list`/`tab`, only
-  with `Tabs.State`) are now children. Table and Tabs build their nodes *during
-  Draw* — only Draw knows which filtered/sorted row is on which screen row — so
-  a node built without a Draw has no children. Table's `cellNodes` is sized
-  before the row loop because rows hold sub-slices of it.
 - Custom widgets embedding `widgets.Accessible` are not focusable, so Tab skips
-  them (the example's buttons are click-only).
-- Declarative mode does not route clicks to frame click handlers, so
-  `Locator.Type`'s click-to-focus cannot work there; focus with keys instead.
-- `click` toggles. `Locator.Check/Uncheck/Select` and MCP `click` with
-  `ensure` are the idempotent forms; use them in any step that may be repeated.
+  them (the example's buttons are click-only). `widgets.Button` exists now.
+- Declarative mode does not route clicks to frame click handlers.

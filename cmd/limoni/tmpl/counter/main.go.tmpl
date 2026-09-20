@@ -1,0 +1,54 @@
+// [[.Name]] is a terminal application built with Limoni's declarative
+// (Elm architecture) runtime: Init, Update and View on a model.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/widgets"
+)
+
+type model struct {
+	presses int
+}
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	switch msg := msg.(type) {
+	case limoni.KeyPressMsg:
+		if msg.Key.Type == limoni.KeyEsc || (msg.Key.Type == limoni.KeyRune && msg.Key.Ch == 'q') {
+			return limoni.UpdateResult{Quit: true}
+		}
+		m.presses++
+		return limoni.UpdateResult{Redraw: true}
+	case limoni.ResizeMsg:
+		return limoni.UpdateResult{Redraw: true}
+	}
+	return limoni.UpdateResult{}
+}
+
+func (m *model) View(f *limoni.Frame) {
+	f.SetTheme(widgets.DarkTheme())
+	f.RenderWidget(limoni.Block{
+		Title:         " [[.Name]] ",
+		Borders:       limoni.BorderAll,
+		BorderSymbols: limoni.SymbolsRounded,
+		Padding:       widgets.UniformInsets(1),
+		Child: &limoni.Paragraph{
+			ID:   "presses",
+			Text: fmt.Sprintf("Hello from Limoni!\n\nKeys pressed: %d\n\nPress q or Esc to quit.", m.presses),
+			Wrap: true,
+		},
+	}, f.Area())
+}
+
+func main() {
+	if err := limoni.RunProgram(context.Background(), &model{}, limoni.WithProgramFPS(60)); err != nil {
+		fmt.Fprintln(os.Stderr, "[[.Name]]:", err)
+		os.Exit(1)
+	}
+}

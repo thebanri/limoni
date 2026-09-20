@@ -14,11 +14,15 @@ import (
 func TestScaffoldWritesCompilableTemplate(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
-	if err := scaffold(dir, "example.com/acme/dashboard", false, &out); err != nil {
+	if err := scaffold(dir, "example.com/acme/dashboard", "counter", false, &out); err != nil {
 		t.Fatalf("scaffold failed: %v", err)
 	}
 
-	for _, file := range scaffoldFiles {
+	files, err := filesFor(projectTemplates[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
 		if _, err := os.Stat(filepath.Join(dir, file.Name)); err != nil {
 			t.Fatalf("expected %s to be created: %v", file.Name, err)
 		}
@@ -53,10 +57,10 @@ func TestScaffoldRefusesExistingFilesWithoutForce(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := scaffold(dir, "demo", false, &out); err == nil {
+	if err := scaffold(dir, "demo", "counter", false, &out); err == nil {
 		t.Fatal("expected scaffold to fail when main.go already exists")
 	}
-	if err := scaffold(dir, "demo", true, &out); err != nil {
+	if err := scaffold(dir, "demo", "counter", true, &out); err != nil {
 		t.Fatalf("scaffold with force failed: %v", err)
 	}
 }
@@ -111,36 +115,47 @@ func TestGeneratedGoDirectiveMatchesModule(t *testing.T) {
 	}
 }
 
-// TestScaffoldBuilds compiles the generated application against this
-// checkout. Parsing is not enough: the template once imported packages
-// through paths that had since moved.
+// TestScaffoldBuilds generates every template against this checkout and runs
+// go mod tidy, build, vet and the template's own uitest test in it. Parsing
+// is not enough: the first template imported packages through paths that had
+// since moved, and a template's test is the first thing a new user runs.
 func TestScaffoldBuilds(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds a module; skipped in -short")
+		t.Skip("builds modules; skipped in -short")
 	}
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	if err := scaffold(dir, "example.com/scaffoldcheck", false, &bytes.Buffer{}); err != nil {
-		t.Fatal(err)
+	for _, tmpl := range projectTemplates {
+		t.Run(tmpl.Name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := scaffold(dir, "example.com/"+tmpl.Name+"check", tmpl.Name, false, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+			f, err := os.OpenFile(filepath.Join(dir, "go.mod"), os.O_APPEND|os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = f.WriteString("\nrequire github.com/thebanri/limoni v0.0.0\nreplace github.com/thebanri/limoni => " + root + "\n")
+			f.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{"mod", "tidy"}, {"build", "-o", os.DevNull, "."}, {"vet", "."}, {"test", "./..."}} {
+				cmd := exec.Command("go", args...)
+				cmd.Dir = dir
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)
+				}
+			}
+		})
 	}
-	gomod := filepath.Join(dir, "go.mod")
-	f, err := os.OpenFile(gomod, os.O_APPEND|os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = f.WriteString("\nrequire github.com/thebanri/limoni v0.0.0\nreplace github.com/thebanri/limoni => " + root + "\n")
-	f.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"mod", "tidy"}, {"build", "-o", os.DevNull, "."}, {"vet", "."}} {
-		cmd := exec.Command("go", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)
-		}
+}
+
+func TestUnknownTemplateIsRefused(t *testing.T) {
+	err := scaffold(t.TempDir(), "x", "nope", false, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "counter, dashboard, form, ssh") {
+		t.Fatalf("got %v", err)
 	}
 }

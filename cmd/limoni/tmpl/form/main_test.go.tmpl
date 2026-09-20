@@ -1,0 +1,29 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/thebanri/limoni/uitest"
+)
+
+// The form runs through its real message loop, without a terminal. The test
+// uses the keyboard, as the form's users do, and checks the result through
+// the semantic tree.
+func TestSubmittingTheForm(t *testing.T) {
+	page := uitest.Program(t, 70, 20, newModel())
+
+	page.Type("Ada")
+	page.Press("tab")
+	page.Type("ada@example.com")
+	page.Press("tab")
+	page.Press("tab") // skip the terms: submitting must say they are missing
+	page.Press("enter")
+	page.Expect(page.GetByID("result")).ToHaveValue("Please accept the terms.")
+
+	page.Press("shift+tab")
+	page.Press("space")
+	page.Expect(page.GetByRole("checkbox", "I accept the terms")).ToBeChecked()
+	page.Press("tab")
+	page.Press("enter")
+	page.Expect(page.GetByID("result")).ToHaveValue("Thanks, Ada! We'll write to ada@example.com.")
+}

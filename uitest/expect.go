@@ -71,6 +71,16 @@ func (a Assertion) ToContainLabel(text string) {
 	})
 }
 
+// ToContainValue passes when the one matching widget's value contains text.
+// A paragraph's value is its text, so this is how to check what one says
+// without spelling out all of it.
+func (a Assertion) ToContainValue(text string) {
+	a.locator.page.t.Helper()
+	a.one(fmt.Sprintf("have a value containing %q", text), func(n accessibility.AccessibilityNode) (bool, string) {
+		return strings.Contains(n.Value, text), fmt.Sprintf("value %q", n.Value)
+	})
+}
+
 // ToBeFocused passes when the one matching widget has keyboard focus.
 func (a Assertion) ToBeFocused() {
 	a.locator.page.t.Helper()

@@ -234,3 +234,14 @@ func BenchmarkLogViewDraw(b *testing.B) {
 		w.Draw(ctx, buf)
 	}
 }
+
+func BenchmarkButtonDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	pressed := 0
+	onPress := func() { pressed++ }
+	w := Button{ID: "save", Label: "Save", OnPress: onPress}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}
