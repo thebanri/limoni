@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.6.0] — 2026-09-20
+
 ### Added
 - `TextInput` understands the readline keys: Ctrl+A/E move to the start and
   end, Ctrl+U deletes to the start, Ctrl+K to the end, Ctrl+W the previous
@@ -245,7 +247,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.6.0...HEAD
+[v0.6.0]: https://github.com/thebanri/limoni/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/thebanri/limoni/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/thebanri/limoni/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/thebanri/limoni/compare/v0.2.7...v0.3.0
