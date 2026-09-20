@@ -3,8 +3,9 @@
 // gen.go builds the two data files this package embeds, from Natural Earth's
 // public-domain 1:110m vectors:
 //
-//	land.bin.gz  a land/sea bitmask on an equirectangular grid
-//	places.go    countries and cities, with the point to centre the globe on
+//	land.bin.gz     a land/sea bitmask on an equirectangular grid
+//	borders.bin.gz  where one country meets another, at six resolutions
+//	places.go       countries and cities, with the point to centre on
 //
 // Run it from this directory when the data needs rebuilding:
 //
@@ -68,6 +69,9 @@ func run() error {
 
 	countries, err := fetch("ne_110m_admin_0_countries.geojson")
 	if err != nil {
+		return err
+	}
+	if err := writeBorders(countries); err != nil {
 		return err
 	}
 	cities, err := fetch("ne_110m_populated_places_simple.geojson")
@@ -173,6 +177,134 @@ func writeMask(fc *featureCollection) error {
 	}
 	fmt.Printf("land.bin.gz  %dx%d  %d KiB raw  %d KiB gzipped  %.1f%% land\n",
 		maskW, maskH, len(mask)/1024, st.Size()/1024, float64(land)*100/float64(maskW*maskH))
+	return nil
+}
+
+// borderLevels is how many resolutions of the border mask are written. Each
+// is half the size of the one before, and a cell is set when any of the four
+// it stands for is. That is what lets the globe ask "is there a border
+// anywhere inside this pixel?" with one lookup at any zoom: a single-pixel
+// line sampled at a coarse zoom would otherwise break into dots.
+const borderLevels = 6
+
+// writeBorders finds where one country meets another. It fills every country
+// with its own number first and then marks the cells whose neighbour belongs
+// to someone else, so the coast — land against sea, which is country against
+// nothing — is not a border. The colour change at the water's edge already
+// shows that, and drawing it again buries the small countries.
+func writeBorders(fc *featureCollection) error {
+	owner := make([]uint16, maskW*maskH)
+	var xs []float64
+
+	for n, f := range fc.Features {
+		rings, err := polygons(f.Geometry)
+		if err != nil {
+			return err
+		}
+		id := uint16(n + 1)
+		for _, poly := range rings {
+			for y := 0; y < maskH; y++ {
+				lat := 90.0 - (float64(y)+0.5)*180.0/maskH
+				xs = xs[:0]
+				for _, ring := range poly {
+					for i := 0; i < len(ring); i++ {
+						a, b := ring[i], ring[(i+1)%len(ring)]
+						if (a[1] > lat) == (b[1] > lat) {
+							continue
+						}
+						t := (lat - a[1]) / (b[1] - a[1])
+						xs = append(xs, a[0]+t*(b[0]-a[0]))
+					}
+				}
+				if len(xs) < 2 {
+					continue
+				}
+				sort.Float64s(xs)
+				for i := 0; i+1 < len(xs); i += 2 {
+					x0 := int(math.Floor((xs[i] + 180) / 360 * maskW))
+					x1 := int(math.Ceil((xs[i+1] + 180) / 360 * maskW))
+					if x0 < 0 {
+						x0 = 0
+					}
+					if x1 > maskW {
+						x1 = maskW
+					}
+					for x := x0; x < x1; x++ {
+						owner[y*maskW+x] = id
+					}
+				}
+			}
+		}
+	}
+
+	// A cell is a border when the cell to its right or below belongs to a
+	// different country. Checking two neighbours rather than four draws each
+	// line once, on one side of it.
+	level0 := make([]byte, maskW*maskH/8)
+	set := func(x, y int) {
+		i := y*maskW + x
+		level0[i/8] |= 1 << uint(i%8)
+	}
+	for y := 0; y < maskH; y++ {
+		for x := 0; x < maskW; x++ {
+			id := owner[y*maskW+x]
+			if id == 0 {
+				continue
+			}
+			right := owner[y*maskW+(x+1)%maskW] // the grid wraps at ±180
+			if right != 0 && right != id {
+				set(x, y)
+			}
+			if y+1 < maskH {
+				if below := owner[(y+1)*maskW+x]; below != 0 && below != id {
+					set(x, y)
+				}
+			}
+		}
+	}
+
+	// The coarser levels: a cell is set when any of its four children is.
+	levels := [][]byte{level0}
+	w, h := maskW, maskH
+	for k := 1; k < borderLevels; k++ {
+		prev := levels[k-1]
+		pw := w
+		w, h = w/2, h/2
+		cur := make([]byte, w*h/8)
+		get := func(x, y int) bool {
+			i := y*pw + x
+			return prev[i/8]&(1<<uint(i%8)) != 0
+		}
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				if get(2*x, 2*y) || get(2*x+1, 2*y) || get(2*x, 2*y+1) || get(2*x+1, 2*y+1) {
+					i := y*w + x
+					cur[i/8] |= 1 << uint(i%8)
+				}
+			}
+		}
+		levels = append(levels, cur)
+	}
+
+	f, err := os.Create("borders.bin.gz")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zw, _ := gzip.NewWriterLevel(f, gzip.BestCompression)
+	total := 0
+	for _, level := range levels {
+		if _, err := zw.Write(level); err != nil {
+			return err
+		}
+		total += len(level)
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	st, _ := f.Stat()
+	fmt.Printf("borders.bin.gz  %d levels  %d KiB raw  %d KiB gzipped\n",
+		len(levels), total/1024, st.Size()/1024)
 	return nil
 }
 

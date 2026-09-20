@@ -24,11 +24,16 @@ func (v *Viewer) Draw(f *limoni.Frame, area limoni.Rect) {
 	body, footer := rows[0], rows[1]
 
 	globePane := body
-	if body.Width >= 72 {
+	switch {
+	case v.panelHidden:
+		// Nothing but the world. The panel's widgets are not drawn at all,
+		// so they are not in the semantic tree either — which is right: what
+		// is not on screen should not be findable.
+	case body.Width >= 72:
 		cols := limoni.SplitHorizontal(body, limoni.Fill(), limoni.Fixed(sidebarWidth))
 		globePane, _ = cols[0], cols[1]
 		v.drawSidebar(f, cols[1])
-	} else if v.searching {
+	case v.searching:
 		// Too narrow for both: the search takes the screen while it is open.
 		v.drawSidebar(f, body)
 		v.drawFooter(f, footer)
@@ -148,7 +153,7 @@ func (v *Viewer) drawFooter(f *limoni.Frame, area limoni.Rect) {
 
 	f.RenderWidget(&widgets.Paragraph{ID: "status", Text: v.footer, Style: dimStyle}, area)
 
-	hints := " / find  ←→↑↓ turn  +− zoom  m pin  c clear  a ascii  ? keys  q quit"
+	hints := " / find  ←→↑↓ turn  +− zoom  m pin  p panel  a ascii  ? keys  q quit"
 	if w := uint16(len(hints)); area.Width > w+uint16(len(v.footer))+2 {
 		f.RenderWidget(&widgets.Paragraph{
 			ID: "keys", Text: hints, Style: dimStyle,
@@ -167,7 +172,9 @@ func (v *Viewer) drawHelp(f *limoni.Frame, area limoni.Rect) {
 		"  click      pin the point under the pointer",
 		"  m          pin the centre of the view",
 		"  c          clear the pins",
+		"  p          hide the panel, and bring it back",
 		"  a          ASCII shading instead of colour",
+		"  b          the borders between countries",
 		"  g          parallels and meridians",
 		"  r          back to the whole globe",
 		"  ? q        this help, and quit",

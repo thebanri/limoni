@@ -13,7 +13,8 @@ globe -ascii                 # shading characters instead of colour
 
 `/` finds a country or a city, `⏎` flies there and drops a pin, the arrows
 turn the globe, `+` and `−` zoom, `space` holds the rotation, a click pins
-the point under the pointer, and `?` lists the rest.
+the point under the pointer, `p` puts the panel away so the world has the
+whole screen, `b` turns the borders off, and `?` lists the rest.
 
 ## What it is for
 
@@ -71,6 +72,11 @@ Natural Earth 1:110m, which is in the public domain:
 
 - a land/sea bitmask, 2048×1024, gzipped to 14 KiB and expanded once into
   256 KiB so that a lookup is one indexed read with no allocation
+- the borders between countries, at six resolutions, gzipped to 16 KiB. They
+  are stored as a pyramid because a one-cell-wide line sampled at a whole-
+  globe zoom breaks into dots; the globe asks the coarsest level whose cells
+  still fit inside a pixel, so the line stays a line at every zoom. Coasts
+  are not in it — the water's edge is already a change of colour
 - 177 countries with the point Natural Earth labels them at, their ISO codes
   and their names in Turkish as well as English
 - 243 capitals and large cities

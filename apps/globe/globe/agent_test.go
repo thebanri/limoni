@@ -167,3 +167,55 @@ func TestAnInstantFlightDoesNotProduceNaN(t *testing.T) {
 	}
 	p.Expect(p.GetByID("globe")).ToContainValue("17.8°S")
 }
+
+// p takes the panel off the screen and brings it back. What is not drawn is
+// not in the semantic tree either, which is the point: a test or an agent
+// should not be able to find a search box nobody can see.
+func TestThePanelCanBeHiddenAndBroughtBack(t *testing.T) {
+	p, v := page(t, 120, 40)
+	p.Expect(p.GetByID("search")).ToBeVisible()
+	wide := v.GlobeArea().Width
+
+	p.Press("p")
+	p.Expect(p.GetByID("search")).Not().ToBeVisible()
+	p.Expect(p.GetByID("results")).Not().ToBeVisible()
+	p.Expect(p.GetByID("globe")).ToBeVisible()
+	if full := v.GlobeArea().Width; full <= wide {
+		t.Errorf("the globe still has %d columns of %d; hiding the panel should give it the rest", full, wide)
+	}
+
+	p.Press("p")
+	p.Expect(p.GetByID("search")).ToBeVisible()
+	if back := v.GlobeArea().Width; back != wide {
+		t.Errorf("the globe kept %d columns after the panel came back, want %d", back, wide)
+	}
+}
+
+// Searching with the panel hidden would type into a box nobody can see, so
+// / brings the panel back and takes the keyboard.
+func TestSearchingBringsAHiddenPanelBack(t *testing.T) {
+	p, _ := page(t, 120, 40)
+	p.Press("p")
+	p.Expect(p.GetByID("search")).Not().ToBeVisible()
+
+	p.Press("/")
+	p.Expect(p.GetByID("search")).ToBeVisible()
+	p.GetByID("search").Type("Japan")
+	p.Expect(p.GetByRole("list-item", "Japan  Asia")).ToBeVisible()
+}
+
+// The globe has the keyboard when the application opens. The focus manager
+// gives the first widget that registers the focus, and that is the search
+// box — so without claiming it, every key steered a text field instead of
+// the world, and p, the arrows and the zoom all did nothing.
+func TestTheGlobeHasTheKeyboardAtTheStart(t *testing.T) {
+	p, v := page(t, 120, 40)
+	before := v.Globe().Zoom
+	p.Press("+")
+	if v.Globe().Zoom <= before {
+		t.Errorf("+ did not zoom on the first key: %.2f then %.2f", before, v.Globe().Zoom)
+	}
+	if got := p.GetByID("search").Node().Value; got != "" {
+		t.Errorf("the key went into the search box: %q", got)
+	}
+}

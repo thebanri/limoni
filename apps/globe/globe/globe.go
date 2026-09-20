@@ -44,6 +44,9 @@ type Globe struct {
 	ASCII bool
 	// Graticule draws the parallels and meridians every 30°.
 	Graticule bool
+	// Borders draws where one country meets another. Coasts are not drawn:
+	// the water's edge is already a change of colour.
+	Borders bool
 }
 
 // Marker is a pinned place.
@@ -58,8 +61,11 @@ type Marker struct {
 }
 
 const (
-	pingFor    = 1600 * time.Millisecond
-	pingRadius = 14.0 // half-cells the ring grows to
+	// pingFor is how long the ring takes to expand and go. It is short on
+	// purpose: a ping says "here", and something that says "here" for a
+	// second and a half is still saying it long after you have looked.
+	pingFor    = 650 * time.Millisecond
+	pingRadius = 12.0 // half-cells the ring grows to
 )
 
 // The light sits above, to the left and in front of the viewer. It is fixed
@@ -67,8 +73,11 @@ const (
 // way as it turns and the shading reads as shape rather than as time of day.
 var lightX, lightY, lightZ = normalize(-0.45, 0.55, 0.78)
 
-// asciiRamp is the shading ramp for ASCII mode, darkest first.
-const asciiRamp = " .:-=+*#%@"
+// asciiRamp is the shading ramp for ASCII mode, darkest first. '+' is
+// deliberately not in it: in ASCII mode that character means a border and
+// nothing else, so a line between two countries cannot be mistaken for a
+// patch of half-lit ground.
+const asciiRamp = " .:-*#%@"
 
 // vec3 is a point or direction in the world frame: X towards (0°N, 90°E),
 // Y towards the north pole, Z towards (0°N, 0°E).
@@ -227,6 +236,12 @@ func (g *Globe) shade(x, y float64, right, up, fwd vec3, radius, degPerPixel flo
 	var r, gr, b float64
 	if geo.IsLand(lat, lon) {
 		r, gr, b = landColor(lat)
+		// A border is drawn darker than the land it crosses, which reads on
+		// desert, grass and ice alike. Over sea it would be a line in open
+		// water, so it stops at the coast.
+		if g.Borders && geo.IsBorder(lat, lon, degPerPixel) {
+			r, gr, b = r*0.42+30*0.58, gr*0.42+24*0.58, b*0.42+20*0.58
+		}
 	} else {
 		r, gr, b = 14, 48, 104
 	}
@@ -317,9 +332,14 @@ func (g *Globe) asciiCell(x, y float64, right, up, fwd vec3, radius, degPerPixel
 	// continents stay legible even where the light is flat.
 	var idx int
 	if geo.IsLand(lat, lon) {
-		idx = 4 + int(lum*5.99)
+		if g.Borders && geo.IsBorder(lat, lon, degPerPixel) {
+			// There is no colour to darken in ASCII, so a border is drawn
+			// as itself.
+			return cell.Cell{Content: '+'}
+		}
+		idx = 3 + int(lum*4.99)
 	} else {
-		idx = int(lum * 3.99)
+		idx = int(lum * 2.99)
 	}
 	if idx >= len(asciiRamp) {
 		idx = len(asciiRamp) - 1
@@ -366,7 +386,10 @@ func (g *Globe) drawPing(area cell.Rect, buf *buffer.Buffer, x, y, progress floa
 	if r < 0.5 {
 		return
 	}
-	fade := 1 - progress
+	// Squared, so the ring is faint for most of its short life rather than
+	// fading evenly to the end: a linear fade left a visible ring at 90% of
+	// the way through, which is what made the old ping outstay its welcome.
+	fade := (1 - progress) * (1 - progress)
 	c := cell.NewColorRGB(
 		channel(float64(255)*fade),
 		channel(float64(180)*fade),
