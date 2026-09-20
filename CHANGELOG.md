@@ -8,12 +8,13 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.7.0] — 2026-09-20
+
 ### Added
 - `limoni.WithSuspend()` and `Terminal.Suspend()`: Ctrl+Z hands the terminal
   back to the shell and stops the application, as in vim or less; `fg` resumes
   it, re-runs the capability handshake and repaints. Unsupported backends
   (remote, browser, Windows) say so and deliver the key instead.
-
 - `limoni.WithTitle()`, `Terminal.SetTitle`, `SaveTitle` and `RestoreTitle`:
   set the terminal's window title with OSC 2, with the previous title put back
   on exit. Control characters are stripped, so a title built from a file name
@@ -266,7 +267,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/thebanri/limoni/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/thebanri/limoni/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/thebanri/limoni/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/thebanri/limoni/compare/v0.3.0...v0.4.0
