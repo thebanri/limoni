@@ -42,14 +42,18 @@ click the row, read the globe's value back:
 ```
 input#search "country or city" value="Türkiye" state=focused
 list#results "Results" position=1/1
-  list-item "Türkiye (Turkey)  Asia" position=1/1 state=selected
+  list-item "Turkey  Asia" position=1/1 state=selected
 image#globe "Globe" value="39.3°N 34.5°E · zoom 2.6×"
-  list-item "Türkiye (Turkey)" value="39.3°N 34.5°E" bounds=43,19 1x1
+  list-item "Turkey" value="39.3°N 34.5°E" bounds=43,19 1x1
 ```
+
+The name is typed in Turkish and the list answers in English: local names
+are searched, English is what the map is written in.
 
 The globe's value says where it is pointed and the marker says where on the
 screen it landed, so the agent can confirm that it worked without looking at
-a single pixel. `globe/agent_test.go` is that same conversation as a test.
+a single pixel — and can keep pressing `+` until the value reads the zoom it
+was asked for. `globe/agent_test.go` is that same conversation as a test.
 
 ## How it draws
 
