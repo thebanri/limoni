@@ -8,6 +8,15 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Changed
+- The module is 3.7 MB instead of 14.3 MB. The README's demo GIFs are what
+  made up the difference, and `assets/` now carries its own `go.mod`, so a
+  directory of images that nothing imports is no longer downloaded by
+  everyone who imports Limoni. The files are still in the repository and the
+  README still shows them.
+- `apps/globe`, a new application, is a module of its own for the same
+  reason: `go get github.com/thebanri/limoni` downloads none of it.
+
 ### Fixed
 - `RichText` swallowed ordinary prose that looked like a tag: `2 < 3 and 4 > 1`
   rendered as `2  1`, because everything between `<` and `>` was read as

@@ -169,6 +169,41 @@ jobs:
           go -C tools/limonivet build -o "$RUNNER_TEMP/limonivet" .
           "$RUNNER_TEMP/limonivet" ./...
 
+      # The globe is a module of its own, so none of it reaches anyone who
+      # imports Limoni. It depends on a published Limoni rather than on this
+      # checkout, which is what makes it an honest test of the public API —
+      # so it is also built against the working tree, or a breaking change
+      # here would only be found after the next release.
+      - name: apps/globe
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/globe vet ./...
+          go -C apps/globe test ./...
+          test -z "$(gofmt -l apps/globe)" || { gofmt -l apps/globe; exit 1; }
+
+          work=$(mktemp -d)
+          cp -r apps/globe "$work/globe"
+          go -C "$work/globe" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/globe" mod tidy
+          go -C "$work/globe" build ./...
+          go -C "$work/globe" test ./...
+          echo "ok   the globe builds against this checkout as well as against the release"
+
+      # Neither the globe nor the README images may reach anyone who imports
+      # Limoni: both are modules of their own, and this is the check that says
+      # so about the zip the proxy would actually serve.
+      - name: Module ships no apps or assets
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in apps/globe assets tools/limonivet; do
+            test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
+          done
+          echo "ok   apps, assets and tools are modules of their own"
+
       - name: Verify Zero-Allocation Hot Paths
         if: runner.os == 'Linux'
         shell: bash
