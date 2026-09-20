@@ -14,6 +14,12 @@ a patch bump (`v0.x.y`) does not.
   it, re-runs the capability handshake and repaints. Unsupported backends
   (remote, browser, Windows) say so and deliver the key instead.
 
+- `limoni.WithTitle()`, `Terminal.SetTitle`, `SaveTitle` and `RestoreTitle`:
+  set the terminal's window title with OSC 2, with the previous title put back
+  on exit. Control characters are stripped, so a title built from a file name
+  cannot inject escapes. Contributed by
+  [@team-humaki](https://github.com/team-humaki) (issue #16).
+
 ### Changed
 - The comments in `graphics/` are in English (issue #10), thanks to
   [@chenzeyan54-commits](https://github.com/chenzeyan54-commits).

@@ -120,3 +120,19 @@ over the screen in the meantime.
 its own key. Both return `driver.ErrSuspendUnsupported` where there is no shell
 to return to — a remote or in-memory backend, the browser, Windows — and with
 `WithSuspend` the key is then delivered to the application as usual.
+
+---
+
+## 6. The window title
+
+`limoni.WithTitle("zest — app.log")` sets the terminal's window title with
+OSC 2 while the application runs, and puts the previous one back on the way
+out. `Terminal.SetTitle`, `SaveTitle` and `RestoreTitle` are there for an
+application that wants to change the title as its state changes — a file name,
+a progress figure.
+
+Control characters are stripped from the title before it is written, so a
+title built from a file name or a log line cannot smuggle an escape sequence
+through. Saving and restoring uses XTWINOPS (`CSI 22;2t` / `CSI 23;2t`);
+terminals that do not implement it ignore both, and the title then simply
+stays as the application set it.

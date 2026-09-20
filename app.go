@@ -46,6 +46,13 @@ func (a *App) Wakeup() {
 func (a *App) Run(ctx context.Context, appFn func(f *Frame, ev *Event) bool) error {
 	running.add(a)
 	defer running.remove(a)
+	if a.cfg.hasTitle {
+		// Push the title the user had, so exiting does not leave the
+		// application's name on their terminal.
+		a.term.SaveTitle()
+		defer a.term.RestoreTitle()
+		a.term.SetTitle(a.cfg.title)
+	}
 	return runLoop(ctx, a.term, appFn, a.cfg, a.wakeup)
 }
 
@@ -94,6 +101,8 @@ type appConfig struct {
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
 	suspendOnCtrlZ   bool
+	title            string
+	hasTitle         bool
 }
 
 // AutomationPolicy decides what an application's automation socket lets out.
@@ -114,6 +123,15 @@ type AutomationPolicy struct {
 	// AllowUnverifiedPeers accepts connections on platforms that cannot report
 	// the connecting user. Without it, those platforms refuse every connection.
 	AllowUnverifiedPeers bool
+}
+
+// WithTitle sets the terminal window title with OSC 2 when the application
+// starts. Control characters in the title are stripped; see Terminal.SetTitle.
+func WithTitle(title string) AppOption {
+	return func(c *appConfig) {
+		c.title = title
+		c.hasTitle = true
+	}
 }
 
 // WithSuspend makes Ctrl+Z hand the terminal back to the shell and stop the
