@@ -168,6 +168,22 @@ zest -demo 1000000        # or: zest app.log, kubectl logs -f pod | zest
 
 Or [try it in the browser](https://thebanri.github.io/limoni/): the "Logs · zest" scene.
 
+### And: globe
+
+[**globe**](apps/globe) is a world you can turn, search, zoom into and pin — and what a Limoni
+application looks like from the outside, since it is a module of its own that depends on a
+published Limoni and uses nothing but its public API.
+
+```bash
+go install github.com/thebanri/limoni/apps/globe@latest
+globe -at Türkiye
+```
+
+Everything on it is in the semantic tree, so "find Turkey on the world map" is something an agent
+can do over MCP: type into `search`, click the row, read `image#globe` back as
+`value="39.3°N 34.5°E · zoom 2.6×"`. Nothing of it reaches you when you import Limoni — a
+directory with its own `go.mod` is not part of the module around it.
+
 ---
 
 ## Two ways to write an app

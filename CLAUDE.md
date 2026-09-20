@@ -130,6 +130,7 @@ The package was renamed to `core/engine`; that doc is stale in places.
 | `automation` | Semantic tree over a Unix socket (wired into apps only with `-tags limoni_debug`) |
 | `cmd/limoni-mcp` | MCP bridge from agents to the automation socket |
 | `benchmarks` | Harness plus the cross-framework runners |
+| `apps/globe` | A searchable, zoomable ASCII globe — a separate module, so it ships to nobody |
 
 ---
 
@@ -176,6 +177,21 @@ example. An untagged import of either quietly defeats the whole security model.
 
 **`settings.json` once contained a live API key** and is gitignored for that reason.
 Do not re-add it.
+
+**Nested modules are what keeps the download honest.** `assets/`, `apps/globe`
+and `tools/limonivet` each carry their own `go.mod`, and a directory with a
+`go.mod` is not part of the module around it — so none of them reach anyone who
+imports Limoni. That took the published module from **14.3 MB to 3.7 MB**; the
+difference was four README GIFs. CI checks that those `go.mod` files are still
+there. Two consequences: nothing in the library may `go:embed` or read from
+`assets/`, and a new application belongs in `apps/<name>` with its own module,
+not in `cmd/`.
+
+To see what a change would actually ship, build the zip the proxy would build,
+with `golang.org/x/mod/zip`, rather than reasoning about it — that is how the
+14.3 MB was found in the first place. An untagged nested module still installs:
+`go install github.com/thebanri/limoni/apps/globe@latest` resolves to a
+pseudo-version of the default branch, so no `apps/globe/v0.1.0` tag is needed.
 
 ---
 
