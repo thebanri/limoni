@@ -49,8 +49,14 @@ type Viewer struct {
 
 	searching bool
 	spinning  bool
-	help      bool
-	status    string
+	// panelHidden takes the search and the pins off the screen entirely, so
+	// that the world has all of it.
+	panelHidden bool
+	// drewAnimation says the last frame had something moving in it, so one
+	// more frame is owed even if nothing is moving now.
+	drewAnimation bool
+	help          bool
+	status        string
 
 	fly   *flight
 	last  time.Time
@@ -99,19 +105,26 @@ func New() *Viewer {
 			Lon:       20,
 			Zoom:      1,
 			Graticule: true,
+			Borders:   true,
 		},
-		ix:       newIndex(geo.All()),
-		query:    widgets.NewTextInputState(),
-		results:  widgets.NewListState(),
-		pins:     widgets.NewListState(),
-		spinning: true,
-		clock:    time.Now,
-		flyFor:   defaultFlyFor,
-		last:     time.Now(),
+		ix:        newIndex(geo.All()),
+		query:     widgets.NewTextInputState(),
+		results:   widgets.NewListState(),
+		pins:      widgets.NewListState(),
+		spinning:  true,
+		clock:     time.Now,
+		flyFor:    defaultFlyFor,
+		last:      time.Now(),
+		wantFocus: globeID,
 	}
 	v.clickGlobe = v.clickAt
 	v.clickResult = v.chooseResult
 	v.clickPin = v.choosePin
+	// The globe takes the keyboard on the first frame. Without this the
+	// focus manager hands it to the first widget that registers, which is
+	// the search box — so the arrows, the zoom and every other key typed
+	// into a text field instead of steering the world.
+	v.wantFocus = globeID
 	v.refresh()
 	return v
 }
@@ -122,6 +135,12 @@ func (v *Viewer) SetWake(wake func()) { v.wake = wake }
 
 // Globe exposes the globe for a caller that wants to set the opening view.
 func (v *Viewer) Globe() *Globe { return v.globe }
+
+// GlobeArea returns the part of the screen the globe had in the last frame.
+func (v *Viewer) GlobeArea() limoni.Rect { return v.globeArea }
+
+// PanelHidden reports whether the search and the pins are off the screen.
+func (v *Viewer) PanelHidden() bool { return v.panelHidden }
 
 // Look aims the globe at a place immediately, without the animation.
 func (v *Viewer) Look(lat, lon, zoom float64) {
@@ -172,6 +191,7 @@ func (v *Viewer) Frame(f *limoni.Frame, ev *limoni.Event) bool {
 	v.advance(now)
 	v.globe.Now = now
 	v.Draw(f, f.Area())
+	v.drewAnimation = v.animating(now)
 	return true
 }
 
@@ -385,6 +405,9 @@ func (v *Viewer) key(f *limoni.Frame, k driver.KeyEvent, now time.Time) bool {
 		case 'q':
 			return false
 		case '/':
+			// Searching with the panel hidden would type into a box nobody
+			// can see, so the panel comes back first.
+			v.panelHidden = false
 			v.focus(f, searchID)
 			v.spinning = false
 			v.status = ""
@@ -404,10 +427,20 @@ func (v *Viewer) key(f *limoni.Frame, k driver.KeyEvent, now time.Time) bool {
 			v.pinRows = v.pinRows[:0]
 			v.pins.Selected = -1
 			v.status = "pins cleared"
+		case 'p':
+			v.panelHidden = !v.panelHidden
+			if v.panelHidden {
+				v.focus(f, globeID)
+				v.status = "panel hidden · p brings it back"
+			} else {
+				v.status = ""
+			}
 		case 'a':
 			v.globe.ASCII = !v.globe.ASCII
 		case 'g':
 			v.globe.Graticule = !v.globe.Graticule
+		case 'b':
+			v.globe.Borders = !v.globe.Borders
 		case '?':
 			v.help = !v.help
 		case 'r':
@@ -489,13 +522,26 @@ func (v *Viewer) Wake() {
 // SetSpinning starts or stops the rotation.
 func (v *Viewer) SetSpinning(on bool) { v.spinning = on }
 
-// Moving reports whether anything is animating and the view therefore needs
-// another frame: the rotation, a flight, or a ping still expanding.
+// Moving reports whether the view needs another frame.
+//
+// It is true while something is animating — the rotation, a flight, a ping —
+// and once more after the last of them stops. That last frame is the point:
+// the frame that drew the final ring is still on the screen, and without
+// one more pass to draw the world without it, the ring stays there until
+// something else happens to cause a redraw. A ping that never goes away
+// looks exactly like a ping that fades far too slowly.
 func (v *Viewer) Moving() bool {
+	if v.animating(v.clock()) {
+		return true
+	}
+	return v.drewAnimation
+}
+
+// animating reports whether anything is moving at this instant.
+func (v *Viewer) animating(now time.Time) bool {
 	if v.spinning || v.fly != nil {
 		return true
 	}
-	now := time.Now()
 	for i := range v.globe.Markers {
 		if p := v.globe.Markers[i].Pinged; !p.IsZero() && now.Sub(p) < pingFor {
 			return true

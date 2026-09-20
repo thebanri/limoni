@@ -129,3 +129,89 @@ func TestPlacesTable(t *testing.T) {
 		t.Error("Kind.String")
 	}
 }
+
+// The border between the United States and Canada runs along the 49th
+// parallel west of the Lake of the Woods, which is a fact the data has to
+// agree with. The latitude is scanned rather than sampled at exactly 49°,
+// because which row of the grid the line lands on is a rasterising detail.
+func TestBordersFollowThe49thParallel(t *testing.T) {
+	onIt := false
+	for lat := 48.6; lat <= 49.4; lat += 0.04 {
+		if IsBorder(lat, -110, 0.1) {
+			onIt = true
+			break
+		}
+	}
+	if !onIt {
+		t.Error("no border found along the 49th parallel at 110°W")
+	}
+	// Well inside Montana, and well inside Libya and Australia.
+	for _, p := range [][2]float64{{45, -110}, {23, 13}, {-24, 134}} {
+		if IsBorder(p[0], p[1], 0.1) {
+			t.Errorf("(%.0f, %.0f) is in the middle of a country, not on a border", p[0], p[1])
+		}
+	}
+}
+
+// Zooming out asks a coarser level, which must still show the line: a
+// one-cell-wide border sampled at a coarse zoom is what turns into dots.
+func TestACoarseZoomStillFindsTheLine(t *testing.T) {
+	// A point half a degree off the 49th parallel: too far for the finest
+	// level, inside the cell a whole-globe pixel covers.
+	if IsBorder(48.5, -110, 0.05) {
+		t.Error("half a degree off the border should not be on it at full zoom")
+	}
+	if !IsBorder(48.5, -110, 4.0) {
+		t.Error("at a whole-globe zoom the same pixel covers the border and should show it")
+	}
+
+	// Every level is built from the one below it, so anything the fine level
+	// calls a border must still be one when asked coarsely.
+	checked := 0
+	for lat := -80.0; lat <= 80; lat += 3.1 {
+		for lon := -180.0; lon < 180; lon += 3.7 {
+			if IsBorder(lat, lon, 0.05) {
+				checked++
+				if !IsBorder(lat, lon, 4.0) {
+					t.Fatalf("(%.1f, %.1f) is a border at full zoom but not when zoomed out", lat, lon)
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("the sweep found no borders at all")
+	}
+}
+
+// Borders are lines, not areas: only a small part of the world is one.
+func TestBordersAreSparse(t *testing.T) {
+	border, land := 0, 0
+	for lat := -85.0; lat <= 85; lat += 0.5 {
+		for lon := -180.0; lon < 180; lon += 0.5 {
+			if !IsLand(lat, lon) {
+				continue
+			}
+			land++
+			if IsBorder(lat, lon, 0.1) {
+				border++
+			}
+		}
+	}
+	if land == 0 {
+		t.Fatal("no land found")
+	}
+	if frac := float64(border) / float64(land); frac > 0.08 {
+		t.Errorf("%.1f%% of land reads as border, which is a fill rather than a line", frac*100)
+	}
+}
+
+// Every pixel of every frame may ask this, so it may not allocate.
+func TestIsBorderDoesNotAllocate(t *testing.T) {
+	IsBorder(49, -110, 0.1)
+	if n := testing.AllocsPerRun(200, func() {
+		IsBorder(49, -110, 0.1)
+		runtime.GC()
+	}); n != 0 {
+		t.Errorf("IsBorder allocated %v times per call", n)
+	}
+}

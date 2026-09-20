@@ -293,8 +293,11 @@ func TestAPingExpandsAndThenStops(t *testing.T) {
 	area := cell.NewRect(0, 0, 80, 40)
 	ctx := cell.NewContext(area, cell.Style{})
 
+	// Sampled as fractions of the ping rather than at fixed times, so that
+	// shortening it stays a change to one constant.
 	radii := make([]float64, 0, 3)
-	for _, age := range []time.Duration{200 * time.Millisecond, 700 * time.Millisecond, 1400 * time.Millisecond} {
+	for _, at := range []float64{0.15, 0.40, 0.65} {
+		age := time.Duration(float64(pingFor) * at)
 		g.Now = start.Add(age)
 		buf := buffer.NewBuffer(area)
 		g.Draw(ctx, buf)

@@ -76,6 +76,83 @@ func IsLand(lat, lon float64) bool {
 	return land[i/8]&(1<<uint(i%8)) != 0
 }
 
+//go:embed borders.bin.gz
+var bordersGz []byte
+
+// borderLevels is how many resolutions of the border mask are stored, each
+// half the size of the one before. Kept in step with gen.go.
+const borderLevels = 6
+
+var (
+	bordersOnce sync.Once
+	borders     [borderLevels][]byte
+)
+
+func loadBorders() {
+	zr, err := gzip.NewReader(bytes.NewReader(bordersGz))
+	if err == nil {
+		defer zr.Close()
+		data, rerr := io.ReadAll(zr)
+		if rerr == nil {
+			at, w, h := 0, maskW, maskH
+			for k := 0; k < borderLevels; k++ {
+				n := w * h / 8
+				if at+n > len(data) {
+					break
+				}
+				borders[k] = data[at : at+n]
+				at, w, h = at+n, w/2, h/2
+			}
+		}
+	}
+	// A build with no usable border data draws no borders rather than
+	// failing: every level left nil reads as "no border here".
+	for k := range borders {
+		if borders[k] == nil {
+			borders[k] = make([]byte, (maskW>>uint(k))*(maskH>>uint(k))/8)
+		}
+	}
+}
+
+// IsBorder reports whether a country boundary passes within one pixel of a
+// point. degPerPixel is how much of the world that pixel covers, which
+// decides which resolution to ask: a one-cell-wide line read at a coarse
+// zoom would break into dots, so the mask is stored at six resolutions and
+// the coarsest one whose cells still fit inside the pixel is used.
+//
+// Coasts are not borders here. Land meeting sea is already a change of
+// colour, and drawing it again at low zoom buries the small countries.
+func IsBorder(lat, lon, degPerPixel float64) bool {
+	bordersOnce.Do(loadBorders)
+
+	level := 0
+	for k := borderLevels - 1; k > 0; k-- {
+		if 360.0/float64(int(maskW)>>uint(k)) <= degPerPixel {
+			level = k
+			break
+		}
+	}
+	w, h := maskW>>uint(level), maskH>>uint(level)
+
+	lon = math.Mod(lon+180, 360)
+	if lon < 0 {
+		lon += 360
+	}
+	x := int(lon * (float64(w) / 360.0))
+	if x >= w {
+		x = w - 1
+	}
+	y := int((90 - lat) * (float64(h) / 180.0))
+	if y < 0 {
+		y = 0
+	} else if y >= h {
+		y = h - 1
+	}
+
+	i := y*w + x
+	return borders[level][i/8]&(1<<uint(i%8)) != 0
+}
+
 // Kind distinguishes the two sorts of place in the table.
 type Kind uint8
 

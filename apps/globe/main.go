@@ -11,8 +11,8 @@
 //	globe -ascii                   # shading characters instead of colour
 //
 // Keys: / find a place · ⏎ fly there · ←→↑↓ turn · +− zoom · space hold ·
-// click pin a point · m pin the centre · c clear · a ascii · g graticule ·
-// r reset · ? keys · q quit.
+// click pin a point · m pin the centre · c clear · p panel · b borders ·
+// a ascii · g graticule · r reset · ? keys · q quit.
 //
 // Everything on screen is in the semantic tree, so a test or an agent can
 // drive it by name rather than by pixel:
