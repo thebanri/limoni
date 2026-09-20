@@ -99,7 +99,8 @@ type Place struct {
 	// Name is the English name: "Turkey", "Istanbul".
 	Name string
 	// Local is the name in the country's own language where Natural Earth
-	// records one and it differs from Name: "Türkiye". Empty otherwise.
+	// records one and it differs from Name: "Türkiye" for Turkey. It is
+	// searched but not displayed; see Display.
 	Local string
 	// Code is the ISO 3166-1 alpha-2 code for a country, empty for a city.
 	Code string
@@ -112,14 +113,11 @@ type Place struct {
 	Kind       Kind
 }
 
-// Display returns the name to show: the local name alongside the English one
-// when they differ, so that "Türkiye" is findable and visible either way.
-func (p Place) Display() string {
-	if p.Local == "" || p.Local == p.Name {
-		return p.Name
-	}
-	return p.Local + " (" + p.Name + ")"
-}
+// Display returns the name to show, which is the English one. The local name
+// is still searchable — typing "Türkiye" finds Turkey — it is simply not what
+// the list and the map labels are written in, so that one map reads in one
+// language rather than in a hundred.
+func (p Place) Display() string { return p.Name }
 
 var allOnce struct {
 	sync.Once

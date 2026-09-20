@@ -2,7 +2,6 @@ package geo
 
 import (
 	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -91,8 +90,9 @@ func TestPlacesTable(t *testing.T) {
 	if turkey.Code != "TR" || turkey.Region != "Asia" {
 		t.Errorf("Turkey: code %q, region %q", turkey.Code, turkey.Region)
 	}
-	if got := turkey.Display(); !strings.Contains(got, "Türkiye") || !strings.Contains(got, "Turkey") {
-		t.Errorf("Display() = %q, want both names", got)
+	// What is shown is English; the local name is kept for searching.
+	if got := turkey.Display(); got != "Turkey" {
+		t.Errorf("Display() = %q, want the English name", got)
 	}
 	if istanbul.Region != "Turkey" || istanbul.Population < 1_000_000 {
 		t.Errorf("Istanbul: region %q, population %d", istanbul.Region, istanbul.Population)
@@ -121,6 +121,9 @@ func TestPlacesTable(t *testing.T) {
 	plain := Place{Name: "Chad"}
 	if plain.Display() != "Chad" {
 		t.Errorf("Display without a local name = %q", plain.Display())
+	}
+	if (Place{Name: "Japan", Local: "日本"}).Display() != "Japan" {
+		t.Error("a local name must not reach the display")
 	}
 	if Country.String() != "country" || City.String() != "city" {
 		t.Error("Kind.String")

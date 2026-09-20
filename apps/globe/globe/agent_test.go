@@ -32,7 +32,7 @@ func TestAnAgentCanFindTurkey(t *testing.T) {
 	p.GetByID("search").Type("Turkey")
 
 	// The results are list items, so they can be read and chosen by name.
-	row := p.GetByRole("list-item", "Türkiye (Turkey)  Asia")
+	row := p.GetByRole("list-item", "Turkey  Asia")
 	p.Expect(row).ToBeVisible()
 	row.Click()
 
@@ -46,21 +46,21 @@ func TestAnAgentCanFindTurkey(t *testing.T) {
 	}
 
 	// The place is pinned, and the pin is on the side of the globe facing us.
-	p.Expect(p.GetByRole("list-item", "Türkiye (Turkey)  39.3°N 34.5°E")).ToBeVisible()
-	if !strings.Contains(p.Screen(), "Türkiye") {
+	p.Expect(p.GetByRole("list-item", "Turkey  39.3°N 34.5°E")).ToBeVisible()
+	if !strings.Contains(p.Screen(), "Turkey") {
 		t.Error("the pin's label is not on screen")
 	}
 }
 
-// The same search in Turkish, and in ASCII, because that is how the name is
-// actually typed by the people most likely to look for it.
+// The name is typed in Turkish and shown in English: the local name is what
+// someone searches with, the English one is what the map is written in.
 func TestTurkishNamesAreSearchable(t *testing.T) {
 	for _, query := range []string{"Türkiye", "turkiye", "TÜRKİYE", "tr"} {
 		t.Run(query, func(t *testing.T) {
 			p, _ := page(t, 120, 40)
 			p.GetByID("search").Click()
 			p.GetByID("search").Type(query)
-			p.Expect(p.GetByRole("list-item", "Türkiye (Turkey)  Asia")).ToBeVisible()
+			p.Expect(p.GetByRole("list-item", "Turkey  Asia")).ToBeVisible()
 		})
 	}
 }

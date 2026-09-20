@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thebanri/limoni/apps/globe/globe/geo"
 	"github.com/thebanri/limoni/core/buffer"
@@ -277,4 +278,82 @@ func TestTheSameViewDrawsTheSameFrame(t *testing.T) {
 			t.Fatalf("cell %d differs between two frames of the same view", i)
 		}
 	}
+}
+
+// Pinning a place pings it: a ring expands from the marker for a moment and
+// fades. This is the part a person sees and no assertion about coordinates
+// would catch, so it is measured directly — the ring is drawn further from
+// the marker as the ping ages, and it is gone once the ping is over.
+func TestAPingExpandsAndThenStops(t *testing.T) {
+	start := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	g := &Globe{
+		Lat: 39.3, Lon: 34.5, Zoom: 2.6,
+		Markers: []Marker{{Name: "Turkey", Lat: 39.3, Lon: 34.5, Pinged: start}},
+	}
+	area := cell.NewRect(0, 0, 80, 40)
+	ctx := cell.NewContext(area, cell.Style{})
+
+	radii := make([]float64, 0, 3)
+	for _, age := range []time.Duration{200 * time.Millisecond, 700 * time.Millisecond, 1400 * time.Millisecond} {
+		g.Now = start.Add(age)
+		buf := buffer.NewBuffer(area)
+		g.Draw(ctx, buf)
+		r := ringRadius(buf, area)
+		if r == 0 {
+			t.Fatalf("no ring %v into the ping", age)
+		}
+		radii = append(radii, r)
+	}
+	if !(radii[0] < radii[1] && radii[1] < radii[2]) {
+		t.Errorf("the ring did not expand: %.1f, %.1f, %.1f", radii[0], radii[1], radii[2])
+	}
+
+	// Once the ping is over the ring is gone, or a pin would glow for ever.
+	g.Now = start.Add(pingFor + time.Millisecond)
+	buf := buffer.NewBuffer(area)
+	g.Draw(ctx, buf)
+	if r := ringRadius(buf, area); r != 0 {
+		t.Errorf("the ring is still being drawn %v after the ping, at radius %.1f", pingFor, r)
+	}
+}
+
+// ringRadius returns how far the furthest ping-coloured pixel sits from the
+// centre of the disc, in half-cells, or 0 if none is drawn.
+func ringRadius(buf *buffer.Buffer, area cell.Rect) float64 {
+	cx, cy := float64(area.Width)/2, float64(area.Height)
+	furthest := 0.0
+	for row := uint16(0); row < area.Height; row++ {
+		for col := uint16(0); col < area.Width; col++ {
+			c := buf.Get(col, row)
+			if c == nil {
+				continue
+			}
+			for half, colour := range [2]cell.Color{c.Style.Fg, c.Style.Bg} {
+				if !isPingColour(colour) {
+					continue
+				}
+				x := float64(col) + 0.5 - cx
+				y := float64(row)*2 + float64(half) + 0.5 - cy
+				if d := math.Hypot(x, y); d > furthest {
+					furthest = d
+				}
+			}
+		}
+	}
+	return furthest
+}
+
+// isPingColour recognises the ring's orange, which fades but keeps its hue:
+// red highest, then green, then blue, and nothing else on the globe is drawn
+// in that proportion.
+func isPingColour(c cell.Color) bool {
+	if c.Type() != cell.ColorRGB {
+		return false
+	}
+	r, g, b := c.RGB()
+	// The ring fades as it grows, so the test looks at the hue rather than
+	// the brightness: by the end of the ping it is down to a tenth of its
+	// first colour but still the same orange.
+	return r > 12 && float64(g) > float64(r)*0.6 && float64(g) < float64(r)*0.78 &&
+		float64(b) > float64(r)*0.28 && float64(b) < float64(r)*0.42
 }
