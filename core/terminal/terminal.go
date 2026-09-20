@@ -197,6 +197,27 @@ func (t *Terminal) Capabilities() CapabilityProfile {
 	return t.caps
 }
 
+// Suspend hands the terminal back to the shell and stops the process, as
+// Ctrl+Z does in any other program. It returns when the shell resumes the
+// application, with raw mode and the screen set up again and the next frame
+// forced to repaint in full — the shell has written over the screen, and the
+// terminal may even be a different one.
+//
+// It returns driver.ErrSuspendUnsupported on a backend with no controlling
+// terminal to give back: a remote or in-memory one, the browser, Windows.
+func (t *Terminal) Suspend() error {
+	if t == nil || t.driver == nil {
+		return nil
+	}
+	if err := t.driver.Suspend(); err != nil {
+		return err
+	}
+	// Answers to the fresh handshake land in the report; take them next frame.
+	t.reportVersion = 0
+	t.ForceFullRedraw()
+	return nil
+}
+
 // Draw initiates a frame drawing pass. It detects terminal resize, clears the front buffer,
 // executes the user draw callback fn, computes the differential ANSI stream, and writes changes
 // in a single synchronized I/O pass.

@@ -248,13 +248,14 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    in `gen.go`, run it, and replace the conformance test data.
 
 5. **Missing terminal integration.** No OSC 8 hyperlinks, no OSC 9/777
-   notifications, no mouse shape, no suspend/resume (Ctrl+Z). A window title
-   (OSC 2) is open as issue #16.
+   notifications, no mouse shape. A window title (OSC 2) is open as issue #16.
 
-   Suspend is the one with a design question: on Ctrl+Z the app must restore
-   the terminal, `SIGTSTP` itself, and on `SIGCONT` re-run setup and force a
-   full redraw. The input goroutine stays blocked in `read` meanwhile, which is
-   fine; the handshake must not be re-sent blindly on resume.
+   Suspend/resume is done: `WithSuspend()` / `Terminal.Suspend()`. Restore the
+   screen and termios *before* `SIGTSTP` — a test with a real pty checks that
+   the shell does not get the terminal back in raw mode, and fails when the
+   order is swapped. Verified end to end under an interactive bash: Ctrl+Z
+   stops it, the shell works, `fg` repaints, keys still arrive. `stopSelf` is a
+   variable so tests can stand in for the signal.
 
 6. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
    syntax-highlighted code view, big text, calendar, autocomplete. (Log view is

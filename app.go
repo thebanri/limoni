@@ -93,6 +93,7 @@ type appConfig struct {
 	automationPath   string
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
+	suspendOnCtrlZ   bool
 }
 
 // AutomationPolicy decides what an application's automation socket lets out.
@@ -113,6 +114,18 @@ type AutomationPolicy struct {
 	// AllowUnverifiedPeers accepts connections on platforms that cannot report
 	// the connecting user. Without it, those platforms refuse every connection.
 	AllowUnverifiedPeers bool
+}
+
+// WithSuspend makes Ctrl+Z hand the terminal back to the shell and stop the
+// application, as it does in vim or less; `fg` brings it back and the screen
+// is repainted. Without it, Ctrl+Z reaches the application as an ordinary key.
+//
+// It has no effect where there is no shell to return to — a remote backend,
+// the browser, Windows — and the key is delivered as usual there.
+func WithSuspend() AppOption {
+	return func(c *appConfig) {
+		c.suspendOnCtrlZ = true
+	}
 }
 
 // WithInline renders the application in place, in a band of the given height,
@@ -276,6 +289,17 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 			// Automatic graceful exit on Ctrl+C unless explicitly caught
 			if !cfg.catchCtrlC && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'c' || ev.Key.Ch == 'C') {
 				return nil
+			}
+			if cfg.suspendOnCtrlZ && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'z' || ev.Key.Ch == 'Z') {
+				// Hands the terminal back until the shell resumes us; the
+				// frame after it repaints the screen the shell wrote over.
+				if err := term.Suspend(); err == nil {
+					if err := handle(nil); err != nil {
+						return err
+					}
+					continue
+				}
+				// Unsupported here: the key is the application's, as usual.
 			}
 			if err := handle(&ev); err != nil {
 				return err
