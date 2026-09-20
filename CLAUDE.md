@@ -261,12 +261,6 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    done: `widgets.LogView`, used by `cmd/zest`; `widgets.Button` exists now.)
    Several are open as `help wanted` issues.
 
-9. **Test coverage.** 68% across the library packages. awesome-go asks for 80%
-   and will not consider the project before 2027-01-06 anyway (they require five
-   months of history). The thin packages are `core/cell` (42%), the root package
-   (49%), `core/engine` and `core/driver` (55%), `component` (58%). Raising
-   these is good contributor work and honest prerequisite for that listing.
-
 7. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
    alongside Braille (2×4). Sextants help where Braille fonts are missing.
 
@@ -290,3 +284,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    already in the cell, so adjacent blocks meet in `┬ ┼ ├ ┤ ┴`. It costs a read
    per border cell (~4%) and stays at zero allocations. Only the light set is
    merged — heavy and double lines have no honest junction with light ones.
+
+9. **Test coverage.** 68% across the library packages. awesome-go asks for 80%
+   and will not consider the project before 2027-01-06 anyway (they require five
+   months of history). The thin packages are `core/cell` (42%), the root package
+   (49%), `core/engine` and `core/driver` (55%), `component` (58%). Raising
+   these is good contributor work and honest prerequisite for that listing.
