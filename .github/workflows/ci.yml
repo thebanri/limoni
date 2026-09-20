@@ -64,11 +64,22 @@ jobs:
             dir=$(dirname "$mod")
             (
               cd "$dir"
-              cp go.mod go.mod.bak && cp go.sum go.sum.bak
+              # A module with no dependencies has no go.sum — assets/ exists
+              # only to keep the README images out of the parent module — so
+              # both files are handled as "there or not there" rather than
+              # assumed.
+              cp go.mod go.mod.bak
+              had_sum=false
+              if [ -f go.sum ]; then cp go.sum go.sum.bak; had_sum=true; fi
               go mod tidy
               diff -u go.mod.bak go.mod || { echo "$dir/go.mod is not tidy; run 'go mod tidy' there"; exit 1; }
-              diff -u go.sum.bak go.sum || { echo "$dir/go.sum is not tidy; run 'go mod tidy' there"; exit 1; }
-              mv go.mod.bak go.mod && mv go.sum.bak go.sum
+              if $had_sum; then
+                diff -u go.sum.bak go.sum || { echo "$dir/go.sum is not tidy; run 'go mod tidy' there"; exit 1; }
+                mv go.sum.bak go.sum
+              elif [ -f go.sum ]; then
+                echo "$dir/go.sum is missing; run 'go mod tidy' there and commit it"; exit 1
+              fi
+              mv go.mod.bak go.mod
             )
             echo "ok   $mod is tidy"
           done
