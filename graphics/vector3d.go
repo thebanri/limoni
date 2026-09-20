@@ -4,22 +4,22 @@ import (
 	"math"
 )
 
-// Vertex3D 3 boyutlu uzayda bir noktayı temsil eder.
+// Vertex3D is a point in three-dimensional space.
 type Vertex3D struct {
 	X, Y, Z float64
 }
 
-// Vertex2D 2 boyutlu bir noktayı temsil eder.
+// Vertex2D is a point on the two-dimensional screen plane.
 type Vertex2D struct {
 	X, Y float64
 }
 
-// UV doku (texture) koordinatlarını temsil eder.
+// UV is a texture coordinate.
 type UV struct {
 	U, V float64
 }
 
-// RotateX, noktayı X ekseni etrafında belirtilen derece cinsinden döndürür.
+// RotateX rotates the point around the X axis. The angle is in degrees.
 func (v Vertex3D) RotateX(angle float64) Vertex3D {
 	rad := angle * math.Pi / 180.0
 	cos, sin := math.Cos(rad), math.Sin(rad)
@@ -30,7 +30,7 @@ func (v Vertex3D) RotateX(angle float64) Vertex3D {
 	}
 }
 
-// RotateY, noktayı Y ekseni etrafında belirtilen derece cinsinden döndürür.
+// RotateY rotates the point around the Y axis. The angle is in degrees.
 func (v Vertex3D) RotateY(angle float64) Vertex3D {
 	rad := angle * math.Pi / 180.0
 	cos, sin := math.Cos(rad), math.Sin(rad)
@@ -41,7 +41,7 @@ func (v Vertex3D) RotateY(angle float64) Vertex3D {
 	}
 }
 
-// RotateZ, noktayı Z ekseni etrafında belirtilen derece cinsinden döndürür.
+// RotateZ rotates the point around the Z axis. The angle is in degrees.
 func (v Vertex3D) RotateZ(angle float64) Vertex3D {
 	rad := angle * math.Pi / 180.0
 	cos, sin := math.Cos(rad), math.Sin(rad)
@@ -52,17 +52,18 @@ func (v Vertex3D) RotateZ(angle float64) Vertex3D {
 	}
 }
 
-// Project, 3D koordinatı 2D ekran koordinatlarına (perspektif projeksiyon) dönüştürür.
-// distance kameranın objeye olan mesafesi, scale ise ekrandaki büyüklük çarpanıdır.
+// Project maps a 3D point onto the screen with a perspective projection.
+// distance is how far the camera sits from the object, scale the resulting
+// size multiplier on screen.
 func Project(v Vertex3D, screenW, screenH, distance, scale float64) (x, y float64, visible bool) {
-	// Obje kameranın arkasında kalıyorsa çizme
+	// Behind the camera: nothing to draw.
 	if v.Z+distance <= 0.1 {
 		return 0, 0, false
 	}
 
 	factor := scale / (v.Z + distance)
 	x = screenW/2.0 + v.X*factor
-	// TUI koordinatlarında Y ekseni aşağı doğrudur, bu yüzden Y'yi ters çeviriyoruz.
+	// Screen coordinates grow downwards, so Y is flipped.
 	y = screenH/2.0 - v.Y*factor
 
 	return x, y, true

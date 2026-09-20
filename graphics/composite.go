@@ -29,9 +29,9 @@ func FlattenImage(src image.Image, background color.Color) image.Image {
 	}
 	br, bg, bb, _ := background.RGBA()
 	bounds := src.Bounds()
-	// image.Uniform gibi görüntüler pratikte sınırsız bounds döndürebilir.
-	// Bu durumda bounds boyutuyla tampon ayırmak taşma/panik üretir; bu tür
-	// kaynaklar için düzleştirme yerine kaynağı korumak güvenlidir.
+	// Images such as image.Uniform report effectively unbounded bounds, and
+	// allocating a buffer that size overflows or panics. Returning the source
+	// unflattened is the safe answer for them.
 	width, height := bounds.Dx(), bounds.Dy()
 	if width <= 0 || height <= 0 || width > 1<<20 || height > 1<<20 {
 		return src
