@@ -303,8 +303,24 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    per border cell (~4%) and stays at zero allocations. Only the light set is
    merged — heavy and double lines have no honest junction with light ones.
 
-9. **Test coverage.** 68% across the library packages. awesome-go asks for 80%
-   and will not consider the project before 2027-01-06 anyway (they require five
-   months of history). The thin packages are `core/cell` (42%), the root package
-   (49%), `core/engine` and `core/driver` (55%), `component` (58%). Raising
-   these is good contributor work and honest prerequisite for that listing.
+9. **Test coverage.** 72% across the library packages, up from 68%.
+   awesome-go asks for 80% and will not consider the project before
+   2027-01-06 anyway (they require five months of history).
+
+   Raised so far: `core/cell` 39→92%, `core/engine` 55→80%, the root package
+   49→73%, `component` 58→71%, `core/terminal` 65→70%. Writing them found a
+   real bug (`RichText` read `"2 < 3 and 4 > 1"` as a tag and swallowed the
+   comparison) and two behaviours that are correct but surprising enough to
+   need saying: `Transform` sweeps blanks too, and `TextFn`'s getter runs more
+   than once per frame.
+
+   Still thin, and open as `testing` issues #35-#40 for contributors:
+   `cmd/limoni` (36%), `benchmarks` (56%), `testkit` (59%),
+   `compat/bubbletea` (60%), `core/accessibility` (65%), `core/driver` (69%),
+   `graphics` (69%), `widgets` (70%).
+
+   Two things to know before writing tests here. Assert the answer, not the
+   line: a test that only reaches code is worth nothing when the code is
+   wrong. And watch the Windows runner — `LastFrameDuration` was asserted
+   `> 0`, which is true everywhere except Windows, where a sub-tick frame
+   measures exactly zero.
