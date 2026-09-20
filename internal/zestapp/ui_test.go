@@ -2,6 +2,7 @@ package zestapp
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni/uitest"
@@ -78,4 +79,28 @@ func TestClearingTheFilterKeepsTheFoundLine(t *testing.T) {
 	page.Expect(page.GetByRole("list-item", "line 1234")).ToBeSelected()
 	page.Expect(page.GetByRole("list-item", "line 1233")).ToBeVisible() // the context above
 	page.Expect(page.GetByRole("list-item", "line 1235")).ToBeVisible() // and below
+}
+
+// The key hints are in the semantic tree, in both modes, so an agent can read
+// which key clears a filter instead of deleting it character by character.
+func TestKeyHintsAreInTheTree(t *testing.T) {
+	s := &store{}
+	s.add([]byte("one"))
+	v := &view{src: s}
+	u := newViewer("t", s, v)
+	page := uitest.Run(t, 120, 10, u.Frame)
+	v.wake = func() {}
+
+	if got := page.GetByID("keys").Node().Value; !strings.Contains(got, "/ filter") || !strings.Contains(got, "q quit") {
+		t.Fatalf("hints while browsing: %q", got)
+	}
+	page.Press("/")
+	if got := page.GetByID("keys").Node().Value; !strings.Contains(got, "Esc clear") {
+		t.Fatalf("hints while editing the filter: %q", got)
+	}
+	page.GetByID("filter").Type("one")
+	page.Press("enter")
+	if got := page.GetByID("status").Node().Value; !strings.Contains(got, "/one") || !strings.Contains(got, "Esc clears") {
+		t.Fatalf("status with a filter: %q", got)
+	}
 }

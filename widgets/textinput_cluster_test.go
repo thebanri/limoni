@@ -155,3 +155,28 @@ func TestClusterBounds(t *testing.T) {
 		}
 	}
 }
+
+// Ctrl and Alt keys are commands, not text. Ctrl+U used to type a "u".
+func TestTextInputReadlineKeys(t *testing.T) {
+	ctrl := func(ch rune) driver.KeyEvent { return driver.KeyEvent{Type: driver.KeyRune, Ch: ch, Ctrl: true} }
+	s := NewTextInputState()
+	s.SetValue("connection refused")
+	for _, step := range []struct {
+		key  driver.KeyEvent
+		want string
+	}{
+		{ctrl('w'), "connection |"},
+		{ctrl('a'), "|connection "},
+		{ctrl('e'), "connection |"},
+		{driver.KeyEvent{Type: driver.KeyArrowLeft}, "connection| "},
+		{ctrl('k'), "connection|"},
+		{ctrl('u'), "|"},
+		{driver.KeyEvent{Type: driver.KeyRune, Ch: 'x', Alt: true}, "|"},
+		{ctrl('z'), "|"},
+	} {
+		s.HandleKey(step.key)
+		if got := string(s.Text[:s.Cursor]) + "|" + string(s.Text[s.Cursor:]); got != step.want {
+			t.Fatalf("after %+v: %q, want %q", step.key, got, step.want)
+		}
+	}
+}

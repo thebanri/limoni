@@ -25,7 +25,6 @@ func (t text) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return widgets.NewLabel(t.value).SizeHint(maxArea)
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DIAL KNOB CUSTOM WIDGET
 // ─────────────────────────────────────────────────────────────────────────────

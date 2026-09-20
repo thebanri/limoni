@@ -248,9 +248,21 @@ func (u *Viewer) drawHeader(f *limoni.Frame, area limoni.Rect) {
 
 func (u *Viewer) drawFooter(f *limoni.Frame, area limoni.Rect) {
 	fill(f, area, barStyle)
+	// The status and the key hints are widgets, not bare text, so they are
+	// in the semantic tree: an agent driving zest reads which keys do what
+	// instead of guessing. One cleared a filter with twenty Backspaces
+	// because Esc was only written on the screen.
 	if u.editing {
 		f.Buffer.SetString(area.X, area.Y, " / ", headerStyle)
-		f.RenderWidget(&widgets.TextInput{ID: "filter", State: u.filter, Placeholder: "filter", Focused: true, Style: barStyle}, limoni.NewRect(area.X+3, area.Y, area.Width-3, 1))
+		hints := "  Enter apply · Esc clear · Ctrl+U delete "
+		hw := uint16(cell.StringWidth(hints))
+		if hw > area.Width/2 {
+			hw = 0
+		}
+		f.RenderWidget(&widgets.TextInput{ID: "filter", State: u.filter, Placeholder: "filter", Focused: true, Style: barStyle}, limoni.NewRect(area.X+3, area.Y, area.Width-3-hw, 1))
+		if hw > 0 {
+			f.RenderWidget(&widgets.Paragraph{ID: "keys", Text: hints, Style: dimStyle}, limoni.NewRect(area.X+area.Width-hw, area.Y, hw, 1))
+		}
 		return
 	}
 	var parts []string
@@ -260,17 +272,21 @@ func (u *Viewer) drawFooter(f *limoni.Frame, area limoni.Rect) {
 	if u.minLevel > widgets.LevelUnknown {
 		parts = append(parts, "level ≥ "+u.minLevel.String())
 	}
-	status := ""
+	x := area.X
 	if len(parts) > 0 {
 		scanned, total, done := u.view.progress()
-		status = fmt.Sprintf(" %s · %s of %s", strings.Join(parts, " · "), thousands(u.view.Len()), thousands(total))
+		status := fmt.Sprintf(" %s · %s of %s", strings.Join(parts, " · "), thousands(u.view.Len()), thousands(total))
 		if !done && total > 0 {
 			status += fmt.Sprintf(" · scanning %d%%", scanned*100/total)
 		}
-		status += "  "
+		status += " · Esc clears  "
+		w := min(uint16(cell.StringWidth(status)), area.Width)
+		f.RenderWidget(&widgets.Paragraph{ID: "status", Text: status, Style: warnStyle}, limoni.NewRect(x, area.Y, w, 1))
+		x += w
 	}
-	x := area.X + f.Buffer.SetString(area.X, area.Y, status, warnStyle)
-	f.Buffer.SetStringWithin(x, area.Y, " / filter  1-6 level  ⏎ details  f follow  ? help  q quit", dimStyle, area.X+area.Width-x)
+	if x < area.X+area.Width {
+		f.RenderWidget(&widgets.Paragraph{ID: "keys", Text: " / filter  1-6 level  ⏎ details  f follow  g top  G end  ? help  q quit", Style: dimStyle}, limoni.NewRect(x, area.Y, area.X+area.Width-x, 1))
+	}
 }
 
 func (u *Viewer) drawDetails(f *limoni.Frame, area limoni.Rect) {

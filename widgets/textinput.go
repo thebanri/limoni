@@ -100,9 +100,18 @@ func clusterBounds(text string, i int) (before, after int) {
 }
 
 // HandleKey applies a key press. It reports whether the text or the cursor changed.
+//
+// Besides the arrows, Home, End, Backspace and Delete, it understands the
+// readline keys shells use: Ctrl+A and Ctrl+E move to the start and end,
+// Ctrl+U deletes to the start, Ctrl+K to the end, and Ctrl+W the word before
+// the cursor. Any other key held with Ctrl or Alt is not text and is ignored:
+// inserting it typed a "u" for Ctrl+U.
 func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 	switch key.Type {
 	case driver.KeyRune:
+		if key.Ctrl || key.Alt {
+			return state.control(key)
+		}
 		state.insert(key.Ch)
 		return true
 
@@ -145,6 +154,52 @@ func (state *TextInputState) HandleKey(key driver.KeyEvent) bool {
 			state.Cursor = len(state.Text)
 			return true
 		}
+	}
+	return false
+}
+
+// control applies a readline shortcut, if the key is one.
+func (state *TextInputState) control(key driver.KeyEvent) bool {
+	if !key.Ctrl || key.Alt {
+		return false
+	}
+	state.Cursor = clampInt(state.Cursor, 0, len(state.Text))
+	switch key.Ch {
+	case 'a', 'A':
+		changed := state.Cursor != 0
+		state.Cursor = 0
+		return changed
+	case 'e', 'E':
+		changed := state.Cursor != len(state.Text)
+		state.Cursor = len(state.Text)
+		return changed
+	case 'u', 'U':
+		if state.Cursor == 0 {
+			return false
+		}
+		state.Text = append(state.Text[:0], state.Text[state.Cursor:]...)
+		state.Cursor = 0
+		return true
+	case 'k', 'K':
+		if state.Cursor == len(state.Text) {
+			return false
+		}
+		state.Text = state.Text[:state.Cursor]
+		return true
+	case 'w', 'W':
+		start := state.Cursor
+		for start > 0 && state.Text[start-1] == ' ' {
+			start--
+		}
+		for start > 0 && state.Text[start-1] != ' ' {
+			start--
+		}
+		if start == state.Cursor {
+			return false
+		}
+		state.Text = append(state.Text[:start], state.Text[state.Cursor:]...)
+		state.Cursor = start
+		return true
 	}
 	return false
 }

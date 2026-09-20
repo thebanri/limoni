@@ -8,6 +8,18 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- `TextInput` understands the readline keys: Ctrl+A/E move to the start and
+  end, Ctrl+U deletes to the start, Ctrl+K to the end, Ctrl+W the previous
+  word.
+- zest's status line and key hints are in the semantic tree (`status`, `keys`),
+  and the hints stay visible while typing a filter.
+
+### Fixed
+- `TextInput` and `TextArea` inserted keys held with Ctrl or Alt as text:
+  Ctrl+U typed a "u". A headless Claude Code run against zest hit it trying to
+  clear a filter.
+
 ## [v0.5.0] — 2026-09-20
 
 ### Added
