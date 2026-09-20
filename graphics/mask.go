@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// circleMask, dairesel maskeyi temsil eden özel bir image.Image yapısıdır.
+// circleMask is an image.Image whose alpha channel is a filled circle.
 type circleMask struct {
 	cx, cy int
 	r      int
@@ -31,7 +31,7 @@ func (c *circleMask) At(x, y int) color.Color {
 	if dist <= float64(c.r) {
 		return color.Alpha{A: 255}
 	}
-	// Kenarları yumuşatmak (anti-aliasing) için piksel sınırını yumuşat
+	// One pixel of fade past the radius, so the edge is not a staircase.
 	if dist <= float64(c.r)+1.0 {
 		delta := float64(c.r) + 1.0 - dist
 		return color.Alpha{A: uint8(delta * 255.0)}
@@ -49,7 +49,8 @@ type circleMaskCacheKey struct {
 	width, height int
 }
 
-// ApplyCircleMask, verilen resmi daire şeklinde kırparak (avatar formatında) transparan bir RGBA resim döndürür.
+// ApplyCircleMask crops an image to a circle, avatar style, and returns it as
+// an RGBA image with the corners transparent.
 func ApplyCircleMask(src image.Image) image.Image {
 	if src == nil {
 		return nil
@@ -59,7 +60,7 @@ func ApplyCircleMask(src image.Image) image.Image {
 	w := bounds.Dx()
 	h := bounds.Dy()
 
-	// En küçük kenara göre kare alanı belirle
+	// The circle fits the shorter side.
 	size := w
 	if h < size {
 		size = h
@@ -80,18 +81,15 @@ func ApplyCircleMask(src image.Image) image.Image {
 		circleMaskMu.RUnlock()
 	}
 
-	// Yeni boş bir RGBA resmi oluştur
 	dst := image.NewRGBA(image.Rect(0, 0, size, size))
 
-	// Ortalamak için başlangıç offsetlerini hesapla
+	// Take the square from the middle of the source.
 	offsetX := bounds.Min.X + (w-size)/2
 	offsetY := bounds.Min.Y + (h-size)/2
 
-	// Maske nesnesini tanımla
 	r := size / 2
 	mask := &circleMask{cx: r, cy: r, r: r}
 
-	// draw.DrawMask ile maskelenmiş resmi çiz
 	draw.DrawMask(
 		dst,
 		dst.Bounds(),
