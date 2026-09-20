@@ -96,3 +96,27 @@ go run github.com/thebanri/limoni/cmd/limoni@latest doctor
 Include that output in rendering bug reports. Escape hatches:
 `LIMONI_PROBE=0` sends no queries, `LIMONI_REP=0|1` forces REP off or on, and
 `LIMONI_NO_SYNC=1` disables synchronized output.
+
+---
+
+## 5. Suspending with Ctrl+Z
+
+`limoni.WithSuspend()` makes Ctrl+Z behave the way it does in `vim` or `less`:
+the application hands the terminal back to the shell and stops; `fg` brings it
+back and the screen is repainted.
+
+```go
+limoni.Run(draw, limoni.WithSuspend())
+```
+
+The order is what matters. Limoni leaves the alternate screen and raw mode
+*before* raising `SIGTSTP`, or the shell inherits a terminal with no echo and
+the application's screen still on it. On resume it re-enters raw mode, sends
+the setup sequence, asks the terminal again what it supports (it may be a
+different terminal), and forces a full repaint, because the shell has written
+over the screen in the meantime.
+
+`Terminal.Suspend()` does the same for an application that would rather bind
+its own key. Both return `driver.ErrSuspendUnsupported` where there is no shell
+to return to — a remote or in-memory backend, the browser, Windows — and with
+`WithSuspend` the key is then delivered to the application as usual.

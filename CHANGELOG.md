@@ -8,6 +8,12 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- `limoni.WithSuspend()` and `Terminal.Suspend()`: Ctrl+Z hands the terminal
+  back to the shell and stops the application, as in vim or less; `fg` resumes
+  it, re-runs the capability handshake and repaints. Unsupported backends
+  (remote, browser, Windows) say so and deliver the key instead.
+
 ## [v0.6.0] — 2026-09-20
 
 ### Added
