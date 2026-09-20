@@ -150,6 +150,8 @@ type textFnComponent struct {
 }
 
 // TextFn creates a dynamic text component evaluated via a getter function on each frame.
+// The getter is called whenever the component is measured or drawn, which
+// is more than once per frame. Keep it cheap and free of side effects.
 func TextFn(getter func() string, style ...cell.Style) Component {
 	st := cell.NewStyle()
 	if len(style) > 0 {
