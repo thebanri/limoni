@@ -43,10 +43,7 @@ func TestExecPTYAdapterRunsAProcess(t *testing.T) {
 	if err := p.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		_ = p.Stop()
-		_ = p.cmd.Wait()
-	})
+	t.Cleanup(func() { _ = p.Stop() })
 
 	if _, err := p.Write([]byte("hello, limoni\n")); err != nil {
 		t.Fatal(err)
@@ -74,6 +71,13 @@ func TestExecPTYAdapterRunsAProcess(t *testing.T) {
 
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)
+	}
+	// Stop once only killed the child, so a write could still land in the pipe.
+	if _, err := p.Write([]byte("x")); err == nil {
+		t.Error("Write after Stop succeeded")
+	}
+	if err := p.Stop(); err != nil {
+		t.Errorf("second Stop: %v", err)
 	}
 	ended := make(chan error, 1)
 	go func() {
