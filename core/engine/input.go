@@ -24,7 +24,9 @@ type MouseReleaseMsg struct {
 	Button   driver.MouseButton
 }
 
-// MouseWheelMsg represents a normalized wheel delta.
+// MouseWheelMsg represents a normalized wheel delta. DeltaY is positive for
+// wheel up (away from the user) and negative for wheel down, so scrolling
+// content follows the wheel with ScrollBy(-DeltaY).
 type MouseWheelMsg struct{ DeltaX, DeltaY int }
 
 // PasteMsg represents bracketed-paste text supplied by an input adapter.
