@@ -184,8 +184,6 @@ func TestCloseWaitsBoundedlyForReplies(t *testing.T) {
 	}
 }
 
-// A terminal that ignores CSI 6 n measures nothing. A cursor report arriving
-// after DA1 — from the application's own query, say — is not a measurement.
 func TestModeStateRecognized(t *testing.T) {
 	// "Supported but off" is recognised; no answer at all is not.
 	for _, tc := range []struct {
@@ -247,6 +245,8 @@ func TestTerminalReportVersion(t *testing.T) {
 	}
 }
 
+// A terminal that ignores CSI 6 n measures nothing. A cursor report arriving
+// after DA1 — from the application's own query, say — is not a measurement.
 func TestCursorReportAfterSentinelIsNotAMeasurement(t *testing.T) {
 	var c replyCollector
 	c.markSent()
