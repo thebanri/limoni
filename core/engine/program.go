@@ -55,6 +55,9 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 				p.Stop()
 				return nil
 			}
+			if event.Type == driver.EventMouse && p.routeMouse(term, event.Mouse) {
+				continue
+			}
 			if err := p.SendDriver(ctx, event); err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -71,6 +74,21 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 			return ctx.Err()
 		}
 	}
+}
+
+// routeMouse offers a mouse event to the click regions the last frame
+// registered — Tabs.OnSelect, buttons, scroll areas — and reports whether one
+// took it. Those callbacks write to the model, so they run under the same lock
+// as Update and View. An event a widget handled is not also sent to Update:
+// otherwise a wheel over a scroll region would scroll it twice.
+func (p *Program) routeMouse(term *terminal.Terminal, ev driver.MouseEvent) bool {
+	p.modelMu.Lock()
+	handled := term.RouteMouseEvent(ev)
+	p.modelMu.Unlock()
+	if handled {
+		p.RequestRedraw()
+	}
+	return handled
 }
 
 type programOptions struct {
