@@ -54,11 +54,24 @@ func (p *ExecPTYAdapter) Stop() error {
 	_ = p.cmd.Wait()
 	return nil
 }
+
+// Read returns io.EOF once the adapter is stopped, including for a Read that
+// was blocked when Stop closed the pipe.
 func (p *ExecPTYAdapter) Read(b []byte) (int, error) {
-	if p.stdout == nil {
+	p.mu.Lock()
+	out, stopped := p.stdout, p.stopped
+	p.mu.Unlock()
+	if out == nil {
 		return 0, errors.New("pty not started")
 	}
-	return p.stdout.Read(b)
+	if stopped {
+		return 0, io.EOF
+	}
+	n, err := out.Read(b)
+	if errors.Is(err, os.ErrClosed) {
+		err = io.EOF
+	}
+	return n, err
 }
 func (p *ExecPTYAdapter) Write(b []byte) (int, error) {
 	p.mu.Lock()
