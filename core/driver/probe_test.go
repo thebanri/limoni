@@ -184,6 +184,67 @@ func TestCloseWaitsBoundedlyForReplies(t *testing.T) {
 	}
 }
 
+func TestModeStateRecognized(t *testing.T) {
+	// "Supported but off" is recognised; no answer at all is not.
+	for _, tc := range []struct {
+		m    ModeState
+		want bool
+	}{
+		{ModeUnknown, false},
+		{ModeUnsupported, false},
+		{ModeSet, true},
+		{ModeReset, true},
+		{ModePermanentlySet, true},
+		{ModePermanentlyReset, true},
+	} {
+		if got := tc.m.Recognized(); got != tc.want {
+			t.Errorf("%v.Recognized() = %v, want %v", tc.m, got, tc.want)
+		}
+	}
+}
+
+func TestModeStateEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		m    ModeState
+		want bool
+	}{
+		{ModeUnknown, false},
+		{ModeUnsupported, false},
+		{ModeSet, true},
+		{ModeReset, false},
+		{ModePermanentlySet, true},
+		{ModePermanentlyReset, false},
+	} {
+		if got := tc.m.Enabled(); got != tc.want {
+			t.Errorf("%v.Enabled() = %v, want %v", tc.m, got, tc.want)
+		}
+	}
+}
+
+func TestTerminalReportVersion(t *testing.T) {
+	t.Setenv("LIMONI_PROBE", "")
+	io := NewMemoryTerminalIO(nil, 80, 24)
+	b := NewPortableBackend(io)
+	if err := b.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	if v := b.TerminalReportVersion(); v != 0 {
+		t.Fatalf("fresh report version %d, want 0", v)
+	}
+	da1, _ := ParseEvent([]byte("\x1b[?62;22c"))
+	if !b.replies.record(da1) {
+		t.Fatal("DA1 was not recorded as a reply")
+	}
+	if v := b.TerminalReportVersion(); v != 1 {
+		t.Fatalf("after DA1 version %d, want 1", v)
+	}
+	r, n := b.TerminalReport()
+	if !r.Answered || n != 1 {
+		t.Fatalf("report %+v version %d; want answered with version 1", r, n)
+	}
+}
+
 // A terminal that ignores CSI 6 n measures nothing. A cursor report arriving
 // after DA1 — from the application's own query, say — is not a measurement.
 func TestCursorReportAfterSentinelIsNotAMeasurement(t *testing.T) {
