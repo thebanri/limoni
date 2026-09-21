@@ -321,3 +321,111 @@ func (m *quitKeyModel) sawKey() bool {
 	defer m.mu.Unlock()
 	return m.seen
 }
+
+// A widget's click callback — Tabs.OnSelect, a button — is registered while
+// the frame is drawn and fired by the terminal's hit test. RunTerminal once
+// sent every mouse event straight to Update, so in a Program no click
+// callback ever ran: the browser playground's tabs ignored the mouse.
+func TestRunTerminalRoutesClicksToWidgetRegions(t *testing.T) {
+	t.Setenv("LIMONI_PROBE", "0")
+	io := newChanTerminalIO(20, 5)
+	b := driver.NewPortableBackend(io)
+	term, err := terminal.New(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &clickModel{drawn: make(chan struct{})}
+	p := New(WithModel(m), WithFPS(120))
+
+	done := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go func() { done <- p.RunTerminal(ctx, term, b) }()
+
+	select {
+	case <-m.drawn:
+	case <-ctx.Done():
+		t.Fatal("no frame was drawn")
+	}
+	// Left press at column 3, row 1 (SGR is 1-based): inside the region.
+	io.in <- []byte("\x1b[<0;3;1M")
+	// A click outside every region still belongs to the model.
+	io.in <- []byte("\x1b[<0;15;4M")
+	io.in <- []byte("q")
+
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("RunTerminal: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("RunTerminal did not return after the model quit")
+	}
+
+	if m.clicks != 1 {
+		t.Errorf("click callback ran %d times, want 1", m.clicks)
+	}
+	if len(m.presses) != 1 || m.presses[0] != (cell.Point{X: 14, Y: 3}) {
+		t.Errorf("Update saw presses %v, want only the one outside the region at (14,3)", m.presses)
+	}
+}
+
+type clickModel struct {
+	drawn     chan struct{}
+	drawnOnce sync.Once
+	clicks    int
+	presses   []cell.Point
+}
+
+func (m *clickModel) Init() []Cmd { return nil }
+
+func (m *clickModel) Update(msg Msg) UpdateResult {
+	switch msg := msg.(type) {
+	case KeyPressMsg:
+		if msg.Key.Ch == 'q' {
+			return UpdateResult{Quit: true}
+		}
+	case MousePressMsg:
+		m.presses = append(m.presses, msg.Position)
+	}
+	return UpdateResult{}
+}
+
+func (m *clickModel) View(f *terminal.Frame) {
+	f.Buffer.SetString(0, 0, "[tab]", cell.Style{})
+	f.RegisterClickHandler(cell.NewRect(0, 0, 5, 1), func(driver.MouseEvent) { m.clicks++ })
+	m.drawnOnce.Do(func() { close(m.drawn) })
+}
+
+// chanTerminalIO delivers input one chunk at a time, when the test decides,
+// so a click can arrive after the frame that registers its region.
+type chanTerminalIO struct {
+	in            chan []byte
+	pending       []byte
+	width, height uint16
+	mu            sync.Mutex
+	out           []byte
+}
+
+func newChanTerminalIO(width, height uint16) *chanTerminalIO {
+	return &chanTerminalIO{in: make(chan []byte, 8), width: width, height: height}
+}
+
+func (c *chanTerminalIO) Read(p []byte) (int, error) {
+	if len(c.pending) == 0 {
+		c.pending = <-c.in
+	}
+	n := copy(p, c.pending)
+	c.pending = c.pending[n:]
+	return n, nil
+}
+
+func (c *chanTerminalIO) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	c.out = append(c.out, p...)
+	c.mu.Unlock()
+	return len(p), nil
+}
+
+func (c *chanTerminalIO) Size() (uint16, uint16, error) { return c.width, c.height, nil }

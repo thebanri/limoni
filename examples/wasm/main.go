@@ -121,7 +121,7 @@ func (m *playground) Update(msg engine.Msg) engine.UpdateResult {
 
 	case engine.MouseWheelMsg:
 		if m.scenes[m.active].title == "Scroll" {
-			m.logState.ScrollBy(msg.DeltaY * 3)
+			m.logState.ScrollBy(-msg.DeltaY * 3)
 			return engine.UpdateResult{Redraw: true}
 		}
 	}
