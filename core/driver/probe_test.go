@@ -258,3 +258,77 @@ func TestCursorReportAfterSentinelIsNotAMeasurement(t *testing.T) {
 		t.Fatalf("late cursor reports taken as measurements: %+v", r)
 	}
 }
+
+// A DECRPM setting decides what Limoni believes about a mode. "Supported but
+// off" is still recognised, so it may be switched on; no answer at all, or an
+// answer that the terminal does not know the mode, is not.
+func TestModeStateFromDECRPM(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		state, want         ModeState
+		recognized, enabled bool
+	}{
+		// The zero value, and what a terminal that did not answer leaves.
+		{"never answered", ModeState(0), ModeUnknown, false, false},
+		// An answer, unlike silence: it overrides what the environment guessed.
+		{"0 not recognised", modeState(0), ModeUnsupported, false, false},
+		{"1 set", modeState(1), ModeSet, true, true},
+		{"2 reset", modeState(2), ModeReset, true, false},
+		{"3 permanently set", modeState(3), ModePermanentlySet, true, true},
+		{"4 permanently reset", modeState(4), ModePermanentlyReset, true, false},
+		{"5 out of range", modeState(5), ModeUnknown, false, false},
+		{"-1 out of range", modeState(-1), ModeUnknown, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.state != tc.want {
+				t.Fatalf("state %d, want %d", tc.state, tc.want)
+			}
+			if got := tc.state.Recognized(); got != tc.recognized {
+				t.Errorf("Recognized() = %v, want %v", got, tc.recognized)
+			}
+			if got := tc.state.Enabled(); got != tc.enabled {
+				t.Errorf("Enabled() = %v, want %v", got, tc.enabled)
+			}
+		})
+	}
+}
+
+// TerminalReportVersion is the counter TerminalReport hands out: it moves when
+// a reply lands, not for input, and reading it never waits on the report lock.
+func TestTerminalReportVersion(t *testing.T) {
+	b := NewPortableBackend(NewMemoryTerminalIO(nil, 80, 24))
+	_, v0 := b.TerminalReport()
+	if got := b.TerminalReportVersion(); got != v0 {
+		t.Fatalf("version %d before any reply, report says %d", got, v0)
+	}
+
+	if b.replies.record(Event{Type: EventKey, Key: KeyEvent{Ch: 'x'}}) {
+		t.Fatal("a key was taken as a reply")
+	}
+	if got := b.TerminalReportVersion(); got != v0 {
+		t.Fatalf("a key moved the version from %d to %d", v0, got)
+	}
+
+	ev, _ := ParseEvent([]byte("\x1b[?2026;1$y"))
+	b.replies.record(ev)
+	r, v1 := b.TerminalReport()
+	if r.SyncOutput != ModeSet || v1 == v0 {
+		t.Fatalf("reply not reported: %+v, version %d -> %d", r, v0, v1)
+	}
+	if got := b.TerminalReportVersion(); got != v1 {
+		t.Fatalf("version %d, report says %d", got, v1)
+	}
+
+	b.replies.mu.Lock()
+	defer b.replies.mu.Unlock()
+	done := make(chan uint64, 1)
+	go func() { done <- b.TerminalReportVersion() }()
+	select {
+	case got := <-done:
+		if got != v1 {
+			t.Fatalf("version %d under the lock, want %d", got, v1)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("TerminalReportVersion waited on the report lock")
+	}
+}
