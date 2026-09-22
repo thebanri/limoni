@@ -211,3 +211,37 @@ func TestHalfBlockBaselineStandard(t *testing.T) {
 		t.Fatalf("Expected ModeBlock to render '▄' half-block cells, found none")
 	}
 }
+
+// In Braille mode light is carried by how many dots are raised: a dim model raises fewer
+// dots than a bright one, while its outline stays drawn.
+func TestAscii3DBrailleShadesByDotDensity(t *testing.T) {
+	rect := cell.NewRect(0, 0, 40, 20)
+	render := func(env float64) (dots, cells int) {
+		buf := buffer.NewBuffer(rect)
+		Ascii3D{Model: graphics.NewDuck(), Mode: ModeBraille, RotY: 200, EnvironmentIntensity: env, Colored: true}.
+			Draw(cell.Context{Area: rect}, buf)
+		for y := uint16(0); y < rect.Height; y++ {
+			for x := uint16(0); x < rect.Width; x++ {
+				c := buf.Get(x, y)
+				if c.Content < 0x2801 || c.Content > 0x28FF {
+					continue
+				}
+				cells++
+				for m := c.Content - 0x2800; m != 0; m &= m - 1 {
+					dots++
+				}
+			}
+		}
+		return dots, cells
+	}
+	dimDots, dimCells := render(0.2)
+	brightDots, brightCells := render(1.0)
+	if dimDots == 0 || dimDots >= brightDots {
+		t.Fatalf("dot density does not follow light: dim %d dots, bright %d dots", dimDots, brightDots)
+	}
+	// The silhouette is always raised, so the dim model covers about the same cells.
+	if dimCells < brightCells*9/10 {
+		t.Fatalf("dim model lost its outline: %d cells vs %d", dimCells, brightCells)
+	}
+	t.Logf("dim: %d dots in %d cells, bright: %d dots in %d cells", dimDots, dimCells, brightDots, brightCells)
+}

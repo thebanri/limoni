@@ -539,19 +539,17 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// 2. Braille 8x Mode (ModeBraille)
+	//
+	// Each cell is a 2×4 dot grid. Light decides how many of a surface's dots are raised
+	// (an 8×8 ordered dither), so shading reads from dot density and not only from colour;
+	// dots on the silhouette and on depth steps are always raised, so the outline stays
+	// crisp where the surface is dark. A cell takes the average colour of its raised dots.
 	if effectiveMode == ModeBraille {
-		brailleMap := [4][2]rune{
-			{0x01, 0x08},
-			{0x02, 0x10},
-			{0x04, 0x20},
-			{0x40, 0x80},
-		}
-
 		for y := 0; y < h; y++ {
 			screenY := area.Y + uint16(y)
 			for x := 0; x < w; x++ {
 				screenX := area.X + uint16(x)
-				var mask rune = 0
+				var mask rune
 				var avgR, avgG, avgB float64
 				count := 0
 
@@ -561,20 +559,31 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 					for dx := 0; dx < 2; dx++ {
 						subX := x*2 + dx
 						cellIdx := rowIdx + subX
-						if !math.IsInf(depthBuf[cellIdx], 1) {
-							mask |= brailleMap[dy][dx]
-							col, _ := calcPixelColor(cellIdx)
-							r, g, b := col.RGB()
-							avgR += float64(r)
-							avgG += float64(g)
-							avgB += float64(b)
-							count++
+						if math.IsInf(depthBuf[cellIdx], 1) {
+							continue
 						}
+						col, mapped := calcPixelColor(cellIdx)
+						if mapped <= brailleDither[subY&7][subX&7] && !brailleEdge(depthBuf, subX, subY, subW, subH) {
+							continue
+						}
+						mask |= brailleDots[dy][dx]
+						r, g, b := col.RGB()
+						avgR += float64(r)
+						avgG += float64(g)
+						avgB += float64(b)
+						count++
 					}
 				}
 
 				if count > 0 {
-					avgCol := cell.NewColorRGB(uint8(avgR/float64(count)), uint8(avgG/float64(count)), uint8(avgB/float64(count)))
+					avgR, avgG, avgB = avgR/float64(count), avgG/float64(count), avgB/float64(count)
+					// Dot density already carries the shading; dimming the dots as well would
+					// darken a shadow twice. Lift dark dots towards full brightness, keeping hue.
+					if peak := math.Max(avgR, math.Max(avgG, avgB)); peak > 0 && peak < brailleMinPeak {
+						lift := math.Min(brailleMaxLift, brailleMinPeak/peak)
+						avgR, avgG, avgB = avgR*lift, avgG*lift, avgB*lift
+					}
+					avgCol := cell.NewColorRGB(uint8(avgR), uint8(avgG), uint8(avgB))
 					buf.SetCell(screenX, screenY, cell.Cell{
 						Content: 0x2800 + mask,
 						Style:   cell.Style{Fg: avgCol},
@@ -650,4 +659,60 @@ func (a Ascii3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 // SizeHint implements the widgets.Widget interface.
 func (a Ascii3D) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return maxArea.Width, maxArea.Height
+}
+
+// brailleDots maps a dot's (row, column) inside a cell to its Braille bit.
+var brailleDots = [4][2]rune{
+	{0x01, 0x08},
+	{0x02, 0x10},
+	{0x04, 0x20},
+	{0x40, 0x80},
+}
+
+// brailleDither holds the 8×8 Bayer thresholds, in (0, 1), that a dot's brightness must
+// exceed for the dot to be raised.
+var brailleDither = func() (t [8][8]float64) {
+	bayer := [8][8]int{
+		{0, 32, 8, 40, 2, 34, 10, 42},
+		{48, 16, 56, 24, 50, 18, 58, 26},
+		{12, 44, 4, 36, 14, 46, 6, 38},
+		{60, 28, 52, 20, 62, 30, 54, 22},
+		{3, 35, 11, 43, 1, 33, 9, 41},
+		{51, 19, 59, 27, 49, 17, 57, 25},
+		{15, 47, 7, 39, 13, 45, 5, 37},
+		{63, 31, 55, 23, 61, 29, 53, 21},
+	}
+	for y := range bayer {
+		for x := range bayer[y] {
+			t[y][x] = (float64(bayer[y][x]) + 0.5) / 64
+		}
+	}
+	return t
+}()
+
+// A raised dot's colour is lifted to at least brailleMinPeak in its brightest channel, by
+// at most brailleMaxLift, so shadows thin out instead of turning dim and sparse at once.
+const (
+	brailleMinPeak = 0.85 * 255
+	brailleMaxLift = 2.0
+)
+
+// brailleEdgeStep is the depth difference, in view units, that counts as a visible step
+// between two neighbouring dots (a part in front of another).
+const brailleEdgeStep = 0.15
+
+// brailleEdge reports whether the covered dot at (x, y) borders empty space or a part
+// further back, so it belongs to an outline.
+func brailleEdge(depth []float64, x, y, w, h int) bool {
+	d := depth[y*w+x]
+	for _, o := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+		nx, ny := x+o[0], y+o[1]
+		if nx < 0 || ny < 0 || nx >= w || ny >= h {
+			return true
+		}
+		if nd := depth[ny*w+nx]; math.IsInf(nd, 1) || nd-d > brailleEdgeStep {
+			return true
+		}
+	}
+	return false
 }

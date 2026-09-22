@@ -8,6 +8,15 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Changed
+- `Ascii3D` in `ModeBraille` shades with dots instead of filling every covered
+  dot. Light decides how many of a surface's dots are raised (an 8×8 ordered
+  dither), the silhouette and depth steps are always raised so outlines stay
+  crisp in shadow, and a raised dot keeps its hue at full brightness instead of
+  being dimmed a second time. Before, every model rendered as a solid `⣿` block
+  whose shape showed only through colour. No API change and no new allocations
+  (7 per frame, as before).
+
 ## [v0.8.0] — 2026-09-20
 
 ### Changed
