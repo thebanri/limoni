@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.8.1] — 2026-09-22
+
 ### Changed
 - `Ascii3D` in `ModeBraille` shades with dots instead of filling every covered
   dot. Light decides how many of a surface's dots are raised (an 8×8 ordered
@@ -309,7 +311,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.8.1...HEAD
+[v0.8.1]: https://github.com/thebanri/limoni/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/thebanri/limoni/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/thebanri/limoni/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/thebanri/limoni/compare/v0.5.0...v0.6.0
