@@ -8,6 +8,13 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Fixed
+- `apps/globe` searched only Natural Earth's 1:110m cities — 243 of them, so
+  Bursa or Lyon could not be found. It now carries the 1:10m set, 7,342 cities
+  and towns, and searches their ASCII spelling too, so "izmir" finds İzmir.
+- The globe README now says that `go install` puts the binary in
+  `$(go env GOPATH)/bin`, which a fresh Go install leaves off `PATH`.
+
 ## [v0.8.1] — 2026-09-22
 
 ### Changed

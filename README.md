@@ -179,6 +179,10 @@ go install github.com/thebanri/limoni/apps/globe@latest
 globe -at Türkiye
 ```
 
+`go install` puts the binary in `$(go env GOPATH)/bin` — `~/go/bin` unless you changed it —
+which a fresh Go install does not add to your `PATH`. If `globe` is "command not found", add
+that directory to `PATH` or run `~/go/bin/globe`.
+
 Everything on it is in the semantic tree, so "find Turkey on the world map" is something an agent
 can do over MCP: type into `search`, click the row, read `image#globe` back as
 `value="39.3°N 34.5°E · zoom 2.6×"`. Nothing of it reaches you when you import Limoni — a

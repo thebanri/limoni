@@ -7,6 +7,10 @@
 //	borders.bin.gz  where one country meets another, at six resolutions
 //	places.go       countries and cities, with the point to centre on
 //
+// The land, the borders and the countries come from the 1:110m set; the
+// cities come from 1:10m, because 1:110m keeps only 243 of them and a search
+// box that cannot find Bursa or Lyon is not much of a search box.
+//
 // Run it from this directory when the data needs rebuilding:
 //
 //	go run gen.go
@@ -74,7 +78,7 @@ func run() error {
 	if err := writeBorders(countries); err != nil {
 		return err
 	}
-	cities, err := fetch("ne_110m_populated_places_simple.geojson")
+	cities, err := fetch("ne_10m_populated_places_simple.geojson")
 	if err != nil {
 		return err
 	}
@@ -378,12 +382,12 @@ var countries = []Place{
 		fmt.Fprintf(&b, "\t{Name: %q, Local: %q, Code: %q, Region: %q, Lat: %.4f, Lon: %.4f, Kind: Country},\n",
 			r.name, r.tr, r.iso, r.region, r.lat, r.lon)
 	}
-	b.WriteString("}\n\n// cities are Natural Earth's 1:110m populated places: capitals and the\n// largest cities, enough to aim the globe at a city rather than a country.\nvar cities = []Place{\n")
+	b.WriteString("}\n\n// cities are Natural Earth's 1:10m populated places: every capital and\n// several thousand cities and towns, enough to aim the globe at a city rather\n// than a country.\nvar cities = []Place{\n")
 
 	type crow struct {
-		name, country string
-		lat, lon      float64
-		pop           int
+		name, ascii, country string
+		lat, lon             float64
+		pop                  int
 	}
 	var crows []crow
 	for _, f := range cities.Features {
@@ -395,13 +399,24 @@ var countries = []Place{
 		if name == "" || !ok1 || !ok2 {
 			continue
 		}
+		// The ASCII spelling is searched too, so that "izmir" finds İzmir:
+		// lowercasing İ gives i plus a combining dot, which no one types.
+		ascii, _ := p["nameascii"].(string)
+		if ascii == name {
+			ascii = ""
+		}
 		pop, _ := p["pop_max"].(float64)
-		crows = append(crows, crow{name, country, lat, lon, int(pop)})
+		crows = append(crows, crow{name, ascii, country, lat, lon, int(pop)})
 	}
-	sort.Slice(crows, func(i, j int) bool { return crows[i].name < crows[j].name })
+	sort.Slice(crows, func(i, j int) bool {
+		if crows[i].name != crows[j].name {
+			return crows[i].name < crows[j].name
+		}
+		return crows[i].country < crows[j].country
+	})
 	for _, c := range crows {
-		fmt.Fprintf(&b, "\t{Name: %q, Region: %q, Lat: %.4f, Lon: %.4f, Population: %d, Kind: City},\n",
-			c.name, c.country, c.lat, c.lon, c.pop)
+		fmt.Fprintf(&b, "\t{Name: %q, Local: %q, Region: %q, Lat: %.4f, Lon: %.4f, Population: %d, Kind: City},\n",
+			c.name, c.ascii, c.country, c.lat, c.lon, c.pop)
 	}
 	b.WriteString("}\n")
 

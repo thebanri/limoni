@@ -8,7 +8,7 @@ import (
 )
 
 // index is the searchable form of the place table, folded once at startup so
-// that typing a letter does not refold four hundred names.
+// that typing a letter does not refold seven thousand names.
 type index struct {
 	places []geo.Place
 	keys   []string // folded "name|local|code|region", one per place

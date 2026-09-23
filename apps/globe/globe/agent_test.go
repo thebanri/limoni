@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/thebanri/limoni/apps/globe/globe/geo"
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/uitest"
 )
@@ -62,6 +63,25 @@ func TestTurkishNamesAreSearchable(t *testing.T) {
 			p.GetByID("search").Type(query)
 			p.Expect(p.GetByRole("list-item", "Turkey  Asia")).ToBeVisible()
 		})
+	}
+}
+
+// The city table is Natural Earth's 1:10m one, not the 243 cities of 1:110m:
+// a provincial city is there, and so is one whose name starts with a dotted
+// capital İ, which lowercases to something no one types.
+func TestMidSizedCitiesAreFound(t *testing.T) {
+	ix := newIndex(geo.All())
+	for query, want := range map[string]string{
+		"bursa":    "Bursa",
+		"izmir":    "İzmir",
+		"lyon":     "Lyon",
+		"eskisehi": "Eskişehir",
+		"porto al": "Porto Alegre",
+	} {
+		hits := ix.Search(query, 5)
+		if len(hits) == 0 || hits[0].Place.Name != want {
+			t.Errorf("%q: first hit is %v, want %s", query, hits, want)
+		}
 	}
 }
 

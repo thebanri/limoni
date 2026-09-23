@@ -11,6 +11,18 @@ globe -at Istanbul -zoom 8   # and closer in
 globe -ascii                 # shading characters instead of colour
 ```
 
+`go install` puts `globe` in `$(go env GOPATH)/bin`, which is `~/go/bin` unless
+you changed it. A fresh Go install does not add that directory to your `PATH`,
+so if the shell says `globe: command not found`, add it:
+
+```bash
+export PATH="$PATH:$(go env GOPATH)/bin"   # bash/zsh; put it in ~/.bashrc or ~/.zshrc
+fish_add_path (go env GOPATH)/bin          # fish
+```
+
+or run it by its full path, `~/go/bin/globe`. There is no need to clone the
+repository or `cd` into it.
+
 `/` finds a country or a city, `⏎` flies there and drops a pin, the arrows
 turn the globe, `+` and `−` zoom, `space` holds the rotation, a click pins
 the point under the pointer, `p` puts the panel away so the world has the
@@ -72,7 +84,8 @@ The draw path allocates nothing, which `TestDrawDoesNotAllocate` keeps true.
 
 ## The data
 
-Natural Earth 1:110m, which is in the public domain:
+Natural Earth, which is in the public domain — 1:110m for the map, 1:10m for
+the cities:
 
 - a land/sea bitmask, 2048×1024, gzipped to 14 KiB and expanded once into
   256 KiB so that a lookup is one indexed read with no allocation
@@ -83,9 +96,11 @@ Natural Earth 1:110m, which is in the public domain:
   are not in it — the water's edge is already a change of colour
 - 177 countries with the point Natural Earth labels them at, their ISO codes
   and their names in Turkish as well as English
-- 243 capitals and large cities
+- 7,342 cities and towns from Natural Earth 1:10m — every capital and
+  provincial city, searchable by their plain ASCII spelling as well
+  ("izmir" finds İzmir)
 
-`globe/geo/gen.go` rebuilds both from the source vectors; it is the only thing
+`globe/geo/gen.go` rebuilds all of it from the source vectors; it is the only thing
 in the tree that needs the network.
 
 ## Why it is a module of its own

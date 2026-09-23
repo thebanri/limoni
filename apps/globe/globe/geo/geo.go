@@ -175,9 +175,10 @@ func (k Kind) String() string {
 type Place struct {
 	// Name is the English name: "Turkey", "Istanbul".
 	Name string
-	// Local is the name in the country's own language where Natural Earth
-	// records one and it differs from Name: "Türkiye" for Turkey. It is
-	// searched but not displayed; see Display.
+	// Local is a second name to search by, where it differs from Name: for a
+	// country the name in its own language ("Türkiye" for Turkey), for a city
+	// the plain ASCII spelling ("Izmir" for İzmir). It is searched but not
+	// displayed; see Display.
 	Local string
 	// Code is the ISO 3166-1 alpha-2 code for a country, empty for a city.
 	Code string
