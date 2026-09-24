@@ -156,6 +156,34 @@ Yalnızca iki bağımlılık var: `golang.org/x/sys` ve `golang.org/x/crypto`.
   </tr>
 </table>
 
+### Limoni sana uygun mu?
+
+**Limoni'yi seç**, eğer Go ile bir terminal uygulaması yazıyorsan ve bunlardan biri önemliyse:
+
+- **Arayüzü test etmek ya da bir yapay zeka agent'ına kullandırmak istiyorsan**,
+  ekran koordinatlarıyla değil widget rolü ve etiketiyle (`uitest`, `limoni-mcp`).
+- **Sık yeniden çiziyorsa**: dashboard'lar, log görüntüleyiciler, izleme araçları,
+  oyunlar, animasyon, SSH üzerinden çalışan her şey. Çizim yolu çöp üretmez ve az bayt gönderir.
+- **Diğer kütüphanelerin sana bıraktığı şeylere ihtiyacı varsa**: 3D modeller, görseller,
+  grafikler, markdown, bir milyon satırlık tablo, ekran okuyucu desteği, tarayıcıda WebAssembly.
+- **İki stili tek kütüphanede istiyorsan**: dashboard'lar için immediate mode
+  (`limoni.Run`), formlar ve sihirbazlar için Elm mimarisi (`limoni.RunProgram`).
+- **Küçük bir bağımlılık ağacı istiyorsan**: `golang.org/x/sys` ve `golang.org/x/crypto`.
+
+**Başka bir şey seç**, eğer:
+
+- Bugün **kararlı bir 1.0 API**'ye ihtiyacın varsa. Limoni henüz 1.0 öncesinde ([Durum](#durum)).
+- **Charm ekosistemine** (Bubbles, Huh, Glamour, Wish) ve topluluğuna dayanıyorsan.
+  Bubble Tea daha büyük ve daha eski bir proje. Elinde bir Bubble Tea uygulaması varsa
+  `compat/bubbletea` modellerini Limoni üzerinde çalıştırır
+  ([geçiş rehberi](docs/bubbletea-migration.md), İngilizce); yeniden yazmadan deneyebilirsin.
+- **Rust** yazıyorsan: Ratatui kullan.
+- Uygulama **tek seferlik bir soruysa** (tek bir soru, bir spinner): küçük bir prompt
+  kütüphanesini öğrenmek daha az iş.
+
+Bubble Tea v1/v2 ve Ratatui 0.30 ile özellik özellik karşılaştırma:
+[docs/tr/comparison.md](docs/tr/comparison.md).
+
 ---
 
 ## Limoni ile yapıldı: zest

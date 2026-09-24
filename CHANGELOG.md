@@ -8,6 +8,14 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.9.1] — 2026-09-24
+
+### Added
+- Package documentation for the root package, so pkg.go.dev has an overview.
+- `llms.txt`, a map of the project for language models and agents, published
+  with the playground at `https://thebanri.github.io/limoni/llms.txt`.
+- README: "Is Limoni the right choice?", when to pick it and when not to.
+
 ## [v0.9.0] — 2026-09-24
 
 ### Added
@@ -372,7 +380,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.1...HEAD
+[v0.9.1]: https://github.com/thebanri/limoni/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/thebanri/limoni/compare/v0.8.1...v0.9.0
 [v0.8.1]: https://github.com/thebanri/limoni/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/thebanri/limoni/compare/v0.7.0...v0.8.0

@@ -1,0 +1,41 @@
+# Limoni
+
+> Limoni is a terminal UI (TUI) engine for Go. Tests can click it, AI agents can drive it, and its render path makes no heap allocations. Module path: `github.com/thebanri/limoni`. License: Apache 2.0. Status: pre-1.0; patch releases do not break the API, minor releases may.
+
+Each frame builds a semantic tree (roles, labels, values, states), the same tree a screen reader uses. The `uitest` package runs Playwright-style tests against it by role and label, and `limoni-mcp` serves it to MCP clients such as Claude Code and Cursor, so an agent can operate a running app. The automation socket exists only in builds tagged `limoni_debug`.
+
+Two application models: immediate mode (`limoni.Run`) for dashboards, games and animation, and the Elm architecture (`limoni.RunProgram`, `limoni.NewProgram`) for forms, wizards and asynchronous work. Built in: virtual tables and lists (a million rows), text input, trees, tabs, charts, markdown, code highlighting, a canvas, a software 3D rasteriser (OBJ/STL/PLY/GLB), kitty/iTerm2/Sixel images, UAX #29 grapheme clusters, OSC 8 hyperlinks, inline mode, SSH servers, WebAssembly. Dependencies: `golang.org/x/sys` and `golang.org/x/crypto` only.
+
+Choose Limoni for a Go terminal app that should be testable or agent-operable by widget, that redraws often (dashboards, log viewers, monitoring, anything over SSH), or that needs 3D, images, charts or accessibility. Choose Bubble Tea if you depend on the Charm ecosystem (Bubbles, Huh, Glamour, Wish) or need a stable 1.0 API; `compat/bubbletea` runs existing Bubble Tea models on Limoni. Choose Ratatui for Rust.
+
+## Start here
+
+- [README](https://github.com/thebanri/limoni/blob/main/README.md): what it is, quick start, why and when to choose it
+- [Getting started](https://github.com/thebanri/limoni/blob/main/docs/getting-started.md): first app, both application models
+- [API reference](https://pkg.go.dev/github.com/thebanri/limoni): package documentation
+- [Browser playground](https://thebanri.github.io/limoni/): the engine compiled to WebAssembly
+
+## Guides
+
+- [Core API](https://github.com/thebanri/limoni/blob/main/docs/core-api.md): Frame, Event, Terminal, styles
+- [Widgets reference](https://github.com/thebanri/limoni/blob/main/docs/widgets-reference.md): every widget and its options
+- [Layout guide](https://github.com/thebanri/limoni/blob/main/docs/layout-guide.md): stacks, flexbox, grid
+- [Automation, MCP and uitest](https://github.com/thebanri/limoni/blob/main/docs/automation.md): the semantic tree, testing and agent control
+- [Graphics and canvas](https://github.com/thebanri/limoni/blob/main/docs/graphics-and-canvas.md): canvas markers, 3D, image protocols
+- [Accessibility and theming](https://github.com/thebanri/limoni/blob/main/docs/accessibility-and-theming.md)
+- [Bubble Tea migration](https://github.com/thebanri/limoni/blob/main/docs/bubbletea-migration.md): run Bubble Tea models on Limoni, then move to the native API
+- [Examples](https://github.com/thebanri/limoni/blob/main/docs/examples.md): runnable programs in `examples/`
+
+## Comparisons and performance
+
+- [Comparison](https://github.com/thebanri/limoni/blob/main/docs/comparison.md): Bubble Tea v1/v2 and Ratatui 0.30, feature by feature
+- [Benchmarks](https://github.com/thebanri/limoni/blob/main/docs/benchmarks.md): measured against Ratatui, Ultraviolet and Bubble Tea v1.3.10, with the ratios that are not meaningful marked
+- [Benchmark methodology](https://github.com/thebanri/limoni/blob/main/docs/benchmark-methodology.md)
+
+## Optional
+
+- [Architecture](https://github.com/thebanri/limoni/blob/main/docs/architecture.md): buffer, diff engine, allocation-free frames
+- [Drivers and platforms](https://github.com/thebanri/limoni/blob/main/docs/drivers-and-platforms.md)
+- [FAQ](https://github.com/thebanri/limoni/blob/main/docs/faq.md)
+- [Stability](https://github.com/thebanri/limoni/blob/main/docs/stability.md): what has to happen before v1.0
+- [Changelog](https://github.com/thebanri/limoni/blob/main/CHANGELOG.md)

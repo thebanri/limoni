@@ -51,6 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           cp examples/wasm/index.html site/index.html
+          # A map of the project for language models and agents (llmstxt.org).
+          cp llms.txt site/llms.txt
           # wasm_exec.js must match the toolchain that produced the module.
           # Go moved it from misc/wasm to lib/wasm in 1.24; support both.
           if [ -f "$(go env GOROOT)/lib/wasm/wasm_exec.js" ]; then

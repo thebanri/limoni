@@ -151,6 +151,34 @@ The only dependencies are `golang.org/x/sys` and `golang.org/x/crypto`.
   </tr>
 </table>
 
+### Is Limoni the right choice?
+
+**Pick Limoni if** you are writing a terminal app in Go and any of these matter:
+
+- **You want to test the UI, or let an AI agent use it**, by widget role and label
+  rather than by screen coordinates (`uitest`, `limoni-mcp`).
+- **It redraws a lot**: dashboards, log viewers, monitoring, games, animation,
+  anything over SSH. The draw path makes no garbage and sends few bytes.
+- **It needs things other libraries leave to you**: 3D models, images, charts,
+  markdown, a million-row table, screen-reader support, WebAssembly in the browser.
+- **You want both styles in one library**: immediate mode (`limoni.Run`) for
+  dashboards, the Elm architecture (`limoni.RunProgram`) for forms and wizards.
+- **You want a small dependency tree**: `golang.org/x/sys` and `golang.org/x/crypto`.
+
+**Pick something else if:**
+
+- You need a **stable 1.0 API** today. Limoni is pre-1.0 (see [Status](#status)).
+- You rely on the **Charm ecosystem** (Bubbles, Huh, Glamour, Wish) and its
+  community. Bubble Tea is the larger and older project. If you already have a
+  Bubble Tea app, `compat/bubbletea` runs your models on Limoni
+  ([migration guide](docs/bubbletea-migration.md)), so you can try it without a rewrite.
+- You are writing **Rust**: use Ratatui.
+- The app is a **one-shot prompt** (a single question, a spinner): a small prompt
+  library is less to learn.
+
+A feature-by-feature table against Bubble Tea v1/v2 and Ratatui 0.30 is in
+[docs/comparison.md](docs/comparison.md).
+
 ---
 
 ## Built with Limoni: zest
