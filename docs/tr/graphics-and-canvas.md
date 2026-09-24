@@ -28,8 +28,22 @@ canvas.DrawCircle(centerX, centerY, radius, limoni.Fg(limoni.RGB(255, 215, 0)))
 canvas.DrawFilledTriangleDepth(v0, v1, v2, z0, z1, z2, style)
 
 // Z-Buffer ve afin UV doku eşlemeli üçgen çizimi
-canvas.DrawTexturedTriangleDepth(x0, y0, z0, u0, v0, x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, dokuResmi)
+canvas.DrawTexturedTriangleDepth(v0, v1, v2, z0, z1, z2, uv0, uv1, uv2, dokuResmi)
 ```
+
+### Marker'lar
+
+Çizim her zaman hücre başına 2×4 noktayla yapılır; noktaların nasıl gösterileceğini `canvas.Marker` belirler, bu yüzden her çizim çağrısı her marker'la çalışır:
+
+| Marker | Hücre başına nokta | Karakterler | Kullanım |
+| :--- | :--- | :--- | :--- |
+| `MarkerBraille` (varsayılan) | 2×4 | `U+2800–U+28FF` | en ince ayrıntı |
+| `MarkerSextant` | 2×3 | `U+1FB00–U+1FB3B` | dolu alanlar, Braille'i olmayan fontlar |
+| `MarkerQuadrant` | 2×2 | `▘▝▀▖▌▞▛▗▚▐▜▄▙▟█` | blok marker'lar içinde en geniş font desteği |
+| `MarkerHalfBlock` | 1×2 | `▀▄█` | |
+| `MarkerBlock` | 1×1 | `█` | |
+
+`LineChart`, `PieChart` ve `Viewer3D` aynı `Marker` alanına sahiptir.
 
 ---
 
@@ -39,31 +53,39 @@ Limoni popüler 3D dosya formatlarını doğal olarak ayrıştırır:
 - **Wavefront OBJ** (`.obj`): `graphics.LoadOBJ(path)` / `graphics.ParseOBJ(reader)`
 - **Stereolithography STL** (`.stl`): `graphics.LoadSTL(path)` / `graphics.ParseSTL(bytes)`
 - **Stanford PLY** (`.ply`): `graphics.LoadPLY(path)` / `graphics.ParsePLY(reader)`
-- **Dahili Geometrik Primitifler**: `graphics.NewCube(size)`, `graphics.NewPyramid(base, height)`, `graphics.NewSphere(radius, rings, sectors)`
+- **glTF binary** (`.glb`): `graphics.LoadGLB(path)`
+- **Dahili Geometrik Primitifler**: `graphics.NewCube(size)`, `graphics.NewPyramid(base, height)`, `graphics.NewSphere(radius, rings, sectors)`, `graphics.NewTorus(r1, r2, radial, tubular)`
+
+`Model3D.UVs` görüntü uzayındadır — V aşağı doğru büyür, `(0,0)` sol üst texel'dir — glTF'deki gibi; `LoadOBJ`, OBJ'nin OpenGL tarzı V'sini yüklerken çevirir.
 
 ### Yüksek Seviye `Viewer3D` Widget'ı
 Tek bir bildirimsel widget ile 3D modelleri döndürün, ışıklandırın ve render edin:
 
 ```go
-// 3D modeli yükle ve widget'a bağla
 mesh, _ := graphics.LoadOBJ("assets/model.obj")
+_ = mesh.LoadTexture("assets/texture.png")
 
-viewer := widgets.NewViewer3D(mesh).
-	WithRotation(rotX, rotY, rotZ).
-	WithShading("shaded").      // "textured", "wireframe", "solid", "shaded", "gouraud"
-	WithWireframe(true).
-	WithTexture("assets/texture.png")
-
-// Mevcut kareye render et
+viewer := &widgets.Viewer3D{
+	Model:     mesh,
+	RotX:      rotX,
+	RotY:      rotY,
+	Shading:   widgets.ShadingTexture, // ShadingWireframe, ShadingFlat, ShadingLambert, ShadingGouraud
+	Wireframe: true,                   // gölgelendirmenin üstüne kenarlar
+	Pixels:    true,                   // terminalde varsa kitty/iTerm2/Sixel üzerinden resim
+}
 f.RenderWidget(viewer, f.Area())
 ```
+
+Gölgelendirme ne olursa olsun her yüz üçgenlere bölünür, kamera yaklaşınca atılmak yerine near plane'de kırpılır, arka yüz elemesi ve derinlik testi yapılır. Geçici tamponlar modelin boyutuna ulaştıktan sonra çizim bellek ayırmaz.
+
+`Pixels` ile model hücre başına 8×16 piksel olarak bir RGBA resme çizilip terminalin görüntü protokolüyle gönderilir; protokol yoksa noktalara döner. Duran model bir kez kodlanır. Hareket eden model her karede kodlanır ve bu protokolün maliyeti kadardır: kitty ile 60×24'lük bir alan için kare başına yaklaşık 7 ms ve 2.7 MB (`BenchmarkViewer3DPixelsKitty` ile ölçüldü).
 
 ### 3D Gölgelendirme Modelleri
 
 1. **Tel Çerçeve (Wireframe)**: Modelin çokgen kenarlarını çizer.
 2. **Düz Renk (Solid Color)**: Çokgen yüzeylerini tek renk veya derinlik paletiyle boyar.
-3. **Lambertian Difüz Gölgelendirme**: Gerçekçi aydınlatma için yüzey normalleri (`graphics.CalculateNormal`) ile yönlü ışıkları (`graphics.Light`) hesaplar (`canvas.DrawLambertTriangleDepth`).
-4. **Gouraud Gölgelendirme**: Pürüzsüz aydınlatma geçişleri için üçgen köşeleri arasında barisentrik koordinatlarla renk interpolasyonu yapar (`canvas.DrawGouraudTriangleDepth`).
+3. **Lambertian Difüz Gölgelendirme**: Her yüzü dışa bakan normaliyle yönlü ışığa (`graphics.Light`; `Direction` ışığa doğru bakar) göre aydınlatır. `graphics.CalculateNormal`, Limoni'nin ön yüz sarım yönü için *içe* bakan normali döndürür; aydınlatmadan önce işaretini çevirin.
+4. **Gouraud Gölgelendirme**: Her köşeyi çevresindeki yüzlerin ortalama normaliyle aydınlatıp üçgen boyunca enterpole eder; eğri yüzeyler yüz yüz değil pürüzsüz gölgelenir.
 5. **Doku Haritalama & Z-Buffer**: Resim dokularından alınan UV koordinatlarını Z-Buffer derinlik kontrolüyle doğrudan 3D çokgenlere eşler (`canvas.DrawTexturedTriangleDepth`).
 
 ---

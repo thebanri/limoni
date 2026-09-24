@@ -180,7 +180,7 @@ f.RenderWidget(tree, area)
 
 ## 3. Telemetry & Charts
 
-### `ProgressBar` & `LineGauge`
+### `ProgressBar`
 Visual progress indicators with percentage labels:
 
 ```go
@@ -193,6 +193,16 @@ bar := widgets.ProgressBar{
     EmptyStyle:  cell.Style{Fg: cell.NewColorRGB(60, 65, 75)},
 }
 f.RenderWidget(bar, area)
+```
+
+---
+
+### `Gauge` & `LineGauge`
+`Gauge` fills its whole area in proportion to `Ratio`, moving its edge in eighths of a cell, with a centred label that turns reverse where it crosses the fill. `LineGauge` is one row: a label, then a line drawn heavy up to the ratio and light after it.
+
+```go
+f.RenderWidget(widgets.Gauge{Ratio: 0.42, GaugeStyle: cell.Style{Fg: cell.NewColorRGB(80, 220, 140)}}, area)
+f.RenderWidget(widgets.LineGauge{Ratio: 0.42, Label: "Upload"}, row) // Upload ━━━━━━━━──────────
 ```
 
 ---
@@ -224,6 +234,38 @@ f.RenderWidget(pie, area)
 ---
 
 ## 4. Input Controls & Forms
+
+### `Autocomplete`
+A text input with a list of suggestions under it that narrows as the user types, matched fuzzily ("gco" finds "git checkout"). Matching runs in `HandleKey`, not in `Draw`.
+
+```go
+state := &widgets.AutocompleteState{}
+// in the event handler:
+state.HandleKey(ev.Key, commands) // ↑/↓ move, Tab or Enter accepts, Esc closes
+// in the draw function:
+f.RenderWidget(widgets.Autocomplete{ID: "cmd", Suggestions: commands, State: state}, cell.NewRect(x, y, 40, 7))
+```
+
+---
+
+### `FilePicker`
+Browses a directory: `..`, directories first with a trailing slash, sizes on the right. Enter opens a directory or chooses a file (`State.Chosen`), Backspace goes up, Ctrl+H shows dot files. `Extensions` and `DirsOnly` filter.
+
+```go
+picker := widgets.NewFilePickerState(".")
+f.RenderWidget(widgets.FilePicker{ID: "files", State: picker}, area)
+```
+
+---
+
+### `Calendar`
+One month as a grid, 20×8 cells. Arrows move the selection by a day or a week, Page Up/Down by a month; a click selects. `FirstWeekday`, `MonthNames` and `WeekdayNames` localise it; `DayStyle` marks days with events. It never reads the clock: pass `Today`.
+
+```go
+f.RenderWidget(widgets.Calendar{State: calState, Today: time.Now(), FirstWeekday: time.Monday}, area)
+```
+
+---
 
 ### `TextInput`
 Single-line editable input with cursor tracking, text selection, and placeholder support:
@@ -271,7 +313,49 @@ f.RenderWidget(slider, area)
 
 ---
 
-## 5. Modals, Dialogs & Overlays
+## 5. Layout, Text & Chrome
+
+### `SplitPane`
+Two widgets side by side (`SplitHorizontal`) or stacked (`SplitVertical`) with a divider the mouse drags and the arrow keys move (`SplitState.HandleKey`). `MinFirst` and `MinSecond` keep each pane usable. Where the terminal can change the mouse pointer, the divider shows a resize arrow.
+
+```go
+f.RenderWidget(widgets.SplitPane{First: tree, Second: preview, State: split, MinFirst: 20}, area)
+```
+
+---
+
+### `StatusBar`
+The last line of a full-screen application: items on the left, centre and right, each an optional key and text. When space runs out the left group stays, the right is cut from its left edge, and the centre is dropped.
+
+```go
+f.RenderWidget(widgets.StatusBar{
+    Left:  []widgets.StatusItem{{Text: "NORMAL"}},
+    Right: []widgets.StatusItem{{Key: "^Q", Text: "quit"}, {Text: "12:04"}},
+}, bottomRow)
+```
+
+---
+
+### `CodeView`
+Source code with line numbers and syntax highlighting for Go, Python, JavaScript/TypeScript, Rust, C-family, shell, JSON and YAML — a small built-in lexer, no dependency. Highlighting happens once in `SetSource`; `Draw` only paints.
+
+```go
+code := widgets.NewCodeViewState(src, widgets.LanguageForFile("main.go"))
+f.RenderWidget(widgets.CodeView{State: code}, area)
+```
+
+---
+
+### `BigText`
+Large letters from the public-domain font8x8 bitmap font, at 8×8, 8×4 (half-height) or 4×4 (quadrant) cells a character — for titles, clocks and counters.
+
+```go
+f.RenderWidget(widgets.BigText{Text: "12:04", Size: widgets.BigTextHalfHeight, Alignment: widgets.AlignCenter}, area)
+```
+
+---
+
+## 6. Modals, Dialogs & Overlays
 
 ### `Dialog`
 Glassmorphism modal dialog featuring glowing gradient borders, drop shadow, draggable title bar, and keyboard focus routing:
@@ -318,10 +402,10 @@ f.RenderWidget(palette, area)
 
 ---
 
-## 6. 3D Graphics & Canvas
+## 7. 3D Graphics & Canvas
 
 ### `Canvas`
-Vector drawing canvas with $2 \times 4$ sub-pixel Braille dots:
+Vector drawing canvas with $2 \times 4$ sub-pixel dots per cell. `Marker` picks how the dots are drawn: Braille (the default), sextants ($2 \times 3$), quadrants ($2 \times 2$), half blocks or full blocks. `LineChart` and `PieChart` take the same `Marker`.
 
 ```go
 cv := widgets.NewCanvas(width, height)
@@ -333,12 +417,16 @@ f.RenderWidget(cv, area)
 ---
 
 ### `Viewer3D`
-Hardware-independent software 3D rasterizer with mesh loading (STL, OBJ, PLY) and real-time lighting shaders:
+A software 3D rasteriser: OBJ, STL, PLY and GLB meshes (`graphics.LoadOBJ` and friends) or the built-in primitives, with near-plane clipping, a depth buffer in every mode, and flat, Lambert, Gouraud (smooth vertex normals) or texture shading.
 
 ```go
-v3d := widgets.NewViewer3D()
-v3d.LoadMesh(loadedMesh)
-v3d.SetShadingMode(widgets.ShadingGouraud) // or ShadingLambert, ShadingWireframe
-v3d.SetRotation(rotX, rotY, rotZ)
+v3d := &widgets.Viewer3D{
+    Model:   graphics.NewTorus(1, 0.4, 32, 16),
+    Shading: widgets.ShadingGouraud, // ShadingFlat, ShadingLambert, ShadingTexture, ShadingWireframe
+    RotX:    35,
+    RotY:    angle,
+}
 f.RenderWidget(v3d, area)
 ```
+
+It draws Braille dots by default; `Marker: widgets.MarkerSextant` or `MarkerQuadrant` draws solid blocks for fonts without Braille. `Pixels: true` renders the model as a picture and sends it with the terminal's image protocol (kitty, iTerm2, Sixel), falling back to dots where there is none. A still model is encoded once; a moving one costs an encode per frame — about 7 ms and 2.7 MB for a 60×24 area with kitty on the machine this was measured on — so it is opt-in.

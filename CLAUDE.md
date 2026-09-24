@@ -175,6 +175,26 @@ linked if an application imports `session`. The root package must import neither
 an untagged build — CI checks `go list -deps` and the symbol table of a built
 example. An untagged import of either quietly defeats the whole security model.
 
+**A kitty image that reaches the last row scrolls the screen.** Without
+`C=1` kitty moves the cursor below a placed image; at the bottom row that
+scrolls the whole screen a line, under a diff that does not know. It showed
+as a smeared left pane next to a pixel-mode Viewer3D. iTerm2 gets
+`doNotMoveCursor=1`. `TestImagePlacementsKeepTheCursor`.
+
+**Images are cached by value.** `GetCachedEscapeSequence` keys on the
+`image.Image`; one whose pixels change in place must be `graphics.ForgetImage`d
+and should be a different value per frame, or the terminal is sent the old
+picture — or nothing, since the terminal compares images by identity.
+
+**Continuation cells written through SetCell used to blank wide characters.**
+Fixed in the buffer (`setContinuation`); Markdown and TextInput's wide mask
+were drawing spaces.
+
+**Tests: escape combining characters.** The write path of this tool turned
+`\u200D` and `\u0301` in heredocs into the literal characters; build them
+with `chr(92)` in Python, then check with the snippet in the text-rendering
+skill.
+
 **`settings.json` once contained a live API key** and is gitignored for that reason.
 Do not re-add it.
 
@@ -227,9 +247,17 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    ZWJ family 2 columns wide without mode 2027; Alacritty draws it 6. That is
    why measurement beats the name table. `limoni doctor` shows the whole
    decision; verify changes in real terminals with it (via `script -q -c` to
-   capture), not only with the in-memory tests. Not yet used: DA1 sixel and
-   the Kitty keyboard flags are recorded but do not drive image protocol
-   selection or keyboard enhancement.
+   capture), not only with the in-memory tests. The kitty keyboard answer now
+   pushes level 1 (`CSI > 1 u`, popped by `RestoreModes` on Close and Suspend):
+   verified in kitty 0.48.2 that Ctrl+I, Esc and Alt+key arrive distinct.
+   Level 1 leaves Enter, Tab and Backspace legacy by design, so Shift+Enter is
+   still plain Enter; going further (level 8) needs flag 4 and IME text, and
+   breaks AltGr layouts if done carelessly. Not yet used: the DA1 sixel bit.
+
+   To drive a real kitty from a test run: `kitty -o allow_remote_control=yes
+   --listen-on unix:/tmp/x.sock app`, then `kitty @ --to unix:/tmp/x.sock
+   send-key shift+enter` / `get-text`. Keep the socket path short (108 bytes),
+   and use `script -f` — without it the capture is empty until exit.
 
 3. **Agent-facing semantics.** `cmd/limoni-mcp` serves the automation socket
    as MCP tools, and a headless Claude Code run completed
@@ -242,7 +270,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    (MCP: `click` with `ensure`) are idempotent. Still missing: custom widgets
    embedding `widgets.Accessible` are not focusable, so Tab skips them. Test
    the bridge against a real app in a PTY as well as with `go test` — the Tab
-   bug below was invisible to unit tests.
+   bug below was invisible to unit tests. Custom widgets embedding
+   `widgets.Accessible` are focusable now: `Accessible.WantsFocus` and a hook in
+   `Frame.RenderWidget` (`TestTabReachesAccessibleWidgets`).
 
    Fixed on the way, both worth remembering: `automation.Server.Close` waited
    for connected clients, so an app hung on exit while anything was attached;
@@ -257,14 +287,26 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    diff re-anchors the cursor after each cluster so terminals without 2027 do
    not shift the row. Widgets are converted: use `cell.StringWidth` for widths,
    `cell.Truncate` to cut, `setEllipsized`/`setClipped` to draw cut text without
-   allocating, and `clusterBounds` for cursor movement. Still by rune: Markdown's
-   word wrap (`runesWidth`) and fuzzy match highlighting in `fuzzy.go`. Mode 2027 is still *set* unconditionally, but whether the
+   allocating, and `clusterBounds` for cursor movement. Markdown now wraps
+   and draws by cluster (`WordWidths`, `appendClusters`); palette highlighting
+   already did. Mode 2027 is still *set* unconditionally, but whether the
    terminal honours it (or draws clusters as units anyway) is now probed. To
    regenerate tables for a new Unicode version, download the UCD files listed
    in `gen.go`, run it, and replace the conformance test data.
 
-5. **Missing terminal integration.** No OSC 9/777 notifications, no mouse
-   shape. The window title (OSC 2) is done: `WithTitle`, pushed and popped
+5. **Terminal integration.** Desktop notifications are done:
+   `Terminal.Notify`, `App.Notify`, `NotifyCmd` for Programs — OSC 99 for
+   kitty, OSC 9 for iTerm2/WezTerm/Ghostty/foot, nothing for unknown terminals
+   (`LIMONI_NOTIFY` overrides). A Program's notification goes through a
+   channel to `RunTerminal`'s loop: writing it from Update raced the frame.
+   Mouse pointer shapes are done: `ClickAction.Pointer` (a CSS cursor name)
+   over an area, applied as the mouse moves with OSC 22 in kitty, foot and
+   Ghostty, reset on Close and Suspend. A pointer-only ClickAction is kept out
+   of the click regions, or it would swallow the click meant for the widget
+   under it — SplitPane's divider found that. Supported terminals were taken
+   from their docs, not from memory; check again before adding one.
+
+   The window title (OSC 2) is done: `WithTitle`, pushed and popped
    with XTWINOPS so an app does not leave its name on the user's terminal.
 
    OSC 8 hyperlinks are done. The link lives in the *cell*, as a 16-bit
@@ -290,17 +332,36 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    stops it, the shell works, `fg` repaints, keys still arrive. `stopSelf` is a
    variable so tests can stand in for the signal.
 
-6. **Remaining widget gaps.** FilePicker, Gauge/LineGauge, StatusBar, SplitPane,
-   syntax-highlighted code view, big text, calendar, autocomplete. (Log view is
-   done: `widgets.LogView`, used by `cmd/zest`; `widgets.Button` exists now.)
-   Several are open as `help wanted` issues.
+6. **Widget gaps — closed.** Gauge, LineGauge, StatusBar, SplitPane (drag via
+   a handler built once per state, so no per-frame closure), CodeView (own
+   lexer for Go/Python/JS/Rust/C/shell/JSON/YAML), BigText (public-domain
+   font8x8, generated into `bigtext_font.go`), Calendar, Autocomplete and
+   FilePicker all exist, each at 0 allocs/op with a benchmark. Close the
+   matching `help wanted` issues.
 
-7. **Canvas markers.** Ratatui 0.30 added quadrant (2×2) and sextant (2×3) markers
-   alongside Braille (2×4). Sextants help where Braille fonts are missing.
+   Viewer3D was not a `Widget` (no `SizeHint`) until now, and three of its
+   bugs were found by drawing it to a PNG and looking: texture mode skipped
+   the depth buffer and ignored the model's UVs, Gouraud used face normals
+   (identical to Lambert), and lighting lit the side facing *away* from the
+   light — `graphics.CalculateNormal` is inward for Limoni's front-face
+   winding. `outwardNormal` negates it; the examples had the same bug. OBJ UVs
+   are flipped to image space on load. `Pixels: true` renders to RGBA and uses
+   the image protocol (~7 ms, 2.7 MB per moving frame with kitty).
 
-8. **Diff bandwidth, the rest of it.** `ICH`/`DCH` for line shifts and
-   scroll-region optimisation are still missing; that is where Ultraviolet's
-   remaining bandwidth advantage lives.
+7. **Canvas markers — done.** `Canvas.Marker`: Braille, sextant, quadrant,
+   half block, block. Drawing stays at 2×4 dots and the marker is applied in
+   `Draw`, so every drawing call works with every marker. The sextant table is
+   checked against the Unicode character names, not typed from memory.
+
+8. **Diff bandwidth — scroll regions and ICH/DCH done.** `core/buffer/scroll.go`:
+   a row-hash search finds a band that moved and scrolls it with DECSTBM +
+   SU/SD; a row with text inserted or deleted shifts with ICH/DCH. A log
+   gaining a line: 1,189 → 125 bytes; a typed character: 77 → 11. Verified by
+   replaying the output through a small VT model (`vt_test.go`, 400 random
+   frames, mutation-checked) and in kitty with `script -f` + `get-text`.
+   The published cross-framework runner does not enable them, so no number in
+   `docs/benchmarks.md` includes them — rerun per the methodology before
+   quoting a new ratio.
 
    Done in this area: the encoder emits `ECH`/`EL` for blank runs and `REP` for
    repeated glyphs, which took a full-screen redraw from 4,897 bytes to 377 and

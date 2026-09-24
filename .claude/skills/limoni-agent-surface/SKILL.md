@@ -191,6 +191,9 @@ calls and the first line of each result.
 
 ## Known gaps
 
-- Custom widgets embedding `widgets.Accessible` are not focusable, so Tab skips
-  them (the example's buttons are click-only). `widgets.Button` exists now.
-- Declarative mode does not route clicks to frame click handlers.
+- (Fixed) Custom widgets embedding `widgets.Accessible` are focusable now:
+  `Accessible.WantsFocus` is true for an ID with an interactive role, and
+  `Frame.RenderWidget` registers such a widget itself.
+  `TestTabReachesAccessibleWidgets` in `testkit`.
+- (Fixed in d2d4355, #47) Declarative mode routes mouse events to the frame's
+  click regions (`Program.routeMouse`).

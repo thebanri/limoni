@@ -115,8 +115,16 @@ Traps paid for here:
 - Every fix above has a test that fails on the old code: run new tests in a
   worktree of the previous commit before trusting them.
 
-Still by rune: Markdown's word wrap (`runesWidth`) and fuzzy-match
-highlighting in `fuzzy.go`.
+Markdown measures words by cluster at parse time (`StyledSegment.WordWidths`)
+and lays them out cluster by cluster (`appendClusters`); the palette's match
+highlighting (`drawHighlighted`) walks clusters too. `FuzzyMatch` scores by
+rune, which is a ranking choice, not a layout one.
+
+Writing a row of cells that includes a wide character's continuation cell
+through `SetCell`/`SetCellDirect` is safe: `setContinuation` keeps the wide
+character on its left. Before that, the continuation counted as a narrow cell
+overwriting the right half and blanked the character — every CJK character
+and emoji in Markdown drew as spaces. `TestWritingContinuationKeepsTheWideCharacter`.
 
 ## The handshake decides whether re-anchoring is needed
 
