@@ -35,6 +35,11 @@ func (v Vector3D) Cross(other Vector3D) Vector3D {
 }
 
 // CalculateNormal computes the normalized surface normal for a triangle (v0, v1, v2).
+//
+// For a face wound the way Limoni's viewers draw front faces (counter-clockwise
+// on screen, camera looking down +Z) it points away from the viewer, into the
+// model. Negate it before lighting with a Light, whose Direction points
+// towards the light.
 func CalculateNormal(v0, v1, v2 Vertex3D) Vector3D {
 	edge1 := Vector3D{v1.X - v0.X, v1.Y - v0.Y, v1.Z - v0.Z}
 	edge2 := Vector3D{v2.X - v0.X, v2.Y - v0.Y, v2.Z - v0.Z}

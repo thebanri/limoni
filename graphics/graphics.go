@@ -111,7 +111,7 @@ func GetImageID(img image.Image) uint32 {
 	var pixel [8]byte
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, g, b, a := img.At(x, y).RGBA()
+			r, g, b, a := rgbaAt(img, x, y)
 			pixel[0] = byte(r)
 			pixel[1] = byte(r >> 8)
 			pixel[2] = byte(g)
@@ -192,7 +192,7 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 
 				for sy := srcY0; sy < srcY1; sy++ {
 					for sx := srcX0; sx < srcX1; sx++ {
-						r, g, b, a := img.At(sx, sy).RGBA()
+						r, g, b, a := rgbaAt(img, sx, sy)
 						totalR += uint64(r)
 						totalG += uint64(g)
 						totalB += uint64(b)
@@ -242,10 +242,10 @@ func ResizeImage(img image.Image, w, h int) image.Image {
 			}
 			fx := srcX - float64(x0)
 
-			r00, g00, b00, a00 := img.At(srcBounds.Min.X+x0, srcBounds.Min.Y+y0).RGBA()
-			r10, g10, b10, a10 := img.At(srcBounds.Min.X+x1, srcBounds.Min.Y+y0).RGBA()
-			r01, g01, b01, a01 := img.At(srcBounds.Min.X+x0, srcBounds.Min.Y+y1).RGBA()
-			r11, g11, b11, a11 := img.At(srcBounds.Min.X+x1, srcBounds.Min.Y+y1).RGBA()
+			r00, g00, b00, a00 := rgbaAt(img, srcBounds.Min.X+x0, srcBounds.Min.Y+y0)
+			r10, g10, b10, a10 := rgbaAt(img, srcBounds.Min.X+x1, srcBounds.Min.Y+y0)
+			r01, g01, b01, a01 := rgbaAt(img, srcBounds.Min.X+x0, srcBounds.Min.Y+y1)
+			r11, g11, b11, a11 := rgbaAt(img, srcBounds.Min.X+x1, srcBounds.Min.Y+y1)
 
 			topR := float64(r00)*(1-fx) + float64(r10)*fx
 			topG := float64(g00)*(1-fx) + float64(g10)*fx
@@ -371,7 +371,10 @@ func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageI
 	pngBytes := pngBuf.Bytes()
 	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
-	controlKeys := fmt.Sprintf("q=2,f=100,a=T,t=d,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
+	// C=1 keeps the cursor where it is. Without it kitty moves the cursor
+	// below the picture, and a picture that reaches the last row scrolls the
+	// whole screen up a line — under a diff that does not know it moved.
+	controlKeys := fmt.Sprintf("q=2,f=100,a=T,t=d,C=1,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
 	return chunkKittyPayload(controlKeys, b64Data)
 }
 
@@ -391,7 +394,9 @@ func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16, trans
 	pngBytes := pngBuf.Bytes()
 	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
-	return fmt.Sprintf("\x1b]1337;File=inline=1;width=%d;height=%d;size=%d:%s\a", cols, rows, len(pngBytes), b64Data)
+	// doNotMoveCursor, as kitty's C=1: a picture reaching the last row must
+	// not scroll the screen (iTerm2 3.5; older versions ignore the key).
+	return fmt.Sprintf("\x1b]1337;File=inline=1;doNotMoveCursor=1;width=%d;height=%d;size=%d:%s\a", cols, rows, len(pngBytes), b64Data)
 }
 
 // EncodeSixel encodes the image in the Sixel Graphics format.
@@ -539,6 +544,20 @@ var (
 )
 
 // GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
+// ForgetImage drops the cached escape sequences of img. The cache is keyed
+// by the image value, so an image whose pixels are rewritten in place — a
+// frame buffer reused for animation — must be forgotten before it is shown
+// again, or the terminal is sent the old picture.
+func ForgetImage(img image.Image) {
+	escapeCacheMu.Lock()
+	for key := range escapeSequenceCache {
+		if key.Img == img {
+			delete(escapeSequenceCache, key)
+		}
+	}
+	escapeCacheMu.Unlock()
+}
+
 func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
 	key := ImageCacheKey{
 		Img:         img,
@@ -576,4 +595,23 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 	escapeSequenceCache[key] = seq
 	escapeCacheMu.Unlock()
 	return seq
+}
+
+// rgbaAt returns the 16-bit RGBA of one pixel. image.Image.At boxes its
+// color.Color, a heap allocation per pixel read; the formats images actually
+// come in are read directly instead. Resizing a picture for an image protocol
+// reads four pixels per output pixel, which made it 180,000 allocations for a
+// 480×384 frame.
+func rgbaAt(img image.Image, x, y int) (r, g, b, a uint32) {
+	switch m := img.(type) {
+	case *image.RGBA:
+		return m.RGBAAt(x, y).RGBA()
+	case *image.NRGBA:
+		return m.NRGBAAt(x, y).RGBA()
+	case *image.YCbCr:
+		return m.YCbCrAt(x, y).RGBA()
+	case *image.Gray:
+		return m.GrayAt(x, y).RGBA()
+	}
+	return img.At(x, y).RGBA()
 }

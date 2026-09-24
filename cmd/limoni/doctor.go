@@ -83,7 +83,7 @@ func runDoctor(out io.Writer) error {
 	}
 
 	fmt.Fprintln(out, "\nEnvironment")
-	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_HYPERLINKS", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME"} {
+	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_HYPERLINKS", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME", "LIMONI_NOTIFY", "LIMONI_POINTER", "LIMONI_KITTY_KEYBOARD", "LIMONI_SCROLL"} {
 		if v, ok := os.LookupEnv(name); ok {
 			fmt.Fprintf(out, "  %-16s  %s\n", name, v)
 		}
@@ -103,6 +103,10 @@ func runDoctor(out io.Writer) error {
 	row("REP (repeat glyph)", detected.RepeatChar, final.RepeatChar)
 	row("OSC 8 hyperlinks", detected.Hyperlinks, final.Hyperlinks)
 	row("cluster widths (2027)", detected.ClusterWidths, final.ClusterWidths)
+	row("kitty keyboard", detected.KittyKeyboard, final.KittyKeyboard)
+	row("scroll regions", detected.ScrollRegions, final.ScrollRegions)
+	row("pointer shape (OSC 22)", detected.PointerShape, final.PointerShape)
+	fmt.Fprintf(out, "  %-22s  %-7s  →  %s\n", "notifications", notifyName(detected.Notify), notifyName(final.Notify))
 	return nil
 }
 
@@ -120,6 +124,18 @@ func describeMode(m driver.ModeState) string {
 		return "always off"
 	}
 	return "no answer"
+}
+
+func notifyName(p terminal.NotifyProtocol) string {
+	switch p {
+	case terminal.NotifyOSC9:
+		return "OSC 9"
+	case terminal.NotifyOSC777:
+		return "OSC 777"
+	case terminal.NotifyOSC99:
+		return "OSC 99"
+	}
+	return "no"
 }
 
 func yesNo(b bool) string {

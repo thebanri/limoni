@@ -37,6 +37,28 @@ type CapabilityProfile struct {
 	// grapheme cluster as one unit, as Limoni does, so the diff need not
 	// re-anchor the cursor after each one. Only the handshake sets it.
 	ClusterWidths bool
+	// Notify is the desktop notification sequence the terminal shows, or
+	// NotifyNone. Unrecognised terminals get none: printing an unknown OSC
+	// is rare, but a notification nobody asked for is not worth the risk.
+	Notify NotifyProtocol
+	// PointerShape enables OSC 22, which changes the mouse pointer over the
+	// terminal (kitty, foot, Ghostty).
+	PointerShape bool
+	// KittyKeyboard turns on the first level of the kitty keyboard protocol,
+	// "disambiguate escape codes": Esc arrives at once instead of waiting to
+	// see whether it starts a sequence, and Ctrl+I, Ctrl+M and Alt+key are
+	// told apart from Tab, Enter and Esc-then-key. Enter, Tab and Backspace
+	// keep their legacy bytes at this level, by the protocol's design, so
+	// Shift+Enter is still plain Enter (verified in kitty 0.48.2). Only the
+	// handshake sets it, when the terminal answers the protocol's query;
+	// LIMONI_KITTY_KEYBOARD=0 keeps it off.
+	KittyKeyboard bool
+	// ScrollRegions lets the diff move text instead of rewriting it: rows
+	// that scrolled with DECSTBM and SU/SD, and the tail of a row that text
+	// was typed into or deleted from with ICH/DCH. All are VT100/VT220
+	// editing functions; on everywhere but TERM=dumb, and LIMONI_SCROLL=0
+	// turns them off.
+	ScrollRegions bool
 }
 
 // DetectCapabilities automatically detects the active terminal's capability profile using environment variables.
@@ -49,6 +71,7 @@ func DetectCapabilities() CapabilityProfile {
 		SyncOutput:     true, // Synchronized Output (?2026) enables atomic tear-free frames (safely ignored if unsupported)
 		GraphicsProto:  graphics.DetectProtocol(),
 		EraseChar:      true,
+		ScrollRegions:  os.Getenv("LIMONI_SCROLL") != "0",
 	}
 
 	// Under js/wasm there is no process environment to inspect, but the host is
@@ -70,6 +93,7 @@ func DetectCapabilities() CapabilityProfile {
 	}
 	if term == "dumb" {
 		profile.EraseChar = false
+		profile.ScrollRegions = false
 	}
 
 	// 1. Detect TrueColor support
@@ -128,6 +152,8 @@ func DetectCapabilities() CapabilityProfile {
 		profile.Hyperlinks = true
 	}
 
+	profile.Notify, profile.PointerShape = notifyAndPointerFromEnv(term, termProg)
+
 	// Escape hatches in both directions, until the handshake can ask.
 	switch os.Getenv("LIMONI_HYPERLINKS") {
 	case "1":
@@ -145,20 +171,57 @@ func DetectCapabilities() CapabilityProfile {
 	return profile
 }
 
+// notifyAndPointerFromEnv recognises the terminals whose documentation
+// lists desktop notifications (OSC 9 or kitty's OSC 99) and OSC 22 pointer
+// shapes, from TERM_PROGRAM and TERM. LIMONI_NOTIFY (0, 9, 777, 99) and
+// LIMONI_POINTER (0, 1) override it.
+func notifyAndPointerFromEnv(term, termProg string) (NotifyProtocol, bool) {
+	notify, pointer := NotifyNone, false
+	switch {
+	case termProg == "kitty" || strings.Contains(term, "kitty"):
+		notify, pointer = NotifyOSC99, true
+	case termProg == "ghostty" || termProg == "Ghostty" || strings.Contains(term, "ghostty"),
+		termProg == "foot" || strings.HasPrefix(term, "foot"):
+		notify, pointer = NotifyOSC9, true
+	case termProg == "iTerm.app", termProg == "WezTerm" || strings.Contains(term, "wezterm"):
+		notify = NotifyOSC9
+	}
+	switch os.Getenv("LIMONI_NOTIFY") {
+	case "0":
+		notify = NotifyNone
+	case "9":
+		notify = NotifyOSC9
+	case "777":
+		notify = NotifyOSC777
+	case "99":
+		notify = NotifyOSC99
+	}
+	switch os.Getenv("LIMONI_POINTER") {
+	case "0":
+		pointer = false
+	case "1":
+		pointer = true
+	}
+	return notify, pointer
+}
+
 // hyperlinkTerms are the TERM fragments of terminals that implement OSC 8.
 var hyperlinkTerms = []string{"kitty", "ghostty", "foot", "wezterm", "alacritty", "konsole", "contour", "vte", "gnome"}
 
 // knownTerminals lists what Limoni knows about terminals that answer XTVERSION,
 // keyed by the lower-cased name before the version. Only positive knowledge is
 // recorded: a terminal missing here keeps what the environment suggested.
-var knownTerminals = map[string]struct{ trueColor, rep, links bool }{
+var knownTerminals = map[string]struct {
+	trueColor, rep, links, pointer bool
+	notify                         NotifyProtocol
+}{
 	"xterm":    {trueColor: false, rep: true}, // 24-bit SGR is accepted but may be approximated
-	"kitty":    {trueColor: true, rep: true, links: true},
-	"wezterm":  {trueColor: true, rep: true, links: true},
-	"foot":     {trueColor: true, rep: true, links: true},
-	"ghostty":  {trueColor: true, rep: true, links: true},
+	"kitty":    {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC99},
+	"wezterm":  {trueColor: true, rep: true, links: true, notify: NotifyOSC9},
+	"foot":     {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9},
+	"ghostty":  {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9},
 	"contour":  {trueColor: true, rep: true, links: true},
-	"iterm2":   {trueColor: true, rep: true, links: true},
+	"iterm2":   {trueColor: true, rep: true, links: true, notify: NotifyOSC9},
 	"konsole":  {trueColor: true, rep: true, links: true},
 	"xterm.js": {trueColor: true, rep: true},
 	// tmux interprets REP itself before redrawing on the outer terminal, so
@@ -175,6 +238,7 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 	if r.SyncOutput != driver.ModeUnknown && os.Getenv("LIMONI_NO_SYNC") != "1" {
 		p.SyncOutput = r.SyncOutput.Recognized()
 	}
+	p.KittyKeyboard = r.KittyKeyboard && os.Getenv("LIMONI_KITTY_KEYBOARD") != "0"
 	// A terminal draws clusters the way the buffer lays them out if it says
 	// so (mode 2027 on) or if it was measured doing it.
 	p.ClusterWidths = grapheme.Clusters() && (r.GraphemeClusters.Enabled() || r.ClusterWidth == 2)
@@ -188,6 +252,14 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 		}
 		if known.links {
 			p.Hyperlinks = true
+		}
+		// A name the terminal gave itself beats one guessed from TERM, but
+		// not an explicit LIMONI_NOTIFY or LIMONI_POINTER.
+		if known.notify != NotifyNone && os.Getenv("LIMONI_NOTIFY") == "" {
+			p.Notify = known.notify
+		}
+		if known.pointer && os.Getenv("LIMONI_POINTER") == "" {
+			p.PointerShape = true
 		}
 	}
 	// A measurement beats both the name and the environment.

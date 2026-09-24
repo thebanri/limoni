@@ -209,14 +209,14 @@ Coming from Bubble Tea? See the [migration guide](docs/bubbletea-migration.md).
 
 | Category | Widgets |
 | :--- | :--- |
-| **Layout** | `VStack` / `HStack` / `ZStack`, `Flex`, `Border`, grid layout (`layout.GridLayout`), `Block` (with border merging), `Viewport`, `Dialog`, `Popup` |
-| **Data** | `Table` (virtual), `List` (virtual), `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
-| **Charts** | `LineChart` (Braille), `BarChart`, `PieChart` |
-| **Input** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select`, `Slider`, `ColorPicker` |
+| **Layout** | `VStack` / `HStack` / `ZStack`, `Flex`, `Border`, grid layout (`layout.GridLayout`), `Block` (with border merging), `SplitPane` (draggable), `Viewport`, `Dialog`, `Popup`, `StatusBar` |
+| **Data** | `Table` (virtual), `List` (virtual), `TreeView`, `FilePicker`, `Calendar`, `Sparkline`, `ProgressBar`, `Gauge`, `LineGauge`, `RichText` |
+| **Charts** | `LineChart`, `BarChart`, `PieChart` — Braille, sextant or quadrant markers |
+| **Input** | `TextInput`, `Autocomplete`, `TextArea`, `Checkbox`, `RadioGroup`, `Select`, `Slider`, `ColorPicker` |
 | **Navigation** | `Tabs`, `Scrollbar`, `CommandPalette`, fuzzy search, keybinding manager |
-| **Feedback** | `Spinner`, `Toast` |
-| **Graphics** | `Canvas` (Braille / block), 3D meshes, `Image` |
-| **Text** | `Markdown`, `Label`, `Paragraph` |
+| **Feedback** | `Spinner`, `Toast`, desktop notifications (OSC 9 / OSC 99) |
+| **Graphics** | `Canvas` (Braille, sextant, quadrant, block), 3D meshes as dots or as a picture over kitty/iTerm2/Sixel, `Image` |
+| **Text** | `Markdown`, `CodeView` (syntax highlighting), `BigText`, `Label`, `Paragraph` |
 | **Tooling** | `DevTools` HUD (`F12`), themes, validation |
 
 → [Widget gallery](docs/widget-gallery.md) · [Widget reference](docs/widgets-reference.md)

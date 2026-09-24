@@ -206,8 +206,7 @@ func (c *Canvas) DrawTexturedTriangle(p0, p1, p2 graphics.Vertex2D, uv0, uv1, uv
 					ty = int(imgH) - 1
 				}
 
-				col := img.At(imgMinX+tx, imgMinY+ty)
-				r, g, b, a := col.RGBA()
+				r, g, b, a := texel(img, imgMinX+tx, imgMinY+ty)
 
 				uR := uint8(r >> 8)
 				uG := uint8(g >> 8)

@@ -195,14 +195,14 @@ bak.
 
 | Kategori | Widget'lar |
 | :--- | :--- |
-| **Düzen** | `VStack` / `HStack` / `ZStack`, `Flex`, `Border`, ızgara düzeni (`layout.GridLayout`), `Block` (kenarlık birleştirmeli), `Viewport`, `Dialog`, `Popup` |
-| **Veri** | `Table` (sanal), `List` (sanal), `TreeView`, `Sparkline`, `ProgressBar`, `RichText` |
-| **Grafikler** | `LineChart` (Braille), `BarChart`, `PieChart` |
-| **Girdi** | `TextInput`, `TextArea`, `Checkbox`, `RadioGroup`, `Select`, `Slider`, `ColorPicker` |
+| **Düzen** | `VStack` / `HStack` / `ZStack`, `Flex`, `Border`, ızgara düzeni (`layout.GridLayout`), `Block` (kenarlık birleştirmeli), `SplitPane` (sürüklenebilir), `Viewport`, `Dialog`, `Popup`, `StatusBar` |
+| **Veri** | `Table` (sanal), `List` (sanal), `TreeView`, `FilePicker`, `Calendar`, `Sparkline`, `ProgressBar`, `Gauge`, `LineGauge`, `RichText` |
+| **Grafikler** | `LineChart`, `BarChart`, `PieChart` — Braille, sekstant ya da kadran marker'ları |
+| **Girdi** | `TextInput`, `Autocomplete`, `TextArea`, `Checkbox`, `RadioGroup`, `Select`, `Slider`, `ColorPicker` |
 | **Gezinme** | `Tabs`, `Scrollbar`, `CommandPalette`, bulanık arama (fuzzy search), tuş bağlama yöneticisi |
-| **Geri bildirim** | `Spinner`, `Toast` |
-| **Grafik** | `Canvas` (Braille / blok), 3D modeller, `Image` |
-| **Metin** | `Markdown`, `Label`, `Paragraph` |
+| **Geri bildirim** | `Spinner`, `Toast`, masaüstü bildirimleri (OSC 9 / OSC 99) |
+| **Grafik** | `Canvas` (Braille, sekstant, kadran, blok), noktalarla ya da kitty/iTerm2/Sixel üzerinden resim olarak 3D modeller, `Image` |
+| **Metin** | `Markdown`, `CodeView` (sözdizimi renklendirme), `BigText`, `Label`, `Paragraph` |
 | **Araçlar** | `DevTools` paneli (`F12`), temalar, doğrulama |
 
 → [Widget galerisi](docs/widget-gallery.md) · [Widget referansı](docs/tr/widgets-reference.md)

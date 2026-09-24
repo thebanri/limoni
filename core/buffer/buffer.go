@@ -14,6 +14,10 @@ type Buffer struct {
 	IsDirty    bool                  // Indicates whether the buffer has modified content
 	StyleCache map[cell.Style][]byte // Cache for ANSI style transition escape sequences
 
+	// scroll is the scratch space of the scroll search, used on the front
+	// buffer only.
+	scroll scrollScratch
+
 	// clean indicates whether all cells are in the default (space + zero style) state.
 	// This flag lets Clear() avoid scanning the entire cell array during empty frame passes.
 	clean bool
@@ -135,10 +139,37 @@ func (b *Buffer) clearOrphanWideAround(x, y uint16, newWidth int) {
 	}
 }
 
+// setContinuation writes the right half of a wide character at (x, y). A
+// widget copying rows of cells writes it right after the wide character,
+// which SetCell already paired with one; treating it as an ordinary narrow
+// cell made the buffer think the wide character's right half was being
+// overwritten, and it blanked the character. With no wide character to its
+// left it has nothing to continue, and a space is written instead.
+func (b *Buffer) setContinuation(x, y uint16, style cell.Style) {
+	idx := int(y)*int(b.Area.Width) + int(x)
+	if x == 0 || cell.RuneWidth(b.Content[idx-1].Content) != 2 {
+		b.clearOrphanWideAround(x, y, 1)
+		if next := (cell.Cell{Content: ' ', Style: style}); b.Content[idx] != next {
+			b.Content[idx] = next
+			b.IsDirty, b.clean = true, false
+		}
+		return
+	}
+	if next := (cell.Cell{Content: cell.RuneContinuation, Style: style}); b.Content[idx] != next {
+		b.Content[idx] = next
+		b.IsDirty, b.clean = true, false
+	}
+}
+
 // SetCell writes a cell at the specified coordinate.
 // If the style's background is ColorDefault (unstyled), it preserves the cell's existing background color.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	if x >= b.Area.Width || y >= b.Area.Height {
+		return
+	}
+	if c.Content == cell.RuneContinuation {
+		c.Style = b.Content[int(y)*int(b.Area.Width)+int(x)].Style.Merge(c.Style)
+		b.setContinuation(x, y, c.Style)
 		return
 	}
 	w := cell.RuneWidth(c.Content)
@@ -177,6 +208,10 @@ func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 // SetCellDirect writes a cell at the specified coordinate without style merging (exact overwrite).
 func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
 	if x >= b.Area.Width || y >= b.Area.Height {
+		return
+	}
+	if c.Content == cell.RuneContinuation {
+		b.setContinuation(x, y, c.Style)
 		return
 	}
 	w := cell.RuneWidth(c.Content)

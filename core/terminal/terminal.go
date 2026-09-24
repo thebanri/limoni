@@ -70,6 +70,11 @@ type Terminal struct {
 	reportVersion uint64
 	// drawn is set once a frame has been written to the terminal.
 	drawn bool
+	// pointerShape is the OSC 22 shape last written; empty is the default.
+	pointerShape string
+	// kittyPushed is set while the kitty keyboard flags pushed by
+	// syncKeyboardMode are on the terminal's stack.
+	kittyPushed bool
 }
 
 // New, belirtilen Backend'i kullanarak yeni bir Terminal yöneticisi oluşturur ve ilk tamponları tahsis eder.
@@ -101,9 +106,34 @@ func New(b *driver.Backend) (*Terminal, error) {
 	}, nil
 }
 
+// RestoreModes undoes what the application changed on the terminal beyond
+// the screen: the pointer shape and the kitty keyboard flags. Close and
+// Suspend call it; so does anything that hands the terminal back without them.
+func (t *Terminal) RestoreModes() {
+	if t == nil || t.driver == nil {
+		return
+	}
+	t.ResetPointerShape()
+	if t.kittyPushed {
+		_, _ = t.driver.Write([]byte("\x1b[<u"))
+		t.kittyPushed = false
+	}
+}
+
+// syncKeyboardMode pushes the kitty keyboard flags once the profile says the
+// terminal has the protocol. Pushing, not setting, is what lets RestoreModes
+// give back exactly the flags the shell had.
+func (t *Terminal) syncKeyboardMode() {
+	if t.caps.KittyKeyboard && !t.kittyPushed && t.driver != nil {
+		_, _ = t.driver.Write([]byte("\x1b[>1u"))
+		t.kittyPushed = true
+	}
+}
+
 // Close restores the terminal state and closes the underlying driver.
 func (t *Terminal) Close() error {
 	if t.driver != nil {
+		t.RestoreModes()
 		return t.driver.Close()
 	}
 	return nil
@@ -233,22 +263,10 @@ func (t *Terminal) RestoreTitle() {
 	_, _ = t.driver.Write([]byte("\x1b[23;2t"))
 }
 
-// sanitizeWindowTitle drops C0 controls and DEL so OSC 2 cannot be nested
-// or terminated from inside the payload.
-func sanitizeWindowTitle(title string) string {
-	if title == "" {
-		return ""
-	}
-	out := make([]byte, 0, len(title))
-	for i := 0; i < len(title); i++ {
-		c := title[i]
-		if c < 0x20 || c == 0x7F {
-			continue
-		}
-		out = append(out, c)
-	}
-	return string(out)
-}
+// sanitizeWindowTitle drops C0 controls and DEL, and the C1 controls a UTF-8
+// terminal reads as ST, so OSC 2 cannot be nested or ended from inside the
+// payload.
+func sanitizeWindowTitle(title string) string { return sanitizeOSCText(title) }
 
 // Suspend hands the terminal back to the shell and stops the process, as
 // Ctrl+Z does in any other program. It returns when the shell resumes the
@@ -262,6 +280,9 @@ func (t *Terminal) Suspend() error {
 	if t == nil || t.driver == nil {
 		return nil
 	}
+	// The shell should not inherit a resize arrow or the kitty keyboard
+	// flags; the next mouse move and the next frame set them again.
+	t.RestoreModes()
 	if err := t.driver.Suspend(); err != nil {
 		return err
 	}
@@ -278,6 +299,7 @@ func (t *Terminal) Suspend() error {
 func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t0 := time.Now()
 	t.refreshCapabilities()
+	t.syncKeyboardMode()
 	// Güncel ekran boyutunu sorgula
 	w, h, err := t.driver.Size()
 	if t.inline > 0 {
@@ -446,6 +468,8 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		// A terminal that confirmed mode 2027 needs no cursor re-anchoring
 		// after each grapheme cluster.
 		ClusterWidths: t.caps.ClusterWidths,
+		ScrollRegions: t.caps.ScrollRegions,
+		InsertDelete:  t.caps.ScrollRegions,
 		// Draw already wrapped the frame in ?2026 above; wrapping again inside
 		// the encoder would nest the sequence.
 		SyncOutput: false,
@@ -556,6 +580,7 @@ func (t *Terminal) IsTransitionActive() bool {
 // Katmanlı render sistemi: En üstteki katmandaki bölgeler önceliklidir.
 // Olay bir bölgeyle eşleşip tetiklendiyse `true`, eşleşmediyse `false` döner.
 func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
+	t.updatePointer(ev)
 	// 0. Fare yakalama (mouse capture) kontrolü önce çalışır; drag/release
 	// olayları propagation bölgelerinden bağımsız olarak capture handler'a gider.
 	if t.mouseCaptureHandler != nil {

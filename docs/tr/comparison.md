@@ -7,14 +7,16 @@
 | **Kritik Yol Tahsisatı**| **`0 B/op` (Sıfır Alloc)** | Yüksek heap tahsisatı | Azaltılmış; sıfır-alloc bir tasarım hedefi değil — Ultraviolet her glif için bir `Cell` tahsis ediyor | Stack / RAII |
 | **Düzen Paradigması** | **Bildirimsel Flexbox & Yığın Çözücü** | String dilimleme (`JoinHorizontal/Vertical`) | Cassowary kısıt çözücü | Kısıt çözücü (Constraint solver) |
 | **Fare Etkileşimi** | **Hücresel Koordinat & Z-Index Yönlendirme** | Yok (manuel koordinat hesabı) | SGR fare olayları; dahili hit-testing yok | Manuel koordinat |
-| **Çift Tampon & Diff** | **Mikrosaniye altı diff + Adaptif tam akış** | Yok (tüm string stdout'a dökülür) | Hücre diff + `ECH`/`REP`/`ICH`/`DCH` + kaydırma optimizasyonu | Çift tamponlu diff |
+| **Çift Tampon & Diff** | **Kirli hücre diff'i + adaptif tam akış, `ECH`/`EL`/`REP`, kaydırma bölgeleri (`DECSTBM` + `SU`/`SD`) ve `ICH`/`DCH`**¹ | Yok (tüm string stdout'a dökülür) | Hücre diff + `ECH`/`REP`/`ICH`/`DCH` + kaydırma optimizasyonu | Çift tamponlu diff |
 | **Grapheme Cluster** | **UAX #29 cluster'ları, Unicode 17.0, resmî 766 kırılım testinin tamamı geçiyor** + Mod 2027 isteği; desteklemeyen terminaller için her cluster'dan sonra imleç yeniden konumlanır | `uniseg` | `uniseg` + Mod 2027 müzakeresi | `unicode-width` |
 | **Yetenek Tespiti** | **Çalışma anında sorgulama (XTVERSION, DECRQM, DA1) ve ölçüm**: REP ve grapheme cluster genişliği bir isimden çıkarılmaz, imleci hareket ettirerek test edilir. Ortam değişkenleri yedek olarak kullanılır | Ortam / terminfo | Çalışma anında sorgulama (terminfo'suz) | terminfo / crossterm |
 | **Büyük Veri / Tablolar**| **1M satır sanallaştırma (sürekli kaydırma altında ~2,6 ms/kare)** | Yüksek GC yükü | v1'e göre iyileştirilmiş | Her karede tüm satırları yeniden kurar — `Table` satır iterator'ının sahibidir |
-| **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY/GLB) & Shaders** | Harici eklenti gerekir | Harici eklenti gerekir | Eklenti gerekir |
+| **3D & Vektör Grafikleri**| **Dahili 3D (OBJ/STL/PLY/GLB), derinlik tamponlu düz/Lambert/Gouraud/doku gölgelendirme; Braille/sekstant noktalarıyla ya da kitty/iTerm2/Sixel üzerinden resim olarak** | Harici eklenti gerekir | Harici eklenti gerekir | Eklenti gerekir |
 | **Erişilebilirlik (A11y)** | **Dahili Semantik Ağaç ve Ekran Okuyucu** | Kısıtlı / Manuel | Kısıtlı / Manuel | Deneysel |
 | **Harici Bağımlılık** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 dolaylı modül | ~15 dolaylı modül | crates.io grafiği |
 | **Eşzamanlılık (Concurrency)** | **Kilit-Serbest Kanallar / İş Parçacığı Güvenli** | Tek iş parçacıklı TEA | Tek iş parçacıklı TEA | Manuel iş parçacığı yönetimi |
+
+> ¹ Kaydırma bölgeleri ve `ICH`/`DCH`, yayımlanan çerçeveler arası ölçümlerden sonra eklendi: `benchmarks/runners/limoni` runner'ı bunları açmıyor, dolayısıyla [benchmark](benchmarks.md) sayfasındaki bayt sayılarının hiçbiri bunları içermiyor. Tek satırlık bir log kaydırmasında 80×24'lük bir kareyi 1.189 bayttan 125'e, satır başına yazılan bir karakteri 77 bayttan 11'e indiriyorlar (`core/buffer/vt_test.go`); bunlar karşılaştırma değil, yalnızca Limoni sayıları. Ultraviolet'e karşı bir oran vermek için ölçümlerin [metodolojiye](../benchmark-methodology.md) göre tekrarlanması gerekir.
 
 > **Bubble Tea v2 sütunu hakkında:** bu satırlar Limoni'nin kendi ölçümlerinden değil, üst akış dokümantasyonundan alınmıştır. Charm, render motorunu hücre tabanlı diff yapan [Ultraviolet](https://github.com/charmbracelet/ultraviolet) üzerine yeniden inşa etti; dolayısıyla Limoni'nin **v1**'e karşı açtığı mimari fark **v2** için olduğu gibi geçerli değildir.
 >

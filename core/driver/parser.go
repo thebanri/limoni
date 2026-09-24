@@ -152,17 +152,25 @@ func parseCSI(buf []byte) (Event, int) {
 	var store [maxCSIParams]int
 	n := 0
 	currentVal, hasVal := 0, false
+	// The kitty keyboard protocol adds ':'-separated sub-parameters (shifted
+	// and base-layout keys, event types). Only the first of each is kept:
+	// reading "97:65" as one number would make it 9765.
+	sub := false
 	for _, c := range raw {
 		switch {
 		case c >= '0' && c <= '9':
-			currentVal = currentVal*10 + int(c-'0')
-			hasVal = true
+			if !sub {
+				currentVal = currentVal*10 + int(c-'0')
+				hasVal = true
+			}
+		case c == ':':
+			sub = true
 		case c == ';':
 			if n < maxCSIParams {
 				store[n] = currentVal
 				n++
 			}
-			currentVal, hasVal = 0, false
+			currentVal, hasVal, sub = 0, false, false
 		}
 	}
 	if hasVal && n < maxCSIParams {
@@ -199,6 +207,13 @@ func parseCSI(buf []byte) (Event, int) {
 		return makeKeyEvent(KeyHome, params), consumed
 	case 'F': // End
 		return makeKeyEvent(KeyEnd, params), consumed
+	case 'P': // F1, F2 and F4 with modifiers: CSI 1 ; mod P. F3's R would be
+		// read as a cursor report, so terminals send CSI 13 ~ for it instead.
+		return makeKeyEvent(KeyF1, params), consumed
+	case 'Q':
+		return makeKeyEvent(KeyF2, params), consumed
+	case 'S':
+		return makeKeyEvent(KeyF4, params), consumed
 	case 'I': // Focus Gained
 		return Event{Type: EventFocus, Focus: FocusEvent{Gained: true}}, consumed
 	case 'O': // Focus Lost
@@ -226,6 +241,18 @@ func parseCSI(buf []byte) (Event, int) {
 		case 32:
 			return Event{Type: EventKey, Key: KeyEvent{Type: KeySpace, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
 		default:
+			// Keys without a character of their own live in the Private Use
+			// Area: keypad digits and Enter are kept, the rest (lock keys,
+			// media keys, F13 and up) are dropped rather than typed as text.
+			if keyCode >= 57344 && keyCode <= 63743 {
+				switch {
+				case keyCode >= 57399 && keyCode <= 57408: // KP_0 … KP_9
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune('0' + keyCode - 57399), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				case keyCode == 57414: // KP_ENTER
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				}
+				return Event{}, consumed
+			}
 			if keyCode >= 32 {
 				return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
 			}

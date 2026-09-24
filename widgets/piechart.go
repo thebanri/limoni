@@ -23,6 +23,9 @@ type PieChart struct {
 	ShowLegend      bool
 	ShowPercentages bool
 	Style           cell.Style
+	// Marker picks the characters the slices are drawn with (Braille by
+	// default); MarkerSextant or MarkerQuadrant fill them solid.
+	Marker Marker
 }
 
 var defaultPieColors = []cell.Color{
@@ -72,7 +75,9 @@ func (pc PieChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Subpixel dimensions
 	virtW := int(chartW) * 2
 	virtH := int(chartH) * 4
-	canvas := NewCanvas(chartW, chartH)
+	canvas := borrowCanvas(chartW, chartH)
+	defer releaseCanvas(canvas)
+	canvas.Marker = pc.Marker
 
 	centerX := float64(virtW) / 2.0
 	centerY := float64(virtH) / 2.0
@@ -90,7 +95,9 @@ func (pc PieChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		percent    float64
 		label      string
 	}
-	var angles []sliceAngle
+	// Room for the usual number of slices on the stack; more spill to the heap.
+	var angleBuf [16]sliceAngle
+	angles := angleBuf[:0]
 	curAngle := -math.Pi / 2.0 // Start at top 12 o'clock
 
 	for i, slice := range pc.Data {

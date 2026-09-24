@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"math"
+	"sync"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -19,6 +20,10 @@ var brailleOffset = [4][2]byte{
 // Canvas, hücre başına 2x4 sanal piksel çözünürlüğünde (Braille karakterleri kullanarak)
 // terminal üzerinde yüksek çözünürlüklü vektör çizimleri yapmayı sağlayan görsel bileşendir.
 type Canvas struct {
+	// Marker picks the characters the canvas is drawn with; the zero value
+	// is Braille. Drawing always happens at 2×4 dots per cell.
+	Marker Marker
+
 	width  uint16
 	height uint16
 	grid   []byte
@@ -29,13 +34,11 @@ type Canvas struct {
 // NewCanvas, belirtilen hücre genişlik ve yüksekliğinde yeni bir Canvas oluşturur.
 // Sanal çizim alanı çözünürlüğü: (width * 2) x (height * 4) piksel olacaktır.
 func NewCanvas(width, height uint16) *Canvas {
-	virtPixels := int(width) * 2 * int(height) * 4
 	return &Canvas{
 		width:  width,
 		height: height,
 		grid:   make([]byte, int(width)*int(height)),
 		styles: make([]cell.Style, int(width)*int(height)),
-		depth:  makeDepthBuffer(virtPixels),
 	}
 }
 
@@ -63,14 +66,22 @@ func (c *Canvas) Reset(width, height uint16) {
 	} else {
 		c.styles = make([]cell.Style, neededCells)
 	}
-	if cap(c.depth) >= neededPixels {
-		c.depth = c.depth[:neededPixels]
-	} else {
-		c.depth = makeDepthBuffer(neededPixels)
+	// The z-buffer is eight bytes per dot, 64 per cell: only a canvas that
+	// has depth tested keeps one. SetDepth creates it on first use.
+	if c.depth != nil {
+		c.resetDepth(neededPixels)
 	}
-	for i := range c.depth {
-		c.depth[i] = math.Inf(1)
+}
+
+func (c *Canvas) resetDepth(pixels int) {
+	if cap(c.depth) >= pixels {
+		c.depth = c.depth[:pixels]
+		for i := range c.depth {
+			c.depth[i] = math.Inf(1)
+		}
+		return
 	}
+	c.depth = makeDepthBuffer(pixels)
 }
 
 func makeDepthBuffer(size int) []float64 {
@@ -123,6 +134,9 @@ func (c *Canvas) SetDepth(px, py int, depth float64, style cell.Style) bool {
 	virtH := int(c.height) * 4
 	if px < 0 || py < 0 || px >= virtW || py >= virtH {
 		return false
+	}
+	if len(c.depth) != virtW*virtH {
+		c.resetDepth(virtW * virtH)
 	}
 	idx := py*virtW + px
 	if depth >= c.depth[idx] {
@@ -185,12 +199,7 @@ func (c *Canvas) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			idx := int(y)*int(c.width) + int(x)
 			mask := c.grid[idx]
 
-			var r rune
-			if mask == 0 {
-				r = ' '
-			} else {
-				r = rune(0x2800 + int(mask))
-			}
+			r := markerRune(c.Marker, mask)
 
 			style := ctx.Style.Merge(c.styles[idx])
 			buf.SetCell(area.X+x, area.Y+y, cell.Cell{
@@ -213,3 +222,17 @@ func (c *Canvas) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	}
 	return w, h
 }
+
+var canvasPool = sync.Pool{New: func() any { return new(Canvas) }}
+
+// borrowCanvas hands out a cleared Braille canvas for widgets whose Draw has
+// a value receiver and so nowhere to keep one between frames. Give it back
+// with releaseCanvas once it has been drawn.
+func borrowCanvas(width, height uint16) *Canvas {
+	c := canvasPool.Get().(*Canvas)
+	c.Marker = MarkerBraille
+	c.Reset(width, height)
+	return c
+}
+
+func releaseCanvas(c *Canvas) { canvasPool.Put(c) }

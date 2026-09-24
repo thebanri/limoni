@@ -28,8 +28,22 @@ canvas.DrawCircle(centerX, centerY, radius, limoni.Fg(limoni.RGB(255, 215, 0)))
 canvas.DrawFilledTriangleDepth(v0, v1, v2, z0, z1, z2, style)
 
 // Draw depth-tested affine-textured triangles (Z-Buffer + UV texture mapping)
-canvas.DrawTexturedTriangleDepth(x0, y0, z0, u0, v0, x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, textureImage)
+canvas.DrawTexturedTriangleDepth(v0, v1, v2, z0, z1, z2, uv0, uv1, uv2, textureImage)
 ```
+
+### Markers
+
+Drawing always happens at 2×4 dots per cell; `canvas.Marker` decides how they are shown, so every drawing call works with every marker:
+
+| Marker | Dots per cell | Characters | Use |
+| :--- | :--- | :--- | :--- |
+| `MarkerBraille` (default) | 2×4 | `U+2800–U+28FF` | finest detail |
+| `MarkerSextant` | 2×3 | `U+1FB00–U+1FB3B` | solid fills, fonts without Braille |
+| `MarkerQuadrant` | 2×2 | `▘▝▀▖▌▞▛▗▚▐▜▄▙▟█` | the widest font support of the block markers |
+| `MarkerHalfBlock` | 1×2 | `▀▄█` | |
+| `MarkerBlock` | 1×1 | `█` | |
+
+`LineChart`, `PieChart` and `Viewer3D` have the same `Marker` field.
 
 ---
 
@@ -39,31 +53,39 @@ Limoni natively parses popular 3D file formats:
 - **Wavefront OBJ** (`.obj`): `graphics.LoadOBJ(path)` / `graphics.ParseOBJ(reader)`
 - **Stereolithography STL** (`.stl`): `graphics.LoadSTL(path)` / `graphics.ParseSTL(bytes)`
 - **Stanford PLY** (`.ply`): `graphics.LoadPLY(path)` / `graphics.ParsePLY(reader)`
-- **Built-in Geometric Primitives**: `graphics.NewCube(size)`, `graphics.NewPyramid(base, height)`, `graphics.NewSphere(radius, rings, sectors)`
+- **glTF binary** (`.glb`): `graphics.LoadGLB(path)`
+- **Built-in Geometric Primitives**: `graphics.NewCube(size)`, `graphics.NewPyramid(base, height)`, `graphics.NewSphere(radius, rings, sectors)`, `graphics.NewTorus(r1, r2, radial, tubular)`
+
+`Model3D.UVs` are in image space — V grows down, `(0,0)` is the top-left texel — as glTF has them; `LoadOBJ` flips OBJ's OpenGL-style V on the way in.
 
 ### High-Level `Viewer3D` Widget
 Transform, illuminate, and render 3D models with a single declarative widget:
 
 ```go
-// Load 3D model and bind to widget
 mesh, _ := graphics.LoadOBJ("assets/model.obj")
+_ = mesh.LoadTexture("assets/texture.png")
 
-viewer := widgets.NewViewer3D(mesh).
-	WithRotation(rotX, rotY, rotZ).
-	WithShading("shaded").      // "textured", "wireframe", "solid", "shaded", "gouraud"
-	WithWireframe(true).
-	WithTexture("assets/texture.png")
-
-// Render onto current frame
+viewer := &widgets.Viewer3D{
+	Model:     mesh,
+	RotX:      rotX,
+	RotY:      rotY,
+	Shading:   widgets.ShadingTexture, // ShadingWireframe, ShadingFlat, ShadingLambert, ShadingGouraud
+	Wireframe: true,                   // edges over the shading
+	Pixels:    true,                   // a picture over kitty/iTerm2/Sixel where the terminal has one
+}
 f.RenderWidget(viewer, f.Area())
 ```
+
+Every face is fanned into triangles, cut at the near plane rather than dropped when the camera gets close, back-face culled and depth tested, whatever the shading. Drawing does not allocate once the scratch buffers have grown to the model.
+
+With `Pixels`, the model is rendered at 8×16 pixels a cell into an RGBA picture and sent with the terminal's image protocol; without one it falls back to dots. A still model is encoded once. A moving one is encoded every frame, which costs what the protocol costs: about 7 ms and 2.7 MB per frame for a 60×24 area with kitty, measured with `BenchmarkViewer3DPixelsKitty`.
 
 ### 3D Render Shading Models
 
 1. **Wireframe**: Renders model polygon edges.
 2. **Solid Color**: Fills polygon faces with solid colors or depth-based palettes.
-3. **Lambertian Diffuse Shading**: Computes surface normals (`graphics.CalculateNormal`) against directional lights (`graphics.Light`) for realistic illumination (`canvas.DrawLambertTriangleDepth`).
-4. **Gouraud Shading**: Interpolates colors across triangle vertices using barycentric coordinates for smooth lighting transitions (`canvas.DrawGouraudTriangleDepth`).
+3. **Lambertian Diffuse Shading**: Lights each face by its outward normal against a directional light (`graphics.Light`, whose `Direction` points towards the light). Note that `graphics.CalculateNormal` returns the *inward* normal for Limoni's front-face winding; negate it before lighting.
+4. **Gouraud Shading**: Lights each vertex with the average normal of the faces around it and interpolates across the triangle, so curved surfaces shade smoothly instead of facet by facet.
 5. **Texture Mapping & Z-Buffer**: Maps UV coordinates from image textures directly onto 3D polygons with depth buffering (`canvas.DrawTexturedTriangleDepth`).
 
 ---
