@@ -143,7 +143,9 @@ type Frame struct {
 	themeStyleClosure  func(string) cell.Style
 	// clickActions holds this frame's ClickActions; regions refer to them by
 	// index, so the slice can grow without invalidating anything.
-	clickActions    []cell.ClickAction
+	clickActions []cell.ClickAction
+	// pointerRegions are the areas whose click actions ask for a pointer shape.
+	pointerRegions  []pointerRegion
 	mouseClosure    func(cell.Rect, func(driver.MouseEvent))
 	eventClosure    func(cell.Rect, driver.EventPhase, func(*driver.EventContext))
 	captureClosure  func(func(driver.MouseEvent))
@@ -249,6 +251,30 @@ func (f *Frame) clickLayer(area cell.Rect) (string, bool) {
 	return "", false
 }
 
+// pointerRegion is an area with a mouse pointer shape of its own.
+type pointerRegion struct {
+	area    cell.Rect
+	layerID string
+	shape   string
+}
+
+// pointerAt is the pointer shape asked for at (x, y) by the topmost click
+// action with one. Inside the top layer only that layer's regions count, as
+// for clicks.
+func (f *Frame) pointerAt(x, y uint16) string {
+	layer := ""
+	if top := f.TopLayer(); top != nil && top.Area.Contains(x, y) {
+		layer = top.ID
+	}
+	for i := len(f.pointerRegions) - 1; i >= 0; i-- {
+		r := f.pointerRegions[i]
+		if r.area.Contains(x, y) && (layer == "" || r.layerID == layer) {
+			return r.shape
+		}
+	}
+	return ""
+}
+
 // runClickAction performs a ClickAction.
 func (f *Frame) runClickAction(a cell.ClickAction) {
 	if a.Focus != "" && f.FocusManager != nil {
@@ -301,6 +327,14 @@ func (f *Frame) initClosures() {
 		layerID, ok := f.clickLayer(clickArea)
 		if !ok {
 			return
+		}
+		if action.Pointer != "" {
+			f.pointerRegions = append(f.pointerRegions, pointerRegion{area: clickArea, layerID: layerID, shape: action.Pointer})
+			if action == (cell.ClickAction{Pointer: action.Pointer}) {
+				// Only a pointer: not a click target, so it must not take
+				// clicks from the regions under it.
+				return
+			}
 		}
 		f.clickActions = append(f.clickActions, action)
 		f.ClickRegions = append(f.ClickRegions, ClickRegion{Area: clickArea, action: len(f.clickActions), LayerID: layerID})
@@ -436,6 +470,7 @@ func (f *Frame) SetTheme(theme widgets.Theme) {
 func (f *Frame) Reset() {
 	f.ClickRegions = f.ClickRegions[:0]
 	f.clickActions = f.clickActions[:0]
+	f.pointerRegions = f.pointerRegions[:0]
 	f.EventRegions = f.EventRegions[:0]
 	f.ImageRegions = f.ImageRegions[:0]
 	f.ActiveModal = nil
@@ -974,6 +1009,11 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	w.Draw(ctx, f.Buffer)
 	if provider, ok := w.(accessibility.Provider); ok {
 		node := provider.AccessibilityNode(area, false)
+		// A widget that describes itself with widgets.Accessible is focusable
+		// when its role says so, whether or not its Draw registered it.
+		if fw, ok := w.(interface{ WantsFocus() bool }); ok && fw.WantsFocus() && node.ID != "" {
+			f.focusClosure(node.ID)
+		}
 		if f.FocusManager != nil && f.FocusManager.IsFocused(node.ID) {
 			node.State |= accessibility.StateFocused
 		}

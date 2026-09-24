@@ -85,6 +85,10 @@ type Observer = engine.Observer
 // same.
 func NowCmd() Cmd { return engine.NowCmd() }
 
+// NotifyCmd shows a desktop notification in terminals that support one
+// (kitty, iTerm2, WezTerm, Ghostty, foot) and does nothing elsewhere.
+func NotifyCmd(title, body string) Cmd { return engine.NotifyCmd(title, body) }
+
 // WithProgramObserver attaches an observer, such as a session.Recorder, to a
 // Program.
 //

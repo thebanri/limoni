@@ -97,6 +97,11 @@ type ClickAction struct {
 	// Assign sets *Assign to Value, as a radio button does.
 	Assign *string
 	Value  string
+	// Pointer is the mouse pointer shown over the area, by CSS cursor name:
+	// "pointer" for a link, "ew-resize" for a divider. Terminals that cannot
+	// change the pointer ignore it. An action with only Pointer set does
+	// nothing when clicked.
+	Pointer string
 }
 
 // IsFocused reports whether the requested widget ID owns the current focus.

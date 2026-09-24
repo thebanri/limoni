@@ -56,6 +56,12 @@ func (a *App) Run(ctx context.Context, appFn func(f *Frame, ev *Event) bool) err
 	return runLoop(ctx, a.term, appFn, a.cfg, a.wakeup)
 }
 
+// Notify shows a desktop notification in terminals that support one (kitty,
+// iTerm2, WezTerm, Ghostty, foot, or LIMONI_NOTIFY) and reports whether it
+// was sent. Call it from the application function, which runs on the loop
+// that draws, never from another goroutine.
+func (a *App) Notify(title, body string) bool { return a.term.Notify(title, body) }
+
 // running tracks the Apps that are running, so that the package-level Wakeup
 // can reach them.
 var running = &appSet{apps: map[*App]struct{}{}}

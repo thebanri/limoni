@@ -29,6 +29,9 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 		return err
 	}
 	defer b.Close()
+	// Runs before b.Close: the shell should not inherit a resize arrow or
+	// the kitty keyboard flags.
+	defer term.RestoreModes()
 	b.StartEventLoop()
 
 	runDone := make(chan error, 1)
@@ -69,6 +72,8 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 			if err := p.Draw(term); err != nil {
 				return err
 			}
+		case n := <-p.notifications:
+			term.Notify(n.Title, n.Body)
 		case <-ctx.Done():
 			p.Stop()
 			return ctx.Err()
@@ -183,6 +188,8 @@ type Program struct {
 	workers  sync.WaitGroup
 	stopOnce sync.Once
 	stop     chan struct{}
+
+	notifications chan Notification
 }
 
 // Draw renders the current model view through an existing Limoni terminal.
@@ -216,6 +223,7 @@ func New(options ...Option) *Program {
 		catchCtrlC:     opts.catchCtrlC,
 		observer:       opts.observer,
 		stop:           make(chan struct{}),
+		notifications:  make(chan Notification, 4),
 	}
 }
 
@@ -378,6 +386,9 @@ func (p *Program) callInit() (commands []Cmd) {
 }
 
 func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
+	if p.takeNotify(message) {
+		return false
+	}
 	var result UpdateResult
 	p.modelMu.Lock()
 	p.step++
