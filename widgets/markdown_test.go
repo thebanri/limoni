@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni/core/buffer"
@@ -203,5 +204,29 @@ func TestMarkdownBackgroundInheritanceAndNoTransparency(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// Markdown lays out grapheme clusters, not code points: a combining accent
+// stays on its letter, and a ZWJ family is one two-column character, so it
+// fits where six columns of separate emoji would not.
+func TestMarkdownWrapsByCluster(t *testing.T) {
+	family := "\U0001F468\u200D\U0001F469\u200D\U0001F467"
+	decomposed := "cafe\u0301" // "café" with a combining acute
+	md := &Markdown{Content: decomposed + " " + family + " x"}
+	area := cell.NewRect(0, 0, 10, 3)
+	buf := buffer.NewBuffer(area)
+	md.Draw(cell.NewContext(area, cell.Style{}), buf)
+	first := strings.SplitN(buf.Snapshot(), "\n", 2)[0]
+	// "café" is 4 columns, a space, the family 2 columns, a space, "x": 9 of
+	// 10, one row. Measured by code point the family is 6 wide and wraps.
+	if want := decomposed + " " + family + "  x"; strings.TrimRight(first, " ") != want {
+		t.Errorf("first row %q, want %q", first, want)
+	}
+	if n := md.visualLineCount(10); n != 1 {
+		t.Errorf("visualLineCount %d, want 1", n)
+	}
+	if got := buf.CellAt(3, 0); !cell.IsCluster(got.Content) || cell.ClusterText(got.Content) != "e\u0301" {
+		t.Errorf("the accented e is %q, not one cluster", string(got.Content))
 	}
 }

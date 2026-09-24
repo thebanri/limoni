@@ -34,6 +34,8 @@ func TestInteractiveWidgetsProvideAccessibilityNodes(t *testing.T) {
 		{"textarea", TextArea{ID: "ta", State: &TextAreaState{Text: []rune("hello")}}, accessibility.RoleInput, "hello", 0, 0},
 		{"paragraph", &Paragraph{ID: "p", Text: "body"}, accessibility.RoleGeneric, "body", 0, 0},
 		{"checkbox", Checkbox{ID: "c", Label: "Agree", Checked: &checked}, accessibility.RoleCheckbox, "true", 0, 0},
+		{"gauge", Gauge{ID: "g", Ratio: 0.425}, accessibility.RoleProgress, "43%", 0, 0},
+		{"line gauge", LineGauge{ID: "lg", Ratio: 2}, accessibility.RoleProgress, "100%", 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			provider, ok := tc.widget.(accessibility.Provider)

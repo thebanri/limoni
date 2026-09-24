@@ -1,8 +1,8 @@
 package widgets
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -27,6 +27,8 @@ type LineChart struct {
 	ShowLegend bool
 	Style      cell.Style
 	AxisStyle  cell.Style
+	// Marker picks the characters the lines are drawn with (Braille by default).
+	Marker Marker
 }
 
 // Draw renders the line chart with Braille subpixels and axes.
@@ -102,13 +104,9 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Draw Y-Axis Labels
-	yTopLabel := fmt.Sprintf("%5.1f", maxY)
-	yMidLabel := fmt.Sprintf("%5.1f", (minY+maxY)/2)
-	yBotLabel := fmt.Sprintf("%5.1f", minY)
-
-	buf.SetString(area.X, plotY, yTopLabel, axisStyle)
-	buf.SetString(area.X, plotY+plotH/2, yMidLabel, axisStyle)
-	buf.SetString(area.X, plotY+plotH-1, yBotLabel, axisStyle)
+	setAxisNumber(buf, area.X, plotY, maxY, axisStyle)
+	setAxisNumber(buf, area.X, plotY+plotH/2, (minY+maxY)/2, axisStyle)
+	setAxisNumber(buf, area.X, plotY+plotH-1, minY, axisStyle)
 
 	// Draw Axes Lines
 	if lc.ShowAxes {
@@ -137,7 +135,9 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Create Braille Canvas for subpixel line rendering
-	canvas := NewCanvas(plotW, plotH)
+	canvas := borrowCanvas(plotW, plotH)
+	defer releaseCanvas(canvas)
+	canvas.Marker = lc.Marker
 	virtW := int(plotW) * 2
 	virtH := int(plotH) * 4
 
@@ -187,4 +187,19 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 // SizeHint returns preferred dimensions for LineChart.
 func (lc LineChart) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 	return maxArea.Width, maxArea.Height
+}
+
+// setAxisNumber draws v the way fmt's "%5.1f" would, from a stack buffer:
+// Sprintf allocated two strings per label per frame.
+func setAxisNumber(buf *buffer.Buffer, x, y uint16, v float64, style cell.Style) {
+	var tmp [32]byte
+	n := strconv.AppendFloat(tmp[:0], v, 'f', 1, 64)
+	for pad := 5 - len(n); pad > 0; pad-- {
+		buf.SetCell(x, y, cell.Cell{Content: ' ', Style: style})
+		x++
+	}
+	for _, ch := range n {
+		buf.SetCell(x, y, cell.Cell{Content: rune(ch), Style: style})
+		x++
+	}
 }

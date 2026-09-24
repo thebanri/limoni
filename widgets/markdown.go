@@ -60,12 +60,24 @@ func (m *Markdown) WithScrollOffset(offset *int) *Markdown {
 	return m
 }
 
-func runesWidth(runes []rune) int {
-	w := 0
-	for _, r := range runes {
-		w += cell.RuneWidth(r)
+// appendClusters appends text to row one grapheme cluster per cell, a wide
+// cluster followed by its continuation cell, and stops at width.
+func appendClusters(row []cell.Cell, text string, style cell.Style, width int) []cell.Cell {
+	for rest := text; rest != ""; {
+		cluster, w, next := cell.NextCluster(rest)
+		rest = next
+		if w == 0 {
+			continue
+		}
+		if len(row)+w > width {
+			break
+		}
+		row = append(row, cell.Cell{Content: cell.ClusterContent(cluster, w), Style: style})
+		if w == 2 {
+			row = append(row, cell.Cell{Content: cell.RuneContinuation, Style: style})
+		}
 	}
-	return w
+	return row
 }
 
 type markdownLine struct {
@@ -78,7 +90,11 @@ type markdownLine struct {
 type StyledSegment struct {
 	Style     cell.Style
 	Words     []string
-	WordRunes [][]rune // Pre-calculated runes for word wrap length calculations and printing!
+	WordRunes [][]rune // the words as runes; kept for callers, the layout reads Words
+	// WordWidths are the words' widths in columns, measured by grapheme
+	// cluster once at parse time: a combining accent adds nothing and a ZWJ
+	// family emoji is two columns, not six.
+	WordWidths []int
 }
 
 type rawSegment struct {
@@ -148,13 +164,16 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 		for _, rawSeg := range rawSegments {
 			words := strings.Split(rawSeg.Text, " ")
 			var wordRunes [][]rune
-			for _, word := range words {
+			widths := make([]int, len(words))
+			for i, word := range words {
 				wordRunes = append(wordRunes, []rune(word))
+				widths[i] = cell.StringWidth(word)
 			}
 			segments = append(segments, StyledSegment{
-				Style:     rawSeg.Style,
-				Words:     words,
-				WordRunes: wordRunes,
+				Style:      rawSeg.Style,
+				Words:      words,
+				WordRunes:  wordRunes,
+				WordWidths: widths,
 			})
 		}
 
@@ -289,18 +308,12 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 		row := blank()
 		if line.prefix != "" {
 			prefixStyle := baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0)})
-			for _, r := range []rune(line.prefix) {
-				rw := cell.RuneWidth(r)
-				row = append(row, cell.Cell{Content: r, Style: prefixStyle})
-				if rw == 2 {
-					row = append(row, cell.Cell{Content: cell.RuneContinuation, Style: prefixStyle})
-				}
-			}
+			row = appendClusters(row, line.prefix, prefixStyle, int(width))
 			indent = len(row)
 		}
 		for _, seg := range line.segments {
-			for index, word := range seg.WordRunes {
-				wordWidth := runesWidth(word)
+			for index, word := range seg.Words {
+				wordWidth := seg.WordWidths[index]
 				space := 0
 				if index > 0 {
 					space = 1
@@ -318,19 +331,7 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 				if space == 1 && len(row) < int(width) {
 					row = append(row, cell.Cell{Content: ' ', Style: seg.Style})
 				}
-				for _, r := range word {
-					rw := cell.RuneWidth(r)
-					if rw == 0 {
-						continue
-					}
-					if len(row)+rw > int(width) {
-						break
-					}
-					row = append(row, cell.Cell{Content: r, Style: seg.Style})
-					if rw == 2 {
-						row = append(row, cell.Cell{Content: cell.RuneContinuation, Style: seg.Style})
-					}
-				}
+				row = appendClusters(row, word, seg.Style, int(width))
 			}
 		}
 		rows = append(rows, row)
@@ -357,13 +358,13 @@ func (m *Markdown) visualLineCount(width uint16) int {
 		lineWidth := 0
 		indent := 0
 		if line.prefix != "" {
-			lineWidth = runesWidth([]rune(line.prefix))
+			lineWidth = cell.StringWidth(line.prefix)
 			indent = lineWidth
 		}
 		rows := 1
 		for _, segment := range line.segments {
-			for index, word := range segment.WordRunes {
-				wordWidth := runesWidth(word)
+			for index := range segment.Words {
+				wordWidth := segment.WordWidths[index]
 				space := 0
 				if index > 0 {
 					space = 1
@@ -396,13 +397,13 @@ func markdownLineRows(line markdownLine, width uint16) int {
 	lineWidth := 0
 	indent := 0
 	if line.prefix != "" {
-		lineWidth = runesWidth([]rune(line.prefix))
+		lineWidth = cell.StringWidth(line.prefix)
 		indent = lineWidth
 	}
 	rows := 1
 	for _, segment := range line.segments {
-		for index, word := range segment.WordRunes {
-			wordWidth := runesWidth(word)
+		for index := range segment.Words {
+			wordWidth := segment.WordWidths[index]
 			space := 0
 			if index > 0 {
 				space = 1
