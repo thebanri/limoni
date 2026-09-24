@@ -8,7 +8,61 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.9.0] — 2026-09-24
+
+### Added
+- Widgets: `Gauge` (fills in eighths of a cell, label reversed over the fill),
+  `LineGauge`, `StatusBar`, `SplitPane` (divider dragged with the mouse or
+  moved with the arrows), `Calendar`, `Autocomplete` (fuzzy suggestions),
+  `FilePicker`, `CodeView` (syntax highlighting for Go, Python, JS/TS, Rust,
+  C-family, shell, JSON and YAML with a small built-in lexer) and `BigText`
+  (public-domain font8x8). Each draws without allocating.
+- `Canvas.Marker`: Braille, sextant (2×3), quadrant (2×2), half block and
+  block. `LineChart`, `PieChart` and `Viewer3D` take it too.
+- The diff scrolls rows that moved with a scroll region (`DECSTBM` + `SU`/`SD`)
+  and shifts a row that text was inserted into or deleted from with
+  `ICH`/`DCH`. A log that gains a line: 1,189 bytes → 125 on 80×24; a typed
+  character: 77 → 11. On everywhere but `TERM=dumb`; `LIMONI_SCROLL=0` turns
+  it off. The published cross-framework numbers do not include this yet (#55).
+- Desktop notifications: `Terminal.Notify`, `App.Notify` and `NotifyCmd` —
+  OSC 99 for kitty, OSC 9 for iTerm2, WezTerm, Ghostty and foot, nothing where
+  the terminal is not known to show them (`LIMONI_NOTIFY` overrides).
+- Mouse pointer shapes with OSC 22 (kitty, foot, Ghostty): `ClickAction.Pointer`
+  names a CSS cursor for an area. `SplitPane`'s divider shows a resize arrow.
+- The kitty keyboard protocol, level 1, is turned on when the terminal
+  answers for it: Esc, Ctrl+I and Alt+key arrive distinct from Tab and
+  Esc-then-key. `LIMONI_KITTY_KEYBOARD=0` keeps it off.
+- `Viewer3D.Pixels` renders the model as a picture over kitty, iTerm2 or
+  Sixel, falling back to dots. A still model is encoded once.
+- `graphics.ForgetImage`, for pictures whose pixels change in place.
+- `limoni doctor` reports notifications, pointer shapes, the kitty keyboard
+  and scroll regions.
+
+### Changed
+- `LoadOBJ` flips OBJ texture V to image space (V grows down), as glTF and
+  the primitives already had it. Code that flipped OBJ UVs itself — the
+  showcase did — must stop.
+- `Viewer3D` allocates nothing per frame (it allocated 36 KB) and is faster,
+  and it is a `Widget` now: it had no `SizeHint`.
+- `LineChart` and `PieChart` no longer allocate a canvas every frame.
+- Resizing and encoding pictures reads pixels without boxing a
+  `color.Color`: `ResizeImageContain` went from ~307,000 allocations to 5 for
+  a 480×384 frame, `EncodeKitty` from ~51,000 to 42.
+
 ### Fixed
+- Markdown drew every CJK character and emoji as a space: writing a wide
+  character's continuation cell through `SetCell`/`SetCellDirect` blanked the
+  character. Markdown also wraps by grapheme cluster now.
+- `Viewer3D` lit the side of a model facing away from the light, texture mode
+  skipped the depth buffer and ignored the model's UVs, Gouraud was the same
+  as Lambert, and triangles reaching behind the camera were dropped instead of
+  clipped. The `3d_viewer` and `showcase` examples lit their models inverted
+  too.
+- A kitty picture reaching the last row scrolled the whole screen a line; the
+  placement now keeps the cursor (`C=1`, and `doNotMoveCursor` for iTerm2).
+- Custom widgets embedding `widgets.Accessible` were skipped by Tab.
+- The window title and notifications strip C1 controls as well as C0, so
+  U+009C cannot end the sequence early.
 - `apps/globe` searched only Natural Earth's 1:110m cities — 243 of them, so
   Bursa or Lyon could not be found. It now carries the 1:10m set, 7,342 cities
   and towns, and searches their ASCII spelling too, so "izmir" finds İzmir.
@@ -318,7 +372,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.0...HEAD
+[v0.9.0]: https://github.com/thebanri/limoni/compare/v0.8.1...v0.9.0
 [v0.8.1]: https://github.com/thebanri/limoni/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/thebanri/limoni/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/thebanri/limoni/compare/v0.6.0...v0.7.0
