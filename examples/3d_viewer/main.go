@@ -1046,7 +1046,7 @@ func draw3DCanvas(f *terminal.Frame, state *AppState, area cell.Rect) {
 		faceStyle := cell.Style{Fg: col}
 
 		v0, v1, v2 := rotated[face[0]], rotated[face[1]], rotated[face[2]]
-		norm0 := graphics.CalculateNormal(v0, v1, v2)
+		norm0 := faceNormal(v0, v1, v2)
 
 		switch state.ShadingMode {
 		case "Textured":
@@ -1106,7 +1106,7 @@ func draw3DCanvas(f *terminal.Frame, state *AppState, area cell.Rect) {
 			if isQuad {
 				canvas.DrawLambertTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, norm0, light, faceStyle)
 				v3 := rotated[face[3]]
-				norm1 := graphics.CalculateNormal(v0, v2, v3)
+				norm1 := faceNormal(v0, v2, v3)
 				canvas.DrawLambertTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, graphics.Vertex2D{X: p3.x, Y: p3.y}, p0.z, p2.z, p3.z, norm1, light, faceStyle)
 			} else {
 				canvas.DrawLambertTriangleDepth(graphics.Vertex2D{X: p0.x, Y: p0.y}, graphics.Vertex2D{X: p1.x, Y: p1.y}, graphics.Vertex2D{X: p2.x, Y: p2.y}, p0.z, p1.z, p2.z, norm0, light, faceStyle)
@@ -1156,4 +1156,12 @@ func draw3DCanvas(f *terminal.Frame, state *AppState, area cell.Rect) {
 		BorderStyle:    cell.Style{Fg: cell.NewColorRGB(0, 255, 128)},
 		Child:          canvas,
 	}, area)
+}
+
+// faceNormal is the outward normal of a front face. Front faces are wound
+// counter-clockwise on screen with the camera looking down +Z, for which
+// graphics.CalculateNormal points inwards, away from the viewer.
+func faceNormal(v0, v1, v2 graphics.Vertex3D) graphics.Vector3D {
+	n := graphics.CalculateNormal(v0, v1, v2)
+	return graphics.Vector3D{X: -n.X, Y: -n.Y, Z: -n.Z}
 }

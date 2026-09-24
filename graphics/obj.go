@@ -17,11 +17,14 @@ import (
 
 // Model3D is the geometry consumed by the wireframe/solid/textured renderer.
 type Model3D struct {
-	Name          string
-	Vertices      []Vertex3D
-	Faces         [][]int
-	FaceColors    []cell.Color
-	FaceUVs       [][]int
+	Name       string
+	Vertices   []Vertex3D
+	Faces      [][]int
+	FaceColors []cell.Color
+	FaceUVs    [][]int
+	// UVs are in image space: U grows right and V grows *down*, so (0,0) is
+	// the top-left texel. glTF already uses this origin; LoadOBJ flips the
+	// OpenGL-style V of an OBJ file on the way in.
 	UVs           []UV
 	FaceMaterials []string
 	Materials     map[string]Material3D
@@ -115,7 +118,7 @@ func ParseOBJ(r io.Reader) (Model3D, error) {
 					return Model3D{}, fmt.Errorf("line %d: invalid texture v: %w", lineNo, err)
 				}
 			}
-			model.UVs = append(model.UVs, UV{U: u, V: v})
+			model.UVs = append(model.UVs, UV{U: u, V: 1 - v})
 		case "v":
 			if len(fields) < 4 {
 				return Model3D{}, fmt.Errorf("line %d: vertex requires x y z", lineNo)

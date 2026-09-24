@@ -29,6 +29,13 @@ func TestParseOBJTextureCoordinates(t *testing.T) {
 	if len(model.UVs) != 3 || len(model.FaceUVs) != 1 || model.FaceUVs[0][2] != 2 {
 		t.Fatalf("UV data = %+v / %+v", model.UVs, model.FaceUVs)
 	}
+	// OBJ's V grows up; Model3D's grows down, so vt 0 1 is the top-left texel.
+	if got := model.UVs[2]; got != (UV{U: 0, V: 0}) {
+		t.Errorf("vt 0 1 = %+v, want {0 0}", got)
+	}
+	if got := model.UVs[0]; got != (UV{U: 0, V: 1}) {
+		t.Errorf("vt 0 0 = %+v, want {0 1}", got)
+	}
 }
 
 func TestParseOBJNegativeIndices(t *testing.T) {

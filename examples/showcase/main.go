@@ -1635,8 +1635,7 @@ func drawApp(t *terminal.Terminal, b *driver.Backend, state *AppState, fps float
 					if uvIndex < 0 || uvIndex >= len(state.OBJModel.UVs) {
 						return fallback
 					}
-					uv := state.OBJModel.UVs[uvIndex]
-					return graphics.UV{U: uv.U, V: 1 - uv.V}
+					return state.OBJModel.UVs[uvIndex]
 				}
 				for faceIdx, face := range faces {
 					if len(face) < 3 {
@@ -1745,7 +1744,7 @@ func drawApp(t *terminal.Terminal, b *driver.Backend, state *AppState, fps float
 							faceStyle := cell.Style{Fg: col}
 							light := graphics.DefaultLight()
 							v0, v1, v2 := rotated[face[0]], rotated[face[1]], rotated[face[2]]
-							norm0 := graphics.CalculateNormal(v0, v1, v2)
+							norm0 := faceNormal(v0, v1, v2)
 							if isQuad {
 								canvas.DrawLambertTriangleDepth(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
@@ -1754,7 +1753,7 @@ func drawApp(t *terminal.Terminal, b *driver.Backend, state *AppState, fps float
 									p0.z, p1.z, p2.z, norm0, light, faceStyle,
 								)
 								v3 := rotated[face[3]]
-								norm1 := graphics.CalculateNormal(v0, v2, v3)
+								norm1 := faceNormal(v0, v2, v3)
 								canvas.DrawLambertTriangleDepth(
 									graphics.Vertex2D{X: float64(p0.x), Y: float64(p0.y)},
 									graphics.Vertex2D{X: float64(p2.x), Y: float64(p2.y)},
@@ -2304,4 +2303,12 @@ func loadDemoMarkdown() string {
 		}
 	}
 	return "# Limoni Demo\nFailed to read markdown file.\n\n- `skill.md` was not found.\n- Showing fallback demo content."
+}
+
+// faceNormal is the outward normal of a front face. Front faces are wound
+// counter-clockwise on screen with the camera looking down +Z, for which
+// graphics.CalculateNormal points inwards, away from the viewer.
+func faceNormal(v0, v1, v2 graphics.Vertex3D) graphics.Vector3D {
+	n := graphics.CalculateNormal(v0, v1, v2)
+	return graphics.Vector3D{X: -n.X, Y: -n.Y, Z: -n.Z}
 }

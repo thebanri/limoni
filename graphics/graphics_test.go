@@ -214,3 +214,16 @@ func BenchmarkEncodeSixel(b *testing.B) {
 		_ = EncodeSixel(img, 20, 10, 8, 16, true)
 	}
 }
+
+// A picture that reaches the last row must not move the cursor below it:
+// the terminal would scroll the screen and the diff would draw every later
+// frame a row off. Found by running Viewer3D's pixel mode in kitty 0.48.2.
+func TestImagePlacementsKeepTheCursor(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	if seq := EncodeKitty(img, 2, 2, 8, 16, 1, -1, true); !strings.Contains(seq, ",C=1,") {
+		t.Errorf("kitty placement without C=1: %.80q", seq)
+	}
+	if seq := EncodeIterm2(img, 2, 2, 8, 16, true); !strings.Contains(seq, "doNotMoveCursor=1") {
+		t.Errorf("iTerm2 placement without doNotMoveCursor=1: %.80q", seq)
+	}
+}
