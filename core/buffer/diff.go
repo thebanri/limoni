@@ -42,6 +42,15 @@ type DiffOptions struct {
 	// then trusts the cursor after a cluster instead of re-anchoring it.
 	// Leave it false unless the terminal answered DECRQM for 2027 as set.
 	ClusterWidths bool
+	// ScrollRegions lets the diff move rows that scrolled with DECSTBM and
+	// SU/SD, so a list or log that moved by a line costs a few bytes instead
+	// of a redraw of every row. Not for inline mode, whose rows are relative
+	// to a cursor that the scroll region would move.
+	ScrollRegions bool
+	// InsertDelete lets the diff shift the rest of a row with ICH or DCH
+	// (VT220) when text was inserted or deleted in it, as typing in the
+	// middle of a line does, instead of rewriting the tail.
+	InsertDelete bool
 }
 
 // minEraseRun and minRepeatRun are the lengths at which a control sequence
@@ -84,6 +93,12 @@ func diff(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, error) {
 	totalCells := int(width) * int(height)
 	if totalCells == 0 {
 		return out, nil
+	}
+
+	if opts.ScrollRegions {
+		if m, ok := findScroll(front, back); ok {
+			out = applyScroll(out, back, m)
+		}
 	}
 
 	// Count modified cells
@@ -153,6 +168,19 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 		}
 		if first == -1 {
 			continue // No changes on this line
+		}
+
+		if opts.InsertDelete {
+			if k, _ := findLineShift(front, back, int(y), first, last); k != 0 {
+				var def cell.Style
+				def.Reset()
+				if currentStyle != def {
+					// ICH and DCH open cells in the current background.
+					out, currentStyle = appendStyle(out, currentStyle, def, trueColor, colors256, links, front.StyleCache)
+				}
+				out = applyLineShift(out, back, int(y), first, k)
+				cursorX, cursorY = uint16(first), y // neither moves the cursor
+			}
 		}
 
 		for x := uint16(first); x <= uint16(last); x++ {
