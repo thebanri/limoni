@@ -61,8 +61,11 @@ func (g Gauge) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	fill := base.Merge(g.GaugeStyle)
 
 	exact := g.ratio() * float64(area.Width)
-	full := int(exact)
-	eighths := int((exact - float64(full)) * 8)
+	// Whole eighths from one product, nudged up by an epsilon: subtracting
+	// the whole cells first lost an eighth on arm64, where the compiler fuses
+	// the multiply and subtract (5.125 cells became 4.999… eighths).
+	total := int(exact*8 + 1e-9)
+	full, eighths := total/8, total%8
 	if g.WholeCells {
 		full = int(math.Round(exact))
 		eighths = 0

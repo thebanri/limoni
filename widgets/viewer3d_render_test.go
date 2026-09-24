@@ -217,7 +217,9 @@ func TestClipSegment(t *testing.T) {
 		{"far endpoint", 5, 5, 5, 1e9, true, 5, 5, 5, 10},
 	} {
 		x0, y0, x1, y1, ok := clipSegment(tc.x0, tc.y0, tc.x1, tc.y1, 10, 10)
-		if ok != tc.ok || (ok && (x0 != tc.wx0 || y0 != tc.wy0 || x1 != tc.wx1 || y1 != tc.wy1)) {
+		// Within 1e-9: arm64 fuses multiply-adds and lands a hair off 0.
+		near := func(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+		if ok != tc.ok || (ok && !(near(x0, tc.wx0) && near(y0, tc.wy0) && near(x1, tc.wx1) && near(y1, tc.wy1))) {
 			t.Errorf("%s: got (%v,%v)-(%v,%v) %v", tc.name, x0, y0, x1, y1, ok)
 		}
 	}

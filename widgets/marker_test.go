@@ -110,6 +110,11 @@ func chartsForBench() (LineChart, PieChart) {
 // The charts draw on a canvas every frame and have value receivers, so they
 // borrow one; a fresh canvas per frame was several KB of garbage each time.
 func TestChartsDrawWithoutAllocating(t *testing.T) {
+	if raceEnabled {
+		// The race detector makes sync.Pool drop a share of what is put
+		// back, on purpose, so a borrowed canvas is sometimes new.
+		t.Skip("sync.Pool is not reliable under -race")
+	}
 	buf, ctx := prepareBenchmarkEnv()
 	lc, pc := chartsForBench()
 	for _, m := range []Marker{MarkerBraille, MarkerSextant} {
