@@ -8,6 +8,11 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Fixed
+- `CodeView`: Rust block comments nest (`/* /* */ */`), on one line and
+  across lines, instead of ending at the first `*/` (issue #62), thanks to
+  [@hy3560](https://github.com/hy3560).
+
 ## [v0.9.1] — 2026-09-24
 
 ### Added
