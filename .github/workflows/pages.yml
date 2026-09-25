@@ -47,6 +47,21 @@ jobs:
           mkdir -p site
           go build -trimpath -ldflags="-s -w" -o site/limoni.wasm ./examples/wasm
 
+      # Lemon Hunt is a module of its own and requires a published Limoni;
+      # the page is built from this commit, so the game is too, the same way
+      # ci.yml checks it. The page loads it as ?app=lemonhunt.
+      - name: Build Lemon Hunt
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          cp -r apps/lemonhunt "$work/lemonhunt"
+          go -C "$work/lemonhunt" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemonhunt" mod tidy
+          go -C "$work/lemonhunt" build -trimpath -ldflags="-s -w" -o "$PWD/site/lemonhunt.wasm" .
+
       - name: Assemble site
         run: |
           set -euo pipefail
@@ -67,25 +82,31 @@ jobs:
       # Compiling is not verifying: every bug this demo has shipped compiled
       # cleanly. This runs the module and asserts on what it emits.
       - name: Verify the module actually runs
-        run: node scripts/verify-wasm.mjs "$(go env GOROOT)" site/limoni.wasm
+        run: |
+          set -euo pipefail
+          node scripts/verify-wasm.mjs "$(go env GOROOT)" site/limoni.wasm
+          node scripts/verify-wasm-lemonhunt.mjs "$(go env GOROOT)" site/lemonhunt.wasm
 
       - name: Report module size
         run: |
           set -euo pipefail
-          raw=$(stat -c%s site/limoni.wasm)
-          gz=$(gzip -9 -c site/limoni.wasm | wc -c)
-          br=$(command -v brotli >/dev/null && brotli -q 11 -c site/limoni.wasm | wc -c || echo 0)
-          {
-            echo "### Playground module size"
-            echo ""
-            echo "| Encoding | Size |"
-            echo "| :--- | ---: |"
-            printf "| raw | %.2f MB |\n" "$(echo "$raw/1048576" | bc -l)"
-            printf "| gzip | %.2f MB |\n" "$(echo "$gz/1048576" | bc -l)"
-            if [ "$br" != "0" ]; then
-              printf "| brotli | %.2f MB |\n" "$(echo "$br/1048576" | bc -l)"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          for module in limoni lemonhunt; do
+            raw=$(stat -c%s "site/$module.wasm")
+            gz=$(gzip -9 -c "site/$module.wasm" | wc -c)
+            br=$(command -v brotli >/dev/null && brotli -q 11 -c "site/$module.wasm" | wc -c || echo 0)
+            {
+              echo "### $module.wasm"
+              echo ""
+              echo "| Encoding | Size |"
+              echo "| :--- | ---: |"
+              printf "| raw | %.2f MB |\n" "$(echo "$raw/1048576" | bc -l)"
+              printf "| gzip | %.2f MB |\n" "$(echo "$gz/1048576" | bc -l)"
+              if [ "$br" != "0" ]; then
+                printf "| brotli | %.2f MB |\n" "$(echo "$br/1048576" | bc -l)"
+              fi
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

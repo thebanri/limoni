@@ -514,6 +514,25 @@ func TestHeldKeysWalkUntilReleased(t *testing.T) {
 	}
 }
 
+// The release of the Enter that starts the game is proof enough: the first
+// walk is held exactly, with no release seen in play yet.
+func TestReleaseOnTheTitleCounts(t *testing.T) {
+	g := newGame()
+	g.key(limoni.KeyEvent{Type: limoni.KeyEnter})
+	g.key(limoni.KeyEvent{Type: limoni.KeyEnter, Release: true})
+	if g.phase != phPlay {
+		t.Fatalf("phase %v after Enter on START, want play", g.phase)
+	}
+	x0, y0 := g.px, g.py
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w'})
+	for i := 0; i < 45; i++ { // 1.5 s, not a single repeat
+		g.step(tick)
+	}
+	if walked := math.Hypot(g.px-x0, g.py-y0); walked < 2 {
+		t.Errorf("walked %.2f tiles holding w for 1.5 s after the first press", walked)
+	}
+}
+
 func TestHoldingSpaceKeepsSquirting(t *testing.T) {
 	g := playing()
 	g.key(limoni.KeyEvent{Type: limoni.KeySpace})
@@ -531,7 +550,7 @@ func TestHoldingSpaceKeepsSquirting(t *testing.T) {
 func TestTheTitleMenu(t *testing.T) {
 	g := newGame()
 	press := func(k limoni.KeyEvent) { g.key(k); g.key(func() limoni.KeyEvent { k.Release = true; return k }()) }
-	down := limoni.KeyEvent{Type: limoni.KeyDown}
+	down := limoni.KeyEvent{Type: limoni.KeyRune, Ch: 's'}
 	enter := limoni.KeyEvent{Type: limoni.KeyEnter}
 
 	press(down) // SOUND
@@ -561,10 +580,30 @@ func TestTheTitleMenu(t *testing.T) {
 	}
 
 	g = newGame()
-	g.key(limoni.KeyEvent{Type: limoni.KeyUp}) // round to QUIT
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w'}) // round to QUIT
 	g.key(enter)
 	if !g.quit {
 		t.Error("ENTER on QUIT did not quit")
+	}
+}
+
+// ↑ and ↓ are unbound: they neither walk nor move the menu.
+func TestUpAndDownArrowsDoNothing(t *testing.T) {
+	g := newGame()
+	g.key(limoni.KeyEvent{Type: limoni.KeyDown})
+	if g.menu != 0 {
+		t.Errorf("↓ moved the menu to %d", g.menu)
+	}
+	g = playing()
+	x0, y0 := g.px, g.py
+	for _, k := range []limoni.KeyType{limoni.KeyUp, limoni.KeyDown} {
+		g.key(limoni.KeyEvent{Type: k})
+		for i := 0; i < 15; i++ {
+			g.step(tick)
+		}
+	}
+	if moved := math.Hypot(g.px-x0, g.py-y0); moved > 0.01 {
+		t.Errorf("the arrows walked %.2f tiles", moved)
 	}
 }
 

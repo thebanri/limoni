@@ -17,14 +17,20 @@ of its own. It charges when its eyes burn and throws cheese you can dodge or
 shoot out of the air. At two thirds and one third of its health, it calls
 for more rats. Each lemon gives back 10 HP.
 
-The title screen has a menu: `↑`/`↓` choose, `←`/`→` set the volume, and
+The title screen has a menu: `W`/`S` choose, `←`/`→` set the volume, and
 `ENTER` starts, switches the sound on and off, or quits.
 
-In the game, `W`/`S` or `↑`/`↓` walk, `A`/`D` strafe, `←`/`→` turn, and `space` squirts.
+In the game, `W`/`S` walk, `A`/`D` strafe, `←`/`→` turn, and `space` squirts.
 Hold it down to keep squirting. `M` shows the map and `Esc` quits. After a
 win or a loss, `R` plays again.
 
 The window must be at least 60×20. A whole run takes a few minutes.
+
+It also runs in the browser, at <https://thebanri.github.io/limoni/?app=lemonhunt>:
+the same code compiled with `GOOS=js GOARCH=wasm`, drawn by xterm.js, and
+built from `main` by the Pages workflow. xterm.js reports no key releases,
+so the page sends them itself from the browser's `keyup`, in the kitty
+protocol's spelling, and keys are held exactly there too (see below).
 
 ## How it draws
 
@@ -83,6 +89,11 @@ system has: `pw-play` (PipeWire), `pacat` (PulseAudio), `aplay` (ALSA) or
 from. The mixer keeps only about 60 ms ahead of the clock, or a pipe's worth
 of audio would queue up and every effect would arrive late. Without a
 player, the game is silent and says so on exit.
+
+In a browser the player is Web Audio (`sound_js.go`). The page makes an
+`AudioContext` on the click that starts the game, since browsers start sound
+only from a user gesture. Each clip is copied into it once, and a sound is a
+buffer source through a gain and a stereo panner.
 
 ## Zero allocations
 

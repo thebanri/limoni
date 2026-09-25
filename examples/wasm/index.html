@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.js"></script>
   <script src="wasm_exec.js"></script>
   <style>
     :root {
@@ -71,7 +72,29 @@
       margin-left: auto; font-size: 12px; color: var(--muted);
       font-family: ui-monospace, Menlo, Monaco, monospace;
     }
-    #terminal { min-height: 420px; }
+    /* A fixed height, not a minimum: xterm's own element keeps the size of
+       the last fit, and would hold the box at fullscreen size after leaving. */
+    #terminal { height: 420px; }
+
+    button.full-toggle {
+      appearance: none; cursor: pointer; margin-left: 12px;
+      background: #161b22; color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      font: 12px ui-monospace, Menlo, Monaco, monospace;
+      padding: 3px 9px;
+    }
+    button.full-toggle:hover { border-color: var(--accent-dim); color: #fff; }
+
+    /* Fullscreen: the stage fills the screen, through the Fullscreen API or,
+       where that is refused (an iframe without permission, iPhone Safari),
+       by covering the page. The same class drives both. */
+    .stage.full {
+      position: fixed; inset: 0; z-index: 50;
+      max-width: none; border-radius: 0; border: 0;
+      display: flex; flex-direction: column;
+    }
+    .stage.full #terminal { height: auto; flex: 1; min-height: 0; }
+    .stage.full .poster { border-radius: 0; }
 
     /* Poster overlay: the WASM module is only fetched when the user asks. */
     .poster {
@@ -93,6 +116,10 @@
     }
     button.run:hover { transform: translateY(-1px); }
     button.run:disabled { cursor: progress; opacity: 0.65; transform: none; }
+    a.other {
+      font-size: 13px; color: var(--accent-dim); text-decoration: none;
+    }
+    a.other:hover { text-decoration: underline; }
 
     .status {
       margin-top: 14px; font-size: 12.5px; color: var(--muted);
@@ -143,16 +170,18 @@
       <div class="dot yellow"></div>
       <div class="dot green"></div>
       <div class="title-tag" id="size-tag">xterm.js · truecolor</div>
+      <button class="full-toggle" id="full-toggle" title="Fullscreen">⛶ Fullscreen</button>
     </div>
     <div id="terminal"></div>
 
     <div class="poster" id="poster">
-      <h2>Run Limoni in this tab</h2>
-      <p>
-        Loads a <strong id="size-hint">~3 MB</strong> WebAssembly module.
+      <h2 id="poster-title">Run Limoni in this tab</h2>
+      <p id="poster-text">
+        Loads a <strong>~5 MB</strong> WebAssembly module.
         Nothing is installed, nothing leaves your browser.
       </p>
       <button class="run" id="run">▶&nbsp;&nbsp;Run it</button>
+      <a class="other" id="other-app" href="?app=lemonhunt">🍋 or play Lemon Hunt, a raycaster game →</a>
     </div>
   </div>
 
@@ -161,7 +190,7 @@
     <span id="status-text">Ready — press Run to load the engine</span>
   </div>
 
-  <div class="keys">
+  <div class="keys" id="keys">
     <span><kbd>1</kbd>–<kbd>5</kbd> or click a tab</span>
     <span><kbd>Tab</kbd> next scene</span>
     <span><kbd>↑</kbd><kbd>↓</kbd><kbd>PgUp</kbd><kbd>PgDn</kbd> scroll</span>
@@ -182,6 +211,51 @@
   </footer>
 
   <script>
+    // Two modules share this page: the playground, and ?app=lemonhunt, the
+    // game from apps/lemonhunt. They are separate builds because the game is
+    // a module of its own and ships to nobody who imports Limoni.
+    const apps = {
+      playground: {
+        wasm: 'limoni.wasm',
+        running: 'Limoni engine running — click the terminal and type',
+      },
+      lemonhunt: {
+        wasm: 'lemonhunt.wasm',
+        title: 'Lemon Hunt — a raycaster in the terminal',
+        posterTitle: '🍋 Lemon Hunt',
+        posterText: 'The rats have hidden the city\'s lemons in the sewer. Find ten, ' +
+          'then squirt Ratatui, king of the rats. A raycaster in half blocks, ' +
+          'drawn by Limoni. Loads a <strong>~4 MB</strong> WebAssembly module; turn your sound on.',
+        button: '▶&nbsp;&nbsp;Play',
+        other: '← back to the Limoni playground',
+        otherHref: '?',
+        keys: '<span><kbd>W</kbd><kbd>S</kbd> walk</span>' +
+          '<span><kbd>A</kbd><kbd>D</kbd> strafe</span>' +
+          '<span><kbd>←</kbd><kbd>→</kbd> turn</span>' +
+          '<span><kbd>Space</kbd> squirt</span>' +
+          '<span><kbd>M</kbd> map</span>' +
+          '<span><kbd>Esc</kbd> quit</span>',
+        running: 'Lemon Hunt running — click the terminal if keys do nothing',
+        // In fullscreen the font grows to keep about this many rows: bigger
+        // pixels rather than four times the cells to raycast and send.
+        fullscreenRows: 48,
+        audio: true,
+        keyReleases: true,
+      },
+    };
+    const params = new URLSearchParams(location.search);
+    const app = apps[params.get('app')] || apps.playground;
+    if (app.title) { document.title = app.title; }
+    if (app.posterTitle) { document.getElementById('poster-title').textContent = app.posterTitle; }
+    if (app.posterText) { document.getElementById('poster-text').innerHTML = app.posterText; }
+    if (app.button) { document.getElementById('run').innerHTML = app.button; }
+    if (app.other) {
+      const other = document.getElementById('other-app');
+      other.textContent = app.other;
+      other.href = app.otherHref;
+    }
+    if (app.keys) { document.getElementById('keys').innerHTML = app.keys; }
+
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: 'ui-monospace, Menlo, Monaco, "Courier New", monospace',
@@ -193,7 +267,53 @@
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(document.getElementById('terminal'));
+
+    // The default renderer keeps a DOM element per cell and restyles each one
+    // whose colour changed. A moving picture in free colours — the 3D scene,
+    // Lemon Hunt — changes nearly all of them every frame: profiled, the page
+    // spent three quarters of its time in style and layout and repainted 8
+    // times a second while Go produced 30 frames. The WebGL renderer draws the
+    // same cells on the GPU. Without WebGL, or once its context is lost, xterm
+    // goes back to the DOM.
+    try {
+      const webgl = new WebglAddon.WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch (err) {
+      console.warn('WebGL renderer unavailable, using the DOM renderer:', err);
+    }
     fitAddon.fit();
+
+    // xterm.js reports presses, and auto-repeats as more presses, but never a
+    // release, so a game cannot tell a held key from a tapped one. The page
+    // can: on keyup it sends the release as the kitty keyboard protocol
+    // spells it (CSI 119;1:3u is w let go, CSI 1;1:3D the left arrow), which
+    // Limoni's parser already reads. Only for an application that asked for
+    // releases — to any other, a release would read as a second press.
+    if (app.keyReleases) {
+      const special = {
+        ArrowRight: '\x1b[1;1:3C', ArrowLeft: '\x1b[1;1:3D',
+        ' ': '\x1b[32;1:3u', Enter: '\x1b[13;1:3u',
+      };
+      const releaseOf = (key) => special[key] ||
+        (/^[a-z]$/i.test(key) ? `\x1b[${key.toLowerCase().charCodeAt(0)};1:3u` : null);
+      const held = new Set();
+      const send = (seq) => { if (window.__limoni_input) { window.__limoni_input(seq); } };
+      term.attachCustomKeyEventHandler((ev) => {
+        const seq = releaseOf(ev.key);
+        if (seq && ev.type === 'keydown') {
+          held.add(seq);
+        } else if (seq && ev.type === 'keyup' && held.delete(seq)) {
+          send(seq);
+        }
+        return true;
+      });
+      // A key let go in another window never reaches this one.
+      window.addEventListener('blur', () => {
+        held.forEach(send);
+        held.clear();
+      });
+    }
 
     const statusText = document.getElementById('status-text');
     const statusBadge = document.getElementById('status-badge');
@@ -206,17 +326,53 @@
     }
     updateSizeTag();
 
+    const stage = document.querySelector('.stage');
+    const fullToggle = document.getElementById('full-toggle');
+    const baseFontSize = term.options.fontSize;
+
+    function refit() {
+      const full = stage.classList.contains('full');
+      const size = full && app.fullscreenRows
+        // A row is about 1.2 font sizes tall.
+        ? Math.max(baseFontSize, Math.floor(window.innerHeight / app.fullscreenRows / 1.2))
+        : baseFontSize;
+      if (term.options.fontSize !== size) { term.options.fontSize = size; }
+      fitAddon.fit();
+      updateSizeTag();
+      if (window.__limoni_resize) {
+        window.__limoni_resize(term.cols, term.rows);
+      }
+    }
+
     // Debounce resize so a drag does not flood the Go side with resize events.
     let resizeTimer = null;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        fitAddon.fit();
-        updateSizeTag();
-        if (window.__limoni_resize) {
-          window.__limoni_resize(term.cols, term.rows);
+      resizeTimer = setTimeout(refit, 80);
+    });
+
+    function setFull(on) {
+      stage.classList.toggle('full', on);
+      fullToggle.textContent = on ? '✕ Exit fullscreen' : '⛶ Fullscreen';
+      refit();
+      term.focus();
+    }
+    fullToggle.addEventListener('click', async () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (stage.classList.contains('full')) {
+        setFull(false); // the covering fallback
+      } else {
+        try {
+          await stage.requestFullscreen();
+        } catch (err) {
+          setFull(true); // refused: cover the page instead
         }
-      }, 80);
+      }
+    });
+    // Also leaving with the browser's own Esc.
+    document.addEventListener('fullscreenchange', () => {
+      setFull(document.fullscreenElement === stage);
     });
 
     // Go -> xterm.js
@@ -227,14 +383,28 @@
       if (window.__limoni_input) { window.__limoni_input(data); }
     });
 
+    // Browsers start sound only from a user gesture, so the context is made
+    // here, on the click, and handed to Go as window.__limoni_audio. Under
+    // ?autorun=1 there was no click; the first key resumes it.
+    function startAudio() {
+      if (!app.audio || window.__limoni_audio) { return; }
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (Context) { window.__limoni_audio = new Context(); }
+    }
+    term.onKey(() => {
+      const ctx = window.__limoni_audio;
+      if (ctx && ctx.state === 'suspended') { ctx.resume(); }
+    });
+
     async function boot() {
       runButton.disabled = true;
       runButton.textContent = 'Loading…';
-      statusText.textContent = 'Fetching limoni.wasm…';
+      statusText.textContent = `Fetching ${app.wasm}…`;
+      startAudio();
 
+      const go = new Go();
       try {
-        const go = new Go();
-        const response = await fetch('limoni.wasm');
+        const response = await fetch(app.wasm);
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`);
         }
@@ -250,21 +420,26 @@
 
         poster.classList.add('hidden');
         statusBadge.classList.add('ready');
-        statusText.textContent = 'Limoni engine running — click the terminal and type';
+        statusText.textContent = app.running;
         term.focus();
 
-        setTimeout(() => {
-          fitAddon.fit();
-          updateSizeTag();
-          if (window.__limoni_resize) {
-            window.__limoni_resize(term.cols, term.rows);
-          }
-        }, 100);
+        setTimeout(refit, 100);
 
         await go.run(result.instance);
 
+        // The Go side is gone; its callbacks would throw if called. So would
+        // a timer a goroutine was sleeping on, which wasm_exec.js leaves set.
+        for (const timer of (go._scheduledTimeouts || new Map()).values()) {
+          clearTimeout(timer);
+        }
+        window.__limoni_input = null;
+        window.__limoni_resize = null;
+        term.reset();
         statusBadge.classList.remove('ready');
-        statusText.textContent = 'Program exited — reload the page to run it again';
+        statusText.textContent = 'Program exited';
+        poster.classList.remove('hidden');
+        runButton.disabled = false;
+        runButton.innerHTML = '▶&nbsp;&nbsp;Run it again';
       } catch (err) {
         statusBadge.classList.add('error');
         statusText.textContent = 'Failed to load: ' + err.message;

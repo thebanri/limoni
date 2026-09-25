@@ -213,6 +213,8 @@ go install github.com/thebanri/limoni/apps/lemonhunt@latest
 lemonhunt
 ```
 
+Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemonhunt), sesiyle birlikte.
+
 Yarım bloklarla hücre başına iki piksel çizen bir raycaster: ışıklı dokular, piksel sanatı fareler, piksel piksel
 ışın izlenen 3D yarım limonlar ve açılışta sentezlenen sesler. Bir kare, diff dahil hiç bellek ayırmaz. Tuşları
 `WithKeyReleases` ile basılı tutar; kitty, Ghostty ve WezTerm'de yürüyüş akıcıdır.

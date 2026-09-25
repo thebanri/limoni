@@ -1096,7 +1096,7 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 	_ = end
 
 	item(2, y+4, "QUIT")
-	cv.centered(y+6, "↑↓ choose · ←→ volume · ENTER select", hudStyle(hudDim, bg))
+	cv.centered(y+6, "W/S choose · ←→ volume · ENTER select", hudStyle(hudDim, bg))
 }
 
 func (g *game) drawWon(cv canvas, W, viewH int) {

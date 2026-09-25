@@ -61,25 +61,15 @@ func (b *Backend) Setup() error {
 		// Register a global JS callback for input injection: window.__limoni_input(data)
 		inputCb := js.FuncOf(func(this js.Value, args []js.Value) any {
 			if len(args) > 0 {
-				str := args[0].String()
-				bytes := []byte(str)
-				for len(bytes) > 0 {
-					ev, consumed := ParseBracketedPaste(bytes)
-					if consumed == 0 {
-						ev, consumed = ParseEvent(bytes)
+				parseChunk([]byte(args[0].String()), func(ev Event) {
+					if b.replies.record(ev) {
+						return
 					}
-					if consumed > 0 {
-						if ev.Type != EventNone && !b.replies.record(ev) {
-							select {
-							case b.events <- ev:
-							default:
-							}
-						}
-						bytes = bytes[consumed:]
-					} else {
-						break
+					select {
+					case b.events <- ev:
+					default:
 					}
-				}
+				})
 			}
 			return nil
 		})
