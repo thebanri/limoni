@@ -256,6 +256,7 @@ Coming from Bubble Tea? See the [migration guide](docs/bubbletea-migration.md).
 | Example | What it shows |
 | :--- | :--- |
 | [`demo`](examples/demo) | The feature trailer: a 3D lemon in ASCII, Braille and half-blocks |
+| [`xray`](examples/xray) | A night city under an X-ray: every cell the diff sends lights up, with measured bytes against a full repaint (`-film` for recording) |
 | [`showcase`](examples/showcase) | Tabs, forms, matrix rain, 3D, command palette, DevTools (`F12`) |
 | [`3d_viewer`](examples/3d_viewer) | OBJ/STL/PLY viewer with shading and orbit controls (`-fps 240`) |
 | [`dashboard`](examples/dashboard) | Live CPU and memory sparklines, a process table, streaming logs |

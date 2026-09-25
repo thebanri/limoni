@@ -242,6 +242,7 @@ bak.
 | Örnek | Ne gösteriyor |
 | :--- | :--- |
 | [`demo`](examples/demo) | Tanıtım demosu: ASCII, Braille ve yarım blokla çizilmiş 3D bir limon |
+| [`xray`](examples/xray) | Röntgen altında bir gece şehri: diff'in gönderdiği her hücre parlar, ölçülen baytlar tam yeniden çizimle karşılaştırılır (kayıt için `-film`) |
 | [`showcase`](examples/showcase) | Sekmeler, formlar, matrix yağmuru, 3D, komut paleti, DevTools (`F12`) |
 | [`3d_viewer`](examples/3d_viewer) | Gölgelendirme ve yörünge kontrollü OBJ/STL/PLY görüntüleyici (`-fps 240`) |
 | [`dashboard`](examples/dashboard) | Canlı CPU ve bellek sparkline'ları, süreç tablosu, akan loglar |
