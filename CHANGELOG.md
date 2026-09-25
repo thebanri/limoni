@@ -13,6 +13,11 @@ a patch bump (`v0.x.y`) does not.
   across lines, instead of ending at the first `*/` (issue #62), thanks to
   [@hy3560](https://github.com/hy3560).
 
+### Changed
+- `EncodeSixel` reads pixels without boxing them: 51,211 allocations per
+  frame down to 11, and about 37% faster (issue #59), thanks to
+  [@hy3560](https://github.com/hy3560).
+
 ## [v0.9.1] — 2026-09-24
 
 ### Added
