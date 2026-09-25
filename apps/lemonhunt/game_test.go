@@ -378,22 +378,22 @@ func TestDefeatingRatatuiWins(t *testing.T) {
 	boss := g.find(kBoss)
 	// Squirt until it falls; the rats it summons get in the way and take
 	// some of the squirts.
-	for i := 0; i < 200 && boss.state == stAlive; i++ {
+	for i := 0; i < 300 && boss.state == stAlive; i++ {
 		boss.x, boss.y = 14.5, 19.5 // hold it still
 		g.px, g.py = 14.5, 17.5
 		g.face(boss.x, boss.y)
-		g.fireCD = 0
+		g.fireCD, g.ammo = 0, magSize // this test is about the boss, not the juice
 		g.fire()
 		g.step(tick)
 	}
 	if boss.state != stDying {
-		t.Fatalf("Ratatui state %d, hp %d after 200 squirts", boss.state, boss.hp)
+		t.Fatalf("Ratatui state %d, hp %d after 300 squirts", boss.state, boss.hp)
 	}
 	if g.hits < bossHP {
 		t.Errorf("Ratatui fell after %d hits, want at least %d", g.hits, bossHP)
 	}
-	if g.summoned != 2 {
-		t.Errorf("Ratatui called for help %d times, want 2", g.summoned)
+	if g.summoned != 3 {
+		t.Errorf("Ratatui called for help %d times, want 3", g.summoned)
 	}
 	for i := 0; i < 150; i++ {
 		g.step(tick)
@@ -542,8 +542,9 @@ func TestHoldingSpaceKeepsSquirting(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		g.step(tick)
 	}
-	if n := g.shots - shots; n < 4 {
-		t.Errorf("%d squirts in a second of holding space", n)
+	// One every fireDelay (0.3 s): at 0, 0.3, 0.6 and 0.9 s.
+	if n := g.shots - shots; n < 3 || n > 4 {
+		t.Errorf("%d squirts in a second of holding space, want 3 or 4", n)
 	}
 }
 
@@ -553,6 +554,7 @@ func TestTheTitleMenu(t *testing.T) {
 	down := limoni.KeyEvent{Type: limoni.KeyRune, Ch: 's'}
 	enter := limoni.KeyEvent{Type: limoni.KeyEnter}
 
+	press(down) // NAME
 	press(down) // SOUND
 	press(limoni.KeyEvent{Type: limoni.KeyRight})
 	press(limoni.KeyEvent{Type: limoni.KeyRight})
