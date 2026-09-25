@@ -23,8 +23,9 @@ type fixture struct {
 	addr int
 }
 
-func newFixture(t *testing.T, path string) *fixture {
-	b, err := openBoard(path)
+// newFixture serves a board kept by k (nil: in memory).
+func newFixture(t *testing.T, k keeper) *fixture {
+	b, err := openBoard(k)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func (f *fixture) do(method, body string, header ...string) (*httptest.ResponseR
 }
 
 func TestRunsAreScoredByTheServerAndRanked(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	// A win in 200 s, 36 of 40: 4500 aim + 4000 time + 500 rats + 1000 lemons.
 	w, a := f.do("POST", `{"name":"Ayşe","won":true,"secs":200,"shots":40,"hits":36,"kills":10,"lemons":10}`)
 	if w.Code != 200 || a.Rank != 1 || len(a.Board) != 1 || a.Board[0].Score != 10000 || a.Board[0].Aim != 90 {
@@ -78,7 +79,7 @@ func TestRunsAreScoredByTheServerAndRanked(t *testing.T) {
 }
 
 func TestTheClientsScoreIsIgnored(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	w, _ := f.do("POST", `{"name":"x","won":false,"secs":10,"shots":1,"hits":1,"kills":0,"lemons":0,"score":999999}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("a run with its own score: %d, want 400", w.Code)
@@ -86,11 +87,11 @@ func TestTheClientsScoreIsIgnored(t *testing.T) {
 }
 
 func TestRunsTheGameCannotProduceAreRefused(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	for _, body := range []string{
-		`{"name":"","won":false,"secs":10,"shots":1,"hits":1}`,          // no name
+		`{"name":"","won":false,"secs":10,"shots":1,"hits":1}`,           // no name
 		`{"name":"<\u001b>{}","won":false,"secs":10,"shots":1,"hits":1}`, // nothing left of it
-		`{"name":"x","won":false,"secs":10,"shots":1,"hits":2}`,         // more hits than squirts
+		`{"name":"x","won":false,"secs":10,"shots":1,"hits":2}`,          // more hits than squirts
 		`{"name":"x","won":false,"secs":10,"shots":-1,"hits":0}`,
 		`{"name":"x","won":false,"secs":10,"kills":99}`,
 		`{"name":"x","won":false,"secs":10,"lemons":11}`,
@@ -110,7 +111,7 @@ func TestRunsTheGameCannotProduceAreRefused(t *testing.T) {
 }
 
 func TestNamesAreCleaned(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	_, a := f.do("POST", `{"name":"  <b>Özgür</b> the very long ","won":false,"secs":10}`)
 	if a.Board[0].Name != "bÖzgürb the" { // cut at twelve, then trimmed
 		t.Errorf("stored %q", a.Board[0].Name)
@@ -118,7 +119,7 @@ func TestNamesAreCleaned(t *testing.T) {
 }
 
 func TestOnePlayerCannotFloodTheBoard(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	run := `{"name":"x","won":false,"secs":10}`
 	for i := 0; i < postsPerIP; i++ {
 		if w, _ := f.do("POST", run, "X-Forwarded-For", "1.2.3.4, 10.0.0.1"); w.Code != 200 {
@@ -138,7 +139,7 @@ func TestOnePlayerCannotFloodTheBoard(t *testing.T) {
 }
 
 func TestOnlyThePlaygroundMayReadItFromABrowser(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	w, _ := f.do("OPTIONS", "", "Origin", "https://thebanri.github.io", "Access-Control-Request-Method", "POST")
 	if w.Code != http.StatusNoContent || w.Header().Get("Access-Control-Allow-Origin") != "https://thebanri.github.io" ||
 		!strings.Contains(w.Header().Get("Access-Control-Allow-Headers"), "Content-Type") {
@@ -152,24 +153,34 @@ func TestOnlyThePlaygroundMayReadItFromABrowser(t *testing.T) {
 
 func TestTheBoardSurvivesARestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "data", "scores.json")
-	f := newFixture(t, path)
+	testRestart(t, func() keeper { return fileKeeper{path} })
+}
+
+// testRestart fills a board past the runs kept, then opens another on the
+// same keeper, as a restarted server would, and checks it finds the best.
+func testRestart(t *testing.T, open func() keeper) {
+	f := newFixture(t, open())
 	for i := 0; i < keep+5; i++ {
 		f.now = f.now.Add(time.Second)
 		f.do("POST", `{"name":"p","won":false,"secs":10,"kills":`+string(rune('0'+i%10))+`}`)
 	}
-	g := newFixture(t, path)
+	g := newFixture(t, open())
 	_, a := g.do("GET", "")
 	if len(a.Board) != boardLen || a.Board[0].Score != 450 {
 		t.Fatalf("after a restart: %+v", a.Board)
 	}
-	b, _ := openBoard(path)
-	if len(b.entries) != keep {
-		t.Errorf("%d runs kept, want %d", len(b.entries), keep)
+	// The best of those runs: the first of the ten with nine kills.
+	if a.Board[0].At != 1_800_000_000+10 {
+		t.Errorf("a tie after a restart went to the run made at %d", a.Board[0].At)
+	}
+	entries, err := open().load()
+	if err != nil || len(entries) != keep {
+		t.Errorf("%d runs kept (%v), want %d", len(entries), err, keep)
 	}
 }
 
 func TestATieGoesToTheEarlierRun(t *testing.T) {
-	f := newFixture(t, "")
+	f := newFixture(t, nil)
 	f.do("POST", `{"name":"first","won":false,"secs":10,"kills":2}`)
 	f.now = f.now.Add(time.Second)
 	_, a := f.do("POST", `{"name":"second","won":false,"secs":10,"kills":2}`)

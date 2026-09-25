@@ -115,28 +115,33 @@ func cleanName(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// board holds the best runs, best first, and keeps them in a JSON file.
+// board holds the best runs, best first, in memory, and has a keeper write
+// each one down so that they survive a restart.
 type board struct {
 	mu      sync.Mutex
 	entries []entry
-	path    string // "" keeps them in memory only
+	keeper  keeper
 }
 
-func openBoard(path string) (*board, error) {
-	b := &board{path: path}
-	if path == "" {
+// keeper is where the board is kept: a file on a disk, or a Postgres
+// database (keeper_pg.go); nil keeps it in memory only.
+type keeper interface {
+	load() ([]entry, error)
+	// added writes down e, which has just been put on the board; all is the
+	// whole board now, best first.
+	added(e entry, all []entry) error
+}
+
+func openBoard(k keeper) (*board, error) {
+	b := &board{keeper: k}
+	if k == nil {
 		return b, nil
 	}
-	data, err := os.ReadFile(path)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return b, nil
-	case err != nil:
+	entries, err := k.load()
+	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(data, &b.entries); err != nil {
-		return nil, err
-	}
+	b.entries = entries
 	b.sort()
 	return b, nil
 }
@@ -168,7 +173,10 @@ func (b *board) add(e entry) (int, error) {
 			break
 		}
 	}
-	return rank, b.save()
+	if b.keeper == nil {
+		return rank, nil
+	}
+	return rank, b.keeper.added(e, b.entries)
 }
 
 // top returns the best n runs.
@@ -181,22 +189,35 @@ func (b *board) top(n int) []entry {
 	return out
 }
 
-// save writes a temporary file and renames it over the old one, so a crash
-// halfway through never leaves the board cut short.
-func (b *board) save() error {
-	if b.path == "" {
-		return nil
+// fileKeeper keeps the board in a JSON file: on a Railway volume, or
+// anywhere with a disk that outlives the process.
+type fileKeeper struct{ path string }
+
+func (f fileKeeper) load() ([]entry, error) {
+	data, err := os.ReadFile(f.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	data, err := json.Marshal(b.entries)
+	if err != nil {
+		return nil, err
+	}
+	var entries []entry
+	return entries, json.Unmarshal(data, &entries)
+}
+
+// added writes the whole board to a temporary file and renames it over the
+// old one, so a crash halfway through never leaves the board cut short.
+func (f fileKeeper) added(_ entry, all []entry) error {
+	data, err := json.Marshal(all)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(b.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
 		return err
 	}
-	tmp := b.path + ".tmp"
+	tmp := f.path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, b.path)
+	return os.Rename(tmp, f.path)
 }
