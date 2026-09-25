@@ -201,6 +201,22 @@ zest -demo 1000000        # ya da: zest app.log, kubectl logs -f pod | zest
 
 Ya da [tarayıcıda dene](https://thebanri.github.io/limoni/): "Logs · zest" sekmesi.
 
+### Bir de oyun: Lemon Hunt
+
+<p align="center"><img src="assets/lemonhunt.png" alt="Lemon Hunt: tuğla bir kanalizasyonda birinci şahıs bakış, yaklaşan iki fare, sağda havada duran yarım limon ve elde limon fışkırtıcı" width="100%" /></p>
+
+[**Lemon Hunt**](apps/lemonhunt) kısa bir birinci şahıs oyunu. Fareleri limon suyuyla vur, kanalizasyonda on limon bul;
+sonra inin kapısı açılır ve karşına farelerin kralı Ratatui çıkar: tacı, can barı ve fırlatacak peyniri var.
+
+```bash
+go install github.com/thebanri/limoni/apps/lemonhunt@latest
+lemonhunt
+```
+
+Yarım bloklarla hücre başına iki piksel çizen bir raycaster: ışıklı dokular, piksel sanatı fareler, piksel piksel
+ışın izlenen 3D yarım limonlar ve açılışta sentezlenen sesler. Bir kare, diff dahil hiç bellek ayırmaz. Tuşları
+`WithKeyReleases` ile basılı tutar; kitty, Ghostty ve WezTerm'de yürüyüş akıcıdır.
+
 ---
 
 ## Uygulama yazmanın iki yolu

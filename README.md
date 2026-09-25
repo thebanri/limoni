@@ -216,6 +216,22 @@ can do over MCP: type into `search`, click the row, read `image#globe` back as
 `value="39.3°N 34.5°E · zoom 2.6×"`. Nothing of it reaches you when you import Limoni — a
 directory with its own `go.mod` is not part of the module around it.
 
+### And a game: Lemon Hunt
+
+<p align="center"><img src="assets/lemonhunt.png" alt="Lemon Hunt: a first-person view down a brick sewer, two rats coming closer, half a lemon floating on the right, and the lemon squirter in hand" width="100%" /></p>
+
+[**Lemon Hunt**](apps/lemonhunt) is a short first-person game. Squirt the rats and find ten lemons in the sewer,
+and the gate to the lair lifts on Ratatui, king of the rats, who has a crown, a health bar and cheese to throw.
+
+```bash
+go install github.com/thebanri/limoni/apps/lemonhunt@latest
+lemonhunt
+```
+
+It is a raycaster drawn two pixels to a cell in half blocks, with lit textures, pixel-art rats, 3D half lemons
+ray-traced per pixel, and sound synthesised at start-up. A frame allocates nothing, through the diff too. It
+holds keys down with `WithKeyReleases`, so walking is smooth in kitty, Ghostty and WezTerm.
+
 ---
 
 ## Two ways to write an app
