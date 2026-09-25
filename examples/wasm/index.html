@@ -242,7 +242,7 @@
         fullscreenRows: 48,
         audio: true,
         keyReleases: true,
-        // The shared leaderboard: apps/scoreboard, deployed on Render. Empty
+        // The shared leaderboard: apps/scoreboard, deployed on Vercel. Empty
         // keeps each browser's scores to itself. ?board=URL overrides it.
         scoreboard: '',
       },
@@ -251,9 +251,10 @@
     const app = apps[params.get('app')] || apps.playground;
     // Read by the game (apps/lemonhunt/remote_js.go) when it starts.
     window.__lemonhunt_scoreboard = params.get('board') || app.scoreboard || '';
-    // A free Render service sleeps when nobody has called it for a quarter
-    // of an hour, and takes up to a minute to wake. Knocking now, while the
-    // page and the module load, gets most of that out of the way.
+    // A free host lets the scoreboard sleep when nobody has called it for a
+    // while: a Vercel function and a Neon database take a moment to wake, a
+    // Render service up to a minute. Knocking now, while the page and the
+    // module load, gets that out of the way.
     if (app === apps.lemonhunt && window.__lemonhunt_scoreboard) {
       fetch(window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/healthz').catch(() => {});
     }

@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// A free Render service sleeps after a quiet quarter of an hour and takes up
-// to a minute to wake; the request waits that long, off the frame, while the
+// A scoreboard on a free host may be asleep: a Render service takes up to a
+// minute to wake. The request waits that long, off the frame, while the
 // screens say they are connecting.
 var client = &http.Client{Timeout: 70 * time.Second}
 

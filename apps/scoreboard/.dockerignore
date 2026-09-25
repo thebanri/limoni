@@ -1,2 +1,4 @@
-*_test.go
+**/*_test.go
+public
+vercel.json
 scores.json

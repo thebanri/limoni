@@ -51,7 +51,7 @@ The name and the ten best runs are kept between games: in
 `~/.config/lemonhunt/scores.json` (the user's config directory on other
 systems), or, in the browser, in `localStorage`.
 
-With a scoreboard server ([`apps/scoreboard`](../scoreboard), on Render's free plan),
+With a scoreboard ([`apps/scoreboard`](../scoreboard), on Vercel's free plan with a free Neon database),
 every finished run is also sent there, and the screens show the world's
 best ten — `WORLD BEST` — and where the run placed in it. The server works
 the score out from what the run did, and the game asks it off the frame, so
