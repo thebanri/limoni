@@ -279,10 +279,54 @@
       const webgl = new WebglAddon.WebglAddon();
       webgl.onContextLoss(() => webgl.dispose());
       term.loadAddon(webgl);
+      redrawAfterAtlasMerges(term, webgl);
     } catch (err) {
       console.warn('WebGL renderer unavailable, using the DOM renderer:', err);
     }
     fitAddon.fit();
+
+    // The WebGL renderer keeps every glyph it has drawn in a texture atlas,
+    // one entry per character, foreground and background. Half blocks in free
+    // colours add thousands of them, and once the atlas has as many pages as
+    // the GPU has texture units (16 to 32), it merges four pages into one.
+    // xterm.js 5.5.0 and 6.0.0 get two things wrong there:
+    //
+    // - The pages after the merged ones move down an index, and the GPU gets
+    //   a page again only when its version differs from the one last uploaded
+    //   at that index. A version counts the glyphs drawn on its page, so full
+    //   pages of one glyph size share it, and the texture keeps the glyphs of
+    //   the page that used to be there.
+    // - The merge happens while a frame is being built, and the cells built
+    //   before it still point at the pages as they were.
+    //
+    // In Lemon Hunt that was coloured noise, in patches that cleared only as
+    // the cells changed: soon after a game starts, when the atlas first
+    // fills, and again in Ratatui's lair. So a frame in which pages merged is
+    // drawn again, with every page uploaded, before the browser shows it.
+    // This reaches into xterm's internals, which the pinned versions above
+    // keep still; where they are missing it does nothing.
+    function redrawAfterAtlasMerges(term, webgl) {
+      const renderer = term._core?._renderService?._renderer?.value;
+      if (!renderer || typeof renderer.renderRows !== 'function') {
+        console.warn('xterm.js internals changed: atlas merges are not redrawn');
+        return;
+      }
+      let merged = false;
+      webgl.onRemoveTextureAtlasCanvas(() => { merged = true; });
+      const renderRows = renderer.renderRows.bind(renderer);
+      renderer.renderRows = (start, end) => {
+        renderRows(start, end);
+        const textures = renderer._glyphRenderer?.value?._atlasTextures;
+        if (!merged || !textures) {
+          return;
+        }
+        merged = false;
+        for (const texture of textures) {
+          texture.version = -1;
+        }
+        renderRows(0, term.rows - 1);
+      };
+    }
 
     // xterm.js reports presses, and auto-repeats as more presses, but never a
     // release, so a game cannot tell a held key from a tapped one. The page
