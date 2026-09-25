@@ -225,7 +225,7 @@
         posterTitle: '🍋 Lemon Hunt',
         posterText: 'The rats have hidden the city\'s lemons in the sewer. Find ten, ' +
           'then squirt Ratatui, king of the rats. A raycaster in half blocks, ' +
-          'drawn by Limoni. Loads a <strong>~4 MB</strong> WebAssembly module; turn your sound on.',
+          'drawn by Limoni. Loads a <strong>~5 MB</strong> WebAssembly module; turn your sound on.',
         button: '▶&nbsp;&nbsp;Play',
         other: '← back to the Limoni playground',
         otherHref: '?',
@@ -242,10 +242,15 @@
         fullscreenRows: 48,
         audio: true,
         keyReleases: true,
+        // The shared leaderboard: apps/scoreboard, deployed on Railway. Empty
+        // keeps each browser's scores to itself. ?board=URL overrides it.
+        scoreboard: '',
       },
     };
     const params = new URLSearchParams(location.search);
     const app = apps[params.get('app')] || apps.playground;
+    // Read by the game (apps/lemonhunt/remote_js.go) when it starts.
+    window.__lemonhunt_scoreboard = params.get('board') || app.scoreboard || '';
     if (app.title) { document.title = app.title; }
     if (app.posterTitle) { document.getElementById('poster-title').textContent = app.posterTitle; }
     if (app.posterText) { document.getElementById('poster-text').innerHTML = app.posterText; }

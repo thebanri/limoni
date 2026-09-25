@@ -1213,7 +1213,8 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 	w, h := 46, 9
 	boardW := 37
 	x, y := (W-w)/2, max(0, viewH-h-1)
-	showBoard := g.nBoard > 0 && W >= w+boardW+6
+	entries, _, world := g.shownBoard()
+	showBoard := (len(entries) > 0 || g.worldState != worldNone) && W >= w+boardW+6
 	if showBoard {
 		x = (W - w - boardW - 2) / 2
 	}
@@ -1263,21 +1264,41 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 	if showBoard {
 		bx := x + w + 2
 		box(cv, bx, y, boardW, h, 0x5a4a20)
-		cv.text(bx+3, y+1, "BEST SCORES", hudStyle(hudLemon, bg))
-		g.drawBoard(cv, bx+2, y+2, min(5, h-3), 0)
+		g.boardTitle(cv, bx+3, y+1, world, true)
+		g.drawBoard(cv, bx+2, y+2, min(5, h-3), 0, entries)
 	}
 }
 
-// drawBoard lists the top n scores from (x, y), one a row: place, name,
-// score, time and aim. The run at place mark (1-based) is picked out.
-func (g *game) drawBoard(cv canvas, x, y, n, mark int) {
+// boardTitle names the board shown: the world's, or this player's own, and
+// with note, why: the server is being asked or has not answered.
+func (g *game) boardTitle(cv canvas, x, y int, world, note bool) {
 	bg := uint32(0x0c0a08)
-	if g.nBoard == 0 {
+	if world {
+		cv.text(x, y, "WORLD BEST", hudStyle(hudLemon, bg))
+		return
+	}
+	end := cv.text(x, y, "BEST SCORES", hudStyle(hudLemon, bg))
+	if !note {
+		return
+	}
+	switch g.worldState {
+	case worldLoading:
+		cv.text(end+2, y, "connecting…", hudStyle(hudDim, bg))
+	case worldOffline:
+		cv.text(end+2, y, "offline", hudStyle(hudDim, bg))
+	}
+}
+
+// drawBoard lists the top n of entries from (x, y), one a row: place, name,
+// score, time and aim. The run at place mark (1-based) is picked out.
+func (g *game) drawBoard(cv canvas, x, y, n, mark int, entries []scoreEntry) {
+	bg := uint32(0x0c0a08)
+	if len(entries) == 0 {
 		cv.text(x+1, y, "no scores yet", hudStyle(hudDim, bg))
 		return
 	}
-	for i := 0; i < min(n, g.nBoard); i++ {
-		e := &g.board[i]
+	for i := 0; i < min(n, len(entries)); i++ {
+		e := &entries[i]
 		st, dim := hudStyle(hudText, bg), hudStyle(hudDim, bg)
 		if i+1 == mark {
 			st, dim = hudStyle(hudLemon, bg), hudStyle(hudLemon, bg)
@@ -1373,19 +1394,31 @@ func (g *game) drawEnd(cv canvas, W, viewH int, won bool) {
 	cv.text(cx, row, " finds", dim)
 
 	row++
+	entries, mark, world := g.shownBoard()
+	where := " on the leaderboard"
+	rank := r.rank
+	if world {
+		where, rank = " in the world", g.worldRank
+	}
 	switch {
-	case r.rank == 1:
+	case g.worldState != worldNone && g.worldRank == -1:
+		cv.text(lx, row, "Sending the score to the world's board…", dim)
+	case rank == 1 && world:
+		cv.text(lx, row, "The best score in the world!", hudStyle(hudLemon, bg))
+	case rank == 1:
 		cv.text(lx, row, "A new best score!", hudStyle(hudLemon, bg))
-	case r.rank > 0:
+	case rank > 0:
 		cx = cv.text(lx, row, "Number ", val)
-		cx = cv.number(cx, row, r.rank, hudStyle(hudLemon, bg))
-		cv.text(cx, row, " on the leaderboard", val)
+		cx = cv.number(cx, row, rank, hudStyle(hudLemon, bg))
+		cv.text(cx, row, where, val)
+	case g.worldState == worldOffline:
+		cv.text(lx, row, "The world's board did not answer", dim)
 	default:
 		cv.text(lx, row, "Not on the leaderboard this time", dim)
 	}
 
-	cv.text(lx, y+9, "BEST SCORES", hudStyle(hudLemon, bg))
+	g.boardTitle(cv, lx, y+9, world, false) // the line above says how the sending went
 	cv.text(lx+16, y+9, "score  time  aim", dim)
-	g.drawBoard(cv, lx-1, y+10, 5, r.rank)
+	g.drawBoard(cv, lx-1, y+10, 5, mark, entries)
 	cv.centered(y+h-2, "R play again · ESC quit", dim)
 }

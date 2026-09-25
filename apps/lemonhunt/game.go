@@ -197,6 +197,13 @@ type game struct {
 	last   result // the run that just ended
 	store  store
 
+	// The shared leaderboard, when there is a server for it (remote.go).
+	remote     *remote
+	world      [boardSize]scoreEntry
+	nWorld     int
+	worldState int
+	worldRank  int // the last run's place: -1 while it is being sent
+
 	// The title menu, and the sound: volume is 0 (off) … 10.
 	menu    int
 	volume  int
@@ -780,6 +787,7 @@ func (g *game) step(dt float64) {
 		dt = 0
 	}
 	g.now += dt
+	g.pollRemote()
 	for _, t := range [...]*float64{&g.fireCD, &g.flash, &g.hitMark, &g.hurt, &g.msgT, &g.pickup} {
 		if *t > 0 {
 			*t -= dt

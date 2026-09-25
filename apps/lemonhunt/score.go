@@ -82,6 +82,7 @@ func (g *game) record(won bool) {
 	g.last = g.score(won)
 	g.last.rank = g.insert(g.last.entry)
 	g.persist()
+	g.sendRun(won)
 }
 
 // insert places e on the board, best first, and returns its place (1-based),
@@ -139,11 +140,11 @@ func nameRune(r rune) bool {
 func cleanName(s string) string {
 	var b strings.Builder
 	n := 0
-	for _, r := range s {
+	for _, r := range strings.TrimSpace(s) {
 		if n == nameMax {
 			break
 		}
-		if nameRune(r) {
+		if nameRune(r) && (r != ' ' || n > 0) {
 			b.WriteRune(r)
 			n++
 		}
