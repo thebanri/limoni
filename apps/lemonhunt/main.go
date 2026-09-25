@@ -26,9 +26,10 @@ import (
 )
 
 // defaultBoard is the shared leaderboard the game ships with: the
-// scoreboard (apps/scoreboard) on Vercel. Empty until it is up; the
-// browser's is set in examples/wasm/index.html.
-const defaultBoard = ""
+// scoreboard (apps/scoreboard) on Vercel, over a Neon database. The
+// browser's is set in examples/wasm/index.html; -board off keeps the
+// scores on this machine.
+const defaultBoard = "https://limoni-drab.vercel.app"
 
 func main() {
 	fps := flag.Int("fps", 30, "frames per second")

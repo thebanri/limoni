@@ -242,9 +242,10 @@
         fullscreenRows: 48,
         audio: true,
         keyReleases: true,
-        // The shared leaderboard: apps/scoreboard, deployed on Vercel. Empty
-        // keeps each browser's scores to itself. ?board=URL overrides it.
-        scoreboard: '',
+        // The shared leaderboard: apps/scoreboard, deployed on Vercel over a
+        // Neon database. It allows this page's origin (thebanri.github.io).
+        // Empty keeps each browser's scores to itself; ?board=URL overrides.
+        scoreboard: 'https://limoni-drab.vercel.app',
       },
     };
     const params = new URLSearchParams(location.search);
@@ -256,7 +257,8 @@
     // Render service up to a minute. Knocking now, while the page and the
     // module load, gets that out of the way.
     if (app === apps.lemonhunt && window.__lemonhunt_scoreboard) {
-      fetch(window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/healthz').catch(() => {});
+      // no-cors: the answer is not read, only the knock matters.
+      fetch(window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/healthz', { mode: 'no-cors' }).catch(() => {});
     }
     if (app.title) { document.title = app.title; }
     if (app.posterTitle) { document.getElementById('poster-title').textContent = app.posterTitle; }
