@@ -453,11 +453,12 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 						bandIndices[x][dy] = -1 // Transparent pixel
 					} else {
 						c := color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
-						var colIdx int
-						if idx, ok := colorToIndex[c]; ok {
-							colIdx = idx
-						} else {
-							colIdx = 0
+						// A colour the palette had no room for maps to its
+						// nearest entry, remembered so each is searched once.
+						colIdx, ok := colorToIndex[c]
+						if !ok {
+							colIdx = pal.Index(c)
+							colorToIndex[c] = colIdx
 						}
 						bandIndices[x][dy] = int16(colIdx)
 						colorsInBand[colIdx] = true

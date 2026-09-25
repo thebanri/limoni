@@ -145,6 +145,39 @@ func TestResizeImage_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestEncodeSixelMapsColoursPastThePaletteToTheNearest(t *testing.T) {
+	// The first row fills all 256 palette entries, the last being white; the
+	// second band is a near-white the palette has no room for. It must be
+	// drawn with white, not with entry 0.
+	img := image.NewRGBA(image.Rect(0, 0, 256, 12))
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 256; x++ {
+			c := color.RGBA{A: 255}
+			switch {
+			case y >= 6:
+				c = color.RGBA{R: 250, G: 250, B: 250, A: 255}
+			case y == 0 && x == 255:
+				c = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+			case y == 0:
+				c.R = uint8(x)
+			}
+			img.SetRGBA(x, y, c)
+		}
+	}
+	out := EncodeSixel(img, 32, 1, 8, 12, false)
+	bands := strings.Split(out, "-")
+	if len(bands) < 2 {
+		t.Fatalf("expected two sixel bands, got %q", out)
+	}
+	second := bands[1]
+	if !strings.Contains(second, "#255") {
+		t.Errorf("near-white band does not use the white entry #255: %q", second)
+	}
+	if strings.Contains(second, "#0!") || strings.Contains(second, "#0~") {
+		t.Errorf("near-white band fell back to entry 0: %q", second)
+	}
+}
+
 func TestEncodeSixel_Transparent(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	// Set half transparent, half opaque
