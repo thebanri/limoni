@@ -160,6 +160,62 @@ func TestEncodeSixel_Transparent(t *testing.T) {
 	}
 }
 
+func TestBuildPaletteMatchesRGBAModel(t *testing.T) {
+	bounds := image.Rect(3, 5, 5, 7)
+	rgba := image.NewRGBA(bounds)
+	rgba.SetRGBA(3, 5, color.RGBA{R: 200, G: 120, B: 80, A: 128})
+	rgba.SetRGBA(4, 5, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	nrgba := image.NewNRGBA(bounds)
+	nrgba.SetNRGBA(3, 5, color.NRGBA{R: 200, G: 120, B: 80, A: 128})
+	nrgba.SetNRGBA(4, 5, color.NRGBA{R: 10, G: 20, B: 30, A: 255})
+	gray := image.NewGray(bounds)
+	gray.SetGray(3, 5, color.Gray{Y: 80})
+	gray.SetGray(4, 5, color.Gray{Y: 160})
+	ycbcr := image.NewYCbCr(bounds, image.YCbCrSubsampleRatio444)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			ycbcr.Y[ycbcr.YOffset(x, y)] = uint8(80 + 20*x + 10*y)
+			c := ycbcr.COffset(x, y)
+			ycbcr.Cb[c], ycbcr.Cr[c] = 128, 128
+		}
+	}
+
+	images := []struct {
+		name string
+		img  image.Image
+	}{
+		{name: "RGBA", img: rgba},
+		{name: "NRGBA", img: nrgba},
+		{name: "Gray", img: gray},
+		{name: "YCbCr", img: ycbcr},
+	}
+	for _, tc := range images {
+		t.Run(tc.name, func(t *testing.T) {
+			var want color.Palette
+			seen := make(map[color.Color]struct{})
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					c := color.RGBAModel.Convert(tc.img.At(x, y))
+					if _, ok := seen[c]; !ok {
+						want = append(want, c)
+						seen[c] = struct{}{}
+					}
+				}
+			}
+
+			got := buildPalette(tc.img, 256)
+			if len(got) != len(want) {
+				t.Fatalf("palette length = %d, want %d", len(got), len(want))
+			}
+			for i := range want {
+				if got[i] != want[i] {
+					t.Errorf("palette[%d] = %#v, want %#v", i, got[i], want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestCacheBounds(t *testing.T) {
 	// Verify that inserting > 256 images doesn't leak memory or panic
 	for i := 0; i < 300; i++ {

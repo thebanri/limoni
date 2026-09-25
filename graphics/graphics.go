@@ -319,7 +319,8 @@ func buildPalette(img image.Image, maxColors int) color.Palette {
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
+			r, g, b, a := rgbaAt(img, x, y)
+			c := color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
 			if !colorMap[c] {
 				if len(pal) < maxColors {
 					pal = append(pal, c)
@@ -413,9 +414,9 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 		pal = color.Palette{color.RGBA{0, 0, 0, 255}}
 	}
 
-	colorToIndex := make(map[color.Color]int, len(pal))
+	colorToIndex := make(map[color.RGBA]int, len(pal))
 	for idx, col := range pal {
-		colorToIndex[col] = idx
+		colorToIndex[color.RGBAModel.Convert(col).(color.RGBA)] = idx
 	}
 
 	var buf bytes.Buffer
@@ -447,13 +448,12 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 			for dy := 0; dy < 6; dy++ {
 				y := bandY + dy
 				if y < height {
-					pix := resized.At(x, y)
-					_, _, _, a := pix.RGBA()
+					r, g, b, a := rgbaAt(resized, x, y)
 					if transparent && a < 32768 {
 						bandIndices[x][dy] = -1 // Transparent pixel
 					} else {
+						c := color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
 						var colIdx int
-						c := pal.Convert(pix)
 						if idx, ok := colorToIndex[c]; ok {
 							colIdx = idx
 						} else {
