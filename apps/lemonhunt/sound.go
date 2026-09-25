@@ -38,6 +38,8 @@ const (
 	sfxLose
 	sfxDrip
 	sfxMenu
+	sfxReload
+	sfxDry
 	nSfx
 )
 
@@ -320,6 +322,15 @@ func (m *mixer) synth() {
 	})
 	m.clips[sfxMenu] = mk(0.07, func(s *synth) {
 		s.tone(0, 0.07, 1500, 1900, 0.18, 6, square)
+	})
+	m.clips[sfxReload] = mk(1.2, func(s *synth) {
+		s.tone(0, 0.05, 700, 420, 0.3, 8, square)     // the cap comes off
+		s.hiss(0.15, 0.9, 900, 400, 0.25, 1.5)        // juice poured in
+		s.tone(1.05, 1.12, 900, 1300, 0.3, 8, square) // and snaps back on
+	})
+	m.clips[sfxDry] = mk(0.09, func(s *synth) {
+		s.tone(0, 0.04, 1800, 1200, 0.25, 10, square)
+		s.hiss(0, 0.09, 3000, 800, 0.2, 9)
 	})
 	m.clips[sfxDrip] = mk(0.5, func(s *synth) {
 		s.tone(0, 0.06, 1100, 1900, 0.18, 6, sine)
