@@ -217,7 +217,8 @@ Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemonhunt), ses
 
 Yarım bloklarla hücre başına iki piksel çizen bir raycaster: ışıklı dokular, piksel sanatı fareler, piksel piksel
 ışın izlenen 3D yarım limonlar ve açılışta sentezlenen sesler. Bir kare, diff dahil hiç bellek ayırmaz. Tuşları
-`WithKeyReleases` ile basılı tutar; kitty, Ghostty ve WezTerm'de yürüyüş akıcıdır.
+`WithKeyReleases` ile basılı tutar; kitty, Ghostty ve WezTerm'de yürüyüş akıcıdır. Her oyun isabet ve süreye
+göre puanlanır; skor tablosu bir dosyada ya da tarayıcının deposunda saklanır.
 
 ---
 

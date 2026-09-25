@@ -49,13 +49,22 @@ const (
 	radius      = 0.22 // the player's, against walls
 
 	ratHP      = 2
-	fatHP      = 4
-	bossHP     = 30
-	ratBite    = 7
-	fatBite    = 11
-	bossBite   = 16
-	cheeseHurt = 10
-	fireDelay  = 0.22
+	fatHP      = 5
+	bossHP     = 48
+	ratBite    = 8
+	fatBite    = 13
+	bossBite   = 20
+	cheeseHurt = 12
+	lemonHeal  = 8
+
+	// The squirter holds eight squirts. It never runs out of juice, but
+	// refilling it takes R and a second and a half with no squirting.
+	fireDelay  = 0.3
+	magSize    = 8
+	reloadTime = 1.5
+
+	boardSize = 10 // scores kept on the leaderboard
+	nameMax   = 12 // characters in a player's name
 )
 
 type phase uint8
@@ -65,6 +74,7 @@ const (
 	phPlay
 	phWon
 	phDead
+	phName // typing the player's name, before the title menu
 )
 
 type kind uint8
@@ -161,6 +171,8 @@ type game struct {
 	kills       int
 	shots, hits int
 	finished    float64 // when the run ended
+	ammo        int     // squirts left before a reload
+	reloadT     float64 // seconds left of a reload, or 0
 	fireCD      float64
 	flash       float64 // the squirter's muzzle flash
 	hitMark     float64
@@ -175,6 +187,22 @@ type game struct {
 	showMap     bool
 	skipToBoss  bool
 	quit        bool
+
+	// The player's name, the scores kept, and where they are kept (nil in
+	// tests: nothing is written to the disk or the browser there).
+	name   string
+	typing string // the name as it is being typed
+	board  [boardSize]scoreEntry
+	nBoard int
+	last   result // the run that just ended
+	store  store
+
+	// The shared leaderboard, when there is a server for it (remote.go).
+	remote     *remote
+	world      [boardSize]scoreEntry
+	nWorld     int
+	worldState int
+	worldRank  int // the last run's place: -1 while it is being sent
 
 	// The title menu, and the sound: volume is 0 (off) … 10.
 	menu    int
@@ -218,10 +246,12 @@ type game struct {
 	vigW   int
 	vigH   int
 	hudBuf [16]byte
+	mm     [mmMax * mmMax]rgb // the map's pixels, and how opaque each is
+	mmA    [mmMax * mmMax]float32
 }
 
 func newGame() *game {
-	g := &game{volume: 7, lastVol: 7}
+	g := &game{volume: 7, lastVol: 7, showMap: true}
 	g.reset()
 	g.phase = phTitle
 	return g
@@ -249,12 +279,15 @@ func (g *game) reset() {
 		volume, lastVol            int
 		noSound                    string
 	}{g.showMap, g.skipToBoss, g.exact, g.audio, g.volume, g.lastVol, g.noSound}
+	// The name, the leaderboard and the store live in fields clearState
+	// does not touch.
 	// Clear the state but keep the large scratch arrays where they are.
 	g.clearState()
 	g.showMap, g.skipToBoss, g.exact, g.audio = keep.showMap, keep.skipToBoss, keep.exact, keep.audio
 	g.volume, g.lastVol, g.noSound = keep.volume, keep.lastVol, keep.noSound
 	g.rng = 0x9e3779b97f4a7c15
 	g.hp = 100
+	g.ammo = magSize
 	g.boss = -1
 	g.flowX = -1
 	for y, row := range level {
@@ -317,6 +350,7 @@ func (g *game) clearState() {
 	g.vf, g.vs, g.vt, g.walked, g.stepAt = 0, 0, 0, 0, 0
 	g.hp, g.lemons, g.kills, g.shots, g.hits = 0, 0, 0, 0, 0
 	g.finished, g.fireCD, g.flash, g.hitMark, g.hurt, g.pickup, g.shake = 0, 0, 0, 0, 0, 0, 0
+	g.ammo, g.reloadT, g.last = 0, 0, result{}
 	g.msg, g.msgT = "", 0
 	g.boss, g.bossSeen, g.summoned = -1, false, 0
 	g.quit, g.dripT = false, 0
@@ -519,9 +553,16 @@ func (g *game) holding(a action) float64 {
 // fire squirts the lemon: a hitscan along the view, stopped by the first
 // wall or the first rat, with droplets flying for show.
 func (g *game) fire() {
-	if g.phase != phPlay || g.fireCD > 0 {
+	if g.phase != phPlay || g.fireCD > 0 || g.reloadT > 0 {
 		return
 	}
+	if g.ammo <= 0 {
+		g.fireCD = fireDelay
+		g.sound(sfxDry)
+		g.say("Empty! Press R to reload")
+		return
+	}
+	g.ammo--
 	g.fireCD = fireDelay
 	g.flash = 0.1
 	g.shots++
@@ -548,14 +589,16 @@ func (g *game) fire() {
 			continue
 		}
 		across := math.Abs(-dx*g.dirY + dy*g.dirX)
-		reach := 0.36
+		// About the width of the body, not of the picture: the squirt has
+		// to be aimed.
+		reach := 0.26
 		switch e.kind {
 		case kFat:
-			reach = 0.44
+			reach = 0.32
 		case kBoss:
-			reach = 0.75
+			reach = 0.62
 		case kCheese:
-			reach = 0.3
+			reach = 0.26
 		}
 		if across < reach {
 			best, bestD = i, along
@@ -581,12 +624,14 @@ func (g *game) fire() {
 	e.hp--
 	// Knock it back a little.
 	g.move(&e.x, &e.y, g.dirX*0.12, g.dirY*0.12, 0.2)
-	z := 0.25
+	z := 0.5
 	if e.kind == kBoss {
 		z = 0.6
 		g.bossSeen = true
 		g.emit(sfxBossHit, e.x, e.y)
-		for g.summoned < 2 && e.hp <= bossHP*(2-g.summoned)/3 {
+		// It calls for help at three quarters, half and a quarter of its
+		// health.
+		for g.summoned < 3 && e.hp <= bossHP*(3-g.summoned)/4 {
 			g.summoned++
 			g.summon(e)
 		}
@@ -614,15 +659,45 @@ func (g *game) summon(boss *ent) {
 	g.say("Ratatui calls the rats!")
 	g.emit(sfxRoar, boss.x, boss.y)
 	g.shake = 0.6
-	for _, off := range [...][2]float64{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+	for k, off := range [...][2]float64{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
 		x, y := boss.x+off[0]*1.2, boss.y+off[1]*1.2
 		if g.solid(int(x), int(y)) {
 			continue
 		}
-		if i := g.spawn(kRat, x, y); i >= 0 {
+		// The last call brings a fat one along.
+		kind := kRat
+		if g.summoned == 3 && k == 0 {
+			kind = kFat
+		}
+		if i := g.spawn(kind, x, y); i >= 0 {
 			g.ents[i].awake = true
 		}
 	}
+}
+
+// stage is how far Ratatui's fight has gone: 0 at full health, 1 below two
+// thirds, 2 below a third. Each makes it quicker and meaner.
+func (g *game) stage() int {
+	if g.boss < 0 {
+		return 0
+	}
+	hp := g.ents[g.boss].hp
+	switch {
+	case hp*3 <= bossHP:
+		return 2
+	case hp*3 <= bossHP*2:
+		return 1
+	}
+	return 0
+}
+
+// reload refills the squirter, if it needs it and is not already at it.
+func (g *game) reload() {
+	if g.phase != phPlay || g.reloadT > 0 || g.ammo == magSize {
+		return
+	}
+	g.reloadT = reloadTime
+	g.sound(sfxReload)
 }
 
 func (g *game) say(s string) {
@@ -712,9 +787,17 @@ func (g *game) step(dt float64) {
 		dt = 0
 	}
 	g.now += dt
+	g.pollRemote()
 	for _, t := range [...]*float64{&g.fireCD, &g.flash, &g.hitMark, &g.hurt, &g.msgT, &g.pickup} {
 		if *t > 0 {
 			*t -= dt
+		}
+	}
+	if g.reloadT > 0 {
+		g.reloadT -= dt
+		if g.reloadT <= 0 {
+			g.reloadT = 0
+			g.ammo = magSize
 		}
 	}
 	g.shake = math.Max(0, g.shake-dt*2.2)
@@ -725,7 +808,7 @@ func (g *game) step(dt float64) {
 	}
 
 	switch g.phase {
-	case phTitle:
+	case phTitle, phName:
 		// Attract mode: the camera looks down the first corridor, swaying.
 		a := 0.22 * math.Sin(g.now*0.35)
 		g.dirX, g.dirY = math.Cos(a), math.Sin(a)
@@ -768,6 +851,7 @@ func (g *game) step(dt float64) {
 		g.phase = phDead
 		g.finished = g.now
 		g.sound(sfxLose)
+		g.record(false)
 	}
 }
 
@@ -833,6 +917,7 @@ func (g *game) animate(dt float64) {
 					g.phase = phWon
 					g.finished = g.now
 					g.sound(sfxWin)
+					g.record(true)
 				}
 			}
 		}
@@ -853,9 +938,9 @@ func (g *game) think(dt float64) {
 			if d < 0.6 {
 				e.state = stGone
 				g.lemons++
-				g.hp = min(100, g.hp+10)
+				g.hp = min(100, g.hp+lemonHeal)
 				g.pickup = 0.3
-				g.say("+1 lemon, +10 HP")
+				g.say("+1 lemon, +8 HP")
 				g.sound(sfxPickup)
 				for j := 0; j < 14; j++ {
 					g.particle(e.x, e.y, 0.35, (g.rand()-0.5)*2, (g.rand()-0.5)*2, 1+g.rand(),
@@ -897,10 +982,10 @@ func (g *game) beast(e *ent, dx, dy, d, dt float64) {
 	if e.bite > 0 {
 		e.bite -= dt
 	}
-	sight, chase, reach, body, bite := 8.0, 2.0, 0.62, 0.22, ratBite
+	sight, chase, reach, body, bite := 9.0, 2.2, 0.62, 0.22, ratBite
 	switch e.kind {
 	case kFat:
-		sight, chase, reach, body, bite = 8, 1.4, 0.7, 0.28, fatBite
+		sight, chase, reach, body, bite = 9, 1.6, 0.7, 0.28, fatBite
 	case kBoss:
 		sight, chase, reach, body, bite = 16, 1.35, 1.0, 0.42, bossBite
 	}
@@ -947,10 +1032,10 @@ func (g *game) beast(e *ent, dx, dy, d, dt float64) {
 		}
 	}
 	if e.awake && d < reach && e.bite <= 0 {
-		e.bite = 0.9
+		e.bite = 0.85
 		e.lunge = 0.25
 		if boss {
-			e.bite = 1.2
+			e.bite = 1.1 - 0.2*float64(g.stage())
 		}
 		g.hurtPlayer(bite, e.x, e.y)
 		g.emit(sfxBite, e.x, e.y)
@@ -959,20 +1044,26 @@ func (g *game) beast(e *ent, dx, dy, d, dt float64) {
 
 // bossMood steers Ratatui between chasing, winding up a charge, charging
 // and throwing cheese, and returns how fast it moves.
+//
+// Each stage of the fight (see stage) makes it walk faster, wind up
+// quicker, charge harder, rest less between attacks, and throw more cheese
+// at once: one piece, then three in a fan, then five.
 func (g *game) bossMood(e *ent, dx, dy, d, dt float64) float64 {
+	st := float64(g.stage())
+	walk := 1.35 + 0.25*st
 	e.moodT -= dt
 	switch e.mood {
 	case bossChase:
 		if e.moodT <= 0 && d > 2.5 && d < 9 && g.sees(e.x, e.y) {
 			if g.rand() < 0.55 {
-				e.mood, e.moodT = bossWindup, 0.8
+				e.mood, e.moodT = bossWindup, 0.8-0.15*st
 				g.emit(sfxRoar, e.x, e.y)
 			} else {
-				e.mood, e.moodT = bossThrow, 0.5
+				e.mood, e.moodT = bossThrow, 0.5-0.1*st
 			}
 			return 0
 		}
-		return 1.35
+		return walk
 	case bossWindup:
 		e.vx, e.vy = dx/d, dy/d // lines up on the player, then commits
 		if e.moodT <= 0 {
@@ -981,22 +1072,29 @@ func (g *game) bossMood(e *ent, dx, dy, d, dt float64) float64 {
 		return 0
 	case bossCharge:
 		if e.moodT <= 0 {
-			e.mood, e.moodT = bossChase, 1.5+g.rand()*1.5
+			e.mood, e.moodT = bossChase, (1.5+g.rand()*1.5)*(1-0.25*st)
 		}
 		g.shake = math.Max(g.shake, 0.25)
-		return 5.5
+		return 5.5 + 0.75*st
 	case bossThrow:
 		if e.moodT <= 0 {
-			if i := g.spawn(kCheese, e.x+dx/d*0.6, e.y+dy/d*0.6); i >= 0 {
-				c := &g.ents[i]
-				c.vx, c.vy = dx/d, dy/d
+			ux, uy := dx/d, dy/d
+			n := 1 + 2*int(st)
+			for k := 0; k < n; k++ {
+				a := (float64(k) - float64(n-1)/2) * 0.22
+				ca, sa := math.Cos(a), math.Sin(a)
+				vx, vy := ux*ca-uy*sa, ux*sa+uy*ca
+				if i := g.spawn(kCheese, e.x+vx*0.6, e.y+vy*0.6); i >= 0 {
+					c := &g.ents[i]
+					c.vx, c.vy = vx, vy
+				}
 			}
 			g.emit(sfxThrow, e.x, e.y)
-			e.mood, e.moodT = bossChase, 1.2+g.rand()*1.5
+			e.mood, e.moodT = bossChase, (1.2+g.rand()*1.5)*(1-0.25*st)
 		}
 		return 0
 	}
-	return 1.35
+	return walk
 }
 
 // updateFlow measures, breadth first, how many steps each tile is from the

@@ -14,15 +14,52 @@ lemonhunt -mute      # no sound
 The rats have hidden the city's lemons in the sewer. Find ten and the gate to
 the lair lifts. Ratatui, king of the rats, is waiting there with a health bar
 of its own. It charges when its eyes burn and throws cheese you can dodge or
-shoot out of the air. At two thirds and one third of its health, it calls
-for more rats. Each lemon gives back 10 HP.
+shoot out of the air. At three quarters, half and a quarter of its health, it
+calls for more rats, and each third it loses makes it faster, quicker to
+charge and freer with the cheese: one piece, then three, then five. Each
+lemon gives back 8 HP.
 
-The title screen has a menu: `W`/`S` choose, `←`/`→` set the volume, and
-`ENTER` starts, switches the sound on and off, or quits.
+The squirter holds eight squirts. It never runs out of juice, but when it is
+empty it has to be refilled with `R`, which takes a second and a half with
+no squirting; the gun drops out of sight while it happens. The squirt only
+hits what the crosshair is on: about the width of a rat's body.
+
+The first time, the game asks for a name. The title screen has a menu:
+`W`/`S` choose, `←`/`→` set the volume, and `ENTER` starts, changes the name,
+switches the sound on and off, or quits.
 
 In the game, `W`/`S` walk, `A`/`D` strafe, `←`/`→` turn, and `space` squirts.
-Hold it down to keep squirting. `M` shows the map and `Esc` quits. After a
-win or a loss, `R` plays again.
+Hold it down to keep squirting. `R` reloads, `M` hides and shows the map, and
+`Esc` quits. After a win or a loss, `R` plays again.
+
+## Score and leaderboard
+
+A run is scored on aim and time:
+
+| | points |
+| :-- | --: |
+| aim | 5000 × hits ÷ squirts |
+| time, for a win | 10 for every second under ten minutes |
+| each rat | 50 |
+| each lemon | 100 |
+
+So a quick, careful win beats a slow one that sprayed the walls, and a loss
+still scores what it got done. The end screen takes the score apart and
+shows the best five; the title shows them too.
+
+The name and the ten best runs are kept between games: in
+`~/.config/lemonhunt/scores.json` (the user's config directory on other
+systems), or, in the browser, in `localStorage`.
+
+With a scoreboard ([`apps/scoreboard`](../scoreboard), on Vercel's free plan with a free Neon database),
+every finished run is also sent there, and the screens show the world's
+best ten — `WORLD BEST` — and where the run placed in it. The server works
+the score out from what the run did, and the game asks it off the frame, so
+a slow or missing server never stalls one: without an answer the screens
+fall back to this player's own board and say so. `-board URL` (or
+`LEMONHUNT_BOARD`) points the game at a server, `-board off` keeps the
+scores at home; in the browser, the page names it, and `?board=URL`
+overrides it.
 
 The window must be at least 60×20. A whole run takes a few minutes.
 
@@ -47,9 +84,14 @@ is wide, so the pixels come out square.
   a lantern that moves with the player, and from the squirter's flash. Fog
   swallows whatever is far away.
 - **Rats and Ratatui** are pixel art drawn in code at start-up, not loaded
-  from files. Rats have a four-frame walk cycle and a lunge, and face the way
-  they are going. Ratatui breathes, and its eyes burn when it is about to
-  charge.
+  from files. The rats walk upright, a torn waistcoat on the common ones and
+  an apron on the fat, and stand most of the way to the player's eye, so one
+  close enough to bite is still in sight above the gun. They have a
+  four-frame walk cycle and a lunge with the claws up. Ratatui breathes, and
+  its eyes burn when it is about to charge.
+- **The map** is a round window at the top right, turning with the player so
+  that ahead is always up: walls by their stone, the view ahead lit faintly,
+  lemons, rats and Ratatui as dots. It is open from the start.
 - **The lemons are solid.** Each is half a lemon, cut across, turning in the
   air above its shadow. Every pixel it might cover casts a ray at a half
   ellipsoid and shades what it hits. The dome is dimpled rind that turns
@@ -133,6 +175,15 @@ frames a second. That is nothing for a local terminal and a lot over a slow
 SSH link. Colours are rounded to multiples of eight, which saves a quarter
 of the bytes with no visible difference; rounding to sixteen saves half, but
 bands in the dark.
+
+In the browser, bright colours are rounded harder: to sixteen in the middle
+tones and 32 in the bright, keeping eight in the dark. xterm.js's WebGL
+renderer draws every glyph once for each pair of colours into a texture
+atlas, and when the atlas is full it merges pages while a frame waits. Over
+one recorded run, from the start to Ratatui's death, that took the pairs
+from 33,000 to 12,400, the merges from eleven (7–52 ms each) to one, and the
+slowest frames in a hundred from 25 ms to 13 (headless Chromium). The
+picture looks the same.
 
 ## Why a module of its own
 

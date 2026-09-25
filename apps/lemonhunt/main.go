@@ -25,10 +25,16 @@ import (
 	"github.com/thebanri/limoni"
 )
 
+// defaultBoard is the shared leaderboard the game ships with: the
+// scoreboard (apps/scoreboard) on Vercel. Empty until it is up; the
+// browser's is set in examples/wasm/index.html.
+const defaultBoard = ""
+
 func main() {
 	fps := flag.Int("fps", 30, "frames per second")
 	boss := flag.Bool("boss", false, "start at the lair's gate with ten lemons")
 	mute := flag.Bool("mute", false, "no sound")
+	board := flag.String("board", "", `the shared leaderboard's address; "off" keeps scores on this machine`)
 	flag.Parse()
 
 	var mix *mixer
@@ -43,6 +49,15 @@ func main() {
 	}
 
 	g := newGame()
+	g.store = newStore()
+	g.restore()
+	if g.remote = newRemote(boardURL(*board)); g.remote != nil {
+		g.worldState = worldLoading
+		g.remote.fetch()
+	}
+	if g.name == "" {
+		g.askName()
+	}
 	g.skipToBoss = *boss
 	switch {
 	case mix != nil:
@@ -102,6 +117,12 @@ func (g *game) key(k limoni.KeyEvent) {
 	}
 	isRune := k.Type == limoni.KeyRune
 
+	if g.phase == phName {
+		if !k.Release {
+			g.nameKey(k)
+		}
+		return
+	}
 	if g.phase == phTitle {
 		if !k.Release {
 			g.titleKey(k, isRune, ch)
@@ -137,6 +158,11 @@ func (g *game) key(k limoni.KeyEvent) {
 			g.showMap = !g.showMap
 		}
 		return
+	case isRune && ch == 'r':
+		if !k.Release {
+			g.reload()
+		}
+		return
 	default:
 		return
 	}
@@ -147,9 +173,45 @@ func (g *game) key(k limoni.KeyEvent) {
 	}
 }
 
-// titleKey drives the title menu: START, SOUND and QUIT.
+// askName opens the name entry, with the name so far to edit.
+func (g *game) askName() {
+	g.typing = g.name
+	g.phase = phName
+}
+
+// nameKey types the player's name: letters, digits and a few marks, up to
+// nameMax; Backspace takes one back and Enter keeps it.
+func (g *game) nameKey(k limoni.KeyEvent) {
+	switch {
+	case k.Type == limoni.KeyEnter:
+		name := cleanName(g.typing)
+		if name == "" {
+			return
+		}
+		g.name = name
+		g.persist()
+		g.phase = phTitle
+		g.sound(sfxPickup)
+	case k.Type == limoni.KeyBackspace:
+		if r := []rune(g.typing); len(r) > 0 {
+			g.typing = string(r[:len(r)-1])
+			g.sound(sfxMenu)
+		}
+	case k.Type == limoni.KeySpace || k.Type == limoni.KeyRune:
+		ch := k.Ch
+		if k.Type == limoni.KeySpace {
+			ch = ' '
+		}
+		if nameRune(ch) && len([]rune(g.typing)) < nameMax && (ch != ' ' || g.typing != "") {
+			g.typing += string(ch)
+			g.sound(sfxMenu)
+		}
+	}
+}
+
+// titleKey drives the title menu: START, NAME, SOUND and QUIT.
 func (g *game) titleKey(k limoni.KeyEvent, isRune bool, ch rune) {
-	const items = 3
+	const items = 4
 	switch {
 	case isRune && ch == 'w':
 		g.menu = (g.menu + items - 1) % items
@@ -157,10 +219,10 @@ func (g *game) titleKey(k limoni.KeyEvent, isRune bool, ch rune) {
 	case isRune && ch == 's':
 		g.menu = (g.menu + 1) % items
 		g.sound(sfxMenu)
-	case g.menu == 1 && (k.Type == limoni.KeyLeft || isRune && ch == 'a'):
+	case g.menu == 2 && (k.Type == limoni.KeyLeft || isRune && ch == 'a'):
 		g.setVolume(g.volume - 1)
 		g.sound(sfxMenu)
-	case g.menu == 1 && (k.Type == limoni.KeyRight || isRune && ch == 'd'):
+	case g.menu == 2 && (k.Type == limoni.KeyRight || isRune && ch == 'd'):
 		g.setVolume(g.volume + 1)
 		g.sound(sfxMenu)
 	case k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace:
@@ -168,14 +230,17 @@ func (g *game) titleKey(k limoni.KeyEvent, isRune bool, ch rune) {
 		case 0:
 			g.reset()
 			g.sound(sfxPickup)
-		case 1: // sound on and off
+		case 1:
+			g.askName()
+			g.sound(sfxMenu)
+		case 2: // sound on and off
 			if g.volume > 0 {
 				g.setVolume(0)
 			} else {
 				g.setVolume(g.lastVol)
 				g.sound(sfxMenu)
 			}
-		case 2:
+		case 3:
 			g.quit = true
 		}
 	}

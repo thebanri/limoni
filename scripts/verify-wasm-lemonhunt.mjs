@@ -2,8 +2,10 @@
 // verify-wasm.mjs does for the playground.
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
-// Audio context, starts a game, and quits with Esc. Each step asserts on what
-// the engine did: the title and the HUD reached the screen in truecolor, the
+// Audio context, types a name, starts a game, and quits with Esc. Each step
+// asserts on what the engine did: the name entry (Node has no localStorage,
+// so nothing is remembered), the title and the HUD reached the screen in
+// truecolor, the
 // synthesised clips were handed to Web Audio and one was played, and Esc
 // ended the program. Esc is the one that had a bug behind it — the browser
 // never delivered a lone ESC — so the exit is checked, not assumed.
@@ -53,20 +55,25 @@ go.run(instance).then(onExit, onExit);
 await sleep(600);
 globalThis.__limoni_resize?.(100, 30);
 await sleep(600);
-const title = captured;
+const asked = captured;
+
+globalThis.__limoni_input?.("Tester\r"); // the name, then on to the title
+await sleep(800);
+const title = captured.slice(asked.length);
 
 globalThis.__limoni_input?.("\r"); // START
 await sleep(800);
-const game = captured.slice(title.length);
+const game = captured.slice(asked.length + title.length);
 
 globalThis.__limoni_input?.("\x1b"); // Esc, alone, as xterm.js sends it
 await sleep(800);
 
 const checks = [
-  ["alternate screen (?1049h)", title.includes("\x1b[?1049h")],
-  ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(title)],
-  ["half blocks (▀)", title.includes("▀")],
-  ["title menu (START)", title.includes("START")],
+  ["alternate screen (?1049h)", asked.includes("\x1b[?1049h")],
+  ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(asked)],
+  ["half blocks (▀)", asked.includes("▀")],
+  ["name entry first (WHAT IS YOUR NAME?)", asked.includes("WHAT IS YOUR NAME?")],
+  ["title menu with the name (START, Tester)", title.includes("START") && title.includes("Tester")],
   ["HUD after Enter (LEMONS)", game.includes("LEMONS")],
   ["clips loaded into Web Audio", audio.buffers > 0],
   ["a sound played", audio.started > 0],

@@ -1,0 +1,8 @@
+# Railway reads this when the service's root directory is apps/scoreboard.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/healthz"
+restartPolicyType = "ON_FAILURE"

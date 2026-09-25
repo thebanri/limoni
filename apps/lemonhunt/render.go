@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"runtime"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -66,7 +67,8 @@ func (g *game) render(b *buffer.Buffer) {
 	g.nearLights()
 	g.drawWorld(&v)
 	g.drawSprites(&v)
-	if g.phase == phTitle {
+	menu := g.phase == phTitle || g.phase == phName
+	if menu {
 		g.drawTitleScene(&v)
 	}
 	g.drawParticles(&v)
@@ -91,12 +93,12 @@ func (g *game) render(b *buffer.Buffer) {
 	}
 
 	if g.showMap && g.phase == phPlay {
-		g.drawMap(cv, viewW)
+		g.drawMinimap(cv, &v, viewW)
 	}
-	if g.bossSeen && g.phase != phTitle {
+	if g.bossSeen && !menu {
 		g.drawBossBar(cv, W)
 	}
-	if g.phase == phTitle {
+	if menu {
 		cv.fill(0, H-hudH, W, hudH, ' ', hudStyle(0, 0))
 	} else {
 		g.drawHUD(cv, W, H)
@@ -104,13 +106,15 @@ func (g *game) render(b *buffer.Buffer) {
 	switch g.phase {
 	case phTitle:
 		g.drawTitle(cv, W, viewH)
+	case phName:
+		g.drawNameEntry(cv, W, viewH)
 	case phWon:
 		if g.now-g.finished > 1.2 {
-			g.drawWon(cv, W, viewH)
+			g.drawEnd(cv, W, viewH, true)
 		}
 	case phDead:
 		if g.now-g.finished > 0.8 {
-			g.drawDead(cv, W, viewH)
+			g.drawEnd(cv, W, viewH, false)
 		}
 	}
 }
@@ -316,9 +320,11 @@ func (g *game) drawSprites(v *view) {
 		bb.flip = invDet*(g.dirY*e.vx-g.dirX*e.vy) < 0
 		switch e.kind {
 		case kRat, kFat:
-			frames, lunge, h := &ratWalk, ratLunge, 0.34
+			// Upright, a rat stands most of the way to the player's eye
+			// (0.5): in sight even when it is close enough to bite.
+			frames, lunge, h := &ratWalk, ratLunge, 0.7
 			if e.kind == kFat {
-				frames, lunge, h = &fatWalk, fatLunge, 0.44
+				frames, lunge, h = &fatWalk, fatLunge, 0.8
 			}
 			bb.s = frames[int(e.anim)&3]
 			if e.lunge > 0 {
@@ -651,6 +657,11 @@ func (g *game) drawGun(v *view, bob float64) {
 	gw := float64(s.w) * scale
 	cx := float64(v.pw)*0.56 + math.Sin(g.walked*2.3*math.Pi/3.2)*float64(v.pw)*0.025 + g.vt*float64(v.pw)*0.012
 	bottom := float64(v.ph) + math.Abs(bob)*float64(v.ph)*0.025 + g.flash*float64(v.ph)*0.5
+	if g.reloadT > 0 {
+		// Down out of sight to be refilled, and back up.
+		t := 1 - g.reloadT/reloadTime
+		bottom += math.Sin(t*math.Pi) * gh * 0.8
+	}
 	x0, y0 := cx-gw/2, bottom-gh
 	light := g.lightAt(g.px, g.py, 0.4).mul(0.9)
 	for y := max(0, int(y0)); y < v.ph && float64(y) < bottom; y++ {
@@ -742,14 +753,33 @@ func (g *game) toCells(cv canvas, v *view, rows, sx, sy int) {
 }
 
 // pixel reads the framebuffer, clamped at the edges, and rounds each
-// channel to a multiple of eight. Neighbouring cells then share colours more
-// often, and the diff sends a quarter fewer bytes (107 → 79 KB a frame at
-// 160×48); a multiple of sixteen would save more but bands in the dark.
+// channel (see round). Neighbouring cells then share colours more often,
+// and the diff sends a quarter fewer bytes (107 → 79 KB a frame at 160×48).
 func (g *game) pixel(v *view, x, y int) px {
 	x = max(0, min(v.pw-1, x))
 	y = max(0, min(v.ph-1, y))
 	p := g.fb[y*v.pw+x].px()
-	return px{p.r &^ 7, p.g &^ 7, p.b &^ 7}
+	return px{round(p.r), round(p.g), round(p.b)}
+}
+
+// coarse rounds bright colours harder, for the browser. xterm.js's WebGL
+// renderer draws every glyph once per pair of colours into a texture atlas,
+// and a full atlas is merged and uploaded again while a frame waits: in
+// Ratatui's lair, 10–60 ms. Rounding to eight everywhere gave 33,000 pairs
+// over a whole run; to eight in the dark, sixteen in the middle and 32 in
+// the bright, 12,400, and the picture looks the same.
+const coarse = runtime.GOOS == "js"
+
+// round rounds a channel to a multiple of eight; a multiple of sixteen
+// everywhere would save more, but bands in the dark.
+func round(c uint8) uint8 {
+	switch {
+	case !coarse || c < 48:
+		return c &^ 7
+	case c < 112:
+		return c &^ 15
+	}
+	return c &^ 31
 }
 
 // ── text on top ──────────────────────────────────────────────────────────
@@ -832,56 +862,145 @@ const (
 	hudPink  = 0xff84d6
 )
 
-// drawMap draws the level in half blocks, a tile to a pixel.
-func (g *game) drawMap(cv canvas, viewW int) {
-	ox := viewW - mapW - 1
-	tileColor := func(x, y int) px {
-		switch {
-		case x == int(g.px) && y == int(g.py):
-			return px{120, 240, 255}
-		case x == int(g.px+g.dirX*1.2) && y == int(g.py+g.dirY*1.2) && !g.solid(x, y):
-			return px{40, 100, 120}
-		}
-		for i := 0; i < g.nEnts; i++ {
-			e := &g.ents[i]
-			if e.state != stAlive || int(e.x) != x || int(e.y) != y {
+// The map is a round window at the top right, turning with the player so
+// that ahead is always up, like a car's: a few tiles all round, walls by
+// their stone, the lemons, the rats and Ratatui as dots, and the player an
+// arrow in the middle with the view ahead lit faintly. It is drawn in its
+// own pixels, twice as tall as the rows, over the finished picture.
+const (
+	mmMax   = 64  // the widest the map's pixel square gets
+	mmTiles = 6.5 // tiles from the middle to the rim
+)
+
+// mmRadius is the map's radius in pixels for a picture ph pixels tall.
+func mmRadius(ph int) int {
+	return max(9, min(mmMax/2-1, ph/7))
+}
+
+func (g *game) drawMinimap(cv canvas, v *view, viewW int) {
+	r := mmRadius(v.ph)
+	d := 2*r + 1
+	if d+4 > viewW || d/2+3 > v.ph/2 {
+		return
+	}
+	scale := mmTiles / float64(r) // tiles a pixel
+	rx, ry := -g.dirY, g.dirX     // right of the view
+	for j := 0; j < d; j++ {
+		for i := 0; i < d; i++ {
+			k := j*d + i
+			dx, dy := float64(i-r), float64(j-r)
+			dist := math.Hypot(dx, dy)
+			switch {
+			case dist > float64(r)+0.5:
+				g.mmA[k] = 0
+				continue
+			case dist > float64(r)-0.9:
+				g.mm[k], g.mmA[k] = hex(0xb09040), 1 // the rim
 				continue
 			}
-			switch e.kind {
-			case kLemon:
-				return px{255, 216, 42}
-			case kRat, kFat:
-				return px{220, 50, 40}
-			case kBoss:
-				return px{255, 90, 210}
+			wx := g.px + (rx*dx-g.dirX*dy)*scale
+			wy := g.py + (ry*dx-g.dirY*dy)*scale
+			c, a := g.mmTile(int(math.Floor(wx)), int(math.Floor(wy)))
+			if a < 1 && dy < 0 && math.Abs(dx) <= -dy*fov {
+				c = c.add(rgb{0.06, 0.08, 0.08}) // what the player sees
 			}
+			g.mm[k], g.mmA[k] = c, a
 		}
-		if g.solid(x, y) {
-			switch g.grid[y][x] {
-			case 'S':
-				return px{60, 90, 50}
-			case 'P':
-				return px{70, 90, 110}
-			case 'L':
-				return px{110, 40, 100}
-			case 'G':
-				return px{200, 40, 40}
-			}
-			return px{110, 60, 40}
-		}
-		return px{12, 12, 12}
 	}
-	for cy := 0; cy < (mapH+1)/2; cy++ {
-		for x := 0; x < mapW; x++ {
-			t := tileColor(x, cy*2)
-			b := px{0, 0, 0}
-			if cy*2+1 < mapH {
-				b = tileColor(x, cy*2+1)
+	// The things in the sewer, as dots over the tiles.
+	for n := 0; n < g.nEnts; n++ {
+		e := &g.ents[n]
+		if e.state != stAlive {
+			continue
+		}
+		ox, oy := e.x-g.px, e.y-g.py
+		sx := (ox*rx + oy*ry) / scale
+		sy := -(ox*g.dirX + oy*g.dirY) / scale
+		if math.Hypot(sx, sy) > float64(r)-2.5 {
+			continue
+		}
+		var c rgb
+		size := 1
+		switch e.kind {
+		case kLemon:
+			c = hex(0xffd82a)
+		case kRat:
+			c = hex(0xff3a2a)
+		case kFat:
+			c, size = hex(0xff7a30), 2
+		case kBoss:
+			c, size = hex(0xff5ad2), 3
+		case kCheese:
+			c = hex(0xf0c040)
+		}
+		cx, cy := r+int(math.Round(sx)), r+int(math.Round(sy))
+		for y := cy - size/2; y < cy-size/2+max(size, 2); y++ {
+			for x := cx - size/2; x < cx-size/2+max(size, 2); x++ {
+				if x >= 0 && y >= 0 && x < d && y < d && g.mmA[y*d+x] > 0 {
+					g.mm[y*d+x], g.mmA[y*d+x] = c, 1
+				}
 			}
+		}
+	}
+	// The player: an arrow pointing up, which is ahead.
+	for _, p := range [...][2]int{{0, -2}, {-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {0, 0}, {1, 0}, {-2, 1}, {2, 1}} {
+		k := (r+p[1])*d + r + p[0]
+		g.mm[k], g.mmA[k] = hex(0x78f0ff), 1
+	}
+
+	// Over the picture, a cell at a time: the top pixel is the cell's
+	// foreground, the bottom its background.
+	x0, row0 := viewW-d-2, 1
+	for cy := 0; cy < (d+1)/2; cy++ {
+		for i := 0; i < d; i++ {
+			x, y := x0+i, row0+cy
+			if x < 0 || y >= cv.h {
+				continue
+			}
+			c := &cv.b.Content[y*cv.w+x]
+			top, bot := c.Style.Fg, c.Style.Bg
+			if c.Content != '▀' {
+				top = bot
+			}
+			t := g.mmBlend(top, cy*2, i, d)
+			b := g.mmBlend(bot, cy*2+1, i, d)
 			st := cell.Style{Fg: cell.NewColorRGB(t.r, t.g, t.b), Bg: cell.NewColorRGB(b.r, b.g, b.b)}
-			cv.set(ox+x, cy+1, '▀', st)
+			if t == b {
+				*c = cell.Cell{Content: ' ', Style: cell.Style{Fg: st.Bg, Bg: st.Bg}}
+			} else {
+				*c = cell.Cell{Content: '▀', Style: st}
+			}
 		}
 	}
+}
+
+// mmBlend lays map pixel (i, j) over a colour already on screen.
+func (g *game) mmBlend(under cell.Color, j, i, d int) px {
+	ur, ug, ub := under.RGB()
+	if j >= d || g.mmA[j*d+i] == 0 {
+		return px{ur, ug, ub}
+	}
+	u := rgb{float32(ur) / 255, float32(ug) / 255, float32(ub) / 255}
+	p := u.mix(g.mm[j*d+i], g.mmA[j*d+i]).px()
+	return px{round(p.r), round(p.g), round(p.b)}
+}
+
+// mmTile is the colour of tile (x, y) on the map, and how opaque it is.
+func (g *game) mmTile(x, y int) (rgb, float32) {
+	if !g.solid(x, y) {
+		return rgb{0.05, 0.05, 0.06}, 0.82
+	}
+	switch g.tile(x, y) {
+	case 'S':
+		return hex(0x3c5a32), 1
+	case 'P':
+		return hex(0x465a6e), 1
+	case 'L':
+		return hex(0x6e2864), 1
+	case 'G':
+		return hex(0xc82828), 1
+	}
+	return hex(0x6e3c28), 1
 }
 
 func (g *game) drawBossBar(cv canvas, W int) {
@@ -916,35 +1035,70 @@ func (g *game) drawHUD(cv canvas, W, H int) {
 	label := hudStyle(hudDim, hudBg)
 	val := hudStyle(hudText, hudBg)
 
+	// In a narrow window the health bar shrinks and the labels go, so the
+	// juice still fits.
+	hpW, gap, lemonLabel, juiceLabel := 20, 3, "LEMONS ", "JUICE "
+	if W < 100 {
+		hpW, gap, lemonLabel, juiceLabel = 10, 2, "", ""
+	}
 	x := cv.text(2, y, "HP ", label)
 	hpColor := uint32(hudGreen)
 	if g.hp <= 30 {
 		hpColor = hudRed
 	}
-	for i := 0; i < 20; i++ {
+	step := 100 / hpW
+	for i := 0; i < hpW; i++ {
 		switch {
-		case i*5+5 <= g.hp:
+		case i*step+step <= g.hp:
 			cv.set(x+i, y, '█', hudStyle(hpColor, hudBg))
-		case i*5 < g.hp:
+		case i*step < g.hp:
 			cv.set(x+i, y, '▌', hudStyle(hpColor, 0x2a2622))
 		default:
 			cv.set(x+i, y, ' ', hudStyle(0, 0x2a2622))
 		}
 	}
-	x = cv.number(x+21, y, g.hp, val)
-	x = cv.text(x+4, y, "LEMONS ", label)
+	x = cv.number(x+hpW+1, y, g.hp, val)
+	x = cv.text(x+gap, y, lemonLabel, label)
 	for i := 0; i < lemonsNeeded; i++ {
 		if i < g.lemons {
-			cv.set(x+i*2, y, '●', hudStyle(hudLemon, hudBg))
+			cv.set(x+i, y, '●', hudStyle(hudLemon, hudBg))
 		} else {
-			cv.set(x+i*2, y, '○', hudStyle(0x4a463e, hudBg))
+			cv.set(x+i, y, '○', hudStyle(0x4a463e, hudBg))
 		}
 	}
-	x = cv.number(x+lemonsNeeded*2+1, y, min(g.lemons, lemonsNeeded), val)
+	x = cv.number(x+lemonsNeeded+1, y, min(g.lemons, lemonsNeeded), val)
 	x = cv.text(x, y, "/10", val)
-	x = cv.text(x+4, y, "RATS ", label)
-	cv.number(x, y, g.kills, val)
-	if g.audio == nil {
+	x = cv.text(x+gap, y, "RATS ", label)
+	x = cv.number(x, y, g.kills, val)
+
+	x = cv.text(x+gap, y, juiceLabel, label)
+	if g.reloadT > 0 {
+		done := int((1 - g.reloadT/reloadTime) * magSize)
+		for i := 0; i < magSize; i++ {
+			if i < done {
+				cv.set(x+i, y, '▰', hudStyle(0xa08a30, hudBg))
+			} else {
+				cv.set(x+i, y, '▱', hudStyle(0x4a463e, hudBg))
+			}
+		}
+		cv.text(x+magSize+1, y, "reloading", hudStyle(hudDim, hudBg))
+	} else {
+		ammo := uint32(hudLemon)
+		if g.ammo <= 2 {
+			ammo = hudRed
+		}
+		for i := 0; i < magSize; i++ {
+			if i < g.ammo {
+				cv.set(x+i, y, '▰', hudStyle(ammo, hudBg))
+			} else {
+				cv.set(x+i, y, '▱', hudStyle(0x4a463e, hudBg))
+			}
+		}
+		if g.ammo == 0 && int(g.now*3)%2 == 0 {
+			cv.text(x+magSize+1, y, "R reload", hudStyle(hudRed, hudBg))
+		}
+	}
+	if g.audio == nil && W >= 110 {
 		cv.text(W-9, y, "no sound", hudStyle(0x4a463e, hudBg))
 	}
 
@@ -952,7 +1106,7 @@ func (g *game) drawHUD(cv canvas, W, H int) {
 	case g.msgT > 0:
 		cv.centered(H-1, g.msg, hudStyle(hudLemon, hudBg))
 	case g.phase == phPlay:
-		cv.centered(H-1, "W/S walk · A/D strafe · ←/→ turn · SPACE squirt · M map · ESC quit", hudStyle(hudDim, hudBg))
+		cv.centered(H-1, "W/S walk · A/D strafe · ←/→ turn · SPACE squirt · R reload · M map · ESC quit", hudStyle(hudDim, hudBg))
 	}
 }
 
@@ -1048,15 +1202,22 @@ func (g *game) drawTitleScene(v *view) {
 	}
 }
 
-// drawTitle writes the story and the menu under the picture.
+// drawTitle writes the story and the menu under the picture, and the best
+// scores beside the menu where there is room.
 func (g *game) drawTitle(cv canvas, W, viewH int) {
 	bg := uint32(0x0c0a08)
-	story := max(0, viewH-12)
+	story := max(0, viewH-13)
 	cv.centered(story, "The rats have hidden the city's lemons in the sewer.", hudStyle(hudText, 0x000000))
 	cv.centered(story+1, "Bring back ten, and their king will come out to fight.", hudStyle(hudText, 0x000000))
 
-	w, h := 46, 8
+	w, h := 46, 9
+	boardW := 37
 	x, y := (W-w)/2, max(0, viewH-h-1)
+	entries, _, world := g.shownBoard()
+	showBoard := (len(entries) > 0 || g.worldState != worldNone) && W >= w+boardW+6
+	if showBoard {
+		x = (W - w - boardW - 2) / 2
+	}
 	box(cv, x, y, w, h, 0x5a4a20)
 	item := func(i, row int, label string) int {
 		st := hudStyle(hudDim, bg)
@@ -1073,67 +1234,191 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 		cv.text(end+3, y+2, "press ENTER", hudStyle(hudText, bg))
 	}
 
-	end = item(1, y+3, "SOUND")
+	item(1, y+3, "NAME")
+	cv.text(x+16, y+3, g.playerName(), hudStyle(hudText, bg))
+
+	item(2, y+4, "SOUND")
 	sx := x + 16
 	switch {
 	case g.audio == nil:
-		cv.text(sx, y+3, g.noSound, hudStyle(0x4a463e, bg))
+		cv.text(sx, y+4, g.noSound, hudStyle(0x4a463e, bg))
 	case g.volume == 0:
-		cv.text(sx, y+3, "off", hudStyle(hudDim, bg))
+		cv.text(sx, y+4, "off", hudStyle(hudDim, bg))
 	default:
 		for i := 0; i < 10; i++ {
 			if i < g.volume {
-				cv.set(sx+i, y+3, '█', hudStyle(hudLemon, bg))
+				cv.set(sx+i, y+4, '█', hudStyle(hudLemon, bg))
 			} else {
-				cv.set(sx+i, y+3, '░', hudStyle(0x4a463e, bg))
+				cv.set(sx+i, y+4, '░', hudStyle(0x4a463e, bg))
 			}
 		}
-		cv.number(sx+11, y+3, g.volume*10, hudStyle(hudText, bg))
+		cv.number(sx+11, y+4, g.volume*10, hudStyle(hudText, bg))
 	}
-	if g.menu == 1 && g.audio != nil {
-		cv.text(x+w-8, y+3, "◀ ▶", hudStyle(hudDim, bg))
+	if g.menu == 2 && g.audio != nil {
+		cv.text(x+w-8, y+4, "◀ ▶", hudStyle(hudDim, bg))
 	}
-	_ = end
 
-	item(2, y+4, "QUIT")
-	cv.centered(y+6, "W/S choose · ←→ volume · ENTER select", hudStyle(hudDim, bg))
+	item(3, y+5, "QUIT")
+	hint := "W/S choose · ←→ volume · ENTER select"
+	cv.text(x+(w-textWidth(hint))/2, y+7, hint, hudStyle(hudDim, bg))
+	if showBoard {
+		bx := x + w + 2
+		box(cv, bx, y, boardW, h, 0x5a4a20)
+		g.boardTitle(cv, bx+3, y+1, world, true)
+		g.drawBoard(cv, bx+2, y+2, min(5, h-3), 0, entries)
+	}
 }
 
-func (g *game) drawWon(cv canvas, W, viewH int) {
-	w, h := 50, 13
-	x, y := (W-w)/2, max(0, (viewH-h)/2)
+// boardTitle names the board shown: the world's, or this player's own, and
+// with note, why: the server is being asked or has not answered.
+func (g *game) boardTitle(cv canvas, x, y int, world, note bool) {
 	bg := uint32(0x0c0a08)
-	box(cv, x, y, w, h, 0xf0b830)
-	cv.centered(y+2, "_/\\_/\\_/\\_", hudStyle(0xf0b830, bg))
-	cv.centered(y+4, "RATATUI IS DEFEATED", hudStyle(hudLemon, bg))
-	cv.centered(y+5, "The lemons are back where they belong.", hudStyle(hudText, bg))
+	if world {
+		cv.text(x, y, "WORLD BEST", hudStyle(hudLemon, bg))
+		return
+	}
+	end := cv.text(x, y, "BEST SCORES", hudStyle(hudLemon, bg))
+	if !note {
+		return
+	}
+	switch g.worldState {
+	case worldLoading:
+		cv.text(end+2, y, "connecting…", hudStyle(hudDim, bg))
+	case worldOffline:
+		cv.text(end+2, y, "offline", hudStyle(hudDim, bg))
+	}
+}
 
-	secs := int(g.finished)
-	row, lx := y+7, x+15
-	dim, val := hudStyle(hudDim, bg), hudStyle(hudText, bg)
-	cv.text(lx, row, "time", dim)
-	vx := cv.number(lx+10, row, secs/60, val)
-	vx = cv.text(vx, row, ":", val)
+// drawBoard lists the top n of entries from (x, y), one a row: place, name,
+// score, time and aim. The run at place mark (1-based) is picked out.
+func (g *game) drawBoard(cv canvas, x, y, n, mark int, entries []scoreEntry) {
+	bg := uint32(0x0c0a08)
+	if len(entries) == 0 {
+		cv.text(x+1, y, "no scores yet", hudStyle(hudDim, bg))
+		return
+	}
+	for i := 0; i < min(n, len(entries)); i++ {
+		e := &entries[i]
+		st, dim := hudStyle(hudText, bg), hudStyle(hudDim, bg)
+		if i+1 == mark {
+			st, dim = hudStyle(hudLemon, bg), hudStyle(hudLemon, bg)
+		}
+		row := y + i
+		if i+1 < 10 {
+			cv.number(x+1, row, i+1, dim)
+		} else {
+			cv.number(x, row, i+1, dim)
+		}
+		cv.text(x+3, row, e.Name, st)
+		cv.numberRight(x+21, row, e.Score, st)
+		drawTime(cv, x+23, row, e.Secs, dim)
+		cv.text(cv.numberRight(x+32, row, e.Aim, dim), row, "%", dim)
+	}
+}
+
+// drawTime writes secs as m:ss and returns the column after it.
+func drawTime(cv canvas, x, y, secs int, st cell.Style) int {
+	x = cv.number(x, y, secs/60, st)
+	x = cv.text(x, y, ":", st)
 	if secs%60 < 10 {
-		vx = cv.text(vx, row, "0", val)
+		x = cv.text(x, y, "0", st)
 	}
-	cv.number(vx, row, secs%60, val)
-	cv.text(lx, row+1, "rats", dim)
-	cv.number(lx+10, row+1, g.kills, val)
-	cv.text(lx, row+2, "aim", dim)
-	aim := 0
-	if g.shots > 0 {
-		aim = g.hits * 100 / g.shots
-	}
-	cv.text(cv.number(lx+10, row+2, aim, val), row+2, "%", val)
-	cv.centered(y+h-2, "R play again · ESC quit", dim)
+	return cv.number(x, y, secs%60, st)
 }
 
-func (g *game) drawDead(cv canvas, W, viewH int) {
-	w, h := 44, 7
+// numberRight writes n so that it ends just before column end, and returns
+// end.
+func (c canvas) numberRight(end, y, n int, st cell.Style) int {
+	digits := 1
+	for p := 10; p <= n; p *= 10 {
+		digits++
+	}
+	c.number(end-digits, y, n, st)
+	return end
+}
+
+// drawNameEntry asks for the player's name, which goes on the leaderboard.
+func (g *game) drawNameEntry(cv canvas, W, viewH int) {
+	bg := uint32(0x0c0a08)
+	w, h := 46, 8
+	x, y := (W-w)/2, max(0, viewH-h-1)
+	box(cv, x, y, w, h, 0x5a4a20)
+	cv.centered(y+2, "WHAT IS YOUR NAME?", hudStyle(hudLemon, bg))
+	fx := x + (w-nameMax-2)/2
+	cv.fill(fx, y+4, nameMax+2, 1, ' ', hudStyle(hudText, 0x2a2622))
+	end := cv.text(fx+1, y+4, g.typing, hudStyle(hudText, 0x2a2622))
+	if int(g.now*2)%2 == 0 {
+		cv.set(end, y+4, '▏', hudStyle(hudLemon, 0x2a2622))
+	}
+	cv.centered(y+6, "type it · ENTER save · it goes on the leaderboard", hudStyle(hudDim, bg))
+}
+
+// drawEnd is the screen after a run: how it went, what it scored and where
+// that puts it among the best.
+func (g *game) drawEnd(cv canvas, W, viewH int, won bool) {
+	w, h := 60, 17
 	x, y := (W-w)/2, max(0, (viewH-h)/2)
 	bg := uint32(0x0c0a08)
-	box(cv, x, y, w, h, hudRed)
-	cv.centered(y+2, "THE RATS GOT YOU", hudStyle(hudRed, bg))
-	cv.centered(y+4, "R try again · ESC quit", hudStyle(hudDim, bg))
+	dim, val := hudStyle(hudDim, bg), hudStyle(hudText, bg)
+	if won {
+		box(cv, x, y, w, h, 0xf0b830)
+		cv.centered(y+1, "_/\\_/\\_/\\_", hudStyle(0xf0b830, bg))
+		cv.centered(y+2, "RATATUI IS DEFEATED", hudStyle(hudLemon, bg))
+		cv.centered(y+3, "The lemons are back where they belong.", val)
+	} else {
+		box(cv, x, y, w, h, hudRed)
+		cv.centered(y+2, "THE RATS GOT YOU", hudStyle(hudRed, bg))
+		cv.centered(y+3, "A dead squirter scores no time.", dim)
+	}
+
+	r := &g.last
+	lx, row := x+4, y+5
+	cx := cv.text(lx, row, "time ", dim)
+	cx = drawTime(cv, cx, row, r.entry.Secs, val)
+	cx = cv.text(cx+3, row, "aim ", dim)
+	cx = cv.text(cv.number(cx, row, r.entry.Aim, val), row, "%", val)
+	cx = cv.text(cx+3, row, "rats ", dim)
+	cx = cv.number(cx, row, g.kills, val)
+	cx = cv.text(cx+3, row, "lemons ", dim)
+	cv.number(cx, row, min(g.lemons, lemonsNeeded), val)
+
+	row++
+	cx = cv.text(lx, row, "SCORE ", hudStyle(hudLemon, bg))
+	cx = cv.number(cx, row, r.entry.Score, hudStyle(hudLemon, bg))
+	cx = cv.text(cx+2, row, "= ", dim)
+	cx = cv.number(cx, row, r.aim, val)
+	cx = cv.text(cx, row, " aim + ", dim)
+	cx = cv.number(cx, row, r.time, val)
+	cx = cv.text(cx, row, " time + ", dim)
+	cx = cv.number(cx, row, r.rats+r.lemons, val)
+	cv.text(cx, row, " finds", dim)
+
+	row++
+	entries, mark, world := g.shownBoard()
+	where := " on the leaderboard"
+	rank := r.rank
+	if world {
+		where, rank = " in the world", g.worldRank
+	}
+	switch {
+	case g.worldState != worldNone && g.worldRank == -1:
+		cv.text(lx, row, "Sending the score to the world's board…", dim)
+	case rank == 1 && world:
+		cv.text(lx, row, "The best score in the world!", hudStyle(hudLemon, bg))
+	case rank == 1:
+		cv.text(lx, row, "A new best score!", hudStyle(hudLemon, bg))
+	case rank > 0:
+		cx = cv.text(lx, row, "Number ", val)
+		cx = cv.number(cx, row, rank, hudStyle(hudLemon, bg))
+		cv.text(cx, row, where, val)
+	case g.worldState == worldOffline:
+		cv.text(lx, row, "The world's board did not answer", dim)
+	default:
+		cv.text(lx, row, "Not on the leaderboard this time", dim)
+	}
+
+	g.boardTitle(cv, lx, y+9, world, false) // the line above says how the sending went
+	cv.text(lx+16, y+9, "score  time  aim", dim)
+	g.drawBoard(cv, lx-1, y+10, 5, mark, entries)
+	cv.centered(y+h-2, "R play again · ESC quit", dim)
 }
