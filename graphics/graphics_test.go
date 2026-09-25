@@ -145,6 +145,39 @@ func TestResizeImage_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestEncodeSixelMapsColoursPastThePaletteToTheNearest(t *testing.T) {
+	// The first row fills all 256 palette entries, the last being white; the
+	// second band is a near-white the palette has no room for. It must be
+	// drawn with white, not with entry 0.
+	img := image.NewRGBA(image.Rect(0, 0, 256, 12))
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 256; x++ {
+			c := color.RGBA{A: 255}
+			switch {
+			case y >= 6:
+				c = color.RGBA{R: 250, G: 250, B: 250, A: 255}
+			case y == 0 && x == 255:
+				c = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+			case y == 0:
+				c.R = uint8(x)
+			}
+			img.SetRGBA(x, y, c)
+		}
+	}
+	out := EncodeSixel(img, 32, 1, 8, 12, false)
+	bands := strings.Split(out, "-")
+	if len(bands) < 2 {
+		t.Fatalf("expected two sixel bands, got %q", out)
+	}
+	second := bands[1]
+	if !strings.Contains(second, "#255") {
+		t.Errorf("near-white band does not use the white entry #255: %q", second)
+	}
+	if strings.Contains(second, "#0!") || strings.Contains(second, "#0~") {
+		t.Errorf("near-white band fell back to entry 0: %q", second)
+	}
+}
+
 func TestEncodeSixel_Transparent(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	// Set half transparent, half opaque
@@ -157,6 +190,62 @@ func TestEncodeSixel_Transparent(t *testing.T) {
 	}
 	if !strings.HasSuffix(sixel, "\x1b\\") {
 		t.Fatalf("expected sixel terminator, got %q", sixel)
+	}
+}
+
+func TestBuildPaletteMatchesRGBAModel(t *testing.T) {
+	bounds := image.Rect(3, 5, 5, 7)
+	rgba := image.NewRGBA(bounds)
+	rgba.SetRGBA(3, 5, color.RGBA{R: 200, G: 120, B: 80, A: 128})
+	rgba.SetRGBA(4, 5, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	nrgba := image.NewNRGBA(bounds)
+	nrgba.SetNRGBA(3, 5, color.NRGBA{R: 200, G: 120, B: 80, A: 128})
+	nrgba.SetNRGBA(4, 5, color.NRGBA{R: 10, G: 20, B: 30, A: 255})
+	gray := image.NewGray(bounds)
+	gray.SetGray(3, 5, color.Gray{Y: 80})
+	gray.SetGray(4, 5, color.Gray{Y: 160})
+	ycbcr := image.NewYCbCr(bounds, image.YCbCrSubsampleRatio444)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			ycbcr.Y[ycbcr.YOffset(x, y)] = uint8(80 + 20*x + 10*y)
+			c := ycbcr.COffset(x, y)
+			ycbcr.Cb[c], ycbcr.Cr[c] = 128, 128
+		}
+	}
+
+	images := []struct {
+		name string
+		img  image.Image
+	}{
+		{name: "RGBA", img: rgba},
+		{name: "NRGBA", img: nrgba},
+		{name: "Gray", img: gray},
+		{name: "YCbCr", img: ycbcr},
+	}
+	for _, tc := range images {
+		t.Run(tc.name, func(t *testing.T) {
+			var want color.Palette
+			seen := make(map[color.Color]struct{})
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					c := color.RGBAModel.Convert(tc.img.At(x, y))
+					if _, ok := seen[c]; !ok {
+						want = append(want, c)
+						seen[c] = struct{}{}
+					}
+				}
+			}
+
+			got := buildPalette(tc.img, 256)
+			if len(got) != len(want) {
+				t.Fatalf("palette length = %d, want %d", len(got), len(want))
+			}
+			for i := range want {
+				if got[i] != want[i] {
+					t.Errorf("palette[%d] = %#v, want %#v", i, got[i], want[i])
+				}
+			}
+		})
 	}
 }
 
