@@ -26,7 +26,7 @@ import (
 )
 
 // defaultBoard is the shared leaderboard the game ships with: the
-// scoreboard server (apps/scoreboard) on Render. Empty until it is up; the
+// scoreboard (apps/scoreboard) on Vercel. Empty until it is up; the
 // browser's is set in examples/wasm/index.html.
 const defaultBoard = ""
 

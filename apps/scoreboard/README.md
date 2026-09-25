@@ -1,8 +1,10 @@
 # Scoreboard
 
-Lemon Hunt's shared leaderboard: a small HTTP server that takes each finished
-run and hands back the best ten. It is a module of its own, so none of it,
-and none of its Postgres driver, reaches anyone who imports Limoni.
+Lemon Hunt's shared leaderboard: it takes each finished run and hands back
+the best ten. It runs as two Vercel functions over a free Neon database, or
+as one long-running server, from the same handler. It is a module of its
+own, so none of it, and none of its Postgres driver, reaches anyone who
+imports Limoni.
 
 | | |
 | :-- | :-- |
@@ -10,30 +12,37 @@ and none of its Postgres driver, reaches anyone who imports Limoni.
 | `POST /scores` | a run, as `{"name", "won", "secs", "shots", "hits", "kills", "lemons"}`; answers `{"rank", "board"}` |
 | `GET /healthz` | `ok` |
 
+| | |
+| :-- | :-- |
+| `board/` | the rules, the HTTP handler, and the stores: `PG` (Postgres) and `Mem` (memory, and a file) |
+| `api/scores`, `api/healthz` | the Vercel functions; `vercel.json` sends `/scores` and `/healthz` to them |
+| `main.go` | the long-running server, for Render, Railway or a machine of one's own |
+
 The server works the score out itself, with the game's rules (aim, time, rats
 and lemons; see [the game's README](../lemonhunt/README.md#score-and-leaderboard)),
 and turns away runs the game could not have produced: more hits than squirts,
 a win without ten lemons or in under 20 seconds, more rats than the level and
 Ratatui hold. Names are cut to 12 characters of what the game can show. One
-address may send 6 runs a minute. Anyone can still send a run they did not
-play: the page is public and the game runs in the player's browser, so there
-is nothing to prove a run was played. This keeps the board plausible, not
-honest.
+address may send 6 runs a minute, counted in the database, so it holds
+across however many copies of the function are running. Anyone can still
+send a run they did not play: the page is public and the game runs in the
+player's browser, so there is nothing to prove a run was played. This keeps
+the board plausible, not honest.
 
 It keeps the best hundred runs, in the first of these that is set:
 
 | Variable | |
 | :-- | :-- |
-| `DATABASE_URL` | a Postgres database: one table, `runs`, made on start |
-| `DATA_DIR` | a directory for `scores.json`, on a disk that outlives the process; `RAILWAY_VOLUME_MOUNT_PATH` counts too |
-| neither | memory only: gone at the next restart |
+| `DATABASE_URL` | a Postgres database: tables `runs` and `posts`, made on first use. Vercel's Neon integration sets it |
+| `DATA_DIR` | (long-running server only) a directory for `scores.json`, on a disk that outlives the process; `RAILWAY_VOLUME_MOUNT_PATH` counts too |
+| neither | (long-running server only) memory: gone at the next restart |
 
 and also reads:
 
 | Variable | |
 | :-- | :-- |
-| `PORT` | where to listen; Render and Railway set it |
 | `ALLOWED_ORIGINS` | pages a browser may call it from, comma-separated, or `*`; `https://thebanri.github.io` by default |
+| `PORT` | (long-running server) where to listen; Render and Railway set it |
 
 ## Running it
 
@@ -47,50 +56,54 @@ Point the game at it with `lemonhunt -board http://localhost:8080`, or the
 browser playground with `?app=lemonhunt&board=http://localhost:8080` (and
 `ALLOWED_ORIGINS=*` on the server, for a page served from elsewhere).
 
-## Deploying for free: Render and Neon
+## Deploying for free: Vercel and Neon
 
-Render's free web services have no disk that outlives a restart, and its
-free Postgres is deleted after 30 days, so the runs go to a free
-[Neon](https://neon.com) database instead, which does not expire.
+Both have free plans that do not expire: Vercel's Hobby plan (for
+non-commercial projects, which this is) and Neon's Free plan.
 
-1. **Neon.** Sign up, create a project, and copy its connection string
-   (`postgresql://…neon.tech/neondb?sslmode=require`) from the dashboard's
-   **Connect** button.
-2. **Render.** Sign up with GitHub, then **New → Web Service**, and pick this
-   repository.
-   - **Root Directory**: `apps/scoreboard`. Render finds the `Dockerfile`
-     there and builds it.
-   - **Instance Type**: Free.
-   - **Environment Variables**: `DATABASE_URL` = the Neon string.
-   - Under **Advanced**, **Health Check Path**: `/healthz`, and **Build
-     Filters** → included paths: `apps/scoreboard/**`, so that changes
-     elsewhere in the repository do not redeploy it.
-3. Once it is live, `https://<name>.onrender.com/healthz` should say `ok`.
+1. **Vercel.** Sign up with GitHub, then **Add New → Project**, and import
+   this repository.
+   - **Root Directory**: `apps/scoreboard`. Vercel finds the Go functions in
+     `api/` and reads `vercel.json`.
+   - **Framework Preset**: Other. Leave the build and output settings as
+     they are; `vercel.json` names `public/` as the page to serve.
+   - Deploy. The first deploy has no database yet, so `/scores` answers 503;
+     that is expected.
+2. **Neon.** In the Vercel project, **Storage → Create Database → Neon**
+   (or connect an existing Neon project from the Marketplace). This sets
+   `DATABASE_URL` on the project. Then **Deployments → ⋯ → Redeploy**, so
+   the functions start with it.
+3. `https://<project>.vercel.app/healthz` should say `ok`, and
+   `https://<project>.vercel.app/scores` `{"board":[]}`.
 4. Put that address in `apps/lemonhunt/main.go` (`defaultBoard`) and in
    `examples/wasm/index.html` (`scoreboard:` under `lemonhunt`), and push.
    The playground is rebuilt from `main` and uses it from then on.
 
-What free costs:
+In **Settings → Git**, an **Ignored Build Step** of
+`git diff --quiet HEAD^ HEAD -- .` keeps changes elsewhere in the repository
+from redeploying it.
 
-- A free Render service sleeps after 15 minutes with no requests, and the
-  first request after that waits for it to wake, up to a minute. The game
-  asks off the frame and says it is connecting meanwhile, and the playground
-  knocks on `/healthz` as soon as the page opens, while the module is still
-  loading, so the wait is mostly over by the time a run ends.
-- Neon's free database also sleeps when idle and wakes in a moment; the
-  server waits up to 30 seconds for it.
-- Render gives a workspace 750 free instance hours a month: one service,
-  awake all month, is 720.
+Two things this was not able to check before it was written, having no
+Vercel account to try it on: the Go version Vercel builds with (the module
+asks for Go 1.25; if the build says otherwise, that is the place to look),
+and the exact names of Vercel's menus. The handler and the Postgres store
+are tested against a real Postgres in CI, and the function itself is called
+the way Vercel calls it (`api/scores/index_test.go`).
 
-## Deploying on Railway instead
+Neon's free database sleeps when idle and takes a moment to wake; the first
+request after a quiet spell waits for it, and the playground knocks on
+`/healthz` as the page opens to get ahead of that.
 
-Railway runs the same `Dockerfile` (with `railway.toml` for its settings) and
-can give the service a volume, so no database is needed: set the service's
-**Root Directory** to `apps/scoreboard`, add a volume mounted at `/data`
-(Railway tells the server where it is), and **Generate Domain**. Railway's
-free plan is $1 of usage a month, which this server's few megabytes of
-memory fit inside, after a 30-day trial.
+## Deploying elsewhere: Render or Railway
 
-Hosts rename their menus from time to time; if a step is not where this
-says, their docs use the same words: root directory, environment variable,
-health check, volume, domain.
+The long-running server runs the same handler from the `Dockerfile`.
+
+- **Render**: a free web service, Root Directory `apps/scoreboard`,
+  `DATABASE_URL` set to a Neon database (Render's free disk does not outlive
+  a restart, and its free Postgres is deleted after 30 days), and a health
+  check on `/healthz`. It sleeps after 15 minutes with no requests and takes
+  up to a minute to wake.
+- **Railway**: Root Directory `apps/scoreboard` (`railway.toml` is read from
+  there), a volume mounted at `/data` and no database needed, and a
+  generated domain. Its free plan is $1 of usage a month after a 30-day
+  trial, which this server's few megabytes of memory fit inside.
