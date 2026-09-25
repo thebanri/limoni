@@ -8,6 +8,12 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- `apps/lemonhunt`, a short first-person game in its own module: a
+  half-block raycaster with lit textures, pixel-art rats, a boss, 3D half
+  lemons, particles and synthesised stereo sound, at 0 allocations a frame
+  through the diff. It holds keys with `WithKeyReleases`.
+
 ## [v0.9.2] — 2026-09-25
 
 ### Added

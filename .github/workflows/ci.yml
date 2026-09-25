@@ -202,6 +202,26 @@ jobs:
           go -C "$work/globe" test ./...
           echo "ok   the globe builds against this checkout as well as against the release"
 
+      # Lemon Hunt, the ASCII raycaster, is checked the same way. Its tests
+      # include the claim it makes: a frame, through the diff, allocates
+      # nothing.
+      - name: apps/lemonhunt
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/lemonhunt vet ./...
+          go -C apps/lemonhunt test ./...
+          test -z "$(gofmt -l apps/lemonhunt)" || { gofmt -l apps/lemonhunt; exit 1; }
+
+          work=$(mktemp -d)
+          cp -r apps/lemonhunt "$work/lemonhunt"
+          go -C "$work/lemonhunt" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemonhunt" mod tidy
+          go -C "$work/lemonhunt" build ./...
+          go -C "$work/lemonhunt" test ./...
+          echo "ok   lemonhunt builds against this checkout as well as against the release"
+
       # Neither the globe nor the README images may reach anyone who imports
       # Limoni: both are modules of their own, and this is the check that says
       # so about the zip the proxy would actually serve.
@@ -210,7 +230,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe assets tools/limonivet; do
+          for dir in apps/globe apps/lemonhunt assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"

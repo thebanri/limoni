@@ -131,6 +131,7 @@ The package was renamed to `core/engine`; that doc is stale in places.
 | `cmd/limoni-mcp` | MCP bridge from agents to the automation socket |
 | `benchmarks` | Harness plus the cross-framework runners |
 | `apps/globe` | A searchable, zoomable ASCII globe — a separate module, so it ships to nobody |
+| `apps/lemonhunt` | A short raycaster game in half blocks (rats, lemons, Ratatui as the boss), with synthesised sound — its own module, 0 allocs per frame through the diff |
 
 ---
 
@@ -253,6 +254,10 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    Level 1 leaves Enter, Tab and Backspace legacy by design, so Shift+Enter is
    still plain Enter; going further (level 8) needs flag 4 and IME text, and
    breaks AltGr layouts if done carelessly. Not yet used: the DA1 sixel bit.
+   `WithKeyReleases` / `SetKeyReleases` push flags 3 instead (event types):
+   presses arrive as before, repeats and releases as `CSI …;mods:2|3 u` or
+   `CSI 1;mods:3 A`, parsed into `KeyEvent.Repeat`/`Release`. Opt-in only — to
+   an application that did not ask, a release would read as a second press.
 
    To drive a real kitty from a test run: `kitty -o allow_remote_control=yes
    --listen-on unix:/tmp/x.sock app`, then `kitty @ --to unix:/tmp/x.sock
