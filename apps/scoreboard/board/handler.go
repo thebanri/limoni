@@ -67,12 +67,24 @@ func Health() http.Handler {
 	})
 }
 
-// New serves the whole board, for a long-running server: /scores and
-// /healthz.
+// New serves the whole board as one server: /scores and /healthz, and a
+// line of text at /.
+//
+// On Vercel this is what runs: its Go preset finds main.go and runs the
+// server, and vercel.json's rewrites, kept for the api/ functions, hand it
+// the rewritten path — /api/healthz for /healthz. So the server answers on
+// both.
 func New(c Config) http.Handler {
+	scores, health := Scores(c), Health()
 	mux := http.NewServeMux()
-	mux.Handle("/scores", Scores(c))
-	mux.Handle("/healthz", Health())
+	mux.Handle("/scores", scores)
+	mux.Handle("/api/scores", scores)
+	mux.Handle("/healthz", health)
+	mux.Handle("/api/healthz", health)
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("Lemon Hunt's shared leaderboard. The best ten are at /scores.\n"))
+	})
 	return mux
 }
 

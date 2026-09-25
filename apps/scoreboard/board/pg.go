@@ -2,6 +2,7 @@ package board
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -61,6 +62,58 @@ func OpenPG(ctx context.Context, url string) (*PG, error) {
 
 // Close lets go of the database.
 func (p *PG) Close() { p.pool.Close() }
+
+// LazyPG is a PG opened on first use. A server that opened its database as
+// it started would not start at all while the database was out of reach,
+// and on Vercel every request, /healthz too, would fail with it; this one
+// starts, answers /healthz, says the board is not available, and tries the
+// database again on the next request.
+type LazyPG struct {
+	url string
+	mu  sync.Mutex
+	pg  *PG
+}
+
+// NewLazyPG returns a store for the database at url, not yet opened.
+func NewLazyPG(url string) *LazyPG { return &LazyPG{url: url} }
+
+func (l *LazyPG) get(ctx context.Context) (*PG, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.pg != nil {
+		return l.pg, nil
+	}
+	pg, err := OpenPG(ctx, l.url)
+	if err != nil {
+		return nil, err
+	}
+	l.pg = pg
+	return pg, nil
+}
+
+func (l *LazyPG) Top(ctx context.Context, n int) ([]Entry, error) {
+	pg, err := l.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pg.Top(ctx, n)
+}
+
+func (l *LazyPG) Add(ctx context.Context, e Entry) (int, error) {
+	pg, err := l.get(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return pg.Add(ctx, e)
+}
+
+func (l *LazyPG) Allow(ctx context.Context, addr string, now time.Time) (bool, error) {
+	pg, err := l.get(ctx)
+	if err != nil {
+		return false, err
+	}
+	return pg.Allow(ctx, addr, now)
+}
 
 // order is the board's order: the higher score, then the run made first,
 // then the row made first.
