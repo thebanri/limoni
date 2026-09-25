@@ -401,10 +401,10 @@ var (
 func init() {
 	for i := range ratWalk {
 		ratWalk[i] = drawRat(float64(i)*math.Pi/2, false, hex(0x9a9296), 1)
-		fatWalk[i] = drawRat(float64(i)*math.Pi/2, false, hex(0xa07852), 1.25)
+		fatWalk[i] = drawRat(float64(i)*math.Pi/2, false, hex(0xa07852), 1.3)
 	}
 	ratLunge = drawRat(0, true, hex(0x9a9296), 1)
-	fatLunge = drawRat(0, true, hex(0xa07852), 1.25)
+	fatLunge = drawRat(0, true, hex(0xa07852), 1.3)
 	bossIdle[0] = drawBoss(0, false)
 	bossIdle[1] = drawBoss(1, false)
 	bossRage = drawBoss(0, true)
@@ -414,48 +414,106 @@ func init() {
 	gunFire = drawGun(true)
 }
 
-// drawRat draws a rat side on, facing right, mid-stride at phase.
+// drawRat draws a rat that walks upright, like a small man: facing the
+// player, in a torn waistcoat (an apron for the fat one), arms swinging
+// against the legs at phase. Biting, it lunges with its claws up and its
+// mouth open. Standing, it is tall enough to look the player in the eye, so
+// it stays in sight when it comes close.
 func drawRat(phase float64, biting bool, fur rgb, fat float64) *sprite {
-	s := newSprite(44, 26)
+	s := newSprite(40, 62)
 	pink := hex(0xd88c98)
-	gy := 25.0
-	// Tail, curling behind.
-	for i := 0; i < 14; i++ {
-		t := float64(i) / 13
-		x := 12 - t*12
-		y := 18 - t*4 + math.Sin(t*4+phase)*2
-		s.put(int(x), int(y), pink.mul(0.8), 0)
-		s.put(int(x), int(y)+1, pink.mul(0.6), 0)
+	belly := fur.mix(hex(0xc8bcb4), 0.45)
+	cloth := hex(0x5a4630) // a waistcoat, gone brown in the sewer
+	if fat > 1 {
+		cloth = hex(0x8a8070) // an apron, once white
 	}
-	// Legs, two pairs moving opposite each other.
-	for k, lx := range [4]float64{13, 17, 27, 31} {
-		off := math.Sin(phase+float64(k%2)*math.Pi) * 2
-		s.line(lx, 20, lx+off, gy, 2, pink.mul(0.7), 0)
-	}
-	bodyY := 16 - (fat-1)*6
-	s.ellipse(22, bodyY, 11*fat, 6*fat, fur, 0)
-	s.ellipse(22, bodyY+2.5*fat, 8*fat, 3*fat, fur.mix(hex(0xb8aca8), 0.35), 0) // belly
-	hx, hy := 33.0, 13.0-(fat-1)*5
+	cx := 20.0
+	bob := math.Abs(math.Sin(phase)) * 1.2 // up on each step
 	if biting {
-		hx, hy = 35, 15-(fat-1)*5
+		bob = -1.5 // leaning in
 	}
-	s.ellipse(hx, hy, 6.2, 5, fur, 0)
-	s.ellipse(hx+5, hy+1.6, 3.2, 2.4, fur.mix(hex(0xc8bcb8), 0.4), 0) // snout
-	s.flat(hx+8, hy+1.2, 1.3, 1.2, pink, 0)                           // nose
-	s.ellipse(hx-3, hy-4.5, 3.2, 3.2, fur, 0)                         // ear
-	s.flat(hx-3, hy-4.3, 1.8, 1.8, pink, 0)
+	top := 2 - bob
+
+	// Tail, sweeping out behind to one side.
+	for i := 0; i < 24; i++ {
+		t := float64(i) / 23
+		x := cx + 6 + t*13 + math.Sin(t*3+phase)*1.5
+		y := 44 + t*8 - math.Sin(t*math.Pi)*6
+		s.put(int(x), int(y), pink.mul(0.7), 0)
+		s.put(int(x), int(y)+1, pink.mul(0.55), 0)
+	}
+
+	// Legs: bent like a rat's, one lifting while the other takes the weight.
+	for k, side := range [2]float64{-1, 1} {
+		lift := math.Max(0, math.Sin(phase+float64(k)*math.Pi)) * 4
+		hx, hy := cx+side*5*fat, 42+top
+		kx, ky := hx+side*2, 50+top-lift*0.5
+		fx, fy := hx+side*1, 58-lift
+		s.line(hx, hy, kx, ky, 4.5*fat, fur.mul(0.85), 0)
+		s.line(kx, ky, fx, fy, 3.2, fur.mul(0.8), 0)
+		s.ellipse(fx+side*1.5, fy+1.5, 3.4, 1.8, pink.mul(0.85), 0) // foot
+	}
+
+	// Body: fur, a pale belly, and the clothes over it.
+	bw, bh := 9.0*fat, 13.0
+	by := 33 + top
+	s.ellipse(cx, by, bw, bh, fur, 0)
+	if fat > 1 {
+		s.rect(int(cx-bw*0.75), int(by-4), int(cx+bw*0.75), int(by+bh-2), cloth, 0)
+		s.rect(int(cx-2), int(by-9), int(cx+2), int(by-4), cloth, 0) // the bib
+		s.rect(int(cx-bw*0.75), int(by+2), int(cx+bw*0.75), int(by+2), cloth.mul(0.6), 0)
+	} else {
+		s.ellipse(cx, by+2, bw*0.55, bh*0.75, belly, 0)
+		for _, side := range [2]float64{-1, 1} { // the waistcoat's two halves
+			for y := by - 9; y < by+bh-3; y++ {
+				x0 := cx + side*(bw*0.35+(y-by+9)*0.05)
+				x1 := cx + side*bw*0.95
+				s.line(x0, y, x1, y, 1, cloth, 0)
+			}
+			s.put(int(cx+side*bw*0.5), int(by+bh-2), cloth.mul(0.8), 0) // ragged hem
+		}
+		s.put(int(cx-bw*0.3), int(by-2), hex(0xb89040), 0) // a button
+		s.put(int(cx-bw*0.3), int(by+3), hex(0xb89040), 0)
+	}
+
+	// Arms swing against the legs; biting, both come up with the claws out.
+	for k, side := range [2]float64{-1, 1} {
+		sx, sy := cx+side*(bw-1), by-8
+		hx := sx + side*3 + math.Sin(phase+float64(k)*math.Pi+math.Pi)*2
+		hy := sy + 13
+		if biting {
+			hx, hy = cx+side*6, top+14
+		}
+		s.line(sx, sy, hx, hy, 3.6, fur.mul(0.9), 0)
+		s.ellipse(hx, hy, 2.2, 2, pink, 0)
+		for c := -1.0; c <= 1; c++ { // claws
+			s.put(int(hx+c), int(hy+2), hex(0xe8e0d0), 0)
+		}
+	}
+
+	// Head: ears, a long snout, teeth.
+	hy := top + 12
+	for _, side := range [2]float64{-1, 1} {
+		s.ellipse(cx+side*8, hy-7, 4.5, 4.5, fur, 0)
+		s.flat(cx+side*8, hy-6.5, 2.6, 2.6, pink, 0)
+	}
+	s.ellipse(cx, hy, 8.5, 7.5, fur, 0)
+	s.ellipse(cx, hy+6, 4.8, 4, belly, 0) // snout
+	s.flat(cx, hy+8.2, 1.8, 1.3, pink, 0) // nose
 	if biting {
-		s.rect(int(hx+4), int(hy+4), int(hx+7), int(hy+4), hex(0x300808), 0)
-		s.put(int(hx+5), int(hy+4), hex(0xf0f0e8), 0)
-		s.put(int(hx+7), int(hy+4), hex(0xf0f0e8), 0)
+		s.flat(cx, hy+11, 3.2, 2, hex(0x300808), 0)
 	}
+	s.rect(int(cx-1), int(hy+10), int(cx), int(hy+12), hex(0xf2eee0), 0) // teeth
 	s.outline()
-	// Eye and whiskers go on after the outline: they are the details that
+
+	// Eyes and whiskers go on after the outline: they are the details that
 	// have to stay bright.
-	s.flat(hx+1.5, hy-1, 1.3, 1.3, hex(0xff3020), 1)
-	s.put(int(hx+2), int(hy-2), hex(0xffffff), 1)
-	s.line(hx+6, hy+2, hx+10, hy+0.5, 1, hex(0xc8c8c8), 0)
-	s.line(hx+6, hy+3, hx+10, hy+4, 1, hex(0xc8c8c8), 0)
+	for _, side := range [2]float64{-1, 1} {
+		s.flat(cx+side*3.4, hy-1.5, 1.6, 1.6, hex(0xff3020), 1)
+		s.put(int(cx+side*3.4-0.5), int(hy-2.5), hex(0xffffff), 1)
+		s.line(cx+side*3, hy+7, cx+side*11, hy+5, 1, hex(0xc8c8c8), 0)
+		s.line(cx+side*3, hy+8, cx+side*11, hy+9, 1, hex(0xc8c8c8), 0)
+	}
 	return s
 }
 
