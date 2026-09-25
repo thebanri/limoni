@@ -206,11 +206,12 @@ func (s *CodeViewState) SetSource(src string, lang *Language) {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	var open string // closer of the block comment or raw string still open
 	openKind := TokenPlain
+	openDepth := 0
 	for _, raw := range strings.Split(src, "\n") {
 		text := expandTabs(raw, 4)
 		var spans []codeSpan
 		if lang != nil {
-			spans, open, openKind = lexLine(text, lang, open, openKind)
+			spans, open, openKind, openDepth = lexLine(text, lang, open, openKind, openDepth)
 		}
 		s.lines = append(s.lines, codeLine{text: text, spans: spans})
 	}
@@ -244,8 +245,8 @@ func isIdentRune(r rune) bool {
 
 // lexLine splits one line into spans. open is the closer of a block comment
 // or raw string carried in from the previous line; the returned open is the
-// one carried out of this line.
-func lexLine(text string, lang *Language, open string, openKind TokenKind) ([]codeSpan, string, TokenKind) {
+// one carried out of this line. openDepth tracks nested block comments.
+func lexLine(text string, lang *Language, open string, openKind TokenKind, openDepth int) ([]codeSpan, string, TokenKind, int) {
 	var spans []codeSpan
 	add := func(start, end int, kind TokenKind) {
 		if start >= end {
@@ -259,26 +260,47 @@ func lexLine(text string, lang *Language, open string, openKind TokenKind) ([]co
 	}
 	i := 0
 	if open != "" {
-		end := strings.Index(text, open)
-		if end < 0 {
-			add(0, len(text), openKind)
-			return spans, open, openKind
+		if openKind == TokenComment && lang.Name == "rust" {
+			end, depth, closed := scanNestedBlockComment(text, 0, lang.BlockComment, openDepth)
+			add(0, end, openKind)
+			if !closed {
+				return spans, open, openKind, depth
+			}
+			i = end
+			open = ""
+			openDepth = 0
+		} else {
+			end := strings.Index(text, open)
+			if end < 0 {
+				add(0, len(text), openKind)
+				return spans, open, openKind, openDepth
+			}
+			i = end + len(open)
+			add(0, i, openKind)
+			open = ""
+			openDepth = 0
 		}
-		i = end + len(open)
-		add(0, i, openKind)
-		open = ""
 	}
 	for i < len(text) {
 		rest := text[i:]
 		if lc := hasAnyPrefix(rest, lang.LineComments); lc {
 			add(i, len(text), TokenComment)
-			return spans, "", TokenPlain
+			return spans, "", TokenPlain, 0
 		}
 		if bc := lang.BlockComment; bc[0] != "" && strings.HasPrefix(rest, bc[0]) {
+			if lang.Name == "rust" {
+				end, depth, closed := scanNestedBlockComment(text, i+len(bc[0]), bc, 1)
+				add(i, end, TokenComment)
+				if !closed {
+					return spans, bc[1], TokenComment, depth
+				}
+				i = end
+				continue
+			}
 			end := strings.Index(rest[len(bc[0]):], bc[1])
 			if end < 0 {
 				add(i, len(text), TokenComment)
-				return spans, bc[1], TokenComment
+				return spans, bc[1], TokenComment, 1
 			}
 			stop := i + len(bc[0]) + end + len(bc[1])
 			add(i, stop, TokenComment)
@@ -289,7 +311,7 @@ func lexLine(text string, lang *Language, open string, openKind TokenKind) ([]co
 			end := strings.Index(rest[len(rs[0]):], rs[1])
 			if end < 0 {
 				add(i, len(text), TokenString)
-				return spans, rs[1], TokenString
+				return spans, rs[1], TokenString, 0
 			}
 			stop := i + len(rs[0]) + end + len(rs[1])
 			add(i, stop, TokenString)
@@ -356,7 +378,27 @@ func lexLine(text string, lang *Language, open string, openKind TokenKind) ([]co
 			i += size
 		}
 	}
-	return spans, "", TokenPlain
+	return spans, "", TokenPlain, 0
+}
+
+func scanNestedBlockComment(text string, start int, delimiters [2]string, depth int) (int, int, bool) {
+	for i := start; i < len(text); {
+		switch {
+		case strings.HasPrefix(text[i:], delimiters[0]):
+			depth++
+			i += len(delimiters[0])
+		case strings.HasPrefix(text[i:], delimiters[1]):
+			depth--
+			i += len(delimiters[1])
+			if depth == 0 {
+				return i, 0, true
+			}
+		default:
+			_, size := utf8.DecodeRuneInString(text[i:])
+			i += size
+		}
+	}
+	return len(text), depth, false
 }
 
 func hasAnyPrefix(s string, prefixes []string) bool {
