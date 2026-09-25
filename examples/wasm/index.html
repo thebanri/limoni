@@ -85,7 +85,33 @@
     @media (min-width: 700px) {
       body.big .stage { max-width: max(1000px, calc((100vh - 232px) * 2)); }
       body.big #terminal { height: max(420px, calc(100vh - 232px)); }
+      /* With the leaderboard above the stage: 48px more of header. */
+      body.big.has-board #terminal { height: max(420px, calc(100vh - 280px)); }
+      body.big.has-board .stage,
+      body.big.has-board .board { max-width: max(1000px, calc((100vh - 280px) * 2)); }
     }
+
+    /* The world's best runs, from the scoreboard, in one line above the
+       game: a strip that scrolls sideways rather than wrapping, so it is the
+       same height whatever the names. */
+    .board {
+      width: 100%; max-width: 1000px; margin: -8px 0 14px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      font: 13px ui-monospace, Menlo, Monaco, monospace; color: var(--muted);
+    }
+    .board[hidden] { display: none; }
+    .board-title { color: #ffd82a; font-weight: 700; white-space: nowrap; }
+    .board ol {
+      list-style: none; display: flex; gap: 8px; min-width: 0;
+      overflow-x: auto; white-space: nowrap; scrollbar-width: thin;
+    }
+    .board li {
+      background: #161b22; border: 1px solid var(--border); border-radius: 999px;
+      padding: 3px 11px; color: var(--text);
+    }
+    .board li.first { border-color: rgba(255, 216, 42, 0.55); }
+    .board li .score { color: #ffd82a; margin-left: 6px; }
+    .board .board-note { white-space: nowrap; }
 
     button.full-toggle {
       appearance: none; cursor: pointer; margin-left: 12px;
@@ -174,6 +200,12 @@
       <code>GOOS=js GOARCH=wasm</code> and pointed at xterm.js.
     </p>
   </header>
+
+  <section class="board" id="board" hidden aria-live="polite">
+    <span class="board-title">🏆 World best</span>
+    <ol id="board-list"></ol>
+    <span class="board-note" id="board-note"></span>
+  </section>
 
   <div class="stage">
     <div class="stage-header">
@@ -266,13 +298,51 @@
     const app = apps[params.get('app')] || apps.playground;
     // Read by the game (apps/lemonhunt/remote_js.go) when it starts.
     window.__lemonhunt_scoreboard = params.get('board') || app.scoreboard || '';
-    // A free host lets the scoreboard sleep when nobody has called it for a
-    // while: a Vercel function and a Neon database take a moment to wake, a
-    // Render service up to a minute. Knocking now, while the page and the
-    // module load, gets that out of the way.
+    // The world's best, above the game. Fetched when the page opens, which
+    // also wakes a sleeping scoreboard (a Vercel function and a Neon
+    // database take a moment, a Render service up to a minute) while the
+    // module loads; again when the game has sent a run
+    // (__lemonhunt_board_changed, from apps/lemonhunt/remote_js.go); and
+    // when the tab comes back into view. Not on a timer: a page left open
+    // would keep the free database awake all day.
     if (app === apps.lemonhunt && window.__lemonhunt_scoreboard) {
-      // no-cors: the answer is not read, only the knock matters.
-      fetch(window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/healthz', { mode: 'no-cors' }).catch(() => {});
+      const scoresURL = window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/scores';
+      const boardEl = document.getElementById('board');
+      const list = document.getElementById('board-list');
+      const note = document.getElementById('board-note');
+      const medals = ['🥇', '🥈', '🥉'];
+      const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+      function showBoard(runs) {
+        list.replaceChildren(...runs.map((run, i) => {
+          const li = document.createElement('li');
+          if (i === 0) { li.className = 'first'; }
+          li.title = `${run.won ? 'won' : 'lost'} in ${clock(run.secs)}, ${run.aim}% aim`;
+          // textContent, never innerHTML: the names are the players'.
+          li.append(`${medals[i] || (i + 1) + '.'} ${run.name}`);
+          const score = document.createElement('span');
+          score.className = 'score';
+          score.textContent = run.score;
+          li.append(score);
+          return li;
+        }));
+        note.textContent = runs.length ? '' : 'no runs yet: be the first';
+      }
+      async function loadBoard() {
+        try {
+          const response = await fetch(scoresURL, { cache: 'no-store' });
+          if (!response.ok) { throw new Error(response.status); }
+          showBoard((await response.json()).board || []);
+        } catch (err) {
+          if (!list.children.length) { note.textContent = 'the board is not answering'; }
+        }
+      }
+      document.body.classList.add('has-board');
+      boardEl.hidden = false;
+      loadBoard();
+      window.__lemonhunt_board_changed = loadBoard;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') { loadBoard(); }
+      });
     }
     if (app.title) { document.title = app.title; }
     // Before the terminal is made, so its first fit is to the large box.
