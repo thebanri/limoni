@@ -72,6 +72,9 @@ func (r *remote) answer(a remoteAnswer, body []byte, err error) {
 		}
 	}
 	a.err = err
+	if a.sent && err == nil {
+		boardChanged()
+	}
 	select {
 	case r.answers <- a:
 	default: // nobody is reading: drop it rather than leak the goroutine

@@ -36,6 +36,9 @@ func httpDo(method, url string, body []byte) ([]byte, error) {
 	return data, err
 }
 
+// boardChanged has nobody to tell outside a browser; see remote_js.go.
+func boardChanged() {}
+
 // boardURL is the shared leaderboard's address: -board, or LEMONHUNT_BOARD,
 // or the one the game ships with. "off" keeps the scores on this machine.
 func boardURL(flag string) string {

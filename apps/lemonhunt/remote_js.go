@@ -51,6 +51,16 @@ func httpDo(method, url string, body []byte) ([]byte, error) {
 	return data, err
 }
 
+// boardChanged tells the page a run has reached the shared board, so that
+// the leaderboard it shows above the game can fetch it again. The page
+// leaves the function at window.__lemonhunt_board_changed; without it, as
+// under Node, nothing happens.
+func boardChanged() {
+	if f := js.Global().Get("__lemonhunt_board_changed"); f.Type() == js.TypeFunction {
+		f.Invoke()
+	}
+}
+
 // boardURL is the shared leaderboard's address, which the page leaves at
 // window.__lemonhunt_scoreboard; the flag has no say in a browser.
 func boardURL(string) string {
