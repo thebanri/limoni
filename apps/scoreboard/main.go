@@ -6,9 +6,10 @@
 //	                    "kills", "lemons"}; answers {"rank", "board"}
 //	GET  /healthz       ok
 //
-// On Vercel the same handler runs as two functions (api/scores and
-// api/healthz) instead; this is the long-running server, for Render,
-// Railway, or a machine of one's own.
+// This is what Vercel runs: its Go preset finds this main.go and runs the
+// server, listening on $PORT, as it does on Render, Railway, or a machine of
+// one's own. The api/ functions serve the same handler for a project set up
+// the older way, as functions.
 //
 // It keeps the best hundred runs in Postgres when DATABASE_URL names one,
 // or else in $DATA_DIR/scores.json, on a disk that outlives the process (a
@@ -22,7 +23,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"os"
@@ -37,11 +37,7 @@ func main() {
 	var store board.Store
 	dir := firstSet(os.Getenv("DATA_DIR"), os.Getenv("RAILWAY_VOLUME_MOUNT_PATH"))
 	if url := os.Getenv("DATABASE_URL"); url != "" {
-		pg, err := board.OpenPG(context.Background(), url)
-		if err != nil {
-			log.Fatalf("opening the database: %v", err)
-		}
-		store = pg
+		store = board.NewLazyPG(url) // opened on the first request that needs it
 		log.Print("keeping the board in Postgres")
 	} else {
 		path := ""
