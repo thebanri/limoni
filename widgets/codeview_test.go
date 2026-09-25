@@ -71,6 +71,39 @@ func TestLexPythonTripleQuotes(t *testing.T) {
 	}
 }
 
+func TestLexRustNestedBlockComments(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "same line",
+			src:  `/* outer /* inner /* deeper */ inner */ still comment */ let visible = true`,
+			want: []string{"/* outer /* inner /* deeper */ inner */ still comment */:comment let:kw visible:plain =:punct true:type"},
+		},
+		{
+			name: "across lines",
+			src:  "/* outer\n/* inner */\nstill comment */ let visible = true",
+			want: []string{"/* outer:comment", "/* inner */:comment", "still comment */:comment let:kw visible:plain =:punct true:type"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewCodeViewState(tc.src, LanguageRust)
+			if s.Lines() != len(tc.want) {
+				t.Fatalf("got %d lines, want %d", s.Lines(), len(tc.want))
+			}
+			for i, want := range tc.want {
+				if got := kinds(s.lines[i]); got != want {
+					t.Errorf("line %d:\n got %s\nwant %s", i+1, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestLanguageForFile(t *testing.T) {
 	for name, want := range map[string]*Language{"main.go": LanguageGo, "a.TSX": LanguageJavaScript, "x.rs": LanguageRust, "ci.yml": LanguageYAML, "README": nil} {
 		if got := LanguageForFile(name); got != want {
