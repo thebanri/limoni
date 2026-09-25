@@ -23,6 +23,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -34,25 +36,11 @@ import (
 )
 
 func main() {
-	var store board.Store
-	dir := firstSet(os.Getenv("DATA_DIR"), os.Getenv("RAILWAY_VOLUME_MOUNT_PATH"))
-	if url := os.Getenv("DATABASE_URL"); url != "" {
-		store = board.NewLazyPG(url) // opened on the first request that needs it
-		log.Print("keeping the board in Postgres")
-	} else {
-		path := ""
-		if dir != "" {
-			path = filepath.Join(dir, "scores.json")
-			log.Printf("keeping the board in %s", path)
-		} else {
-			log.Print("no DATABASE_URL or DATA_DIR: scores are kept in memory and lost on restart")
-		}
-		mem, err := board.OpenMem(path)
-		if err != nil {
-			log.Fatalf("reading the board: %v", err)
-		}
-		store = mem
+	store, where, err := storeFor(os.Getenv)
+	if err != nil {
+		log.Fatalf("reading the board: %v", err)
 	}
+	log.Print(where)
 	origins := board.Origins(os.Getenv("ALLOWED_ORIGINS"))
 	port := firstSet(os.Getenv("PORT"), "8080")
 	srv := &http.Server{
@@ -64,6 +52,43 @@ func main() {
 	}
 	log.Printf("scoreboard on :%s, browsers from %v", port, origins)
 	log.Fatal(srv.ListenAndServe())
+}
+
+// storeFor picks where the board is kept from the environment, and says so.
+//
+// On Vercel (which sets VERCEL) a board in memory would be a different
+// board in each copy of the server, and gone when the copy is: every run
+// sent would vanish, and an empty board would look just like a working
+// one. So there, with no DATABASE_URL, the board says it has no database
+// instead.
+func storeFor(getenv func(string) string) (board.Store, string, error) {
+	if url := getenv("DATABASE_URL"); url != "" {
+		// Opened on the first request that needs it.
+		return board.NewLazyPG(url), "keeping the board in Postgres", nil
+	}
+	if getenv("VERCEL") != "" {
+		return noDatabase{}, "no DATABASE_URL on Vercel: connect a Neon database (Storage) and redeploy", nil
+	}
+	dir := firstSet(getenv("DATA_DIR"), getenv("RAILWAY_VOLUME_MOUNT_PATH"))
+	if dir == "" {
+		mem, err := board.OpenMem("")
+		return mem, "no DATABASE_URL or DATA_DIR: scores are kept in memory and lost on restart", err
+	}
+	path := filepath.Join(dir, "scores.json")
+	mem, err := board.OpenMem(path)
+	return mem, "keeping the board in " + path, err
+}
+
+// noDatabase is the board on Vercel without a database: every request for
+// it fails, and the handler answers that the board is not available.
+type noDatabase struct{}
+
+var errNoDatabase = errors.New("DATABASE_URL is not set")
+
+func (noDatabase) Top(context.Context, int) ([]board.Entry, error) { return nil, errNoDatabase }
+func (noDatabase) Add(context.Context, board.Entry) (int, error)   { return 0, errNoDatabase }
+func (noDatabase) Allow(context.Context, string, time.Time) (bool, error) {
+	return false, errNoDatabase
 }
 
 func firstSet(v ...string) string {
