@@ -220,6 +220,9 @@ jobs:
           go -C "$work/lemonhunt" mod tidy
           go -C "$work/lemonhunt" build ./...
           go -C "$work/lemonhunt" test ./...
+          # The playground page serves it as WebAssembly too.
+          GOOS=js GOARCH=wasm go -C "$work/lemonhunt" vet ./...
+          GOOS=js GOARCH=wasm go -C "$work/lemonhunt" build -o /dev/null .
           echo "ok   lemonhunt builds against this checkout as well as against the release"
 
       # Neither the globe nor the README images may reach anyone who imports

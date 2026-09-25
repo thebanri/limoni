@@ -84,6 +84,12 @@ func main() {
 }
 
 func (g *game) key(k limoni.KeyEvent) {
+	// A release of any key, on any screen, proves the terminal reports them.
+	// The browser page sends one for the Enter that starts the game, so the
+	// first walk is already held exactly.
+	if k.Release {
+		g.exact = true
+	}
 	if k.Type == limoni.KeyEsc {
 		if !k.Release {
 			g.quit = true
@@ -109,11 +115,12 @@ func (g *game) key(k limoni.KeyEvent) {
 		return
 	}
 
+	// ↑ and ↓ are left unbound, here and in the menu: W and S walk.
 	var a action
 	switch {
-	case k.Type == limoni.KeyUp || isRune && ch == 'w':
+	case isRune && ch == 'w':
 		a = actFwd
-	case k.Type == limoni.KeyDown || isRune && ch == 's':
+	case isRune && ch == 's':
 		a = actBack
 	case k.Type == limoni.KeyLeft:
 		a = actTurnL
@@ -144,10 +151,10 @@ func (g *game) key(k limoni.KeyEvent) {
 func (g *game) titleKey(k limoni.KeyEvent, isRune bool, ch rune) {
 	const items = 3
 	switch {
-	case k.Type == limoni.KeyUp || isRune && ch == 'w':
+	case isRune && ch == 'w':
 		g.menu = (g.menu + items - 1) % items
 		g.sound(sfxMenu)
-	case k.Type == limoni.KeyDown || isRune && ch == 's':
+	case isRune && ch == 's':
 		g.menu = (g.menu + 1) % items
 		g.sound(sfxMenu)
 	case g.menu == 1 && (k.Type == limoni.KeyLeft || isRune && ch == 'a'):

@@ -12,8 +12,9 @@ import (
 
 // Sound is synthesised at start-up — no sample files — and streamed as raw
 // 16-bit stereo PCM to whichever player the system has: pw-play (PipeWire),
-// pacat (PulseAudio), aplay (ALSA) or sox's play. Where there is none the
-// game is silent and says so on exit.
+// pacat (PulseAudio), aplay (ALSA) or sox's play — or, in a browser, to
+// Web Audio (sound_js.go). Where there is none the game is silent and says
+// so on exit.
 //
 // The game side of it allocates nothing: play hands a small value to the
 // mixer's channel and never waits. The mixer runs on its own goroutine.
@@ -76,8 +77,12 @@ var players = [...][]string{
 	{"play", "-q", "-t", "raw", "-r", "22050", "-e", "signed", "-b", "16", "-c", "2", "-"},
 }
 
-// newMixer starts the first player it finds, or returns nil.
+// newMixer starts the first player it finds, or returns nil. In a browser
+// the player is the page's Web Audio context.
 func newMixer() *mixer {
+	if m := newBrowserMixer(); m != nil {
+		return m
+	}
 	for _, p := range players {
 		if _, err := exec.LookPath(p[0]); err != nil {
 			continue
@@ -111,6 +116,9 @@ func (m *mixer) setVolume(v float32) { m.master.Store(math.Float32bits(v)) }
 func (m *mixer) close() {
 	m.once.Do(func() {
 		close(m.done)
+		if m.cmd == nil {
+			return // the browser's: nothing to wait for
+		}
 		_ = m.w.Close()
 		done := make(chan struct{})
 		go func() { _ = m.cmd.Wait(); close(done) }()

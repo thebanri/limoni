@@ -228,6 +228,8 @@ go install github.com/thebanri/limoni/apps/lemonhunt@latest
 lemonhunt
 ```
 
+Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemonhunt), sound included.
+
 It is a raycaster drawn two pixels to a cell in half blocks, with lit textures, pixel-art rats, 3D half lemons
 ray-traced per pixel, and sound synthesised at start-up. A frame allocates nothing, through the diff too. It
 holds keys down with `WithKeyReleases`, so walking is smooth in kitty, Ghostty and WezTerm.
