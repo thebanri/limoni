@@ -1,4 +1,4 @@
-package scores
+package fn
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func TestTheFunctionServesTheBoard(t *testing.T) {
 		`{"name":"Arslan","won":true,"secs":245,"shots":60,"hits":41,"kills":14,"lemons":10}`))
 	post.Header.Set("Origin", "https://thebanri.github.io")
 	w := httptest.NewRecorder()
-	Handler(w, post)
+	Scores(w, post)
 	var a struct {
 		Rank  int `json:"rank"`
 		Board []struct {
@@ -46,7 +46,7 @@ func TestTheFunctionServesTheBoard(t *testing.T) {
 		t.Error("no CORS answer for the playground")
 	}
 	w = httptest.NewRecorder()
-	Handler(w, httptest.NewRequest("GET", "/scores", nil))
+	Scores(w, httptest.NewRequest("GET", "/scores", nil))
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"Arslan"`) {
 		t.Errorf("GET: %d %s", w.Code, w.Body.String())
 	}
@@ -58,8 +58,17 @@ func TestWithoutADatabaseItSaysSo(t *testing.T) {
 	mu.Unlock()
 	t.Setenv("DATABASE_URL", "postgres://nobody@127.0.0.1:1/none?connect_timeout=1")
 	w := httptest.NewRecorder()
-	Handler(w, httptest.NewRequest("GET", "/scores", nil))
+	Scores(w, httptest.NewRequest("GET", "/scores", nil))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("no database: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHealthNeedsNoDatabase(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	w := httptest.NewRecorder()
+	Health(w, httptest.NewRequest("GET", "/healthz", nil))
+	if w.Code != 200 || w.Body.String() != "ok\n" {
+		t.Errorf("healthz: %d %q", w.Code, w.Body.String())
 	}
 }
