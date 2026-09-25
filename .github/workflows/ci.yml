@@ -310,3 +310,34 @@ jobs:
           go build -o bin/counter ./examples/counter
           go build -o bin/scroll ./examples/scroll
           GOOS=js GOARCH=wasm go build -o bin/limoni.wasm ./examples/wasm
+
+  # The scoreboard keeps its runs in Postgres on Render (a free Neon
+  # database). That keeper is tested against a real one here; elsewhere the
+  # test skips, so this step fails if it did not actually run.
+  scoreboard-postgres:
+    name: Scoreboard on Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: The board survives a restart in Postgres
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: |
+          set -euo pipefail
+          go -C apps/scoreboard test -race -count=1 -v -run 'Postgres' ./... | tee /tmp/pg.out
+          grep -q -- '--- PASS: TestTheBoardSurvivesARestartInPostgres' /tmp/pg.out

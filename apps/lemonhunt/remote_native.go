@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-var client = &http.Client{Timeout: 8 * time.Second}
+// A free Render service sleeps after a quiet quarter of an hour and takes up
+// to a minute to wake; the request waits that long, off the frame, while the
+// screens say they are connecting.
+var client = &http.Client{Timeout: 70 * time.Second}
 
 func httpDo(method, url string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(body))

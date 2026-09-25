@@ -6,13 +6,16 @@
 //	                    "kills", "lemons"}; answers {"rank", "board"}
 //	GET  /healthz       ok
 //
-// It keeps the best hundred runs in $DATA_DIR/scores.json — on Railway, a
-// volume, which Railway also names in RAILWAY_VOLUME_MOUNT_PATH. Browsers
-// may call it from the origins in ALLOWED_ORIGINS (comma-separated; the
-// GitHub Pages playground by default). It listens on $PORT.
+// It keeps the best hundred runs in Postgres when DATABASE_URL names one —
+// on Render's free plan, a free Neon database — or else in
+// $DATA_DIR/scores.json, on a disk that outlives the process (a Railway
+// volume, which Railway also names in RAILWAY_VOLUME_MOUNT_PATH), or else in
+// memory only. Browsers may call it from the origins in ALLOWED_ORIGINS
+// (comma-separated; the GitHub Pages playground by default). It listens on
+// $PORT.
 //
-// It uses nothing outside the standard library, and is a module of its own
-// like the game, so none of it reaches anyone who imports Limoni.
+// It is a module of its own like the game, so none of it, and none of its
+// Postgres driver, reaches anyone who imports Limoni.
 package main
 
 import (
@@ -35,14 +38,23 @@ const (
 )
 
 func main() {
+	var k keeper
 	dir := firstSet(os.Getenv("DATA_DIR"), os.Getenv("RAILWAY_VOLUME_MOUNT_PATH"))
-	path := ""
-	if dir != "" {
-		path = filepath.Join(dir, "scores.json")
-	} else {
-		log.Print("no DATA_DIR: scores are kept in memory and lost on restart")
+	switch url := os.Getenv("DATABASE_URL"); {
+	case url != "":
+		pg, err := openPG(url)
+		if err != nil {
+			log.Fatalf("opening the database: %v", err)
+		}
+		k = pg
+		log.Print("keeping the board in Postgres")
+	case dir != "":
+		k = fileKeeper{filepath.Join(dir, "scores.json")}
+		log.Printf("keeping the board in %s", dir)
+	default:
+		log.Print("no DATABASE_URL or DATA_DIR: scores are kept in memory and lost on restart")
 	}
-	b, err := openBoard(path)
+	b, err := openBoard(k)
 	if err != nil {
 		log.Fatalf("reading the board: %v", err)
 	}
@@ -163,7 +175,7 @@ func (s *server) allow(addr string) bool {
 	return true
 }
 
-// clientAddr is the client's address. Behind Railway's proxy that is the
+// clientAddr is the client's address. Behind Render's or Railway's proxy, the
 // first address in X-Forwarded-For.
 func clientAddr(r *http.Request) string {
 	if f := r.Header.Get("X-Forwarded-For"); f != "" {
