@@ -15,7 +15,8 @@ imports Limoni.
 | | |
 | :-- | :-- |
 | `board/` | the rules, the HTTP handler, and the stores: `PG` (Postgres) and `Mem` (memory, and a file) |
-| `api/scores`, `api/healthz` | the Vercel functions; `vercel.json` sends `/scores` and `/healthz` to them |
+| `fn/` | the board as Vercel runs it: the handler over `DATABASE_URL`, made on the first request |
+| `api/scores`, `api/healthz` | the Vercel functions, one line each into `fn/`; `vercel.json` sends `/scores` and `/healthz` to them. Nothing else goes in `api/`: Vercel would take any other `.go` file there, a test included, for a function |
 | `main.go` | the long-running server, for Render, Railway or a machine of one's own |
 
 The server works the score out itself, with the game's rules (aim, time, rats
@@ -88,7 +89,20 @@ Vercel account to try it on: the Go version Vercel builds with (the module
 asks for Go 1.25; if the build says otherwise, that is the place to look),
 and the exact names of Vercel's menus. The handler and the Postgres store
 are tested against a real Postgres in CI, and the function itself is called
-the way Vercel calls it (`api/scores/index_test.go`).
+the way Vercel calls it (`fn/fn_test.go`).
+
+If `/healthz` answers 404:
+
+- Open `https://<project>.vercel.app/` itself. It should show one line, "Lemon
+  Hunt's shared leaderboard". A 404 there too means Vercel is not building
+  `apps/scoreboard`: check **Settings → Build and Deployment → Root
+  Directory**.
+- Check which commit the deployment was built from (the deployment's page
+  names it). **Redeploy** builds the same commit again; a project made before
+  `apps/scoreboard` reached `main` needs a deployment of a newer commit,
+  which the next push to `main` makes, or **Create Deployment** with `main`.
+- The deployment's build log lists the functions it built; `api/scores` and
+  `api/healthz` should both be there.
 
 Neon's free database sleeps when idle and takes a moment to wake; the first
 request after a quiet spell waits for it, and the playground knocks on
