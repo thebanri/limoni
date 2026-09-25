@@ -130,3 +130,44 @@ func TestKittyKeyboardPushedAndPopped(t *testing.T) {
 		t.Errorf("kitty keyboard sequences without the capability: %q", io.Output())
 	}
 }
+
+// SetKeyReleases pushes the event-type flag with the rest, or switches the
+// entry already pushed in place; Close pops it all the same.
+func TestKeyReleasesChangeTheKittyFlags(t *testing.T) {
+	term, io := memTerm(t, 10, 2)
+	term.SetKeyReleases(true)
+	caps := term.Capabilities()
+	caps.KittyKeyboard = true
+	term.SetCapabilities(caps)
+	_ = term.Draw(func(*terminal.Frame) {})
+	if out := string(io.Output()); !strings.Contains(out, "\x1b[>3u") || strings.Contains(out, "\x1b[>1u") {
+		t.Fatalf("pushed %q, want flags 3", out)
+	}
+	term.SetKeyReleases(false)
+	term.SetKeyReleases(false) // no second write
+	if got := strings.Count(string(io.Output()), "\x1b[=1;1u"); got != 1 {
+		t.Errorf("switched back %d times, want once", got)
+	}
+	_ = term.Close()
+	if out := string(io.Output()); strings.Count(out, "\x1b[<u") != 1 || strings.Index(out, "\x1b[<u") < strings.Index(out, "\x1b[=1;1u") {
+		t.Errorf("not popped once after the change: %q", out)
+	}
+
+	// Asked for after the push, the entry is changed in place.
+	term, io = memTerm(t, 10, 2)
+	term.SetCapabilities(caps)
+	_ = term.Draw(func(*terminal.Frame) {})
+	term.SetKeyReleases(true)
+	if out := string(io.Output()); !strings.Contains(out, "\x1b[>1u") || !strings.Contains(out, "\x1b[=3;1u") {
+		t.Errorf("wrote %q", out)
+	}
+	_ = term.Close()
+
+	// Without the protocol nothing is written.
+	term, io = memTerm(t, 10, 2)
+	term.SetKeyReleases(true)
+	_ = term.Draw(func(*terminal.Frame) {})
+	if strings.Contains(string(io.Output()), "u") && strings.Contains(string(io.Output()), "\x1b[>") {
+		t.Errorf("kitty flags without the capability: %q", io.Output())
+	}
+}

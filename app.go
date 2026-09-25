@@ -109,6 +109,7 @@ type appConfig struct {
 	suspendOnCtrlZ   bool
 	title            string
 	hasTitle         bool
+	keyReleases      bool
 }
 
 // AutomationPolicy decides what an application's automation socket lets out.
@@ -137,6 +138,18 @@ func WithTitle(title string) AppOption {
 	return func(c *appConfig) {
 		c.title = title
 		c.hasTitle = true
+	}
+}
+
+// WithKeyReleases reports key repeats and releases as well as presses, in
+// terminals with the kitty keyboard protocol: Event.Key.Repeat and
+// Event.Key.Release. It is for games and anything else that needs to know a
+// key is still held. Every key then arrives at least twice, so an
+// application that turns it on must skip releases wherever it acts on a
+// press. See Terminal.SetKeyReleases.
+func WithKeyReleases() AppOption {
+	return func(c *appConfig) {
+		c.keyReleases = true
 	}
 }
 
@@ -256,6 +269,10 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 		return err
 	}
 	var err error
+	if cfg.keyReleases {
+		term.SetKeyReleases(true)
+		defer term.SetKeyReleases(false)
+	}
 	term.StartEventLoop()
 
 	// The gateway is everything that carries application state out of the
@@ -311,10 +328,10 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 				return nil
 			}
 			// Automatic graceful exit on Ctrl+C unless explicitly caught
-			if !cfg.catchCtrlC && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'c' || ev.Key.Ch == 'C') {
+			if !cfg.catchCtrlC && ev.Type == EventKey && !ev.Key.Release && ev.Key.Ctrl && (ev.Key.Ch == 'c' || ev.Key.Ch == 'C') {
 				return nil
 			}
-			if cfg.suspendOnCtrlZ && ev.Type == EventKey && ev.Key.Ctrl && (ev.Key.Ch == 'z' || ev.Key.Ch == 'Z') {
+			if cfg.suspendOnCtrlZ && ev.Type == EventKey && !ev.Key.Release && ev.Key.Ctrl && (ev.Key.Ch == 'z' || ev.Key.Ch == 'Z') {
 				// Hands the terminal back until the shell resumes us; the
 				// frame after it repaints the screen the shell wrote over.
 				if err := term.Suspend(); err == nil {

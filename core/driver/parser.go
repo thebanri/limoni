@@ -154,24 +154,38 @@ func parseCSI(buf []byte) (Event, int) {
 	currentVal, hasVal := 0, false
 	// The kitty keyboard protocol adds ':'-separated sub-parameters (shifted
 	// and base-layout keys, event types). Only the first of each is kept:
-	// reading "97:65" as one number would make it 9765.
-	sub := false
+	// reading "97:65" as one number would make it 9765. The one sub-parameter
+	// read is the event type after the modifiers (CSI 119;1:3u is w let go).
+	sub := 0 // which sub-parameter the digits belong to; 0 is the parameter
+	eventType, subVal := 0, 0
 	for _, c := range raw {
 		switch {
 		case c >= '0' && c <= '9':
-			if !sub {
+			switch {
+			case sub == 0:
 				currentVal = currentVal*10 + int(c-'0')
 				hasVal = true
+			case sub == 1 && n == 1:
+				subVal = subVal*10 + int(c-'0')
 			}
 		case c == ':':
-			sub = true
+			if sub == 1 && n == 1 {
+				eventType = subVal
+			}
+			sub++
 		case c == ';':
+			if sub == 1 && n == 1 {
+				eventType = subVal
+			}
 			if n < maxCSIParams {
 				store[n] = currentVal
 				n++
 			}
-			currentVal, hasVal, sub = 0, false, false
+			currentVal, hasVal, sub = 0, false, 0
 		}
+	}
+	if sub == 1 && n == 1 {
+		eventType = subVal
 	}
 	if hasVal && n < maxCSIParams {
 		store[n] = currentVal
@@ -191,37 +205,54 @@ func parseCSI(buf []byte) (Event, int) {
 		return Event{}, consumed
 	}
 
-	// Komut karakterine göre olayı oluştur
+	ev := csiKey(cmd, params)
+	if ev.Type == EventKey {
+		// Only applications that asked for them (Terminal.SetKeyReleases)
+		// are sent repeats and releases marked as such.
+		switch eventType {
+		case 2:
+			ev.Key.Repeat = true
+		case 3:
+			ev.Key.Release = true
+		}
+	}
+	return ev, consumed
+}
+
+// csiKey decodes the key (or focus change) a CSI sequence ending in cmd
+// stands for.
+func csiKey(cmd byte, params []int) Event {
+	// Build the event from the final byte.
 	switch cmd {
 	case 'A': // Yukarı Ok
-		return makeKeyEvent(KeyArrowUp, params), consumed
+		return makeKeyEvent(KeyArrowUp, params)
 	case 'B': // Aşağı Ok
-		return makeKeyEvent(KeyArrowDown, params), consumed
+		return makeKeyEvent(KeyArrowDown, params)
 	case 'C': // Sağ Ok
-		return makeKeyEvent(KeyArrowRight, params), consumed
+		return makeKeyEvent(KeyArrowRight, params)
 	case 'D': // Sol Ok
-		return makeKeyEvent(KeyArrowLeft, params), consumed
+		return makeKeyEvent(KeyArrowLeft, params)
 	case 'Z': // Shift+Tab (backtab)
-		return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: true}}, consumed
+		return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: true}}
 	case 'H': // Home
-		return makeKeyEvent(KeyHome, params), consumed
+		return makeKeyEvent(KeyHome, params)
 	case 'F': // End
-		return makeKeyEvent(KeyEnd, params), consumed
+		return makeKeyEvent(KeyEnd, params)
 	case 'P': // F1, F2 and F4 with modifiers: CSI 1 ; mod P. F3's R would be
 		// read as a cursor report, so terminals send CSI 13 ~ for it instead.
-		return makeKeyEvent(KeyF1, params), consumed
+		return makeKeyEvent(KeyF1, params)
 	case 'Q':
-		return makeKeyEvent(KeyF2, params), consumed
+		return makeKeyEvent(KeyF2, params)
 	case 'S':
-		return makeKeyEvent(KeyF4, params), consumed
+		return makeKeyEvent(KeyF4, params)
 	case 'I': // Focus Gained
-		return Event{Type: EventFocus, Focus: FocusEvent{Gained: true}}, consumed
+		return Event{Type: EventFocus, Focus: FocusEvent{Gained: true}}
 	case 'O': // Focus Lost
-		return Event{Type: EventFocus, Focus: FocusEvent{Gained: false}}, consumed
+		return Event{Type: EventFocus, Focus: FocusEvent{Gained: false}}
 	case 'u':
 		// Kitty keyboard protocol / CSI u format: \x1b[<keycode>;<modifiers>u
 		if len(params) == 0 {
-			return Event{}, consumed
+			return Event{}
 		}
 		keyCode := params[0]
 		mod := 0
@@ -231,15 +262,15 @@ func parseCSI(buf []byte) (Event, int) {
 		shift, alt, ctrl := decodeModifiers(mod)
 		switch keyCode {
 		case 13, 10:
-			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}
 		case 9:
-			return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}
 		case 27:
-			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}
 		case 127, 8:
-			return Event{Type: EventKey, Key: KeyEvent{Type: KeyBackspace, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyBackspace, Shift: shift, Alt: alt, Ctrl: ctrl}}
 		case 32:
-			return Event{Type: EventKey, Key: KeyEvent{Type: KeySpace, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeySpace, Shift: shift, Alt: alt, Ctrl: ctrl}}
 		default:
 			// Keys without a character of their own live in the Private Use
 			// Area: keypad digits and Enter are kept, the rest (lock keys,
@@ -247,21 +278,21 @@ func parseCSI(buf []byte) (Event, int) {
 			if keyCode >= 57344 && keyCode <= 63743 {
 				switch {
 				case keyCode >= 57399 && keyCode <= 57408: // KP_0 … KP_9
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune('0' + keyCode - 57399), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune('0' + keyCode - 57399), Shift: shift, Alt: alt, Ctrl: ctrl}}
 				case keyCode == 57414: // KP_ENTER
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}
 				}
-				return Event{}, consumed
+				return Event{}
 			}
 			if keyCode >= 32 {
-				return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+				return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}
 			}
 		}
-		return Event{}, consumed
+		return Event{}
 	case '~':
 		// Keypad ve fonksiyon tuşları (\x1b[sayı~)
 		if len(params) == 0 {
-			return Event{}, consumed
+			return Event{}
 		}
 		num := params[0]
 		var modParams []int
@@ -314,23 +345,23 @@ func parseCSI(buf []byte) (Event, int) {
 				keyCode := params[2]
 				shift, alt, ctrl := decodeModifiers(mod)
 				if keyCode == 13 || keyCode == 10 {
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Shift: shift, Alt: alt, Ctrl: ctrl}}
 				} else if keyCode == 9 {
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyTab, Shift: shift, Alt: alt, Ctrl: ctrl}}
 				} else if keyCode == 27 {
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Shift: shift, Alt: alt, Ctrl: ctrl}}
 				} else if keyCode >= 32 {
-					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}, consumed
+					return Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: rune(keyCode), Shift: shift, Alt: alt, Ctrl: ctrl}}
 				}
 			}
-			return Event{}, consumed
+			return Event{}
 		default:
-			return Event{}, consumed
+			return Event{}
 		}
-		return makeKeyEvent(kt, modParams), consumed
+		return makeKeyEvent(kt, modParams)
 	}
 
-	return Event{}, consumed
+	return Event{}
 }
 
 // makeKeyEvent tuş modifikatörlerini çözümler ve KeyEvent olayını döner.

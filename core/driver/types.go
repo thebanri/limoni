@@ -64,6 +64,14 @@ type KeyEvent struct {
 	Alt   bool    // Alt key active
 	Ctrl  bool    // Ctrl key active
 	Shift bool    // Shift key active
+
+	// Repeat marks an auto-repeat and Release a key being let go. They are
+	// only ever set for an application that asked for them
+	// (Terminal.SetKeyReleases, limoni.WithKeyReleases), and only by a
+	// terminal with the kitty keyboard protocol; everywhere else every key
+	// event is a press.
+	Repeat  bool
+	Release bool
 }
 
 // MouseButton represents a mouse button action.

@@ -8,6 +8,17 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.9.2] — 2026-09-25
+
+### Added
+- Key releases: `limoni.WithKeyReleases()` and `Terminal.SetKeyReleases`
+  ask a terminal with the kitty keyboard protocol for event types (flags 3
+  instead of 1), and `KeyEvent.Repeat` / `KeyEvent.Release` mark them. Games
+  can hold a key for exactly as long as it is held instead of guessing from
+  auto-repeat. Off by default: an application that turns it on sees every
+  key twice. Verified in kitty 0.48.2, which sends `CSI 119;1:3u` for `w`
+  let go.
+
 ### Fixed
 - `CodeView`: Rust block comments nest (`/* /* */ */`), on one line and
   across lines, instead of ending at the first `*/` (issue #62), thanks to
@@ -390,7 +401,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.2...HEAD
+[v0.9.2]: https://github.com/thebanri/limoni/compare/v0.9.1...v0.9.2
 [v0.9.1]: https://github.com/thebanri/limoni/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/thebanri/limoni/compare/v0.8.1...v0.9.0
 [v0.8.1]: https://github.com/thebanri/limoni/compare/v0.8.0...v0.8.1
