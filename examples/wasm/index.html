@@ -76,6 +76,17 @@
        the last fit, and would hold the box at fullscreen size after leaving. */
     #terminal { height: 420px; }
 
+    /* A game opens in most of the window rather than the playground's box:
+       the terminal as tall as the window allows below the header (232px:
+       the header and the stage's own frame, with a margin), and the stage up
+       to twice that wide, so the picture keeps its shape on a big screen.
+       Not on a phone, whose header wraps taller and which has no keyboard
+       to play with anyway. */
+    @media (min-width: 700px) {
+      body.big .stage { max-width: max(1000px, calc((100vh - 232px) * 2)); }
+      body.big #terminal { height: max(420px, calc(100vh - 232px)); }
+    }
+
     button.full-toggle {
       appearance: none; cursor: pointer; margin-left: 12px;
       background: #161b22; color: var(--text);
@@ -240,6 +251,9 @@
         // In fullscreen the font grows to keep about this many rows: bigger
         // pixels rather than four times the cells to raycast and send.
         fullscreenRows: 48,
+        // And it opens large (body.big), where the font grows to keep about
+        // this many rows, for the same reason.
+        windowRows: 40,
         audio: true,
         keyReleases: true,
         // The shared leaderboard: apps/scoreboard, deployed on Vercel over a
@@ -261,6 +275,8 @@
       fetch(window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/healthz', { mode: 'no-cors' }).catch(() => {});
     }
     if (app.title) { document.title = app.title; }
+    // Before the terminal is made, so its first fit is to the large box.
+    if (app.windowRows) { document.body.classList.add('big'); }
     if (app.posterTitle) { document.getElementById('poster-title').textContent = app.posterTitle; }
     if (app.posterText) { document.getElementById('poster-text').innerHTML = app.posterText; }
     if (app.button) { document.getElementById('run').innerHTML = app.button; }
@@ -391,10 +407,14 @@
 
     function refit() {
       const full = stage.classList.contains('full');
-      const size = full && app.fullscreenRows
-        // A row is about 1.2 font sizes tall.
-        ? Math.max(baseFontSize, Math.floor(window.innerHeight / app.fullscreenRows / 1.2))
-        : baseFontSize;
+      // A row is about 1.2 font sizes tall.
+      let size = baseFontSize;
+      if (full && app.fullscreenRows) {
+        size = Math.max(baseFontSize, Math.floor(window.innerHeight / app.fullscreenRows / 1.2));
+      } else if (!full && app.windowRows) {
+        const height = document.getElementById('terminal').clientHeight;
+        size = Math.max(baseFontSize, Math.floor(height / app.windowRows / 1.2));
+      }
       if (term.options.fontSize !== size) { term.options.fontSize = size; }
       fitAddon.fit();
       updateSizeTag();
@@ -409,6 +429,7 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(refit, 80);
     });
+    refit(); // the large box's font, before the poster is lifted
 
     function setFull(on) {
       stage.classList.toggle('full', on);
