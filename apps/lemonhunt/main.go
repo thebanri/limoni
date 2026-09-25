@@ -25,10 +25,16 @@ import (
 	"github.com/thebanri/limoni"
 )
 
+// defaultBoard is the shared leaderboard the game ships with: the
+// scoreboard server (apps/scoreboard) on Railway. Empty until it is up; the
+// browser's is set in examples/wasm/index.html.
+const defaultBoard = ""
+
 func main() {
 	fps := flag.Int("fps", 30, "frames per second")
 	boss := flag.Bool("boss", false, "start at the lair's gate with ten lemons")
 	mute := flag.Bool("mute", false, "no sound")
+	board := flag.String("board", "", `the shared leaderboard's address; "off" keeps scores on this machine`)
 	flag.Parse()
 
 	var mix *mixer
@@ -45,6 +51,10 @@ func main() {
 	g := newGame()
 	g.store = newStore()
 	g.restore()
+	if g.remote = newRemote(boardURL(*board)); g.remote != nil {
+		g.worldState = worldLoading
+		g.remote.fetch()
+	}
 	if g.name == "" {
 		g.askName()
 	}

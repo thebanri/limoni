@@ -225,6 +225,18 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemonhunt" build -o /dev/null .
           echo "ok   lemonhunt builds against this checkout as well as against the release"
 
+      # The scoreboard behind Lemon Hunt's shared leaderboard: a server on
+      # the standard library alone, deployed on Railway from this directory.
+      - name: apps/scoreboard
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/scoreboard vet ./...
+          go -C apps/scoreboard test -race ./...
+          test -z "$(gofmt -l apps/scoreboard)" || { gofmt -l apps/scoreboard; exit 1; }
+          CGO_ENABLED=0 go -C apps/scoreboard build -o /dev/null .
+
       # Neither the globe nor the README images may reach anyone who imports
       # Limoni: both are modules of their own, and this is the check that says
       # so about the zip the proxy would actually serve.
@@ -233,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe apps/lemonhunt assets tools/limonivet; do
+          for dir in apps/globe apps/lemonhunt apps/scoreboard assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"

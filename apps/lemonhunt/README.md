@@ -49,9 +49,17 @@ shows the best five; the title shows them too.
 
 The name and the ten best runs are kept between games: in
 `~/.config/lemonhunt/scores.json` (the user's config directory on other
-systems), or, in the browser, in `localStorage`. That makes the browser's
-leaderboard that browser's own: the page is static, with no server to share
-scores through.
+systems), or, in the browser, in `localStorage`.
+
+With a scoreboard server ([`apps/scoreboard`](../scoreboard), on Railway),
+every finished run is also sent there, and the screens show the world's
+best ten — `WORLD BEST` — and where the run placed in it. The server works
+the score out from what the run did, and the game asks it off the frame, so
+a slow or missing server never stalls one: without an answer the screens
+fall back to this player's own board and say so. `-board URL` (or
+`LEMONHUNT_BOARD`) points the game at a server, `-board off` keeps the
+scores at home; in the browser, the page names it, and `?board=URL`
+overrides it.
 
 The window must be at least 60×20. A whole run takes a few minutes.
 
