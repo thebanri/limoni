@@ -144,7 +144,9 @@ func WithCommandQueue(capacity int) ProgramOption { return engine.WithCommandQue
 // Cmd panics, instead of tearing down the process.
 func WithPanicHandler(handler func(any)) ProgramOption { return engine.WithPanicHandler(handler) }
 
-// WithProgramFPS sets a continuous redraw rate for a Program.
+// WithProgramFPS sets a continuous redraw rate for a Program, for a View that
+// changes without messages. Without it a Program draws only when something
+// happens (input, a redraw request, an Update) and uses no CPU while idle.
 //
 // It mirrors WithFPS, which configures immediate-mode Run instead. The two
 // application models take different option types, so the names cannot be shared.

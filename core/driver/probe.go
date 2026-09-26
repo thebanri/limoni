@@ -247,3 +247,14 @@ func (b *Backend) TerminalReport() (TerminalReport, uint64) {
 func (b *Backend) TerminalReportVersion() uint64 {
 	return b.replies.version.Load()
 }
+
+// ProbeAnswered returns a channel that is closed when the DA1 sentinel
+// arrives, from which point TerminalReport is final. A loop that draws only
+// when something happens selects on it to draw once more: answers that land
+// after the first frame change how that frame should have been encoded, and
+// without input nothing else would draw it again. If the probe was not sent,
+// or the terminal never answers, the channel is never closed.
+func (b *Backend) ProbeAnswered() <-chan struct{} {
+	b.replies.init()
+	return b.replies.answered
+}
