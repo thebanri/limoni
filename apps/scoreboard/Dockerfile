@@ -1,4 +1,4 @@
-# Lemon Hunt's scoreboard, for Render or Railway, or anything that runs a
+# Castle Lemonstein's scoreboard, for Render or Railway, or anything that runs a
 # container.
 FROM golang:1.25 AS build
 WORKDIR /src

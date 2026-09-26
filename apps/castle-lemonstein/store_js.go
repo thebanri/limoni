@@ -6,7 +6,7 @@ import "syscall/js"
 
 // In a browser the name and the leaderboard live in localStorage, under one
 // key, so they are there the next time the page is opened — in that browser.
-const storageKey = "lemonhunt"
+const storageKey = "castle-lemonstein"
 
 type browserStore struct{}
 
@@ -21,6 +21,9 @@ func (browserStore) load() (name string, board []scoreEntry) {
 		}
 	}()
 	v := js.Global().Get("localStorage").Call("getItem", storageKey)
+	if v.IsNull() {
+		v = js.Global().Get("localStorage").Call("getItem", "lemonhunt")
+	}
 	if v.Type() != js.TypeString {
 		return "", nil
 	}

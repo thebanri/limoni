@@ -131,9 +131,9 @@ The package was renamed to `core/engine`; that doc is stale in places.
 | `cmd/limoni-mcp` | MCP bridge from agents to the automation socket |
 | `benchmarks` | Harness plus the cross-framework runners |
 | `apps/globe` | A searchable, zoomable ASCII globe — a separate module, so it ships to nobody |
-| `apps/lemonhunt` | A short raycaster game in half blocks (rats, lemons, Ratatui as the boss), with synthesised sound — its own module, 0 allocs per frame through the diff |
+| `apps/castle-lemonstein` | A short raycaster game in half blocks (rats, lemons, Ratatui as the boss), with synthesised sound — its own module, 0 allocs per frame through the diff |
 | `apps/lemondrop` | Falling blocks that turn to sand; a one-colour run from wall to wall clears — its own module, 0 allocs per frame through the diff |
-| `apps/scoreboard` | Lemon Hunt's and Lemon Drop's shared leaderboards (`/scores`, `/drop/scores`): Vercel functions over a free Neon Postgres, or the same handler as a long-running server (Render, Railway) — its own module, so pgx reaches no importer |
+| `apps/scoreboard` | Castle Lemonstein's and Lemon Drop's shared leaderboards (`/scores`, `/drop/scores`): Vercel functions over a free Neon Postgres, or the same handler as a long-running server (Render, Railway) — its own module, so pgx reaches no importer |
 
 ---
 

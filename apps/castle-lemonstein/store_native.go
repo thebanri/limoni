@@ -8,7 +8,7 @@ import (
 )
 
 // fileStore keeps the name and the leaderboard in the user's config
-// directory: ~/.config/lemonhunt/scores.json on Linux.
+// directory: ~/.config/castle-lemonstein/scores.json on Linux.
 type fileStore struct{ path string }
 
 // newStore returns the file store, or nil where there is no config
@@ -18,11 +18,16 @@ func newStore() store {
 	if err != nil {
 		return nil
 	}
-	return fileStore{filepath.Join(dir, "lemonhunt", "scores.json")}
+	return fileStore{filepath.Join(dir, "castle-lemonstein", "scores.json")}
 }
 
 func (s fileStore) load() (string, []scoreEntry) {
 	b, err := os.ReadFile(s.path)
+	if os.IsNotExist(err) && filepath.Base(filepath.Dir(s.path)) == "castle-lemonstein" {
+		// Carry existing names and scores into the renamed game. Future saves
+		// use the new directory; the old file remains untouched.
+		b, err = os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(s.path)), "lemonhunt", "scores.json"))
+	}
 	if err != nil {
 		return "", nil
 	}

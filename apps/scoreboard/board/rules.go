@@ -1,4 +1,4 @@
-// Package board is Lemon Hunt's shared leaderboard: the rules a run is
+// Package board is Castle Lemonstein's shared leaderboard: the rules a run is
 // scored and checked by, the HTTP handler, and the stores that keep the
 // runs. The long-running server (the module's main) and the Vercel
 // functions (api/) both serve it.
@@ -11,7 +11,7 @@ import (
 )
 
 // The score is worked out here from what the run did, with the same rules
-// as the game (apps/lemonhunt/score.go), rather than taken from the client:
+// as the game (apps/castle-lemonstein/score.go), rather than taken from the client:
 //
 //	aim     5000 × hits ÷ squirts
 //	time    10 for every second under ten minutes, for a win only

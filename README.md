@@ -216,19 +216,19 @@ can do over MCP: type into `search`, click the row, read `image#globe` back as
 `value="39.3°N 34.5°E · zoom 2.6×"`. Nothing of it reaches you when you import Limoni — a
 directory with its own `go.mod` is not part of the module around it.
 
-### And a game: Lemon Hunt
+### And a game: Castle Lemonstein
 
-<p align="center"><img src="assets/lemonhunt.png" alt="Lemon Hunt: a first-person view down a brick sewer, two rats coming closer, half a lemon floating on the right, and the lemon squirter in hand" width="100%" /></p>
+<p align="center"><img src="assets/castle-lemonstein.png" alt="Castle Lemonstein: the moonlit castle title screen with gold lettering and burgundy banners" width="100%" /></p>
 
-[**Lemon Hunt**](apps/lemonhunt) is a short first-person game. Squirt the rats and find ten lemons in the sewer,
+[**Castle Lemonstein**](apps/castle-lemonstein) is a short first-person game. Squirt the rats and find ten lemons inside a banner-lined stone castle,
 and the gate to the lair lifts on Ratatui, king of the rats, who has a crown, a health bar and cheese to throw.
 
 ```bash
-go install github.com/thebanri/limoni/apps/lemonhunt@latest
-lemonhunt
+go install github.com/thebanri/limoni/apps/castle-lemonstein@latest
+castle-lemonstein
 ```
 
-Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemonhunt), sound included.
+Or [play it in the browser](https://thebanri.github.io/limoni/?app=castle-lemonstein), sound included.
 
 It is a raycaster drawn two pixels to a cell in half blocks, with lit textures, pixel-art rats, 3D half lemons
 ray-traced per pixel, and sound synthesised at start-up. A frame allocates nothing, through the diff too. It

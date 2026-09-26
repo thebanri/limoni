@@ -1,9 +1,9 @@
 // Limoni's WebAssembly playground.
 //
 // One binary hosts every scene, switched with the number keys or Tab, so the
-// browser downloads a single ~5 MB module instead of one per demo. Lemon Hunt
-// (apps/lemonhunt) is the exception: a module of its own, built separately
-// and loaded by the same page as ?app=lemonhunt.
+// browser downloads a single ~5 MB module instead of one per demo. Castle Lemonstein
+// (apps/castle-lemonstein) is the exception: a module of its own, built separately
+// and loaded by the same page as ?app=castle-lemonstein.
 //
 //	GOOS=js GOARCH=wasm go build -o limoni.wasm ./examples/wasm
 //

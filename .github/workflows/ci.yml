@@ -202,28 +202,28 @@ jobs:
           go -C "$work/globe" test ./...
           echo "ok   the globe builds against this checkout as well as against the release"
 
-      # Lemon Hunt, the ASCII raycaster, is checked the same way. Its tests
+      # Castle Lemonstein, the ASCII raycaster, is checked the same way. Its tests
       # include the claim it makes: a frame, through the diff, allocates
       # nothing.
-      - name: apps/lemonhunt
+      - name: apps/castle-lemonstein
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          go -C apps/lemonhunt vet ./...
-          go -C apps/lemonhunt test ./...
-          test -z "$(gofmt -l apps/lemonhunt)" || { gofmt -l apps/lemonhunt; exit 1; }
+          go -C apps/castle-lemonstein vet ./...
+          go -C apps/castle-lemonstein test ./...
+          test -z "$(gofmt -l apps/castle-lemonstein)" || { gofmt -l apps/castle-lemonstein; exit 1; }
 
           work=$(mktemp -d)
-          cp -r apps/lemonhunt "$work/lemonhunt"
-          go -C "$work/lemonhunt" mod edit -replace github.com/thebanri/limoni="$PWD"
-          go -C "$work/lemonhunt" mod tidy
-          go -C "$work/lemonhunt" build ./...
-          go -C "$work/lemonhunt" test ./...
+          cp -r apps/castle-lemonstein "$work/castle-lemonstein"
+          go -C "$work/castle-lemonstein" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/castle-lemonstein" mod tidy
+          go -C "$work/castle-lemonstein" build ./...
+          go -C "$work/castle-lemonstein" test ./...
           # The playground page serves it as WebAssembly too.
-          GOOS=js GOARCH=wasm go -C "$work/lemonhunt" vet ./...
-          GOOS=js GOARCH=wasm go -C "$work/lemonhunt" build -o /dev/null .
-          echo "ok   lemonhunt builds against this checkout as well as against the release"
+          GOOS=js GOARCH=wasm go -C "$work/castle-lemonstein" vet ./...
+          GOOS=js GOARCH=wasm go -C "$work/castle-lemonstein" build -o /dev/null .
+          echo "ok   castle-lemonstein builds against this checkout as well as against the release"
 
       # Lemon Drop, the falling blocks that turn to sand, the same way: its
       # tests hold a frame, through the diff, to zero allocations.
@@ -246,7 +246,7 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemondrop" build -o /dev/null .
           echo "ok   lemondrop builds against this checkout as well as against the release"
 
-      # The scoreboard behind Lemon Hunt's shared leaderboard: a server on
+      # The scoreboard behind Castle Lemonstein's shared leaderboard: a server on
       # the standard library alone, deployed on Railway from this directory.
       - name: apps/scoreboard
         if: runner.os == 'Linux'
@@ -266,7 +266,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe apps/lemonhunt apps/lemondrop apps/scoreboard assets tools/limonivet; do
+          for dir in apps/globe apps/castle-lemonstein apps/lemondrop apps/scoreboard assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"

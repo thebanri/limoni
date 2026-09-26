@@ -150,9 +150,9 @@ func TestNoBoardMeansNoRemote(t *testing.T) {
 	if boardURL("off") != "" {
 		t.Error("-board off still names a board")
 	}
-	t.Setenv("LEMONHUNT_BOARD", "https://example.test")
+	t.Setenv("CASTLE_LEMONSTEIN_BOARD", "https://example.test")
 	if got := boardURL(""); got != "https://example.test" {
-		t.Errorf("LEMONHUNT_BOARD gave %q", got)
+		t.Errorf("CASTLE_LEMONSTEIN_BOARD gave %q", got)
 	}
 	if got := boardURL("https://flag.test"); got != "https://flag.test" {
 		t.Errorf("the flag gave %q", got)

@@ -57,7 +57,7 @@ piece a block.
 The first time, the game asks for a name. Every run that ends goes on two
 boards: the game's own best ten, kept with the name in
 `limoni/lemondrop.json` under your configuration directory (or in the
-browser's storage), and the world's, on the same server as Lemon Hunt's
+browser's storage), and the world's, on the same server as Castle Lemonstein's
 ([apps/scoreboard](../scoreboard), at `/drop/scores`). The title and the end
 show the world's board when it answers, the game's own when it does not, and
 where the run just ended stands on it.
@@ -91,7 +91,7 @@ turning lemon to about 150 bytes a frame on the wire.
 
 ## Sound
 
-Every sound is synthesised when the game starts, as in Lemon Hunt, whose
+Every sound is synthesised when the game starts, as in Castle Lemonstein, whose
 mixer this is: moving and turning, a block landing and giving way, a drop,
 the hiss of sand running (louder the more of it runs), a clear, a chain, a
 new level, and the end. It is streamed to `pw-play`, `pacat`, `aplay` or

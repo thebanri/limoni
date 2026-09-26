@@ -2,7 +2,7 @@ package main
 
 import "math"
 
-// The sewer. '#' brick, 'S' slime-covered stone, 'P' pipes, 'L' the lair,
+// The castle. '#' brick, 'S' weathered stone, 'P' banners, 'L' the throne room,
 // 'G' the lair's gate, which lifts once ten lemons are found. '@' is where
 // the player starts, facing east; 'l' a lemon, 'r' a rat, 'f' a fat rat,
 // 'R' Ratatui, '*' a lamp hanging from the ceiling.
@@ -309,7 +309,7 @@ func (g *game) reset() {
 				if g.nLight < maxLights {
 					l := light{x: fx, y: fy, c: hex(0xffc070), power: 1.3, seed: float64(x*7 + y)}
 					if y > 16 {
-						l.c, l.power = hex(0xff4060), 1.5 // the lair's lamps are red
+						l.c, l.power = hex(0xffa050), 1.5 // braziers in the throne room
 					}
 					g.lights[g.nLight] = l
 					g.nLight++
@@ -711,7 +711,7 @@ func (g *game) openGate() {
 	if g.boss >= 0 {
 		g.ents[g.boss].awake = true
 	}
-	g.say("The gate grinds open. Ratatui is waiting.")
+	g.say("The portcullis rises. Ratatui awaits in the keep.")
 	g.sound(sfxGate)
 	g.shake = 0.5
 }
@@ -855,7 +855,7 @@ func (g *game) step(dt float64) {
 	}
 }
 
-// ambient makes the sewer drip.
+// ambient makes the castle drip.
 func (g *game) ambient(dt float64) {
 	g.dripT -= dt
 	if g.dripT > 0 {

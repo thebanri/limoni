@@ -1,6 +1,6 @@
 # Scoreboard
 
-The shared leaderboards of Lemon Hunt and Lemon Drop: each takes finished
+The shared leaderboards of Castle Lemonstein and Lemon Drop: each takes finished
 runs and hands back the best ten. It runs as two Vercel functions over a free Neon database, or
 as one long-running server, from the same handler. It is a module of its
 own, so none of it, and none of its Postgres driver, reaches anyone who
@@ -22,7 +22,7 @@ imports Limoni.
 | `main.go` | the server itself: what Vercel's Go preset runs, and what runs on Render, Railway or a machine of one's own |
 
 The server works the score out itself, with the game's rules (aim, time, rats
-and lemons; see [the game's README](../lemonhunt/README.md#score-and-leaderboard)),
+and lemons; see [the game's README](../castle-lemonstein/README.md#score-and-leaderboard)),
 and turns away runs the game could not have produced: more hits than squirts,
 a win without ten lemons or in under 20 seconds, more rats than the level and
 Ratatui hold. Names are cut to 12 characters of what the game can show. One
@@ -60,8 +60,8 @@ DATA_DIR=/tmp/board go run .
 curl localhost:8080/scores
 ```
 
-Point the game at it with `lemonhunt -board http://localhost:8080`, or the
-browser playground with `?app=lemonhunt&board=http://localhost:8080` (and
+Point the game at it with `castle-lemonstein -board http://localhost:8080`, or the
+browser playground with `?app=castle-lemonstein&board=http://localhost:8080` (and
 `ALLOWED_ORIGINS=*` on the server, for a page served from elsewhere).
 
 ## Deploying for free: Vercel and Neon
@@ -83,8 +83,8 @@ non-commercial projects, which this is) and Neon's Free plan.
    the functions start with it.
 3. `https://<project>.vercel.app/healthz` should say `ok`, and
    `https://<project>.vercel.app/scores` `{"board":[]}`.
-4. Put that address in `apps/lemonhunt/main.go` (`defaultBoard`) and in
-   `examples/wasm/index.html` (`scoreboard:` under `lemonhunt`), and push.
+4. Put that address in `apps/castle-lemonstein/main.go` (`defaultBoard`) and in
+   `examples/wasm/index.html` (`scoreboard:` under `castle-lemonstein`), and push.
    The playground is rebuilt from `main` and uses it from then on.
 
 In **Settings → Git**, an **Ignored Build Step** of

@@ -60,9 +60,9 @@ func TestDropRunsAreScoredByTheServerAndRanked(t *testing.T) {
 		if _, a := f.drop("GET", ""); len(a.Board) != 3 || a.Board[0].Name != "Cy" || a.Board[2].Name != "Bo" {
 			t.Errorf("the board: %+v", a.Board)
 		}
-		// Lemon Hunt's board is its own.
+		// Castle Lemonstein's board is its own.
 		if _, a := f.do("GET", "/scores", ""); len(a.Board) != 0 {
-			t.Errorf("Lemon Drop's runs reached Lemon Hunt's board: %+v", a.Board)
+			t.Errorf("Lemon Drop's runs reached Castle Lemonstein's board: %+v", a.Board)
 		}
 	})
 }
@@ -98,7 +98,7 @@ func TestTheLimitCoversBothGames(t *testing.T) {
 	from := []string{"X-Forwarded-For", "10.9.9.9"}
 	for i := 0; i < 3; i++ {
 		if w, _ := f.do("POST", "/scores", `{"name":"A","won":false,"secs":30}`, from...); w.Code != 200 {
-			t.Fatalf("Lemon Hunt run %d: %d", i, w.Code)
+			t.Fatalf("Castle Lemonstein run %d: %d", i, w.Code)
 		}
 		if code, _ := f.drop("POST", run("A", 60, 10, 0), from...); code != 200 {
 			t.Fatalf("Lemon Drop run %d: %d", i, code)
@@ -116,7 +116,7 @@ func TestTheDropBoardSurvivesARestart(t *testing.T) {
 	if code, _ := f.drop("POST", run("Ada", 60, 10, 5)); code != 200 {
 		t.Fatal(code)
 	}
-	// With no Lemon Hunt runs at all, so no scores.json beside it.
+	// With no Castle Lemonstein runs at all, so no scores.json beside it.
 	again, err := OpenMem(path)
 	if err != nil {
 		t.Fatal(err)

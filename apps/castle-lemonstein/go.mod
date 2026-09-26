@@ -1,4 +1,4 @@
-module github.com/thebanri/limoni/apps/lemonhunt
+module github.com/thebanri/limoni/apps/castle-lemonstein
 
 go 1.25.0
 

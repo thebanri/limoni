@@ -52,7 +52,7 @@ func (g *game) render(b *buffer.Buffer) {
 	cv := canvas{b: b, w: W, h: H}
 	if W < minW || H < minH {
 		cv.fill(0, 0, W, H, ' ', hudStyle(0x000000, 0x000000))
-		cv.centered(H/2, "Lemon Hunt needs a window of 60×20 or more", hudStyle(0xeeeeee, 0x000000))
+		cv.centered(H/2, "Castle Lemonstein needs a window of 60×20 or more", hudStyle(0xeeeeee, 0x000000))
 		return
 	}
 
@@ -228,13 +228,13 @@ func (g *game) wallAt(c *column, tex *texture, wv, wx, wy float64, shadeK float3
 		lit = lit.add(albedo.mul(glow * 1.3))
 	}
 	if c.tile == 'S' {
-		// Slime runs down from the top in glowing streaks.
+		// Rainwater streaks the old stone.
 		k := math.Floor(u * 9)
 		f := u*9 - k
 		seed := float64(hash3(int(k), c.mx, c.my))
 		length := 0.1 + 0.55*seed + 0.04*math.Sin(g.now*1.2+k*2)
 		if seed > 0.35 && f > 0.3 && f < 0.7 && wv < length {
-			s := rgb{0.35, 0.95, 0.25}
+			s := rgb{0.32, 0.42, 0.52}
 			lit = lit.mix(s.mul(0.55), 0.8)
 			if wv > length-0.04 {
 				lit = s.mul(0.9) // the drop at the end of the streak
@@ -853,9 +853,9 @@ func (c canvas) centered(y int, s string, st cell.Style) {
 }
 
 const (
-	hudBg    = 0x141210
+	hudBg    = 0x10131c
 	hudText  = 0xece6d8
-	hudDim   = 0x6e6a64
+	hudDim   = 0x9a94a0
 	hudLemon = 0xffd82a
 	hudRed   = 0xe83a30
 	hudGreen = 0x5cc84a
@@ -907,7 +907,7 @@ func (g *game) drawMinimap(cv canvas, v *view, viewW int) {
 			g.mm[k], g.mmA[k] = c, a
 		}
 	}
-	// The things in the sewer, as dots over the tiles.
+	// The things in the castle, as dots over the tiles.
 	for n := 0; n < g.nEnts; n++ {
 		e := &g.ents[n]
 		if e.state != stAlive {
@@ -1112,7 +1112,7 @@ func (g *game) drawHUD(cv canvas, W, H int) {
 
 // box draws a double-lined panel and clears its inside.
 func box(cv canvas, x, y, w, h int, fg uint32) {
-	bg := uint32(0x0c0a08)
+	bg := uint32(0x10131c)
 	st := hudStyle(fg, bg)
 	cv.fill(x, y, w, h, ' ', st)
 	for i := 1; i < w-1; i++ {
@@ -1131,6 +1131,10 @@ func box(cv canvas, x, y, w, h int, fg uint32) {
 
 // A 5×7 pixel font, just the letters the title needs.
 var titleFont = map[rune][7]string{
+	'C': {".####", "#....", "#....", "#....", "#....", "#....", ".####"},
+	'A': {".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"},
+	'S': {".####", "#....", "#....", ".###.", "....#", "....#", "####."},
+	'I': {"#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"},
 	'L': {"#....", "#....", "#....", "#....", "#....", "#....", "#####"},
 	'E': {"#####", "#....", "#....", "####.", "#....", "#....", "#####"},
 	'M': {"#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"},
@@ -1141,54 +1145,73 @@ var titleFont = map[rune][7]string{
 	'T': {"#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."},
 }
 
-const titleText = "LEMON HUNT"
-
-// drawTitleScene dims the attract-mode picture and draws the title over it
-// in pixels: the name, in gold with a shadow and a glint running across it,
-// and half a lemon turning in the air below.
+// drawTitleScene paints the castle's silhouette beneath the gold title.
+// The geometry uses the existing framebuffer and allocates nothing per frame.
 func (g *game) drawTitleScene(v *view) {
-	for i := 0; i < v.pw*v.ph; i++ {
-		g.fb[i] = g.fb[i].mul(0.42)
-	}
-
-	// The lemon, hanging in the corridor ahead of the camera.
-	depth := 1.45
-	e := ent{kind: kLemon, x: g.px + g.dirX*depth, y: g.py + g.dirY*depth, phase: g.now}
-	cy := float64(v.ph) * 0.5
-	cz := v.camZ - (cy-v.horizon)*depth/v.focal
-	g.drawLemon(v, &e, depth, cz)
-
-	scale := 2
-	width := func(s int) int { return (len(titleText)*6 - 1 - 2) * s }
-	if width(scale)+8 > v.pw {
-		scale = 1
-	}
-	x0 := (v.pw - width(scale)) / 2
-	y0 := max(2, v.ph/10)
-	glint := math.Mod(g.now*55, float64(v.pw)*2) - float64(v.pw)/2
-	for pass := 0; pass < 2; pass++ { // the shadow, then the letters
-		x := x0
-		for _, r := range titleText {
-			if r == ' ' {
-				x += 4 * scale
-				continue
+	for y := 0; y < v.ph; y++ {
+		for x := 0; x < v.pw; x++ {
+			c := hex(0x18243b).mix(hex(0x080b13), float32(y)/float32(v.ph))
+			// A pale moon above the eastern tower.
+			dx, dy := float64(x-v.pw*5/6), float64(y-v.ph/5)
+			r := float64(min(v.pw/12, v.ph/7))
+			if dx*dx+dy*dy < r*r {
+				c = hex(0xb8bdba).mul(0.8 + 0.15*hash2(x, y))
 			}
+			g.fb[y*v.pw+x] = c
+		}
+	}
+	fill := func(x, y, w, h int, c rgb) {
+		for py := max(0, y); py < min(v.ph, y+h); py++ {
+			for px := max(0, x); px < min(v.pw, x+w); px++ {
+				g.fb[py*v.pw+px] = c
+			}
+		}
+	}
+	wallY := v.ph * 3 / 5
+	fill(0, wallY, v.pw, v.ph-wallY, hex(0x202635))
+	for x := 0; x < v.pw; x += 8 {
+		fill(x, wallY-3, 5, 4, hex(0x202635))
+	}
+	for _, x := range [2]int{v.pw / 10, v.pw * 8 / 10} {
+		w, top := max(8, v.pw/10), v.ph/3
+		fill(x, top, w, v.ph-top, hex(0x30394a))
+		for bx := x; bx < x+w; bx += 5 {
+			fill(bx, top-3, 3, 4, hex(0x41495a))
+		}
+		for y := top + 5; y < v.ph; y += 9 {
+			fill(x+1, y, w-2, 1, hex(0x1c2433))
+		}
+		fill(x+w/2-1, top+5, 2, 5, hex(0xf0ac4e))
+		fill(x+w/2-2, top+14, 4, 10, hex(0x832d43))
+		fill(x+w/2-1, top+16, 2, 3, hex(0xf1ca59))
+	}
+	// Narrow windows use a cell title instead, leaving the menu readable.
+	if v.pw < 70 || v.ph < 56 {
+		return
+	}
+	scale := max(1, min(3, (v.pw-10)/59, (v.ph-30)/20))
+	top := max(3, v.ph/14)
+	g.drawTitleWord(v, "CASTLE", top, scale, hex(0xe8dcc1), hex(0xa99574))
+	g.drawTitleWord(v, "LEMONSTEIN", top+9*scale, scale, hex(0xffeb99), hex(0xd59132))
+}
+
+func (g *game) drawTitleWord(v *view, word string, y0, scale int, light, dark rgb) {
+	x0 := (v.pw - (len(word)*6-1)*scale) / 2
+	for pass := 0; pass < 2; pass++ {
+		for i, r := range word {
 			glyph := titleFont[r]
 			for gy := 0; gy < 7; gy++ {
 				for gx := 0; gx < 5; gx++ {
 					if glyph[gy][gx] != '#' {
 						continue
 					}
-					t := float32(gy) / 6
-					c := rgb{1, 0.96, 0.5}.mix(rgb{1, 0.58, 0.05}, t)
+					c := light.mix(dark, float32(gy)/6)
 					for sy := 0; sy < scale; sy++ {
 						for sx := 0; sx < scale; sx++ {
-							px, py := x+gx*scale+sx, y0+gy*scale+sy
+							px, py := x0+(i*6+gx)*scale+sx, y0+gy*scale+sy
 							if pass == 0 {
 								px, py = px+scale, py+scale
-								c = rgb{0.2, 0.09, 0.01}
-							} else if d := float64(px+py) - glint; d > 0 && d < 5 {
-								c = c.mix(rgb{1, 1, 0.9}, 0.35)
+								c = hex(0x08090e)
 							}
 							if px >= 0 && py >= 0 && px < v.pw && py < v.ph {
 								g.fb[py*v.pw+px] = c
@@ -1197,7 +1220,6 @@ func (g *game) drawTitleScene(v *view) {
 					}
 				}
 			}
-			x += 6 * scale
 		}
 	}
 }
@@ -1205,10 +1227,13 @@ func (g *game) drawTitleScene(v *view) {
 // drawTitle writes the story and the menu under the picture, and the best
 // scores beside the menu where there is room.
 func (g *game) drawTitle(cv canvas, W, viewH int) {
-	bg := uint32(0x0c0a08)
+	bg := uint32(0x10131c)
 	story := max(0, viewH-13)
-	cv.centered(story, "The rats have hidden the city's lemons in the sewer.", hudStyle(hudText, 0x000000))
-	cv.centered(story+1, "Bring back ten, and their king will come out to fight.", hudStyle(hudText, 0x000000))
+	if min(W, maxCols) < 70 || viewH < 28 {
+		cv.centered(1, "CASTLE LEMONSTEIN", hudStyle(hudLemon, 0x080b13))
+	}
+	cv.centered(story, "Storm the castle. Reclaim the stolen lemons.", hudStyle(hudText, 0x000000))
+	cv.centered(story+1, "Find ten to open the keep. Defeat the Rat King.", hudStyle(hudText, 0x000000))
 
 	w, h := 46, 9
 	boardW := 37
@@ -1218,7 +1243,7 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 	if showBoard {
 		x = (W - w - boardW - 2) / 2
 	}
-	box(cv, x, y, w, h, 0x5a4a20)
+	box(cv, x, y, w, h, 0x9b7840)
 	item := func(i, row int, label string) int {
 		st := hudStyle(hudDim, bg)
 		mark := "  "
@@ -1229,12 +1254,12 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 		return cv.text(x+6, row, label, st)
 	}
 
-	end := item(0, y+2, "START")
+	end := item(0, y+2, "ENTER CASTLE")
 	if g.menu == 0 && int(g.now*2)%2 == 0 {
-		cv.text(end+3, y+2, "press ENTER", hudStyle(hudText, bg))
+		cv.text(end+2, y+2, "ENTER", hudStyle(hudText, bg))
 	}
 
-	item(1, y+3, "NAME")
+	item(1, y+3, "KNIGHT")
 	cv.text(x+16, y+3, g.playerName(), hudStyle(hudText, bg))
 
 	item(2, y+4, "SOUND")
@@ -1263,7 +1288,7 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 	cv.text(x+(w-textWidth(hint))/2, y+7, hint, hudStyle(hudDim, bg))
 	if showBoard {
 		bx := x + w + 2
-		box(cv, bx, y, boardW, h, 0x5a4a20)
+		box(cv, bx, y, boardW, h, 0x9b7840)
 		g.boardTitle(cv, bx+3, y+1, world, true)
 		g.drawBoard(cv, bx+2, y+2, min(5, h-3), 0, entries)
 	}
@@ -1272,7 +1297,7 @@ func (g *game) drawTitle(cv canvas, W, viewH int) {
 // boardTitle names the board shown: the world's, or this player's own, and
 // with note, why: the server is being asked or has not answered.
 func (g *game) boardTitle(cv canvas, x, y int, world, note bool) {
-	bg := uint32(0x0c0a08)
+	bg := uint32(0x10131c)
 	if world {
 		cv.text(x, y, "WORLD BEST", hudStyle(hudLemon, bg))
 		return
@@ -1292,7 +1317,7 @@ func (g *game) boardTitle(cv canvas, x, y int, world, note bool) {
 // drawBoard lists the top n of entries from (x, y), one a row: place, name,
 // score, time and aim. The run at place mark (1-based) is picked out.
 func (g *game) drawBoard(cv canvas, x, y, n, mark int, entries []scoreEntry) {
-	bg := uint32(0x0c0a08)
+	bg := uint32(0x10131c)
 	if len(entries) == 0 {
 		cv.text(x+1, y, "no scores yet", hudStyle(hudDim, bg))
 		return
@@ -1339,11 +1364,14 @@ func (c canvas) numberRight(end, y, n int, st cell.Style) int {
 
 // drawNameEntry asks for the player's name, which goes on the leaderboard.
 func (g *game) drawNameEntry(cv canvas, W, viewH int) {
-	bg := uint32(0x0c0a08)
+	if min(W, maxCols) < 70 || viewH < 28 {
+		cv.centered(1, "CASTLE LEMONSTEIN", hudStyle(hudLemon, 0x080b13))
+	}
+	bg := uint32(0x10131c)
 	w, h := 46, 8
 	x, y := (W-w)/2, max(0, viewH-h-1)
-	box(cv, x, y, w, h, 0x5a4a20)
-	cv.centered(y+2, "WHAT IS YOUR NAME?", hudStyle(hudLemon, bg))
+	box(cv, x, y, w, h, 0x9b7840)
+	cv.centered(y+2, "NAME YOUR KNIGHT", hudStyle(hudLemon, bg))
 	fx := x + (w-nameMax-2)/2
 	cv.fill(fx, y+4, nameMax+2, 1, ' ', hudStyle(hudText, 0x2a2622))
 	end := cv.text(fx+1, y+4, g.typing, hudStyle(hudText, 0x2a2622))
@@ -1358,17 +1386,17 @@ func (g *game) drawNameEntry(cv canvas, W, viewH int) {
 func (g *game) drawEnd(cv canvas, W, viewH int, won bool) {
 	w, h := 60, 17
 	x, y := (W-w)/2, max(0, (viewH-h)/2)
-	bg := uint32(0x0c0a08)
+	bg := uint32(0x10131c)
 	dim, val := hudStyle(hudDim, bg), hudStyle(hudText, bg)
 	if won {
 		box(cv, x, y, w, h, 0xf0b830)
 		cv.centered(y+1, "_/\\_/\\_/\\_", hudStyle(0xf0b830, bg))
-		cv.centered(y+2, "RATATUI IS DEFEATED", hudStyle(hudLemon, bg))
-		cv.centered(y+3, "The lemons are back where they belong.", val)
+		cv.centered(y+2, "THE CASTLE IS LIBERATED", hudStyle(hudLemon, bg))
+		cv.centered(y+3, "Ratatui has fallen. The lemons are yours.", val)
 	} else {
 		box(cv, x, y, w, h, hudRed)
-		cv.centered(y+2, "THE RATS GOT YOU", hudStyle(hudRed, bg))
-		cv.centered(y+3, "A dead squirter scores no time.", dim)
+		cv.centered(y+2, "YOU FELL IN THE CASTLE", hudStyle(hudRed, bg))
+		cv.centered(y+3, "The keep still stands. Rise and try again.", dim)
 	}
 
 	r := &g.last

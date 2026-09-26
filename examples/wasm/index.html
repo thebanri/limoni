@@ -35,6 +35,38 @@
       align-items: center;
       padding: 32px 16px 48px;
     }
+    body.castle {
+      --accent: #efcb71;
+      --accent-dim: #cba654;
+      --muted: #aaa3ac;
+      --border: rgba(214, 175, 97, 0.25);
+      background: radial-gradient(ellipse at 50% 0%, #342238, #10131c 65%);
+    }
+    .castle header h1, .castle .poster h2 {
+      font-family: Georgia, "Times New Roman", serif;
+      color: #f5d88a;
+      letter-spacing: 0.04em;
+      text-shadow: 0 3px 0 #452332;
+    }
+    .castle .poster {
+      background: radial-gradient(ellipse at 50% 10%, #31394b, #10131c 70%);
+      border-top: 3px solid #9b7840;
+    }
+    .castle .poster::before {
+      content: "♜";
+      color: #e5c16a;
+      background: #762a40;
+      border: 1px solid #9b7840;
+      padding: 8px 18px;
+      font-size: 36px;
+      margin-bottom: 12px;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%);
+    }
+    .castle button.run {
+      background: #e9c268;
+      color: #211722;
+      box-shadow: 0 4px 0 #795733;
+    }
     header { text-align: center; margin-bottom: 22px; max-width: 680px; }
     h1 {
       font-size: 30px; font-weight: 700; color: #fff;
@@ -75,6 +107,13 @@
     /* A fixed height, not a minimum: xterm's own element keeps the size of
        the last fit, and would hold the box at fullscreen size after leaving. */
     #terminal { height: 420px; }
+    /* Games draw a complete frame and have no terminal scrollback. xterm's
+       default viewport otherwise reserves a visible vertical scrollbar. */
+    body.game #terminal .xterm-viewport {
+      overflow: hidden !important;
+      scrollbar-width: none;
+    }
+    body.game #terminal .xterm-viewport::-webkit-scrollbar { display: none; }
 
     /* A game opens in most of the window rather than the playground's box:
        the terminal as tall as the window allows below the header (232px:
@@ -83,11 +122,11 @@
        Not on a phone, whose header wraps taller and which has no keyboard
        to play with anyway. */
     @media (min-width: 700px) {
-      body.big .stage { max-width: max(1000px, calc((100vh - 232px) * 2)); }
-      body.big #terminal { height: max(420px, calc(100vh - 232px)); }
+      body.big .stage:not(.full) { max-width: max(1000px, calc((100vh - 232px) * 2)); }
+      body.big .stage:not(.full) #terminal { height: max(420px, calc(100vh - 232px)); }
       /* With the leaderboard above the stage: 48px more of header. */
-      body.big.has-board #terminal { height: max(420px, calc(100vh - 280px)); }
-      body.big.has-board .stage,
+      body.big.has-board .stage:not(.full) #terminal { height: max(420px, calc(100vh - 280px)); }
+      body.big.has-board .stage:not(.full),
       body.big.has-board .board { max-width: max(1000px, calc((100vh - 280px) * 2)); }
     }
 
@@ -129,8 +168,14 @@
       position: fixed; inset: 0; z-index: 50;
       max-width: none; border-radius: 0; border: 0;
       display: flex; flex-direction: column;
+      overflow: hidden;
     }
-    .stage.full #terminal { height: auto; flex: 1; min-height: 0; }
+    html.terminal-fullscreen, html.terminal-fullscreen body {
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    .stage.full .stage-header { flex-shrink: 0; }
+    .stage.full #terminal { height: auto; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
     .stage.full .poster { border-radius: 0; }
 
     /* Poster overlay: the WASM module is only fetched when the user asks. */
@@ -224,7 +269,7 @@
         Nothing is installed, nothing leaves your browser.
       </p>
       <button class="run" id="run">▶&nbsp;&nbsp;Run it</button>
-      <a class="other" id="other-app" href="?app=lemonhunt">🍋 or play Lemon Hunt, a raycaster game →</a>
+      <a class="other" id="other-app" href="?app=castle-lemonstein">🍋 or play Castle Lemonstein, a raycaster game →</a>
       <a class="other" id="other-app-2" href="?app=lemondrop">🍋 or Lemon Drop, falling blocks that turn to sand →</a>
     </div>
   </div>
@@ -256,7 +301,7 @@
 
   <script>
     // Three modules share this page: the playground, and two games,
-    // ?app=lemonhunt from apps/lemonhunt and ?app=lemondrop from
+    // ?app=castle-lemonstein from apps/castle-lemonstein and ?app=lemondrop from
     // apps/lemondrop. They are separate builds because each game is a module
     // of its own and ships to nobody who imports Limoni.
     const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -265,14 +310,15 @@
         wasm: 'limoni.wasm',
         running: 'Limoni engine running — click the terminal and type',
       },
-      lemonhunt: {
-        wasm: 'lemonhunt.wasm',
-        title: 'Lemon Hunt — a raycaster in the terminal',
-        posterTitle: '🍋 Lemon Hunt',
-        posterText: 'The rats have hidden the city\'s lemons in the sewer. Find ten, ' +
-          'then squirt Ratatui, king of the rats. A raycaster in half blocks, ' +
-          'drawn by Limoni. Loads a <strong>~5 MB</strong> WebAssembly module; turn your sound on.',
-        button: '▶&nbsp;&nbsp;Play',
+      'castle-lemonstein': {
+        wasm: 'castle-lemonstein.wasm',
+        title: 'Castle Lemonstein — a raycaster in the terminal',
+        posterTitle: 'Castle Lemonstein',
+        theme: 'castle',
+        posterText: 'Storm the moonlit castle. Reclaim ten stolen lemons, raise the portcullis, ' +
+          'and face Ratatui in the keep. Stone halls. Burgundy banners. Lemon-powered revenge. ' +
+          '<strong>Turn your sound on.</strong>',
+        button: '▶&nbsp;&nbsp;Enter the castle',
         other: '← back to the Limoni playground',
         otherHref: '?',
         keys: '<span><kbd>W</kbd><kbd>S</kbd> walk</span>' +
@@ -282,13 +328,13 @@
           '<span><kbd>R</kbd> reload</span>' +
           '<span><kbd>M</kbd> map</span>' +
           '<span><kbd>Esc</kbd> quit</span>',
-        running: 'Lemon Hunt running — click the terminal if keys do nothing',
+        running: 'Castle Lemonstein running — click the terminal if keys do nothing',
         // In fullscreen the font grows to keep about this many rows: bigger
         // pixels rather than four times the cells to raycast and send.
         fullscreenRows: 48,
-        // And it opens large (body.big), where the font grows to keep about
-        // this many rows, for the same reason.
+        // Start in the normal page layout. Fullscreen is opt-in via its button.
         windowRows: 40,
+        largeWindow: false,
         audio: true,
         keyReleases: true,
         // The shared leaderboard: apps/scoreboard, deployed on Vercel over a
@@ -332,20 +378,25 @@
       },
     };
     const params = new URLSearchParams(location.search);
+    // Keep previously shared links working, with the new canonical URL.
+    if (params.get('app') === 'lemonhunt') {
+      params.set('app', 'castle-lemonstein');
+      history.replaceState(null, '', `${location.pathname}?${params}${location.hash}`);
+    }
     const app = apps[params.get('app')] || apps.playground;
-    // Read by the games (apps/lemonhunt/remote_js.go, apps/lemondrop/
+    // Read by the games (apps/castle-lemonstein/remote_js.go, apps/lemondrop/
     // remote_js.go) when they start.
-    window.__lemonhunt_scoreboard = params.get('board') || app.scoreboard || '';
-    window.__lemondrop_scoreboard = window.__lemonhunt_scoreboard;
+    window.__castle_lemonstein_scoreboard = params.get('board') || app.scoreboard || '';
+    window.__lemondrop_scoreboard = window.__castle_lemonstein_scoreboard;
     // The world's best, above the game. Fetched when the page opens, which
     // also wakes a sleeping scoreboard (a Vercel function and a Neon
     // database take a moment, a Render service up to a minute) while the
     // module loads; again when the game has sent a run
-    // (__lemonhunt_board_changed, from apps/lemonhunt/remote_js.go); and
+    // (__castle_lemonstein_board_changed, from apps/castle-lemonstein/remote_js.go); and
     // when the tab comes back into view. Not on a timer: a page left open
     // would keep the free database awake all day.
-    if (app.scoreboard && window.__lemonhunt_scoreboard) {
-      const scoresURL = window.__lemonhunt_scoreboard.replace(/\/+$/, '') + (app.boardPath || '/scores');
+    if (app.scoreboard && window.__castle_lemonstein_scoreboard) {
+      const scoresURL = window.__castle_lemonstein_scoreboard.replace(/\/+$/, '') + (app.boardPath || '/scores');
       const boardEl = document.getElementById('board');
       const list = document.getElementById('board-list');
       const note = document.getElementById('board-note');
@@ -377,15 +428,26 @@
       document.body.classList.add('has-board');
       boardEl.hidden = false;
       loadBoard();
-      window.__lemonhunt_board_changed = loadBoard;
+      window.__castle_lemonstein_board_changed = loadBoard;
       window.__lemondrop_board_changed = loadBoard;
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') { loadBoard(); }
       });
     }
     if (app.title) { document.title = app.title; }
+    if (app.theme === 'castle') {
+      document.body.classList.add('castle');
+      document.querySelector('header h1').textContent = 'Castle Lemonstein';
+      document.querySelector('header .subtitle').textContent = 'A castle full of rats. Ten stolen lemons. One way through.';
+      document.querySelector('meta[name="description"]').content = 'Storm Castle Lemonstein, a retro first-person castle adventure in your terminal or browser.';
+      document.querySelector('meta[property="og:title"]').content = 'Castle Lemonstein';
+      document.querySelector('meta[property="og:description"]').content = 'Reclaim the lemons. Breach the keep. Defeat the Rat King.';
+    }
     // Before the terminal is made, so its first fit is to the large box.
-    if (app.windowRows) { document.body.classList.add('big'); }
+    if (app.windowRows) {
+      document.body.classList.add('game');
+      if (app.largeWindow !== false) { document.body.classList.add('big'); }
+    }
     if (app.posterTitle) { document.getElementById('poster-title').textContent = app.posterTitle; }
     if (app.posterText) { document.getElementById('poster-text').innerHTML = app.posterText; }
     if (app.button) { document.getElementById('run').innerHTML = app.button; }
@@ -399,6 +461,7 @@
 
     const term = new Terminal({
       cursorBlink: true,
+      scrollback: app.windowRows ? 0 : 1000,
       fontFamily: 'ui-monospace, Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,
       lineHeight: 1.0,
@@ -411,7 +474,7 @@
 
     // The default renderer keeps a DOM element per cell and restyles each one
     // whose colour changed. A moving picture in free colours — the 3D scene,
-    // Lemon Hunt — changes nearly all of them every frame: profiled, the page
+    // Castle Lemonstein — changes nearly all of them every frame: profiled, the page
     // spent three quarters of its time in style and layout and repainted 8
     // times a second while Go produced 30 frames. The WebGL renderer draws the
     // same cells on the GPU. Without WebGL, or once its context is lost, xterm
@@ -440,7 +503,7 @@
     // - The merge happens while a frame is being built, and the cells built
     //   before it still point at the pages as they were.
     //
-    // In Lemon Hunt that was coloured noise, in patches that cleared only as
+    // In Castle Lemonstein that was coloured noise, in patches that cleared only as
     // the cells changed: soon after a game starts, when the atlas first
     // fills, and again in Ratatui's lair. So a frame in which pages merged is
     // drawn again, with every page uploaded, before the browser shows it.
@@ -543,10 +606,19 @@
 
     function setFull(on) {
       stage.classList.toggle('full', on);
+      document.documentElement.classList.toggle('terminal-fullscreen', on);
       fullToggle.textContent = on ? '✕ Exit fullscreen' : '⛶ Fullscreen';
       refit();
       term.focus();
     }
+    // A back/forward-cache restore can retain the covering fallback's class.
+    // Returning to the link should show the normal page unless the browser
+    // is still genuinely presenting this stage in fullscreen.
+    window.addEventListener('pageshow', () => {
+      if (!document.fullscreenElement && stage.classList.contains('full')) {
+        setFull(false);
+      }
+    });
     fullToggle.addEventListener('click', async () => {
       if (document.fullscreenElement) {
         document.exitFullscreen();

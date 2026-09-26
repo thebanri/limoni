@@ -76,7 +76,7 @@ func (t *texture) sample(u, v float64) (rgb, float32) {
 const (
 	texBrick = iota
 	texStone
-	texPipe
+	texBanner
 	texLair
 	texGate
 	texFloor
@@ -92,7 +92,7 @@ func wallTexture(tile byte) *texture {
 	case 'S':
 		return &textures[texStone]
 	case 'P':
-		return &textures[texPipe]
+		return &textures[texBanner]
 	case 'L':
 		return &textures[texLair]
 	case 'G':
@@ -104,7 +104,7 @@ func wallTexture(tile byte) *texture {
 func init() {
 	makeBrick(&textures[texBrick])
 	makeStone(&textures[texStone])
-	makePipe(&textures[texPipe])
+	makeBanner(&textures[texBanner])
 	makeLair(&textures[texLair])
 	makeGate(&textures[texGate])
 	makeFloor(&textures[texFloor])
@@ -112,7 +112,7 @@ func init() {
 }
 
 func makeBrick(t *texture) {
-	mortar := hex(0x4a423c)
+	mortar := hex(0x222938)
 	for y := 0; y < texSize; y++ {
 		course := y / 8
 		off := (course % 2) * 8
@@ -122,7 +122,7 @@ func makeBrick(t *texture) {
 				t.set(x, y, mortar.mul(0.8+0.3*hash2(x, y)))
 				continue
 			}
-			base := hex(0x8c4128).mix(hex(0xa8603a), hash2(bx, course))
+			base := hex(0x657084).mix(hex(0x89909c), hash2(bx, course))
 			k := 0.88 + 0.2*hash2(x*7, y*3)
 			switch y % 8 {
 			case 0:
@@ -162,73 +162,38 @@ func makeStone(t *texture) {
 	}
 }
 
-func makePipe(t *texture) {
-	for y := 0; y < texSize; y++ {
-		for x := 0; x < texSize; x++ {
-			c := hex(0x3c434c).mul(0.85 + 0.2*hash2(x*3, y*7))
-			if x%16 == 0 {
-				c = hex(0x23272c)
+// A burgundy standard over dressed stone, with a gold lemon crest.
+func makeBanner(t *texture) {
+	makeBrick(t)
+	for y := 3; y < 29; y++ {
+		for x := 7; x < 25; x++ {
+			if y > 25 && int(math.Abs(float64(x-16))) < y-25 {
+				continue // forked tail
 			}
-			if (x%16 == 3 || x%16 == 12) && (y == 2 || y == 29) {
-				c = hex(0x8a939c) // rivets
+			c := hex(0x8e243e).mul(0.8 + 0.2*float32(math.Sin(float64(x)*0.7)))
+			if x == 7 || x == 24 || y == 3 {
+				c = hex(0xc9a452)
+			}
+			dx, dy := float64(x-16)/5, float64(y-14)/7
+			if dx*dx+dy*dy < 1 {
+				c = hex(0xf4cb4c).mul(1 - float32(dx)*0.15)
 			}
 			t.set(x, y, c)
 		}
 	}
-	pipe := func(y0, y1 int, col rgb) {
-		for y := y0; y <= y1; y++ {
-			// Shade the pipe as a cylinder: bright along the top.
-			a := (float64(y-y0) + 0.5) / float64(y1-y0+1)
-			k := float32(0.35 + 0.75*math.Sin(a*math.Pi)*(1.1-a*0.6))
-			for x := 0; x < texSize; x++ {
-				c := col.mul(k)
-				if x%10 == 0 {
-					c = c.mul(0.7) // a joint
-				}
-				t.set(x, y, c)
-			}
-		}
-	}
-	pipe(7, 13, hex(0x6f8aa0))
-	pipe(19, 22, hex(0x8a6a4a))
-	// Rust running down from the pipes.
-	for x := 0; x < texSize; x++ {
-		if hash2(x, 5) < 0.3 {
-			n := 3 + int(hash2(x, 6)*8)
-			for y := 14; y < 14+n && y < 19; y++ {
-				t.set(x, y, hex(0x6b3a1c).mul(0.9-float32(y-14)*0.08))
-			}
-		}
+	for x := 5; x < 27; x++ {
+		t.set(x, 2, hex(0xd4b66a))
 	}
 }
 
 func makeLair(t *texture) {
+	makeBanner(t)
+	// The throne room's darker masonry and gold standards.
 	for y := 0; y < texSize; y++ {
 		for x := 0; x < texSize; x++ {
-			t.set(x, y, hex(0x1c1024).mul(0.8+0.3*hash2(x*3, y*5)))
-		}
-	}
-	// Two terminal panels, glowing: a border, a title bar and a bar chart.
-	glow := func(x, y int, c rgb, k float32) {
-		t.set(x, y, c)
-		t.glow[y*texSize+x] = k
-	}
-	for _, p := range [2][2]int{{2, 3}, {17, 3}} {
-		x0, y0 := p[0], p[1]
-		x1, y1 := x0+12, y0+24
-		for x := x0; x <= x1; x++ {
-			glow(x, y0, hex(0xe060c8), 1)
-			glow(x, y1, hex(0xe060c8), 1)
-			glow(x, y0+3, hex(0x80305f), 0.6)
-		}
-		for y := y0; y <= y1; y++ {
-			glow(x0, y, hex(0xe060c8), 1)
-			glow(x1, y, hex(0xe060c8), 1)
-		}
-		for x := x0 + 2; x <= x1-2; x += 2 {
-			h := 3 + int(hash2(x, y0)*14)
-			for y := y1 - 2; y > y1-2-h; y-- {
-				glow(x, y, hex(0x48d8e8), 0.9)
+			i := y*texSize + x
+			if x < 7 || x >= 25 {
+				t.c[i] = t.c[i].mul(0.65)
 			}
 		}
 	}
@@ -423,7 +388,7 @@ func drawRat(phase float64, biting bool, fur rgb, fat float64) *sprite {
 	s := newSprite(40, 62)
 	pink := hex(0xd88c98)
 	belly := fur.mix(hex(0xc8bcb4), 0.45)
-	cloth := hex(0x5a4630) // a waistcoat, gone brown in the sewer
+	cloth := hex(0x5a4630) // a waistcoat, gone brown in the castle
 	if fat > 1 {
 		cloth = hex(0x8a8070) // an apron, once white
 	}

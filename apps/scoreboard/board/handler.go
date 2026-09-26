@@ -26,7 +26,7 @@ type Store interface {
 	Allow(ctx context.Context, addr string, now time.Time) (bool, error)
 }
 
-// DropStore keeps Lemon Drop's runs, beside Lemon Hunt's: every store here
+// DropStore keeps Lemon Drop's runs, beside Castle Lemonstein's: every store here
 // is both.
 type DropStore interface {
 	TopDrop(ctx context.Context, n int) ([]DropEntry, error)
@@ -55,7 +55,7 @@ type handler struct {
 // a function of its own.
 func Scores(c Config) http.Handler { return newHandler(c) }
 
-// DropScores serves Lemon Drop's board as Scores does Lemon Hunt's. The
+// DropScores serves Lemon Drop's board as Scores does Castle Lemonstein's. The
 // store must be a DropStore too.
 func DropScores(c Config) http.Handler {
 	ds, _ := c.Store.(DropStore)
@@ -103,7 +103,7 @@ func New(c Config) http.Handler {
 	mux.Handle("/api/healthz", health)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte("Lemon Hunt's shared leaderboard. The best ten are at /scores, and Lemon Drop's at /drop/scores.\n"))
+		_, _ = w.Write([]byte("Castle Lemonstein's shared leaderboard. The best ten are at /scores, and Lemon Drop's at /drop/scores.\n"))
 	})
 	return mux
 }

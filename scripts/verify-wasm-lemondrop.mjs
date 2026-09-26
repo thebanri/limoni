@@ -1,5 +1,5 @@
 // Smoke-tests Lemon Drop's WebAssembly build by running it, as
-// verify-wasm-lemonhunt.mjs does for the other game.
+// verify-wasm-castle-lemonstein.mjs does for the other game.
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
 // Audio context, types a name, starts a run,

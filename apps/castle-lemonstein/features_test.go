@@ -304,7 +304,7 @@ func TestTheEndScreenShowsTheScore(t *testing.T) {
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
 	s := screen(b)
-	for _, want := range []string{"RATATUI IS DEFEATED", "SCORE", "Number 2 on the leaderboard", "Deniz", "Old", "99999", "1:01", "75%"} {
+	for _, want := range []string{"THE CASTLE IS LIBERATED", "SCORE", "Number 2 on the leaderboard", "Deniz", "Old", "99999", "1:01", "75%"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the end screen lacks %q:\n%s", want, s)
 		}
@@ -318,7 +318,7 @@ func TestTheTitleShowsTheBestScores(t *testing.T) {
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
 	s := screen(b)
-	for _, want := range []string{"BEST SCORES", "Mert", "7777", "NAME", "Can"} {
+	for _, want := range []string{"BEST SCORES", "Mert", "7777", "KNIGHT", "Can"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the title lacks %q", want)
 		}
@@ -335,7 +335,7 @@ func TestTheNameEntryAsksForAName(t *testing.T) {
 	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w'}) // a letter, not the menu
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
-	if s := screen(b); !strings.Contains(s, "WHAT IS YOUR NAME?") || g.typing != "w" {
+	if s := screen(b); !strings.Contains(s, "NAME YOUR KNIGHT") || g.typing != "w" {
 		t.Errorf("typing %q on:\n%s", g.typing, s)
 	}
 }

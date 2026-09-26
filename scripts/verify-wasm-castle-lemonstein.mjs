@@ -1,4 +1,4 @@
-// Smoke-tests Lemon Hunt's WebAssembly build by running it, as
+// Smoke-tests Castle Lemonstein's WebAssembly build by running it, as
 // verify-wasm.mjs does for the playground.
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
@@ -10,7 +10,7 @@
 // ended the program. Esc is the one that had a bug behind it — the browser
 // never delivered a lone ESC — so the exit is checked, not assumed.
 //
-//   node scripts/verify-wasm-lemonhunt.mjs "$(go env GOROOT)" path/to/lemonhunt.wasm
+//   node scripts/verify-wasm-castle-lemonstein.mjs "$(go env GOROOT)" path/to/castle-lemonstein.wasm
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -61,7 +61,7 @@ globalThis.__limoni_input?.("Tester\r"); // the name, then on to the title
 await sleep(800);
 const title = captured.slice(asked.length);
 
-globalThis.__limoni_input?.("\r"); // START
+globalThis.__limoni_input?.("\r"); // ENTER CASTLE
 await sleep(800);
 const game = captured.slice(asked.length + title.length);
 
@@ -72,8 +72,8 @@ const checks = [
   ["alternate screen (?1049h)", asked.includes("\x1b[?1049h")],
   ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(asked)],
   ["half blocks (▀)", asked.includes("▀")],
-  ["name entry first (WHAT IS YOUR NAME?)", asked.includes("WHAT IS YOUR NAME?")],
-  ["title menu with the name (START, Tester)", title.includes("START") && title.includes("Tester")],
+  ["name entry first (NAME YOUR KNIGHT)", asked.includes("NAME YOUR KNIGHT")],
+  ["title menu with the name (ENTER CASTLE, Tester)", title.includes("ENTER CASTLE") && title.includes("Tester")],
   ["HUD after Enter (LEMONS)", game.includes("LEMONS")],
   ["clips loaded into Web Audio", audio.buffers > 0],
   ["a sound played", audio.started > 0],

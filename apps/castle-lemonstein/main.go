@@ -1,11 +1,11 @@
-// Lemon Hunt: a short first-person game in the terminal.
+// Castle Lemonstein: a short first-person game in the terminal.
 //
 //	go run .            # play
 //	go run . -fps 60    # a smoother frame rate, where the terminal keeps up
 //	go run . -boss      # start at the lair's gate with ten lemons, to record the fight
 //	go run . -mute      # no sound
 //
-// The rats have hidden the city's lemons in the sewer. Find ten, and the gate
+// The rats have hidden the city's lemons in the castle. Find ten, and the gate
 // to the lair lifts: Ratatui, king of the rats, is waiting there with a
 // health bar of its own. Squirt it until the bar is empty.
 //
@@ -73,7 +73,7 @@ func main() {
 	last := time.Now()
 	app := limoni.NewApp(term,
 		limoni.WithFPS(*fps),
-		limoni.WithTitle("Lemon Hunt"),
+		limoni.WithTitle("Castle Lemonstein"),
 		limoni.WithKeyReleases(),
 	)
 	err = app.Run(context.Background(), func(f *limoni.Frame, ev *limoni.Event) bool {
@@ -94,11 +94,11 @@ func main() {
 	} else if !*mute {
 		switch runtime.GOOS {
 		case "darwin":
-			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — check your macOS audio output, or install SoX (brew install sox) as a fallback")
+			fmt.Fprintln(os.Stderr, "castle-lemonstein: no sound — check your macOS audio output, or install SoX (brew install sox) as a fallback")
 		case "windows":
-			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — check your Windows sound output device and volume mixer")
+			fmt.Fprintln(os.Stderr, "castle-lemonstein: no sound — check your Windows sound output device and volume mixer")
 		default:
-			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — install pw-play, pacat, aplay or sox to hear it")
+			fmt.Fprintln(os.Stderr, "castle-lemonstein: no sound — install pw-play, pacat, aplay or sox to hear it")
 		}
 	}
 	if err != nil {
@@ -218,7 +218,7 @@ func (g *game) nameKey(k limoni.KeyEvent) {
 	}
 }
 
-// titleKey drives the title menu: START, NAME, SOUND and QUIT.
+// titleKey drives the title menu: ENTER CASTLE, KNIGHT, SOUND and QUIT.
 func (g *game) titleKey(k limoni.KeyEvent, isRune bool, ch rune) {
 	const items = 4
 	switch {

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Lemon Drop's board (apps/lemondrop) sits beside Lemon Hunt's, at
+// Lemon Drop's board (apps/lemondrop) sits beside Castle Lemonstein's, at
 // /drop/scores, with its own runs and the same limit on how often one
 // address may send one.
 //
@@ -18,7 +18,7 @@ import (
 //	score  drops + Σ base × level × chain
 //	level  1 + (clears so far, this one included) ÷ 4
 //
-// As with Lemon Hunt's board, anyone can still send a run they did not
+// As with Castle Lemonstein's board, anyone can still send a run they did not
 // play; the checks below only make sure it is one the game could have
 // produced.
 const (

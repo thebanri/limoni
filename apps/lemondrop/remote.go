@@ -10,7 +10,7 @@ import (
 // a goroutine of its own, and each step picks up the answers from a
 // channel without waiting, so a slow or missing server never stalls a
 // frame. Without one the game shows its own board. It is the same scheme
-// as Lemon Hunt's (apps/lemonhunt/remote.go).
+// as Castle Lemonstein's (apps/castle-lemonstein/remote.go).
 
 // defaultBoard is the shared leaderboard the game ships with: the
 // scoreboard on Vercel, over a Neon database. The browser's is set in

@@ -1,17 +1,20 @@
-# Lemon Hunt
+# Castle Lemonstein
 
-A short first-person game in the terminal.
+Storm a moonlit castle in this retro first-person terminal game.
+
+A stone fortress, burgundy banners and a gold two-line title welcome you.
+Reclaim ten stolen lemons, raise the portcullis, and defeat Ratatui in the keep.
 
 ```bash
-go install github.com/thebanri/limoni/apps/lemonhunt@latest
+go install github.com/thebanri/limoni/apps/castle-lemonstein@latest
 
-lemonhunt            # play
-lemonhunt -fps 60    # smoother, where the terminal keeps up
-lemonhunt -boss      # start at the lair's gate with ten lemons
-lemonhunt -mute      # no sound
+castle-lemonstein            # play
+castle-lemonstein -fps 60    # smoother, where the terminal keeps up
+castle-lemonstein -boss      # start at the lair's gate with ten lemons
+castle-lemonstein -mute      # no sound
 ```
 
-The rats have hidden the city's lemons in the sewer. Find ten and the gate to
+The rats have hidden the city's lemons in the castle. Find ten and the gate to
 the lair lifts. Ratatui, king of the rats, is waiting there with a health bar
 of its own. It charges when its eyes burn and throws cheese you can dodge or
 shoot out of the air. At three quarters, half and a quarter of its health, it
@@ -25,7 +28,8 @@ no squirting; the gun drops out of sight while it happens. The squirt only
 hits what the crosshair is on: about the width of a rat's body.
 
 The first time, the game asks for a name. The title screen has a menu:
-`W`/`S` choose, `←`/`→` set the volume, and `ENTER` starts, changes the name,
+`W`/`S` choose ENTER CASTLE, KNIGHT, SOUND or QUIT; `←`/`→` set the volume,
+and `ENTER` starts, changes the name,
 switches the sound on and off, or quits.
 
 In the game, `W`/`S` walk, `A`/`D` strafe, `←`/`→` turn, and `space` squirts.
@@ -48,8 +52,10 @@ still scores what it got done. The end screen takes the score apart and
 shows the best five; the title shows them too.
 
 The name and the ten best runs are kept between games: in
-`~/.config/lemonhunt/scores.json` (the user's config directory on other
-systems), or, in the browser, in `localStorage`.
+`~/.config/castle-lemonstein/scores.json` (the user's config directory on other
+systems), or, in the browser, in `localStorage`. Existing names and scores
+from the former `lemonhunt` save location are read automatically until the
+first save under the new name.
 
 With a scoreboard ([`apps/scoreboard`](../scoreboard), on Vercel's free plan with a free Neon database),
 every finished run is also sent there, and the screens show the world's
@@ -57,7 +63,7 @@ best ten — `WORLD BEST` — and where the run placed in it. The server works
 the score out from what the run did, and the game asks it off the frame, so
 a slow or missing server never stalls one: without an answer the screens
 fall back to this player's own board and say so. `-board URL` (or
-`LEMONHUNT_BOARD`) points the game at a server, `-board off` keeps the
+`CASTLE_LEMONSTEIN_BOARD`) points the game at a server, `-board off` keeps the
 scores at home; in the browser, the page names it, and `?board=URL`
 overrides it.
 
@@ -71,7 +77,10 @@ Larger pictures take more work to render and send to the terminal; the
 playable frame rate depends on the machine and terminal. A whole run takes
 a few minutes.
 
-It also runs in the browser, at <https://thebanri.github.io/limoni/?app=lemonhunt>:
+It also runs in the browser, at <https://thebanri.github.io/limoni/?app=castle-lemonstein>:
+old `?app=lemonhunt` links automatically switch to this address and open the
+same game, preserving other URL options.
+It uses
 the same code compiled with `GOOS=js GOARCH=wasm`, drawn by xterm.js, and
 built from `main` by the Pages workflow. xterm.js reports no key releases,
 so the page sends them itself from the browser's `keyup`, in the kitty
@@ -85,8 +94,8 @@ colour and the lower as the background. A cell is about twice as tall as it
 is wide, so the pixels come out square.
 
 - **Walls, floor and ceiling** use 32×32 textures generated at start-up:
-  brick, stone with moss, rusting pipes, and the lair's glowing terminal
-  panels. Slime runs down the stone walls; puddles on the floor catch the
+  blue-grey masonry, weathered stone, burgundy lemon standards, and the
+  throne room's dark walls. Rainwater streaks the stone; puddles on the floor catch the
   light and ripple.
 - **Light** comes from lamps that flicker and sometimes nearly go out, from
   a lantern that moves with the player, and from the squirter's flash. Fog
@@ -119,7 +128,7 @@ Most terminals report key presses and auto-repeats, but not releases, so a
 game cannot know a key is still held. It can only guess from auto-repeat,
 which starts after a pause (600 ms on many desktops), and walking stutters.
 
-Lemon Hunt asks for key releases with `limoni.WithKeyReleases()`. In
+Castle Lemonstein asks for key releases with `limoni.WithKeyReleases()`. In
 terminals with the kitty keyboard protocol (kitty, Ghostty, WezTerm, foot),
 a key is then held exactly as long as it is held. Elsewhere it falls back to
 guessing: a press counts as held long enough to bridge the auto-repeat
@@ -160,7 +169,7 @@ buffer source through a gain and a stereo panner.
 
 A frame allocates nothing, and the tests hold it to that through Limoni's
 diff as well. `TestFramesAllocateNothing` plays scripted input through six
-scenes (title, sewer with and without key releases, lair, win, loss). Each
+scenes (title, castle with and without key releases, lair, win, loss). Each
 frame is drawn and then encoded as the terminal would receive it, and the
 test measures the whole thing with `testing.AllocsPerRun`.
 

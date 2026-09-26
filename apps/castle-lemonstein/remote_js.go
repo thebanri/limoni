@@ -53,18 +53,18 @@ func httpDo(method, url string, body []byte) ([]byte, error) {
 
 // boardChanged tells the page a run has reached the shared board, so that
 // the leaderboard it shows above the game can fetch it again. The page
-// leaves the function at window.__lemonhunt_board_changed; without it, as
+// leaves the function at window.__castle_lemonstein_board_changed; without it, as
 // under Node, nothing happens.
 func boardChanged() {
-	if f := js.Global().Get("__lemonhunt_board_changed"); f.Type() == js.TypeFunction {
+	if f := js.Global().Get("__castle_lemonstein_board_changed"); f.Type() == js.TypeFunction {
 		f.Invoke()
 	}
 }
 
 // boardURL is the shared leaderboard's address, which the page leaves at
-// window.__lemonhunt_scoreboard; the flag has no say in a browser.
+// window.__castle_lemonstein_scoreboard; the flag has no say in a browser.
 func boardURL(string) string {
-	v := js.Global().Get("__lemonhunt_scoreboard")
+	v := js.Global().Get("__castle_lemonstein_scoreboard")
 	if v.Type() != js.TypeString {
 		return ""
 	}

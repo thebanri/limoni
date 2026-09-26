@@ -39,12 +39,12 @@ func httpDo(method, url string, body []byte) ([]byte, error) {
 // boardChanged has nobody to tell outside a browser; see remote_js.go.
 func boardChanged() {}
 
-// boardURL is the shared leaderboard's address: -board, or LEMONHUNT_BOARD,
+// boardURL is the shared leaderboard's address: -board, or CASTLE_LEMONSTEIN_BOARD,
 // or the one the game ships with. "off" keeps the scores on this machine.
 func boardURL(flag string) string {
 	u := flag
 	if u == "" {
-		u = os.Getenv("LEMONHUNT_BOARD")
+		u = os.Getenv("CASTLE_LEMONSTEIN_BOARD")
 	}
 	if u == "" {
 		u = defaultBoard

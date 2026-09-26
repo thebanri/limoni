@@ -184,8 +184,8 @@ func TestFramesAllocateNothing(t *testing.T) {
 		setup func(g *game)
 	}{
 		{"title", func(g *game) { g.phase = phTitle }},
-		{"sewer", func(g *game) {}},
-		{"sewer with releases", func(g *game) {}},
+		{"castle", func(g *game) {}},
+		{"castle with releases", func(g *game) {}},
 		{"lair", func(g *game) {
 			g.gateOpen = true
 			g.px, g.py = 10.5, 17.5
@@ -404,7 +404,7 @@ func TestDefeatingRatatuiWins(t *testing.T) {
 
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
-	if s := screen(b); !strings.Contains(s, "RATATUI IS DEFEATED") {
+	if s := screen(b); !strings.Contains(s, "THE CASTLE IS LIBERATED") {
 		t.Errorf("no victory screen:\n%s", s)
 	}
 }
@@ -615,7 +615,7 @@ func TestTheTitleScreenShowsTheMenu(t *testing.T) {
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
 	s := screen(b)
-	for _, want := range []string{"START", "SOUND", "QUIT", "audio unavailable", "ENTER select"} {
+	for _, want := range []string{"ENTER CASTLE", "SOUND", "QUIT", "audio unavailable", "ENTER select"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the title screen has no %q", want)
 		}

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Sound works as in Lemon Hunt (apps/lemonhunt/sound.go), from which the
+// Sound works as in Castle Lemonstein (apps/castle-lemonstein/sound.go), from which the
 // mixer is taken: synthesised at start-up, no sample files, and streamed
 // as raw 16-bit stereo PCM to whichever player the system has — pw-play
 // (PipeWire), pacat (PulseAudio), aplay (ALSA) or sox's play — or, in a

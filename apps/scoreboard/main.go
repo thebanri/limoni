@@ -1,4 +1,4 @@
-// Scoreboard is Lemon Hunt's shared leaderboard: a small HTTP server that
+// Scoreboard is Castle Lemonstein's shared leaderboard: a small HTTP server that
 // takes each finished run and hands back the best.
 //
 //	GET  /scores        the best ten, as {"board": [...]}
