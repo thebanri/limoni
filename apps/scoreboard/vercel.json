@@ -3,6 +3,7 @@
   "outputDirectory": "public",
   "rewrites": [
     { "source": "/scores", "destination": "/api/scores" },
+    { "source": "/drop/scores", "destination": "/api/drop/scores" },
     { "source": "/healthz", "destination": "/api/healthz" }
   ]
 }

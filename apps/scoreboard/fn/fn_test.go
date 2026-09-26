@@ -24,7 +24,7 @@ func TestTheFunctionServesTheBoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close(context.Background())
-	_, _ = conn.Exec(context.Background(), `TRUNCATE runs; TRUNCATE posts`)
+	_, _ = conn.Exec(context.Background(), `TRUNCATE runs; TRUNCATE posts; TRUNCATE drop_runs`)
 	t.Setenv("DATABASE_URL", url)
 
 	post := httptest.NewRequest("POST", "/api/scores", strings.NewReader(
@@ -47,6 +47,45 @@ func TestTheFunctionServesTheBoard(t *testing.T) {
 	}
 	w = httptest.NewRecorder()
 	Scores(w, httptest.NewRequest("GET", "/scores", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"Arslan"`) {
+		t.Errorf("GET: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// Lemon Drop's board, as Vercel runs it: its own function, the same
+// database.
+func TestTheFunctionServesLemonDropsBoard(t *testing.T) {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	conn, err := pgx.Connect(context.Background(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(context.Background())
+	t.Setenv("DATABASE_URL", url)
+	// The tables are made when the database is first opened.
+	w := httptest.NewRecorder()
+	DropScores(w, httptest.NewRequest("GET", "/drop/scores", nil))
+	if w.Code != 200 {
+		t.Fatalf("GET: %d %s", w.Code, w.Body.String())
+	}
+	_, _ = conn.Exec(context.Background(), `TRUNCATE drop_runs; TRUNCATE posts`)
+
+	post := httptest.NewRequest("POST", "/api/drop/scores", strings.NewReader(
+		`{"name":"Arslan","secs":90,"pieces":30,"drops":40,"clears":[[120,1],[100,2]]}`))
+	post.Header.Set("Origin", "https://thebanri.github.io")
+	w = httptest.NewRecorder()
+	DropScores(w, post)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"score":360`) || !strings.Contains(w.Body.String(), `"rank":1`) {
+		t.Fatalf("POST: %d %s", w.Code, w.Body.String())
+	}
+	if w.Header().Get("Access-Control-Allow-Origin") != "https://thebanri.github.io" {
+		t.Error("no CORS answer for the playground")
+	}
+	w = httptest.NewRecorder()
+	DropScores(w, httptest.NewRequest("GET", "/drop/scores", nil))
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"Arslan"`) {
 		t.Errorf("GET: %d %s", w.Code, w.Body.String())
 	}

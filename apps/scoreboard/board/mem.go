@@ -18,6 +18,7 @@ import (
 type Mem struct {
 	mu      sync.Mutex
 	entries []Entry
+	drops   []DropEntry // Lemon Drop's board, in drop.json beside it
 	path    string
 	posts   map[string][]time.Time // recent runs sent, by address
 }
@@ -29,18 +30,65 @@ func OpenMem(path string) (*Mem, error) {
 	if path == "" {
 		return m, nil
 	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return m, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, &m.entries); err != nil {
+	if err := readFile(path, &m.entries); err != nil {
 		return nil, err
 	}
 	m.sort()
+	if err := readFile(m.dropPath(), &m.drops); err != nil {
+		return nil, err
+	}
+	m.sortDrops()
 	return m, nil
+}
+
+// readFile reads JSON from path into v; a file not there leaves v as it is.
+func readFile(path string, v any) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+func (m *Mem) dropPath() string { return filepath.Join(filepath.Dir(m.path), "drop.json") }
+
+func (m *Mem) sortDrops() {
+	sort.SliceStable(m.drops, func(i, j int) bool { return dropBefore(m.drops[i], m.drops[j]) })
+	if len(m.drops) > Keep {
+		m.drops = m.drops[:Keep]
+	}
+}
+
+// TopDrop is Top for Lemon Drop's board.
+func (m *Mem) TopDrop(_ context.Context, n int) ([]DropEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n = min(n, len(m.drops))
+	out := make([]DropEntry, n)
+	copy(out, m.drops[:n])
+	return out, nil
+}
+
+// AddDrop is Add for Lemon Drop's board.
+func (m *Mem) AddDrop(_ context.Context, e DropEntry) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.drops = append(m.drops, e)
+	m.sortDrops()
+	rank := 0
+	for i := range m.drops {
+		if m.drops[i] == e {
+			rank = i + 1
+			break
+		}
+	}
+	if m.path == "" {
+		return rank, nil
+	}
+	return rank, writeFile(m.dropPath(), m.drops)
 }
 
 func (m *Mem) sort() {
@@ -100,16 +148,20 @@ func (m *Mem) save() error {
 	if m.path == "" {
 		return nil
 	}
-	data, err := json.Marshal(m.entries)
+	return writeFile(m.path, m.entries)
+}
+
+func writeFile(path string, v any) error {
+	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(m.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := m.path + ".tmp"
+	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, m.path)
+	return os.Rename(tmp, path)
 }

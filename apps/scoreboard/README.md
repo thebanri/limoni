@@ -1,7 +1,7 @@
 # Scoreboard
 
-Lemon Hunt's shared leaderboard: it takes each finished run and hands back
-the best ten. It runs as two Vercel functions over a free Neon database, or
+The shared leaderboards of Lemon Hunt and Lemon Drop: each takes finished
+runs and hands back the best ten. It runs as two Vercel functions over a free Neon database, or
 as one long-running server, from the same handler. It is a module of its
 own, so none of it, and none of its Postgres driver, reaches anyone who
 imports Limoni.
@@ -10,13 +10,15 @@ imports Limoni.
 | :-- | :-- |
 | `GET /scores` | the best ten, as `{"board": [...]}` |
 | `POST /scores` | a run, as `{"name", "won", "secs", "shots", "hits", "kills", "lemons"}`; answers `{"rank", "board"}` |
+| `GET /drop/scores` | Lemon Drop's best ten, as `{"board": [...]}` |
+| `POST /drop/scores` | a run of Lemon Drop, as `{"name", "secs", "pieces", "drops", "clears"}`, where `clears` is each clear as `[base, chain]`; answers `{"rank", "board"}` |
 | `GET /healthz` | `ok` |
 
 | | |
 | :-- | :-- |
 | `board/` | the rules, the HTTP handler, and the stores: `PG` (Postgres) and `Mem` (memory, and a file) |
 | `fn/` | the board as Vercel runs it: the handler over `DATABASE_URL`, made on the first request |
-| `api/scores`, `api/healthz` | the Vercel functions, one line each into `fn/`; `vercel.json` sends `/scores` and `/healthz` to them. Nothing else goes in `api/`: Vercel would take any other `.go` file there, a test included, for a function |
+| `api/scores`, `api/drop/scores`, `api/healthz` | the Vercel functions, one line each into `fn/`; `vercel.json` sends `/scores` and `/healthz` to them. Nothing else goes in `api/`: Vercel would take any other `.go` file there, a test included, for a function |
 | `main.go` | the server itself: what Vercel's Go preset runs, and what runs on Render, Railway or a machine of one's own |
 
 The server works the score out itself, with the game's rules (aim, time, rats
@@ -25,7 +27,12 @@ and turns away runs the game could not have produced: more hits than squirts,
 a win without ten lemons or in under 20 seconds, more rats than the level and
 Ratatui hold. Names are cut to 12 characters of what the game can show. One
 address may send 6 runs a minute, counted in the database, so it holds
-across however many copies of the function are running. Anyone can still
+across however many copies of the function are running. Lemon Drop's runs are scored the same way, from what the run did: the
+server adds up each clear's base times its level (one more every four
+clears) times its chain, and the points for dropping pieces
+([`board/drop.go`](board/drop.go)); it turns away a clear narrower than the
+board, a chain that skips, and more sand cleared than the pieces brought.
+Both games share the limit on runs an address may send. Anyone can still
 send a run they did not play: the page is public and the game runs in the
 player's browser, so there is nothing to prove a run was played. This keeps
 the board plausible, not honest.
@@ -34,8 +41,8 @@ It keeps the best hundred runs, in the first of these that is set:
 
 | Variable | |
 | :-- | :-- |
-| `DATABASE_URL` | a Postgres database: tables `runs` and `posts`, made on first use. Vercel's Neon integration sets it |
-| `DATA_DIR` | (long-running server only) a directory for `scores.json`, on a disk that outlives the process; `RAILWAY_VOLUME_MOUNT_PATH` counts too |
+| `DATABASE_URL` | a Postgres database: tables `runs`, `drop_runs` and `posts`, made on first use. Vercel's Neon integration sets it |
+| `DATA_DIR` | (long-running server only) a directory for `scores.json` and `drop.json`, on a disk that outlives the process; `RAILWAY_VOLUME_MOUNT_PATH` counts too |
 | neither | (long-running server only) memory: gone at the next restart |
 
 and also reads:
