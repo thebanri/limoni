@@ -13,6 +13,10 @@ a patch bump (`v0.x.y`) does not.
   half-block raycaster with lit textures, pixel-art rats, a boss, 3D half
   lemons, particles and synthesised stereo sound, at 0 allocations a frame
   through the diff. It holds keys with `WithKeyReleases`.
+- `apps/lemondrop`, a falling-block game in its own module where landed
+  pieces crumble into sand: a run of one colour from wall to wall clears.
+  Half-block grains over a faint half lemon; the sand only visits rows that
+  can move, and a frame allocates nothing through the diff.
 
 ## [v0.9.2] — 2026-09-25
 

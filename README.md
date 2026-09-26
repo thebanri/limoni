@@ -235,6 +235,15 @@ ray-traced per pixel, and sound synthesised at start-up. A frame allocates nothi
 holds keys down with `WithKeyReleases`, so walking is smooth in kitty, Ghostty and WezTerm. Runs are scored
 on aim and time, onto a leaderboard kept in a file, or in the browser's storage.
 
+[**Lemon Drop**](apps/lemondrop) is falling blocks where a piece that lands crumbles into sand of its colour.
+A run of one colour that reaches from wall to wall is the line: it flashes and goes, and what rested on it
+falls, sometimes into the next one.
+
+```bash
+go install github.com/thebanri/limoni/apps/lemondrop@latest
+lemondrop
+```
+
 ---
 
 ## Two ways to write an app
