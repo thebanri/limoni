@@ -306,6 +306,13 @@ func TestHeldArrowsRepeatWhereReleasesAreReported(t *testing.T) {
 	if g.cur.x != x-g.step() {
 		t.Fatal("← did not move the piece")
 	}
+	// The browser page sends the browser's auto-repeat as more presses of a
+	// key it has not released: the game's own repeat stands in for them.
+	g.key(limoni.KeyEvent{Type: limoni.KeyLeft})
+	g.key(limoni.KeyEvent{Type: limoni.KeyLeft, Repeat: true})
+	if g.cur.x != x-g.step() {
+		t.Fatal("a repeat of a held ← moved the piece as well")
+	}
 	for i := 0; i < 20; i++ {
 		g.tick()
 	}
@@ -377,6 +384,13 @@ func TestTheLemonIsBehindTheBoard(t *testing.T) {
 	edge, _ = yellow(g.bg[0])
 	if mid <= edge+10 {
 		t.Fatalf("the middle of the board (%.1f) is not yellower than its corner (%.1f)", mid, edge)
+	}
+	colours := map[cell.Color]bool{}
+	for _, c := range g.bg[:g.gw*g.gh] {
+		colours[c] = true
+	}
+	if len(colours) > 64 {
+		t.Errorf("the background has %d colours; each is a glyph pair more in xterm.js's atlas", len(colours))
 	}
 	if brightest >= 90 {
 		t.Errorf("the lemon is too strong: a channel at %d", brightest)

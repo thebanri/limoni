@@ -229,6 +229,8 @@ go install github.com/thebanri/limoni/apps/lemondrop@latest
 lemondrop
 ```
 
+Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemondrop).
+
 ---
 
 ## Uygulama yazmanın iki yolu

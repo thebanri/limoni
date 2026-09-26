@@ -62,6 +62,19 @@ jobs:
           go -C "$work/lemonhunt" mod tidy
           go -C "$work/lemonhunt" build -trimpath -ldflags="-s -w" -o "$PWD/site/lemonhunt.wasm" .
 
+      # Lemon Drop the same way, loaded as ?app=lemondrop.
+      - name: Build Lemon Drop
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          cp -r apps/lemondrop "$work/lemondrop"
+          go -C "$work/lemondrop" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemondrop" mod tidy
+          go -C "$work/lemondrop" build -trimpath -ldflags="-s -w" -o "$PWD/site/lemondrop.wasm" .
+
       - name: Assemble site
         run: |
           set -euo pipefail
@@ -86,11 +99,12 @@ jobs:
           set -euo pipefail
           node scripts/verify-wasm.mjs "$(go env GOROOT)" site/limoni.wasm
           node scripts/verify-wasm-lemonhunt.mjs "$(go env GOROOT)" site/lemonhunt.wasm
+          node scripts/verify-wasm-lemondrop.mjs "$(go env GOROOT)" site/lemondrop.wasm
 
       - name: Report module size
         run: |
           set -euo pipefail
-          for module in limoni lemonhunt; do
+          for module in limoni lemonhunt lemondrop; do
             raw=$(stat -c%s "site/$module.wasm")
             gz=$(gzip -9 -c "site/$module.wasm" | wc -c)
             br=$(command -v brotli >/dev/null && brotli -q 11 -c "site/$module.wasm" | wc -c || echo 0)

@@ -9,6 +9,10 @@ lemondrop            # play
 lemondrop -fps 30    # fewer frames, for a slow terminal or link
 ```
 
+Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop):
+the same code, compiled to WebAssembly and drawn by xterm.js. There the best
+score is kept in the browser's storage.
+
 Pieces fall as in any falling-block game, in one of four colours: lemon,
 lime, grapefruit and blueberry. When one lands it crumbles into sand of its
 colour, which runs down the pile. A run of one colour that reaches from the
@@ -20,7 +24,8 @@ chain and scores double, the third triple, and so on.
 A clear scores ten points for each block's worth of grains in it, times the
 level and the chain. Every four clears is a level, and pieces fall faster.
 Dropping a piece with `space` or `↓` scores a little too. The best score is
-kept in `limoni/lemondrop-best` under your configuration directory.
+kept in `limoni/lemondrop-best` under your configuration directory, or in
+the browser's storage.
 
 | key | |
 | :-- | :-- |

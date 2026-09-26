@@ -244,6 +244,8 @@ go install github.com/thebanri/limoni/apps/lemondrop@latest
 lemondrop
 ```
 
+Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop).
+
 ---
 
 ## Two ways to write an app

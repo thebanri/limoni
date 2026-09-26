@@ -104,7 +104,11 @@ func (g *game) buildBackground() {
 					sum = rgb{sum.r + c.r, sum.g + c.g, sum.b + c.b}
 				}
 			}
-			g.bg[y*gw+x] = sum.scale(1.0 / (ss * ss)).color()
+			// Rounded to a multiple of four: the faint lemon's smooth edges
+			// would otherwise give hundreds of colours, and xterm.js's WebGL
+			// renderer keeps a glyph in its atlas for every pair it draws.
+			r, gg, bb := sum.scale(1.0 / (ss * ss)).color().RGB()
+			g.bg[y*gw+x] = cell.NewColorRGB(r&^3, gg&^3, bb&^3)
 		}
 	}
 	g.bgFor = g.b

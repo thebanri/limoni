@@ -1,3 +1,5 @@
+//go:build !js
+
 package main
 
 import (
@@ -8,7 +10,8 @@ import (
 )
 
 // store keeps the best score in a small file in the user's configuration
-// directory. Where there is none (the browser), the best lasts the session.
+// directory. Where there is none, the best lasts the session; so does it
+// for the zero store, which the tests use.
 type store struct {
 	path string
 }

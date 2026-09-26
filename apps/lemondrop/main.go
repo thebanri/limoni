@@ -122,9 +122,10 @@ func (g *game) key(k limoni.KeyEvent) {
 			}
 			return
 		}
-		// A repeat from a terminal that reports releases is ignored: the
-		// game repeats held keys itself, at its own pace.
-		if k.Repeat && g.exact {
+		// Where releases are reported the game repeats held keys itself, at
+		// its own pace, so a repeat is ignored: kitty marks it as one, and
+		// the browser page sends it as another press of a key still held.
+		if g.exact && (k.Repeat || left && g.holdL || right && g.holdR) {
 			return
 		}
 		if left {

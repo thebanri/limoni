@@ -225,6 +225,7 @@
       </p>
       <button class="run" id="run">▶&nbsp;&nbsp;Run it</button>
       <a class="other" id="other-app" href="?app=lemonhunt">🍋 or play Lemon Hunt, a raycaster game →</a>
+      <a class="other" id="other-app-2" href="?app=lemondrop">🍋 or Lemon Drop, falling blocks that turn to sand →</a>
     </div>
   </div>
 
@@ -254,9 +255,10 @@
   </footer>
 
   <script>
-    // Two modules share this page: the playground, and ?app=lemonhunt, the
-    // game from apps/lemonhunt. They are separate builds because the game is
-    // a module of its own and ships to nobody who imports Limoni.
+    // Three modules share this page: the playground, and two games,
+    // ?app=lemonhunt from apps/lemonhunt and ?app=lemondrop from
+    // apps/lemondrop. They are separate builds because each game is a module
+    // of its own and ships to nobody who imports Limoni.
     const apps = {
       playground: {
         wasm: 'limoni.wasm',
@@ -292,6 +294,31 @@
         // Neon database. It allows this page's origin (thebanri.github.io).
         // Empty keeps each browser's scores to itself; ?board=URL overrides.
         scoreboard: 'https://limoni-drab.vercel.app',
+      },
+      lemondrop: {
+        wasm: 'lemondrop.wasm',
+        title: 'Lemon Drop — falling blocks that turn to sand',
+        posterTitle: '🍋 Lemon Drop',
+        posterText: 'Falling blocks that crumble into sand when they land. A run of ' +
+          'one colour from wall to wall clears, and what rested on it falls. Drawn ' +
+          'by Limoni in half blocks, a grain to a pixel. Loads a <strong>~4 MB</strong> ' +
+          'WebAssembly module.',
+        button: '▶&nbsp;&nbsp;Play',
+        other: '← back to the Limoni playground',
+        otherHref: '?',
+        keys: '<span><kbd>←</kbd><kbd>→</kbd> move</span>' +
+          '<span><kbd>↑</kbd><kbd>X</kbd> turn</span>' +
+          '<span><kbd>Z</kbd> turn back</span>' +
+          '<span><kbd>↓</kbd> soft drop</span>' +
+          '<span><kbd>Space</kbd> drop</span>' +
+          '<span><kbd>P</kbd> pause</span>' +
+          '<span><kbd>Esc</kbd> quit</span>',
+        running: 'Lemon Drop running — click the terminal if keys do nothing',
+        // The board's blocks grow with the rows: 40 gives four grains a
+        // block, 48 five.
+        fullscreenRows: 48,
+        windowRows: 40,
+        keyReleases: true,
       },
     };
     const params = new URLSearchParams(location.search);
@@ -351,6 +378,7 @@
     if (app.posterText) { document.getElementById('poster-text').innerHTML = app.posterText; }
     if (app.button) { document.getElementById('run').innerHTML = app.button; }
     if (app.other) {
+      document.getElementById('other-app-2').remove();
       const other = document.getElementById('other-app');
       other.textContent = app.other;
       other.href = app.otherHref;
@@ -437,7 +465,7 @@
     // releases — to any other, a release would read as a second press.
     if (app.keyReleases) {
       const special = {
-        ArrowRight: '\x1b[1;1:3C', ArrowLeft: '\x1b[1;1:3D',
+        ArrowRight: '\x1b[1;1:3C', ArrowLeft: '\x1b[1;1:3D', ArrowDown: '\x1b[1;1:3B',
         ' ': '\x1b[32;1:3u', Enter: '\x1b[13;1:3u',
       };
       const releaseOf = (key) => special[key] ||
