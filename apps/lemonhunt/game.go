@@ -40,7 +40,7 @@ const (
 	maxParts     = 384
 	maxLights    = 16
 	maxCols      = 512
-	maxRows      = 200 // cell rows; the picture is twice as tall in pixels
+	maxRows      = 200 // picture rows, excluding HUD; twice as tall in pixels
 
 	moveSpeed   = 3.0 // tiles a second
 	strafeSpeed = 2.6

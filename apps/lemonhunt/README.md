@@ -61,7 +61,15 @@ fall back to this player's own board and say so. `-board URL` (or
 scores at home; in the browser, the page names it, and `?board=URL`
 overrides it.
 
-The window must be at least 60×20. A whole run takes a few minutes.
+The window must be at least 60×20 terminal cells. The picture grows with
+the terminal up to 512 columns × 200 picture rows, plus two rows for the HUD:
+a 512×202 terminal shows the maximum 512×400 half-block pixels. Larger
+terminals leave unused picture space black. For any terminal size, the
+picture is `min(columns, 512) × (2 × min(rows - 2, 200))` pixels. Use
+`stty size` to see the current terminal size (rows first, then columns).
+Larger pictures take more work to render and send to the terminal; the
+playable frame rate depends on the machine and terminal. A whole run takes
+a few minutes.
 
 It also runs in the browser, at <https://thebanri.github.io/limoni/?app=lemonhunt>:
 the same code compiled with `GOOS=js GOARCH=wasm`, drawn by xterm.js, and
@@ -125,12 +133,23 @@ filtered noise: the squirt, splashes, rats squeaking and dying, bites,
 lemons, the gate's chain, Ratatui's roar, footsteps, drips. There are no
 sample files.
 
-Sound is mixed in stereo and streamed as raw PCM to whichever player the
+Sound is mixed in stereo. On macOS it plays directly through the system's
+AudioToolbox using [Oto](https://github.com/ebitengine/oto); no extra player
+installation is needed, on either Intel or Apple Silicon. If native audio
+cannot start, the game also tries the external players below; check the
+macOS sound output or install SoX (`brew install sox`) as a fallback.
+
+Windows also uses Oto to play directly through the system audio output,
+without installing an external player. If sound cannot start, check the
+selected output device and the game's volume in the Windows volume mixer.
+
+On other native platforms, raw PCM is streamed to whichever player the
 system has: `pw-play` (PipeWire), `pacat` (PulseAudio), `aplay` (ALSA) or
 `play` (sox). Sounds fade with distance and are panned to the side they come
 from. The mixer keeps only about 60 ms ahead of the clock, or a pipe's worth
 of audio would queue up and every effect would arrive late. Without a
-player, the game is silent and says so on exit.
+working audio output, the game is silent and shows `audio unavailable`.
+This refers to sound playback, not the player's name or leaderboard account.
 
 In a browser the player is Web Audio (`sound_js.go`). The page makes an
 `AudioContext` on the click that starts the game, since browsers start sound
@@ -149,7 +168,8 @@ What that takes:
 
 - The game's state and every scratch buffer live in one value made at
   start-up: the rays, the framebuffer, the sprite order, the particles, the
-  flow field and its queue. It draws a window of up to 512×200 cells.
+  flow field and its queue. It draws a picture of up to 512×200 cells,
+  with two additional terminal rows for the HUD.
 - Nothing on screen is bold or italic. The diff builds a style through its
   cache only when a modifier has to be switched off, and with a picture of
   free colours that cache would fill with styles never seen again.

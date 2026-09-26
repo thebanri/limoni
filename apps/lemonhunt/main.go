@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/thebanri/limoni"
@@ -67,7 +68,7 @@ func main() {
 	case *mute:
 		g.noSound = "off (-mute)"
 	default:
-		g.noSound = "no player found"
+		g.noSound = "audio unavailable"
 	}
 	last := time.Now()
 	app := limoni.NewApp(term,
@@ -91,7 +92,14 @@ func main() {
 	if mix != nil {
 		mix.close()
 	} else if !*mute {
-		fmt.Fprintln(os.Stderr, "lemonhunt: no sound — install pw-play, pacat, aplay or sox to hear it")
+		switch runtime.GOOS {
+		case "darwin":
+			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — check your macOS audio output, or install SoX (brew install sox) as a fallback")
+		case "windows":
+			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — check your Windows sound output device and volume mixer")
+		default:
+			fmt.Fprintln(os.Stderr, "lemonhunt: no sound — install pw-play, pacat, aplay or sox to hear it")
+		}
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

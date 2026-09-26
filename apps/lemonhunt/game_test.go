@@ -611,11 +611,11 @@ func TestUpAndDownArrowsDoNothing(t *testing.T) {
 
 func TestTheTitleScreenShowsTheMenu(t *testing.T) {
 	g := newGame()
-	g.noSound = "no player found"
+	g.noSound = "audio unavailable"
 	b := buffer.NewBuffer(cell.Rect{Width: 120, Height: 40})
 	g.render(b)
 	s := screen(b)
-	for _, want := range []string{"START", "SOUND", "QUIT", "no player found", "ENTER select"} {
+	for _, want := range []string{"START", "SOUND", "QUIT", "audio unavailable", "ENTER select"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the title screen has no %q", want)
 		}

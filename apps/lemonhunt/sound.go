@@ -12,8 +12,9 @@ import (
 
 // Sound is synthesised at start-up — no sample files — and streamed as raw
 // 16-bit stereo PCM to whichever player the system has: pw-play (PipeWire),
-// pacat (PulseAudio), aplay (ALSA) or sox's play — or, in a browser, to
-// Web Audio (sound_js.go). Where there is none the game is silent and says
+// pacat (PulseAudio), aplay (ALSA) or sox's play. macOS and Windows use native
+// audio (sound_system.go), and browsers use Web Audio (sound_js.go).
+// Where there is no audio output the game is silent and says
 // so on exit.
 //
 // The game side of it allocates nothing: play hands a small value to the
@@ -56,14 +57,15 @@ type sfxReq struct {
 }
 
 type mixer struct {
-	req    chan sfxReq
-	clips  [nSfx][]float32
-	cmd    *exec.Cmd
-	w      io.WriteCloser
-	player string
-	master atomic.Uint32 // float32 bits
-	once   sync.Once
-	done   chan struct{}
+	req     chan sfxReq
+	clips   [nSfx][]float32
+	cmd     *exec.Cmd
+	w       io.WriteCloser
+	player  string
+	master  atomic.Uint32 // float32 bits
+	once    sync.Once
+	done    chan struct{}
+	cleanup func() // release a native output after closing the PCM stream
 }
 
 type voice struct {
@@ -79,10 +81,13 @@ var players = [...][]string{
 	{"play", "-q", "-t", "raw", "-r", "22050", "-e", "signed", "-b", "16", "-c", "2", "-"},
 }
 
-// newMixer starts the first player it finds, or returns nil. In a browser
-// the player is the page's Web Audio context.
+// newMixer prefers browser or native audio, then tries external players.
+// It returns nil if no audio output can be started.
 func newMixer() *mixer {
 	if m := newBrowserMixer(); m != nil {
+		return m
+	}
+	if m := newSystemMixer(); m != nil {
 		return m
 	}
 	for _, p := range players {
@@ -95,6 +100,7 @@ func newMixer() *mixer {
 			continue
 		}
 		if err := cmd.Start(); err != nil {
+			_ = w.Close()
 			continue
 		}
 		m := &mixer{req: make(chan sfxReq, 64), cmd: cmd, w: w, player: p[0], done: make(chan struct{})}
@@ -118,10 +124,15 @@ func (m *mixer) setVolume(v float32) { m.master.Store(math.Float32bits(v)) }
 func (m *mixer) close() {
 	m.once.Do(func() {
 		close(m.done)
-		if m.cmd == nil {
-			return // the browser's: nothing to wait for
+		if m.w != nil {
+			_ = m.w.Close()
 		}
-		_ = m.w.Close()
+		if m.cleanup != nil {
+			m.cleanup()
+		}
+		if m.cmd == nil {
+			return // native and browser audio have no process to wait for
+		}
 		done := make(chan struct{})
 		go func() { _ = m.cmd.Wait(); close(done) }()
 		select {
