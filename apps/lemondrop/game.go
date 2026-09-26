@@ -136,6 +136,13 @@ type game struct {
 	holdDown  bool
 	dasT      float64
 	exact     bool // the terminal reports key releases
+	dropping  bool // the piece landing now was dropped, not let down
+
+	audio    speaker // nil: no sound
+	muted    bool
+	noSound  string  // why there is no sound, when there is none
+	trickleT float64 // until the running sand's next sound
+	grainsMv int     // grains that moved on the last pass
 
 	score, best int
 	clears      int
@@ -155,6 +162,11 @@ type game struct {
 	// The picture: see render.go.
 	bg                   [maxCells]cell.Color
 	bgFor                int // the b the background was drawn for
+	spin, spinDrawn      float64
+	ndyn                 int // the pixels the lemon's turning changes:
+	dynIdx               [maxCells]int32
+	dynD, dynT           [maxCells]float32 // distance in radii, angle in turns
+	dynFlesh             [maxCells][3]float32
 	lastW, lastH         int
 	bx, by, panelX, topY int
 }
@@ -217,6 +229,7 @@ func (g *game) start() {
 	g.nbag = 0
 	g.next = g.draw()
 	g.spawn()
+	g.sound(sfxStart, 0.8)
 }
 
 // draw deals the next piece from a shuffled bag of all seven, in one of the
@@ -295,6 +308,7 @@ func (g *game) shift(dx int) bool {
 	}
 	p.x += dx
 	g.moved()
+	g.sound(sfxMove, 0.5)
 	return true
 }
 
@@ -308,6 +322,7 @@ func (g *game) turn(dir int) bool {
 		if g.fits(p.kind, r, x, y) {
 			p.rot, p.x, p.y = r, x, y
 			g.moved()
+			g.sound(sfxTurn, 0.7)
 			return true
 		}
 	}
@@ -328,6 +343,7 @@ func (g *game) hardDrop() {
 	y := g.dropY()
 	g.score += (y - g.cur.y) / g.b * 2
 	g.cur.y = y
+	g.dropping = true
 	g.lock()
 }
 
@@ -377,6 +393,12 @@ func (g *game) lock() {
 	if g.phase != phPlay {
 		return
 	}
+	if g.dropping {
+		g.sound(sfxDrop, 1)
+	} else {
+		g.sound(sfxLand, 0.8)
+	}
+	g.dropping = false
 	if !g.spawn() {
 		g.gameOver()
 	}
@@ -385,6 +407,7 @@ func (g *game) lock() {
 func (g *game) gameOver() {
 	g.phase, g.overAt = phOver, g.now
 	g.holdL, g.holdR, g.holdDown = false, false, false
+	g.sound(sfxOver, 1)
 	if g.score > g.best {
 		g.best = g.score
 	}
@@ -419,6 +442,7 @@ func (g *game) update(elapsed float64) {
 func (g *game) tick() {
 	g.now += dt
 	g.ticks++
+	g.spin += dt / spinTurn
 	g.gainT += dt
 
 	switch g.phase {
@@ -516,6 +540,7 @@ func (g *game) sandTick() {
 		return
 	}
 	loose := g.fall()
+	g.trickle()
 	if g.flashT == 0 {
 		g.findClear()
 	}
@@ -562,6 +587,7 @@ func (g *game) fall() bool {
 	vel, frac := g.vel[:gw*gh], g.frac[:gw*gh]
 	top := g.topSpeed()
 	loose, left := false, false // left: a grain left the row below, this pass
+	g.grainsMv = 0
 	r := g.rng
 	for y := gh - 2; y >= 0; y-- {
 		if !g.awake[y] && !left {
@@ -632,6 +658,7 @@ func (g *game) fall() bool {
 			}
 			s[i], vel[i], frac[i] = 0, 0, 0
 			left = true
+			g.grainsMv++
 			if y+1 == gh-1 {
 				// The floor: nothing below it to fall into, and no pass
 				// visits it to bring the grain to rest.
@@ -714,12 +741,49 @@ func (g *game) findClear() {
 	}
 	g.combo++
 	g.clears++
+	level := g.level
 	g.level = 1 + g.clears/4
+	if g.combo > 1 {
+		g.sound(sfxChain, 1)
+	} else {
+		g.sound(sfxClear, 1)
+	}
+	if g.level > level {
+		g.sound(sfxLevel, 0.8)
+	}
 	// Points are per block's worth of grains, so the score does not depend
 	// on the size of the window.
 	pts := (found*10 + g.b*g.b/2) / (g.b * g.b) * g.level * g.combo
 	g.score += pts
 	g.gain, g.gainT, g.gainCombo = pts, 0, g.combo
+}
+
+// ── sound ────────────────────────────────────────────────────────────────
+
+// sound plays s, heard from where the piece is, during a run only: the
+// title's pieces play by themselves, and quietly.
+func (g *game) sound(s sfx, vol float32) {
+	if g.audio == nil || g.muted || g.phase != phPlay && s != sfxOver {
+		return
+	}
+	mid := float32(g.cur.x+2*g.b)/float32(g.gw)*2 - 1
+	g.audio.play(s, vol, max(-0.6, min(0.6, mid*0.6)))
+}
+
+// trickle is the sound of sand running: a short hiss again and again while
+// enough grains move, louder the more of them.
+func (g *game) trickle() {
+	if g.trickleT > 0 {
+		g.trickleT -= dt
+	}
+	if g.grainsMv < g.b*g.b || g.trickleT > 0 {
+		return
+	}
+	g.trickleT = 0.1
+	vol := min(1, float32(g.grainsMv)/float32(g.gw*2))
+	if g.audio != nil && !g.muted && g.phase == phPlay {
+		g.audio.play(sfxTrickle, 0.25+0.55*vol, 0)
+	}
 }
 
 func boolInt(b bool) int {

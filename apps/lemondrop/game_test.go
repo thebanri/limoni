@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 
 	"github.com/thebanri/limoni"
@@ -589,6 +590,9 @@ func TestFramesAllocateNothing(t *testing.T) {
 		{"play, large", 200, 60, func(g *game) {}},
 		{"play, small", 80, 24, func(g *game) {}},
 		{"paused", 100, 40, func(g *game) { g.paused = true }},
+		// With sound: the game hands requests to the mixer's queue, which
+		// nobody drains here, so it fills and play has to drop them.
+		{"play, with sound", 100, 40, func(g *game) { g.audio = &mixer{req: make(chan sfxReq, 64)} }},
 	} {
 		t.Run(sc.name, func(t *testing.T) {
 			g := newGame(7)
@@ -642,5 +646,109 @@ func BenchmarkSandPass(b *testing.B) {
 		g.wakeAll()
 		g.fall()
 		g.findClear()
+	}
+}
+
+// ── sound ────────────────────────────────────────────────────────────────
+
+// heard is a speaker that notes what it was asked to play.
+type heard struct{ got []sfx }
+
+func (h *heard) play(s sfx, _, _ float32) { h.got = append(h.got, s) }
+func (h *heard) setVolume(float32)        {}
+
+func (h *heard) has(s sfx) bool {
+	for _, x := range h.got {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+func TestTheGameSoundsWhatHappens(t *testing.T) {
+	h := &heard{}
+	g := playing()
+	g.audio = h
+	g.shift(-g.step())
+	g.turn(1)
+	g.hardDrop()
+	for _, s := range []sfx{sfxMove, sfxTurn, sfxDrop} {
+		if !h.has(s) {
+			t.Errorf("sound %d was not played; heard %v", s, h.got)
+		}
+	}
+	// The dropped piece's sand runs, and is heard running.
+	for i := 0; i < 30; i++ {
+		g.tick()
+	}
+	if !h.has(sfxTrickle) {
+		t.Error("running sand made no sound")
+	}
+
+	// A clear, then a second before the next piece lands: a chain.
+	h.got = nil
+	y := g.gh - 1
+	stripe(g, y, 0, g.gw, 1)
+	g.findClear()
+	g.flashT = 0
+	stripe(g, y-1, 0, g.gw, 2)
+	g.findClear()
+	if !h.has(sfxClear) || !h.has(sfxChain) {
+		t.Errorf("a clear and a chain were heard as %v", h.got)
+	}
+
+	// M silences it; the title plays nothing.
+	h.got = nil
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'm'})
+	g.shift(g.step())
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'm'})
+	g.phase = phTitle
+	for i := 0; i < 120; i++ {
+		g.tick()
+	}
+	if len(h.got) != 0 {
+		t.Errorf("heard %v with the sound off and on the title", h.got)
+	}
+}
+
+// ── the turning lemon ────────────────────────────────────────────────────
+
+func TestTheLemonTurns(t *testing.T) {
+	g := playing()
+	g.spin = 0
+	g.buildBackground()
+	g.spinBackground()
+	before := g.bg
+	g.spin = 0.5 / segments // half a segment: membranes where flesh was
+	g.spinBackground()
+	changed := 0
+	for i := range before[:g.gw*g.gh] {
+		if g.bg[i] != before[i] {
+			changed++
+		}
+	}
+	if changed < 20 {
+		t.Fatalf("half a segment's turn changed %d pixels", changed)
+	}
+	// A whole segment's turn looks the same as none: ten alike.
+	g.spin = 1.0 / segments
+	g.spinBackground()
+	off := 0
+	for i := range before[:g.gw*g.gh] {
+		if g.bg[i] != before[i] {
+			off++
+		}
+	}
+	if off > changed/20 {
+		t.Errorf("a whole segment's turn left %d of %d pixels different", off, changed)
+	}
+	// And it turns by itself, slowly.
+	g.spin = 0
+	for i := 0; i < hz; i++ {
+		g.tick()
+	}
+	if want := 1.0 / spinTurn; math.Abs(g.spin-want) > 1e-9 {
+		t.Errorf("a second turned the lemon %.4f turns, want %.4f", g.spin, want)
 	}
 }

@@ -302,7 +302,7 @@
         posterText: 'Falling blocks that crumble into sand when they land. A run of ' +
           'one colour from wall to wall clears, and what rested on it falls. Drawn ' +
           'by Limoni in half blocks, a grain to a pixel. Loads a <strong>~4 MB</strong> ' +
-          'WebAssembly module.',
+          'WebAssembly module; turn your sound on.',
         button: '▶&nbsp;&nbsp;Play',
         other: '← back to the Limoni playground',
         otherHref: '?',
@@ -312,12 +312,14 @@
           '<span><kbd>↓</kbd> soft drop</span>' +
           '<span><kbd>Space</kbd> drop</span>' +
           '<span><kbd>P</kbd> pause</span>' +
+          '<span><kbd>M</kbd> sound</span>' +
           '<span><kbd>Esc</kbd> quit</span>',
         running: 'Lemon Drop running — click the terminal if keys do nothing',
         // The board's blocks grow with the rows: 40 gives four grains a
         // block, 48 five.
         fullscreenRows: 48,
         windowRows: 40,
+        audio: true,
         keyReleases: true,
       },
     };

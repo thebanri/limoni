@@ -7,11 +7,12 @@ go install github.com/thebanri/limoni/apps/lemondrop@latest
 
 lemondrop            # play
 lemondrop -fps 30    # fewer frames, for a slow terminal or link
+lemondrop -mute      # no sound
 ```
 
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop):
-the same code, compiled to WebAssembly and drawn by xterm.js. There the best
-score is kept in the browser's storage.
+the same code, compiled to WebAssembly and drawn by xterm.js, with sound.
+There the best score is kept in the browser's storage.
 
 Pieces fall as in any falling-block game, in one of four colours: lemon,
 lime, grapefruit and blueberry. When one lands it crumbles into sand of its
@@ -37,6 +38,7 @@ the browser's storage.
 | `↓` or `S` | soft drop |
 | `space` | drop |
 | `P` | pause (`R` restarts from the pause) |
+| `M` | sound off and on |
 | `Esc` or `Q` | quit |
 
 In kitty, Ghostty, WezTerm and foot, which report key releases, held arrows
@@ -52,8 +54,21 @@ run starts, from the window. A grain is one pixel, and a cell holds two
 pixels as a half block (`▀`, upper pixel in the foreground, lower in the
 background), so grains come out square.
 
-Behind the board sits a faint half lemon, a slice seen from the cut face.
-It is drawn once for each board size, not on every frame.
+Behind the board sits a faint half lemon, a slice seen from the cut face,
+turning once every minute and a half. It is drawn once for each board size.
+Turning it moves only the membranes between the segments, so only the flesh
+is repainted, about 20 times a second, from each pixel's distance and angle
+worked out once; each membrane edge is smoothed in halves, which keeps the
+turning lemon to about 150 bytes a frame on the wire.
+
+## Sound
+
+Every sound is synthesised when the game starts, as in Lemon Hunt, whose
+mixer this is: moving and turning, a block landing and giving way, a drop,
+the hiss of sand running (louder the more of it runs), a clear, a chain, a
+new level, and the end. It is streamed to `pw-play`, `pacat`, `aplay` or
+`sox`, whichever is installed, and in a browser to Web Audio. Without any of
+them the game is silent and says so when it quits.
 
 ## Performance
 
@@ -74,7 +89,7 @@ On one core of a 2.1 GHz Xeon, at 100×40 with a board of loose sand:
 
 | | time | allocations | sent to the terminal |
 | :-- | --: | --: | --: |
-| a frame: step, render and diff | ~60 µs | 0 | ~1.6 KB |
+| a frame: step, render and diff | ~65 µs | 0 | ~1.7 KB |
 | the worst sand pass: every row of the largest board awake | ~40 µs | 0 | |
 
 About half of a frame is Limoni's diff, which grows with the cells that

@@ -1,7 +1,8 @@
 // Smoke-tests Lemon Drop's WebAssembly build by running it, as
 // verify-wasm-lemonhunt.mjs does for the other game.
 //
-// It boots the module under Node with a stub xterm.js bridge, starts a run,
+// It boots the module under Node with a stub xterm.js bridge and a stub Web
+// Audio context, starts a run,
 // moves and drops pieces, pauses, and quits with Esc. Each step asserts on
 // what reached the screen: the title, the panel of a run, the board in
 // truecolor half blocks, the pause, and that Esc ended the program. The
@@ -23,6 +24,20 @@ await import(path.join(goroot, "lib/wasm/wasm_exec.js"));
 let captured = "";
 globalThis.__limoni_output = (s) => {
   captured += s;
+};
+
+// Just enough of an AudioContext to count what the game does with it.
+const audio = { buffers: 0, started: 0 };
+const node = () => ({ connect: () => {}, gain: {}, pan: {} });
+globalThis.__limoni_audio = {
+  destination: {},
+  createBuffer: () => {
+    audio.buffers++;
+    return { copyToChannel: () => {} };
+  },
+  createBufferSource: () => ({ ...node(), start: () => audio.started++ }),
+  createGain: node,
+  createStereoPanner: node,
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -79,6 +94,8 @@ const checks = [
   ["a run after Enter redrew the board", run.length > 1000],
   ["the board moved under the keys", played.length > 500],
   ["the pause (PAUSED)", paused.includes("PAUSED")],
+  ["clips loaded into Web Audio", audio.buffers > 0],
+  ["sounds played (start, moves, drops)", audio.started >= 3],
   ["Esc ended the program", exited],
 ];
 
@@ -88,4 +105,5 @@ for (const [label, ok] of checks) {
   if (!ok) missing++;
   console.log(`  ${ok ? "OK     " : "MISSING"}  ${label}`);
 }
+console.log(`\n  Web Audio: ${audio.buffers} clips, ${audio.started} played`);
 process.exit(missing === 0 ? 0 : 1);

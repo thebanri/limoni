@@ -2,6 +2,7 @@
 //
 //	go run .            # play
 //	go run . -fps 30    # fewer frames, for a slow terminal or link
+//	go run . -mute      # no sound
 //
 // Pieces fall as in any falling-block game, but each one that lands
 // crumbles into sand of its colour and runs down the pile. A run of one
@@ -26,7 +27,13 @@ import (
 
 func main() {
 	fps := flag.Int("fps", 60, "frames per second")
+	mute := flag.Bool("mute", false, "no sound")
 	flag.Parse()
+
+	var mix *mixer
+	if !*mute {
+		mix = newMixer()
+	}
 
 	term, err := limoni.New()
 	if err != nil {
@@ -37,6 +44,14 @@ func main() {
 	g := newGame(uint64(time.Now().UnixNano()))
 	g.store = newStore()
 	g.best = g.store.load()
+	switch {
+	case mix != nil:
+		g.audio = mix
+	case *mute:
+		g.noSound = "off (-mute)"
+	default:
+		g.noSound = "no player found"
+	}
 	last := time.Now()
 	app := limoni.NewApp(term,
 		limoni.WithFPS(*fps),
@@ -55,6 +70,11 @@ func main() {
 		return !g.quit
 	})
 	term.Close()
+	if mix != nil {
+		mix.close()
+	} else if !*mute {
+		fmt.Fprintln(os.Stderr, "lemondrop: no sound — install pw-play, pacat, aplay or sox to hear it")
+	}
 	if g.phase == phPlay && g.score > g.best {
 		g.store.save(g.score)
 	}
@@ -85,6 +105,10 @@ func (g *game) key(k limoni.KeyEvent) {
 		}
 		return
 	}
+	if press && rn && ch == 'm' {
+		g.muted = !g.muted
+		return
+	}
 
 	switch g.phase {
 	case phTitle:
@@ -103,6 +127,7 @@ func (g *game) key(k limoni.KeyEvent) {
 		switch {
 		case press && rn && ch == 'p':
 			g.paused = false
+			g.sound(sfxPause, 0.8)
 		case press && rn && ch == 'r':
 			g.start()
 		}
@@ -153,6 +178,7 @@ func (g *game) key(k limoni.KeyEvent) {
 	case k.Type == limoni.KeySpace:
 		g.hardDrop()
 	case rn && ch == 'p':
+		g.sound(sfxPause, 0.8)
 		g.paused = true
 		g.holdL, g.holdR, g.holdDown = false, false, false
 	}

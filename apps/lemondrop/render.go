@@ -57,7 +57,6 @@ var (
 	pithCol   = hex(0xfff3c4)
 	fleshCol  = hex(0xffd84a)
 	lemonAmt  = 0.17 // how much of the lemon shows through: faint, not a picture
-	segments  = 10.0
 	flashCols = [2]cell.Color{hex(0xfffbe6).color(), hex(0xffe98a).color()}
 )
 
@@ -84,12 +83,16 @@ func init() {
 
 // buildBackground draws the board's empty picture — the dark board with a
 // faint half lemon in it — for the current size. It runs when the size
-// changes, not every frame.
+// changes, not every frame. It also notes which pixels the lemon's turning
+// can change, the flesh and its membranes, for spinBackground; the rind and
+// the pith ring look the same at any angle and stay as drawn here.
 func (g *game) buildBackground() {
 	gw, gh := g.gw, g.gh
 	cx, cy := float64(gw)/2, float64(gh)*0.56
 	R := float64(gw) * 0.44
+	px := 1 / R  // a pixel, in radii
 	const ss = 3 // samples a side, to smooth the edges
+	g.ndyn = 0
 	for y := 0; y < gh; y++ {
 		for x := 0; x < gw; x++ {
 			var sum rgb
@@ -98,25 +101,79 @@ func (g *game) buildBackground() {
 					u := (float64(x) + (float64(sx)+0.5)/ss - cx) / R
 					v := (float64(y) + (float64(sy)+0.5)/ss - cy) / R
 					c := boardBg
-					if l, ok := lemonAt(u, v); ok {
+					if l, ok := lemonAt(u, v, g.spin); ok {
 						c = boardBg.mix(l, lemonAmt)
 					}
 					sum = rgb{sum.r + c.r, sum.g + c.g, sum.b + c.b}
 				}
 			}
-			// Rounded to a multiple of four: the faint lemon's smooth edges
-			// would otherwise give hundreds of colours, and xterm.js's WebGL
-			// renderer keeps a glyph in its atlas for every pair it draws.
-			r, gg, bb := sum.scale(1.0 / (ss * ss)).color().RGB()
-			g.bg[y*gw+x] = cell.NewColorRGB(r&^3, gg&^3, bb&^3)
+			g.bg[y*gw+x] = quantise(sum.scale(1.0 / (ss * ss)))
+
+			u, v := (float64(x)+0.5-cx)/R, (float64(y)+0.5-cy)/R
+			if d := math.Hypot(u, v); d > 0.1-1.5*px && d < 0.8+1.5*px {
+				n := g.ndyn
+				g.dynIdx[n] = int32(y*gw + x)
+				g.dynD[n] = float32(d)
+				g.dynT[n] = float32((math.Atan2(v, u) + math.Pi) / (2 * math.Pi))
+				f := boardBg.mix(fleshCol.scale(0.86+0.14*min(d, 0.8)), lemonAmt)
+				g.dynFlesh[n] = [3]float32{float32(f.r), float32(f.g), float32(f.b)}
+				g.ndyn++
+			}
 		}
 	}
-	g.bgFor = g.b
+	g.bgFor, g.spinDrawn = g.b, g.spin
 }
 
-// lemonAt is the lemon slice at (u, v), in radii from its centre: rind,
-// pith, and flesh in segments parted by pale membranes.
-func lemonAt(u, v float64) (rgb, bool) {
+// quantise rounds each channel to a multiple of four: the faint lemon's
+// smooth edges would otherwise give hundreds of colours, and xterm.js's
+// WebGL renderer keeps a glyph in its atlas for every pair it draws.
+func quantise(c rgb) cell.Color {
+	r, g, b := c.color().RGB()
+	return cell.NewColorRGB(r&^3, g&^3, b&^3)
+}
+
+// segments is how many the lemon has.
+const segments = 10
+
+// spinTurn is how long the lemon takes to turn once, in seconds.
+const spinTurn = 90
+
+// spinBackground turns the lemon to g.spin: it repaints the flesh, whose
+// membranes are the only thing the angle moves, smoothing their edges by
+// how much of each pixel they cover. It runs a few times a second and
+// allocates nothing; about 600 pixels on a 4-grain board.
+func (g *game) spinBackground() {
+	px := float32(1 / (float64(g.gw) * 0.44))
+	pith := boardBg.mix(pithCol, lemonAmt)
+	pr, pg, pb := float32(pith.r), float32(pith.g), float32(pith.b)
+	rot := float32(g.spin - math.Floor(g.spin))
+	const half = 0.035 // half a membrane's width, in radii
+	for n := 0; n < g.ndyn; n++ {
+		d := g.dynD[n]
+		a := (g.dynT[n] + rot) * segments
+		f := a - float32(math.Floor(float64(a)))
+		arc := min(f, 1-f) * (2 * math.Pi / segments) * d
+		cov := max(cover((half-arc)/px), cover((0.1-d)/px), cover((d-0.8)/px))
+		// In halves: an edge crossing a pixel then changes it twice, not at
+		// every level the colours could take, and each change is bytes on
+		// the wire for a lemon nobody looks at closely.
+		cov = float32(int(cov*2+0.5)) / 2
+		fl := &g.dynFlesh[n]
+		r := fl[0] + (pr-fl[0])*cov
+		gg := fl[1] + (pg-fl[1])*cov
+		b := fl[2] + (pb-fl[2])*cov
+		g.bg[g.dynIdx[n]] = cell.NewColorRGB(uint8(r*255+0.5)&^3, uint8(gg*255+0.5)&^3, uint8(b*255+0.5)&^3)
+	}
+	g.spinDrawn = g.spin
+}
+
+// cover is how much of a pixel an edge covers, from its signed distance
+// into the shape in pixels.
+func cover(dist float32) float32 { return max(0, min(1, dist+0.5)) }
+
+// lemonAt is the lemon slice at (u, v), in radii from its centre, turned by
+// rot turns: rind, pith, and flesh in segments parted by pale membranes.
+func lemonAt(u, v, rot float64) (rgb, bool) {
 	d := math.Hypot(u, v)
 	switch {
 	case d > 1:
@@ -126,7 +183,7 @@ func lemonAt(u, v float64) (rgb, bool) {
 	case d > 0.8 || d < 0.1:
 		return pithCol, true
 	}
-	a := (math.Atan2(v, u) + math.Pi) / (2 * math.Pi) * segments
+	a := ((math.Atan2(v, u)+math.Pi)/(2*math.Pi) + rot) * segments
 	f := a - math.Floor(a)
 	if min(f, 1-f)*2*math.Pi/segments*d < 0.035 {
 		return pithCol, true
@@ -246,6 +303,10 @@ func (g *game) render(b *buffer.Buffer) {
 	}
 	if g.bgFor != g.b {
 		g.buildBackground()
+	}
+	// The lemon turns in steps of a third of a degree, about 20 a second.
+	if math.Abs(g.spin-g.spinDrawn) >= 1.0/1080 {
+		g.spinBackground()
 	}
 
 	rowsOnScreen := g.gh / 2
@@ -397,6 +458,13 @@ func (g *game) drawPanel(cv canvas) {
 		{"SPACE", "drop"},
 		{"P", "pause"},
 		{"ESC", "quit"},
+		{"M", "sound off"},
+	}
+	switch {
+	case g.audio == nil:
+		help[len(help)-1] = [2]string{"", "no sound"}
+	case g.muted:
+		help[len(help)-1][1] = "sound on"
 	}
 	for _, h := range help {
 		if y >= bottom {
