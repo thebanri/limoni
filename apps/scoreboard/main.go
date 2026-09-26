@@ -4,6 +4,8 @@
 //	GET  /scores        the best ten, as {"board": [...]}
 //	POST /scores        a run, as {"name", "won", "secs", "shots", "hits",
 //	                    "kills", "lemons"}; answers {"rank", "board"}
+//	GET  /drop/scores   Lemon Drop's best ten; POST a run of it, as
+//	                    {"name", "secs", "pieces", "drops", "clears"}
 //	GET  /healthz       ok
 //
 // This is what Vercel runs: its Go preset finds this main.go and runs the
@@ -90,6 +92,10 @@ func (noDatabase) Add(context.Context, board.Entry) (int, error)   { return 0, e
 func (noDatabase) Allow(context.Context, string, time.Time) (bool, error) {
 	return false, errNoDatabase
 }
+func (noDatabase) TopDrop(context.Context, int) ([]board.DropEntry, error) {
+	return nil, errNoDatabase
+}
+func (noDatabase) AddDrop(context.Context, board.DropEntry) (int, error) { return 0, errNoDatabase }
 
 func firstSet(v ...string) string {
 	for _, s := range v {

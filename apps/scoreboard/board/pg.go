@@ -52,7 +52,16 @@ func OpenPG(ctx context.Context, url string) (*PG, error) {
 			addr text        NOT NULL,
 			at   timestamptz NOT NULL
 		);
-		CREATE INDEX IF NOT EXISTS posts_addr ON posts (addr, at)`)
+		CREATE INDEX IF NOT EXISTS posts_addr ON posts (addr, at);
+		CREATE TABLE IF NOT EXISTS drop_runs (
+			id     bigserial PRIMARY KEY,
+			name   text    NOT NULL,
+			score  bigint  NOT NULL,
+			clears integer NOT NULL,
+			level  integer NOT NULL,
+			secs   integer NOT NULL,
+			at     bigint  NOT NULL
+		)`)
 	if err != nil {
 		pool.Close()
 		return nil, err
@@ -113,6 +122,22 @@ func (l *LazyPG) Allow(ctx context.Context, addr string, now time.Time) (bool, e
 		return false, err
 	}
 	return pg.Allow(ctx, addr, now)
+}
+
+func (l *LazyPG) TopDrop(ctx context.Context, n int) ([]DropEntry, error) {
+	pg, err := l.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pg.TopDrop(ctx, n)
+}
+
+func (l *LazyPG) AddDrop(ctx context.Context, e DropEntry) (int, error) {
+	pg, err := l.get(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return pg.AddDrop(ctx, e)
 }
 
 // order is the board's order: the higher score, then the run made first,
@@ -187,4 +212,47 @@ func (p *PG) Allow(ctx context.Context, addr string, now time.Time) (bool, error
 		return err
 	})
 	return ok, err
+}
+
+// TopDrop is Top for Lemon Drop's board.
+func (p *PG) TopDrop(ctx context.Context, n int) ([]DropEntry, error) {
+	ctx, cancel := context.WithTimeout(ctx, pgTimeout)
+	defer cancel()
+	rows, err := p.pool.Query(ctx, `SELECT name, score, clears, level, secs, at FROM drop_runs `+order+` LIMIT $1`, n)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (DropEntry, error) {
+		var e DropEntry
+		var score int64
+		err := r.Scan(&e.Name, &score, &e.Clears, &e.Level, &e.Secs, &e.At)
+		e.Score = int(score)
+		return e, err
+	})
+}
+
+// AddDrop is Add for Lemon Drop's board.
+func (p *PG) AddDrop(ctx context.Context, e DropEntry) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, pgTimeout)
+	defer cancel()
+	rank := 0
+	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
+		var id int64
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO drop_runs (name, score, clears, level, secs, at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+			e.Name, int64(e.Score), e.Clears, e.Level, e.Secs, e.At).Scan(&id); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx,
+			`SELECT count(*) + 1 FROM drop_runs WHERE score > $1 OR (score = $1 AND (at < $2 OR (at = $2 AND id < $3)))`,
+			int64(e.Score), e.At, id).Scan(&rank); err != nil {
+			return err
+		}
+		if rank > Keep {
+			rank = 0
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM drop_runs WHERE id IN (SELECT id FROM drop_runs `+order+` OFFSET $1)`, Keep)
+		return err
+	})
+	return rank, err
 }

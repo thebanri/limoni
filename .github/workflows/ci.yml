@@ -225,6 +225,27 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemonhunt" build -o /dev/null .
           echo "ok   lemonhunt builds against this checkout as well as against the release"
 
+      # Lemon Drop, the falling blocks that turn to sand, the same way: its
+      # tests hold a frame, through the diff, to zero allocations.
+      - name: apps/lemondrop
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/lemondrop vet ./...
+          go -C apps/lemondrop test ./...
+          test -z "$(gofmt -l apps/lemondrop)" || { gofmt -l apps/lemondrop; exit 1; }
+
+          work=$(mktemp -d)
+          cp -r apps/lemondrop "$work/lemondrop"
+          go -C "$work/lemondrop" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemondrop" mod tidy
+          go -C "$work/lemondrop" build ./...
+          go -C "$work/lemondrop" test ./...
+          GOOS=js GOARCH=wasm go -C "$work/lemondrop" vet ./...
+          GOOS=js GOARCH=wasm go -C "$work/lemondrop" build -o /dev/null .
+          echo "ok   lemondrop builds against this checkout as well as against the release"
+
       # The scoreboard behind Lemon Hunt's shared leaderboard: a server on
       # the standard library alone, deployed on Railway from this directory.
       - name: apps/scoreboard
@@ -245,7 +266,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe apps/lemonhunt apps/scoreboard assets tools/limonivet; do
+          for dir in apps/globe apps/lemonhunt apps/lemondrop apps/scoreboard assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"
@@ -341,6 +362,6 @@ jobs:
         run: |
           set -euo pipefail
           go -C apps/scoreboard test -race -count=1 -p 1 -v ./... | tee /tmp/pg.out
-          for test in TestTheBoardSurvivesARestart/postgres TestTheLimitHoldsForRunsSentAtOnce/postgres TestTheFunctionServesTheBoard TestTheServerOverALazyDatabase; do
+          for test in TestTheBoardSurvivesARestart/postgres TestTheLimitHoldsForRunsSentAtOnce/postgres TestTheFunctionServesTheBoard TestTheServerOverALazyDatabase TestDropRunsAreScoredByTheServerAndRanked/postgres TestTheFunctionServesLemonDropsBoard; do
             grep -q -- "--- PASS: $test " /tmp/pg.out || { echo "FAIL $test did not run"; exit 1; }
           done

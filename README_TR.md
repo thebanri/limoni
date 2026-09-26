@@ -220,6 +220,18 @@ Yarım bloklarla hücre başına iki piksel çizen bir raycaster: ışıklı dok
 `WithKeyReleases` ile basılı tutar; kitty, Ghostty ve WezTerm'de yürüyüş akıcıdır. Her oyun isabet ve süreye
 göre puanlanır; skor tablosu bir dosyada ya da tarayıcının deposunda saklanır.
 
+[**Lemon Drop**](apps/lemondrop) düşen bloklar oyunu; yere değen parça kendi renginde kuma dönüşüp dağılır.
+Duvardan duvara uzanan tek renkli bir kum yolu satırın yerini tutar: yanıp söner, üstündekiler düşer ve
+bazen bir sonrakini kurar.
+
+```bash
+go install github.com/thebanri/limoni/apps/lemondrop@latest
+lemondrop
+```
+
+Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemondrop); sesi ve dünya skor
+tablosu da var.
+
 ---
 
 ## Uygulama yazmanın iki yolu

@@ -45,7 +45,7 @@ func forEachStore(t *testing.T, test func(t *testing.T, open func() Store)) {
 			t.Fatal(err)
 		}
 		t.Cleanup(first.Close)
-		if _, err := first.pool.Exec(context.Background(), `TRUNCATE runs; TRUNCATE posts`); err != nil {
+		if _, err := first.pool.Exec(context.Background(), `TRUNCATE runs; TRUNCATE posts; TRUNCATE drop_runs`); err != nil {
 			t.Fatal(err)
 		}
 		test(t, func() Store {
@@ -82,6 +82,19 @@ var epoch = time.Unix(1_800_000_000, 0)
 
 func (f *fixture) do(method, path, body string, header ...string) (*httptest.ResponseRecorder, answer) {
 	f.t.Helper()
+	w, _ := f.doRaw(method, path, body, header...)
+	var a answer
+	if strings.HasPrefix(w.Header().Get("Content-Type"), "application/json") {
+		if err := json.Unmarshal(w.Body.Bytes(), &a); err != nil {
+			f.t.Fatalf("%s: %v", w.Body.String(), err)
+		}
+	}
+	return w, a
+}
+
+// doRaw sends a request and leaves the answer to the caller.
+func (f *fixture) doRaw(method, path, body string, header ...string) (*httptest.ResponseRecorder, struct{}) {
+	f.t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	for i := 0; i+1 < len(header); i += 2 {
 		req.Header.Set(header[i], header[i+1])
@@ -92,13 +105,7 @@ func (f *fixture) do(method, path, body string, header ...string) (*httptest.Res
 	}
 	w := httptest.NewRecorder()
 	f.h.ServeHTTP(w, req)
-	var a answer
-	if strings.HasPrefix(w.Header().Get("Content-Type"), "application/json") {
-		if err := json.Unmarshal(w.Body.Bytes(), &a); err != nil {
-			f.t.Fatalf("%s: %v", w.Body.String(), err)
-		}
-	}
-	return w, a
+	return w, struct{}{}
 }
 
 func TestRunsAreScoredByTheServerAndRanked(t *testing.T) {
