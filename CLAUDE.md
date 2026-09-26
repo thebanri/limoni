@@ -188,6 +188,16 @@ as a smeared left pane next to a pixel-mode Viewer3D. iTerm2 gets
 and should be a different value per frame, or the terminal is sent the old
 picture — or nothing, since the terminal compares images by identity.
 
+**A Program without `WithProgramFPS` must not tick.** `RunTerminal` used to
+draw 30 frames a second whatever happened: 0.7% of a core and ~210 wakeups a
+second while idle, where `limoni.Run` and ratatui 0.30 use nothing (Bubble Tea
+v1.3.10 and v2.0.10 tick at 60 and cost about the same). Measured from a real
+pty, idle CPU from the kernel's schedstat. Now it draws on input, redraw
+requests and Updates; one that did not ask for a redraw is drawn at once, or at
+the end of the current frame under a stream of them. Both loops also draw once
+when the capability probe is answered (`Backend.ProbeAnswered`), or late
+answers would wait for the next key. `core/engine/idle_test.go`.
+
 **Continuation cells written through SetCell used to blank wide characters.**
 Fixed in the buffer (`setContinuation`); Markdown and TextInput's wide mask
 were drawing spaces.

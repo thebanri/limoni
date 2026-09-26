@@ -194,6 +194,8 @@ func WithAutomation(socketPath string, policy AutomationPolicy) AppOption {
 
 // WithFPS configures a continuous animation frame rate (e.g. 60, 120, 240 FPS).
 // When configured, the render loop continuously invokes the draw function at the target rate.
+// Without it the draw function runs only when something happens (input, a
+// resize, a Wakeup), and an idle application uses no CPU.
 func WithFPS(fps int) AppOption {
 	return func(c *appConfig) {
 		if fps > 0 {
@@ -320,6 +322,11 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 		})
 	}
 
+	var answered <-chan struct{}
+	if b := term.Backend(); b != nil {
+		answered = b.ProbeAnswered()
+	}
+
 	events := term.Events()
 	for running {
 		select {
@@ -364,7 +371,16 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 			}
 
 		case <-tickerChan:
-			// WithFPS ayarlandığında hedef kare hızında tetiklenir
+			// Set by WithFPS: fires at the target frame rate.
+			if err := handle(nil); err != nil {
+				return err
+			}
+
+		case <-answered:
+			// Late answers to the capability probe: the frame on screen may
+			// have been encoded for another terminal, and without input
+			// nothing else would draw it again.
+			answered = nil
 			if err := handle(nil); err != nil {
 				return err
 			}
