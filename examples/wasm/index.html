@@ -313,9 +313,9 @@
           '<span><kbd>Z</kbd> turn back</span>' +
           '<span><kbd>↓</kbd> soft drop</span>' +
           '<span><kbd>Space</kbd> drop</span>' +
-          '<span><kbd>P</kbd> pause</span>' +
+          '<span><kbd>P</kbd> or <kbd>Esc</kbd> pause</span>' +
           '<span><kbd>M</kbd> sound</span>' +
-          '<span><kbd>Esc</kbd> quit</span>',
+          '<span><kbd>Q</kbd> quit, from the pause</span>',
         running: 'Lemon Drop running — click the terminal if keys do nothing',
         // The board's blocks grow with the rows: 40 gives four grains a
         // block, 48 five.
@@ -323,6 +323,8 @@
         windowRows: 40,
         audio: true,
         keyReleases: true,
+        // Esc pauses the game, in fullscreen too: see the fullscreen button.
+        lockEsc: true,
         // Lemon Drop's board is on the same server, at its own path.
         scoreboard: 'https://limoni-drab.vercel.app',
         boardPath: '/drop/scores',
@@ -553,6 +555,14 @@
       } else {
         try {
           await stage.requestFullscreen();
+          // In fullscreen the browser takes Esc for itself, to leave it,
+          // and the game never hears it. A game that uses Esc asks for it
+          // back with the Keyboard Lock API (Chromium browsers; elsewhere
+          // this does nothing): Esc then reaches the game, and holding it
+          // down still leaves fullscreen, as the browser tells the player.
+          if (app.lockEsc && navigator.keyboard && navigator.keyboard.lock) {
+            navigator.keyboard.lock(['Escape']).catch(() => {});
+          }
         } catch (err) {
           setFull(true); // refused: cover the page instead
         }
@@ -561,6 +571,9 @@
     // Also leaving with the browser's own Esc.
     document.addEventListener('fullscreenchange', () => {
       setFull(document.fullscreenElement === stage);
+      if (!document.fullscreenElement && navigator.keyboard && navigator.keyboard.unlock) {
+        navigator.keyboard.unlock();
+      }
     });
 
     // Go -> xterm.js

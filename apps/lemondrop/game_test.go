@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/thebanri/limoni"
@@ -507,10 +508,65 @@ func TestScreensSayWhatToDo(t *testing.T) {
 	if g.phase != phPlay || g.b != 4 {
 		t.Fatalf("Enter did not start a 4-grain run: phase %d, b %d", g.phase, g.b)
 	}
-	small := buffer.NewBuffer(cell.Rect{Width: 60, Height: 22})
+	// A window too small for any board holds the run and says so.
+	tiny := buffer.NewBuffer(cell.Rect{Width: 40, Height: 16})
+	g.render(tiny)
+	if s := screen(tiny); !contains(s, "larger window") || !g.paused {
+		t.Fatalf("a window too small for any board did not hold the run:\n%s", s)
+	}
+}
+
+// Leaving fullscreen shrinks the window under a run: the board is made
+// smaller and the run goes on, with its sand, its colours and its piece.
+func TestAShrinkingWindowShrinksTheBoard(t *testing.T) {
+	g := newGame(8)
+	g.store = store{}
+	g.lastW, g.lastH = 200, 60
+	g.start()
+	if g.b != 6 {
+		t.Fatalf("a 200×60 window gave %d grains a block", g.b)
+	}
+	for i := 0; i < 6; i++ {
+		g.cur.x = i * g.b
+		g.hardDrop()
+		for j := 0; j < 200; j++ {
+			g.tick()
+		}
+	}
+	var before [colours + 1]int
+	for _, v := range g.sand[:g.gw*g.gh] {
+		before[v&colourMask]++
+	}
+	kind := g.cur.kind
+
+	small := buffer.NewBuffer(cell.Rect{Width: 100, Height: 40})
 	g.render(small)
-	if s := screen(small); !contains(s, "enlarge") || !g.paused {
-		t.Fatalf("a window too small for the run did not pause it:\n%s", s)
+	if s := screen(small); contains(s, "larger window") || g.paused {
+		t.Fatalf("leaving fullscreen stopped the run:\n%s", s)
+	}
+	if g.b != 4 || g.phase != phPlay || g.cur.kind != kind {
+		t.Fatalf("after shrinking: %d grains a block, phase %d", g.b, g.phase)
+	}
+	if !g.fits(g.cur.kind, g.cur.rot, g.cur.x, g.cur.y) {
+		t.Fatal("the piece is somewhere it does not fit")
+	}
+	// Each colour's sand is about as many blocks' worth as it was.
+	var after [colours + 1]int
+	for _, v := range g.sand[:g.gw*g.gh] {
+		after[v&colourMask]++
+	}
+	for c := 1; c <= colours; c++ {
+		was, is := float64(before[c])/36, float64(after[c])/16
+		if math.Abs(was-is) > 0.15*was+1 {
+			t.Errorf("colour %d: %.1f blocks of sand before, %.1f after", c, was, is)
+		}
+	}
+	// And it plays on.
+	for i := 0; i < 600 && g.phase == phPlay; i++ {
+		g.tick()
+	}
+	if g.pieces < 7 {
+		t.Errorf("no piece landed after the board shrank: %d pieces", g.pieces)
 	}
 }
 
@@ -808,5 +864,126 @@ func TestStillScreensAllocateNothing(t *testing.T) {
 				t.Errorf("%.2f allocations per frame, want 0", avg)
 			}
 		})
+	}
+}
+
+// ── pausing and quitting ─────────────────────────────────────────────────
+
+var (
+	escKey = limoni.KeyEvent{Type: limoni.KeyEsc}
+	qKey   = limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'q'}
+)
+
+// Esc never ends the game: in a run it pauses, in the pause it goes on,
+// at the end it goes back to the title, on the title it does nothing.
+func TestEscNeverQuits(t *testing.T) {
+	g := playing()
+	g.key(escKey)
+	if g.quit || !g.paused {
+		t.Fatalf("Esc in a run: quit %v, paused %v", g.quit, g.paused)
+	}
+	g.key(escKey)
+	if g.quit || g.paused {
+		t.Fatalf("Esc in the pause: quit %v, paused %v", g.quit, g.paused)
+	}
+	g.gameOver()
+	g.key(escKey)
+	if g.quit || g.phase != phTitle {
+		t.Fatalf("Esc at the end: quit %v, phase %d", g.quit, g.phase)
+	}
+	g.key(escKey)
+	if g.quit || g.phase != phTitle {
+		t.Fatalf("Esc on the title: quit %v, phase %d", g.quit, g.phase)
+	}
+	// Nor in the name entry, even with no name to go back to.
+	g.name = ""
+	g.askName()
+	g.key(escKey)
+	if g.quit || g.phase != phName {
+		t.Fatalf("Esc in the first name entry: quit %v, phase %d", g.quit, g.phase)
+	}
+}
+
+// Q quits from the title, the pause and the end; in a run it only pauses,
+// so the run is not lost to a slip.
+func TestQQuitsOnlyWhereNothingIsLost(t *testing.T) {
+	g := playing()
+	g.key(qKey)
+	if g.quit || !g.paused {
+		t.Fatalf("Q in a run: quit %v, paused %v", g.quit, g.paused)
+	}
+	g.key(qKey)
+	if !g.quit {
+		t.Fatal("Q in the pause did not quit")
+	}
+	for _, ph := range []phase{phTitle, phOver} {
+		g := playing()
+		g.phase = ph
+		g.key(qKey)
+		if !g.quit {
+			t.Errorf("Q in phase %d did not quit", ph)
+		}
+	}
+}
+
+func TestThePauseButtonPausesAndGoesOn(t *testing.T) {
+	g := playing()
+	b := buffer.NewBuffer(cell.Rect{Width: 100, Height: 40})
+	g.render(b)
+	if s := screen(b); !strings.Contains(s, "[ || PAUSE ]") {
+		t.Fatalf("no pause button:\n%s", s)
+	}
+	btn := g.pauseBtn
+	click := func(x, y int) {
+		g.mouse(limoni.MouseEvent{Button: limoni.MouseLeft, X: uint16(x), Y: uint16(y)})
+		g.render(b)
+	}
+	click(btn.x-1, btn.y) // beside it
+	if g.paused {
+		t.Fatal("a click beside the button paused the run")
+	}
+	g.mouse(limoni.MouseEvent{Button: limoni.MouseButton(0), X: uint16(btn.x + 2), Y: uint16(btn.y)}) // a hover
+	if g.paused {
+		t.Fatal("moving the mouse over the button paused the run")
+	}
+	click(btn.x+2, btn.y)
+	if !g.paused {
+		t.Fatal("a click on the button did not pause the run")
+	}
+	if s := screen(b); !strings.Contains(s, "[ >  GO ON ]") || !strings.Contains(s, "PAUSED") || !strings.Contains(s, "quit") {
+		t.Fatalf("the pause:\n%s", s)
+	}
+	click(btn.x+btn.w-1, btn.y)
+	if g.paused {
+		t.Fatal("a second click did not let the run go on")
+	}
+	// No button on the title.
+	g.phase = phTitle
+	g.render(b)
+	if g.pauseBtn.w != 0 || strings.Contains(screen(b), "PAUSE ]") {
+		t.Error("a pause button on the title")
+	}
+}
+
+// The pause screen with the mouse moving over it allocates nothing.
+func TestThePauseAllocatesNothing(t *testing.T) {
+	g := newGame(4)
+	g.store = store{}
+	g.lastW, g.lastH = 100, 40
+	g.start()
+	g.setPaused(true)
+	f := newFrames(g, 100, 40)
+	f.still = true
+	n := 0
+	frame := func() {
+		n++
+		g.mouse(limoni.MouseEvent{Button: limoni.MouseButton(0), X: uint16(n % 100), Y: uint16(n % 40)})
+		f.frame()
+	}
+	for i := 0; i < 50; i++ {
+		frame()
+	}
+	if avg := testing.AllocsPerRun(200, frame); avg != 0 {
+		t.Errorf("%.2f allocations per frame, want 0", avg)
 	}
 }
