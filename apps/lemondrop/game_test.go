@@ -548,6 +548,7 @@ type frames struct {
 	cur, prev *buffer.Buffer
 	out       []byte
 	n         int
+	still     bool // no keys, and a finished run stays finished
 }
 
 func newFrames(g *game, w, h uint16) *frames {
@@ -557,21 +558,22 @@ func newFrames(g *game, w, h uint16) *frames {
 
 func (f *frames) frame() {
 	g := f.g
-	switch f.n % 40 {
-	case 0:
+	switch n := f.n % 40; {
+	case f.still:
+	case n == 0:
 		g.key(limoni.KeyEvent{Type: limoni.KeyLeft})
-	case 5:
+	case n == 5:
 		g.key(limoni.KeyEvent{Type: limoni.KeyUp})
-	case 10, 12:
+	case n == 10, n == 12:
 		g.key(limoni.KeyEvent{Type: limoni.KeyRight})
-	case 20:
+	case n == 20:
 		g.key(limoni.KeyEvent{Type: limoni.KeyDown})
-	case 30:
+	case n == 30:
 		g.key(limoni.KeyEvent{Type: limoni.KeySpace})
 	}
 	f.n++
 	g.update(dt)
-	if g.phase == phOver {
+	if g.phase == phOver && !f.still {
 		g.start()
 	}
 	g.render(f.cur)
@@ -593,6 +595,16 @@ func TestFramesAllocateNothing(t *testing.T) {
 		// With sound: the game hands requests to the mixer's queue, which
 		// nobody drains here, so it fills and play has to drop them.
 		{"play, with sound", 100, 40, func(g *game) { g.audio = &mixer{req: make(chan sfxReq, 64)} }},
+		// With a shared leaderboard that has answered, and one that has not.
+		{"title, world board", 100, 40, func(g *game) {
+			g.phase, g.worldState = phTitle, worldOK
+			g.remote = &remote{answers: make(chan remoteAnswer, 4)}
+			fillBoard(g.world[:], &g.nWorld)
+		}},
+		{"play, board waiting", 100, 40, func(g *game) {
+			g.worldState = worldLoading
+			g.remote = &remote{answers: make(chan remoteAnswer, 4)}
+		}},
 	} {
 		t.Run(sc.name, func(t *testing.T) {
 			g := newGame(7)
@@ -750,5 +762,51 @@ func TestTheLemonTurns(t *testing.T) {
 	}
 	if want := 1.0 / spinTurn; math.Abs(g.spin-want) > 1e-9 {
 		t.Errorf("a second turned the lemon %.4f turns, want %.4f", g.spin, want)
+	}
+}
+
+func fillBoard(b []scoreEntry, n *int) {
+	names := [...]string{"Ada", "Bora", "Cem", "Deniz", "Ece", "Figen", "Gül", "Hakan", "Irmak", "Jale"}
+	for i := range b {
+		b[i] = scoreEntry{Name: names[i], Score: 10000 - i*900, Clears: 40 - i, Level: 11 - i, Secs: 300}
+	}
+	*n = len(b)
+}
+
+// The screens that stay put — the end with its board, the name entry —
+// allocate nothing either while they are shown.
+func TestStillScreensAllocateNothing(t *testing.T) {
+	for _, sc := range []struct {
+		name  string
+		setup func(g *game)
+	}{
+		{"game over, world board", func(g *game) {
+			g.worldState, g.worldRank = worldOK, 3
+			fillBoard(g.world[:], &g.nWorld)
+			g.gameOver()
+			g.overAt = -10
+		}},
+		{"game over, own board", func(g *game) {
+			fillBoard(g.local[:], &g.nLocal)
+			g.gameOver()
+			g.overAt = -10
+		}},
+		{"name entry", func(g *game) { g.typing = "Arslan"; g.phase = phName }},
+	} {
+		t.Run(sc.name, func(t *testing.T) {
+			g := newGame(9)
+			g.store = store{}
+			g.lastW, g.lastH = 100, 40
+			g.start()
+			sc.setup(g)
+			f := newFrames(g, 100, 40)
+			f.still = true
+			for i := 0; i < 100; i++ {
+				f.frame()
+			}
+			if avg := testing.AllocsPerRun(200, f.frame); avg != 0 {
+				t.Errorf("%.2f allocations per frame, want 0", avg)
+			}
+		})
 	}
 }

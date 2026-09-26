@@ -3,6 +3,7 @@
 //	go run .            # play
 //	go run . -fps 30    # fewer frames, for a slow terminal or link
 //	go run . -mute      # no sound
+//	go run . -board off # keep the scores on this machine
 //
 // Pieces fall as in any falling-block game, but each one that lands
 // crumbles into sand of its colour and runs down the pile. A run of one
@@ -28,6 +29,7 @@ import (
 func main() {
 	fps := flag.Int("fps", 60, "frames per second")
 	mute := flag.Bool("mute", false, "no sound")
+	board := flag.String("board", "", `the shared leaderboard's address; "off" keeps scores on this machine`)
 	flag.Parse()
 
 	var mix *mixer
@@ -43,7 +45,14 @@ func main() {
 
 	g := newGame(uint64(time.Now().UnixNano()))
 	g.store = newStore()
-	g.best = g.store.load()
+	g.restore()
+	if g.remote = newRemote(boardURL(*board)); g.remote != nil {
+		g.worldState = worldLoading
+		g.remote.fetch()
+	}
+	if g.name == "" {
+		g.askName()
+	}
 	switch {
 	case mix != nil:
 		g.audio = mix
@@ -75,9 +84,6 @@ func main() {
 	} else if !*mute {
 		fmt.Fprintln(os.Stderr, "lemondrop: no sound — install pw-play, pacat, aplay or sox to hear it")
 	}
-	if g.phase == phPlay && g.score > g.best {
-		g.store.save(g.score)
-	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -99,6 +105,17 @@ func (g *game) key(k limoni.KeyEvent) {
 	rn := k.Type == limoni.KeyRune
 	press := !k.Release && !k.Repeat
 
+	if g.phase == phName {
+		if k.Type == limoni.KeyEsc && press {
+			g.phase = g.back // keep the name there was
+			if g.name == "" {
+				g.quit = true
+			}
+		} else if press || k.Repeat {
+			g.nameKey(k)
+		}
+		return
+	}
 	if k.Type == limoni.KeyEsc || rn && ch == 'q' {
 		if press {
 			g.quit = true
@@ -112,8 +129,11 @@ func (g *game) key(k limoni.KeyEvent) {
 
 	switch g.phase {
 	case phTitle:
-		if press && (k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace) {
+		switch {
+		case press && (k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace):
 			g.start()
+		case press && rn && ch == 'n':
+			g.askName()
 		}
 		return
 	case phOver:
@@ -188,9 +208,51 @@ func (g *game) key(k limoni.KeyEvent) {
 // terminal that sends ↓ again and again rather than holding it.
 func (g *game) softStep() {
 	p := &g.cur
+	moved := false
 	for i := 0; i < g.b && g.fits(p.kind, p.rot, p.x, p.y+1); i++ {
 		p.y++
 		p.fall = 0
+		moved = true
 	}
-	g.score++
+	if moved {
+		g.score++
+		g.dropPts++
+	}
+}
+
+// askName opens the name entry, with the name so far to edit.
+func (g *game) askName() {
+	g.typing = g.name
+	g.back = g.phase
+	if g.back == phName || g.back == phPlay {
+		g.back = phTitle
+	}
+	g.phase = phName
+}
+
+// nameKey types the player's name: letters, digits and a few marks, up to
+// nameMax; Backspace takes one back and Enter keeps it.
+func (g *game) nameKey(k limoni.KeyEvent) {
+	switch {
+	case k.Type == limoni.KeyEnter:
+		name := cleanName(g.typing)
+		if name == "" {
+			return
+		}
+		g.name = name
+		g.persist()
+		g.phase = g.back
+	case k.Type == limoni.KeyBackspace:
+		if r := []rune(g.typing); len(r) > 0 {
+			g.typing = string(r[:len(r)-1])
+		}
+	case k.Type == limoni.KeySpace || k.Type == limoni.KeyRune:
+		ch := k.Ch
+		if k.Type == limoni.KeySpace {
+			ch = ' '
+		}
+		if nameRune(ch) && len([]rune(g.typing)) < nameMax && (ch != ' ' || g.typing != "") {
+			g.typing += string(ch)
+		}
+	}
 }

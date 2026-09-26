@@ -259,6 +259,7 @@
     // ?app=lemonhunt from apps/lemonhunt and ?app=lemondrop from
     // apps/lemondrop. They are separate builds because each game is a module
     // of its own and ships to nobody who imports Limoni.
+    const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     const apps = {
       playground: {
         wasm: 'limoni.wasm',
@@ -294,6 +295,7 @@
         // Neon database. It allows this page's origin (thebanri.github.io).
         // Empty keeps each browser's scores to itself; ?board=URL overrides.
         scoreboard: 'https://limoni-drab.vercel.app',
+        describe: (run) => `${run.won ? 'won' : 'lost'} in ${clock(run.secs)}, ${run.aim}% aim`,
       },
       lemondrop: {
         wasm: 'lemondrop.wasm',
@@ -321,12 +323,18 @@
         windowRows: 40,
         audio: true,
         keyReleases: true,
+        // Lemon Drop's board is on the same server, at its own path.
+        scoreboard: 'https://limoni-drab.vercel.app',
+        boardPath: '/drop/scores',
+        describe: (run) => `${run.clears} clears, level ${run.level}, ${clock(run.secs)}`,
       },
     };
     const params = new URLSearchParams(location.search);
     const app = apps[params.get('app')] || apps.playground;
-    // Read by the game (apps/lemonhunt/remote_js.go) when it starts.
+    // Read by the games (apps/lemonhunt/remote_js.go, apps/lemondrop/
+    // remote_js.go) when they start.
     window.__lemonhunt_scoreboard = params.get('board') || app.scoreboard || '';
+    window.__lemondrop_scoreboard = window.__lemonhunt_scoreboard;
     // The world's best, above the game. Fetched when the page opens, which
     // also wakes a sleeping scoreboard (a Vercel function and a Neon
     // database take a moment, a Render service up to a minute) while the
@@ -334,18 +342,17 @@
     // (__lemonhunt_board_changed, from apps/lemonhunt/remote_js.go); and
     // when the tab comes back into view. Not on a timer: a page left open
     // would keep the free database awake all day.
-    if (app === apps.lemonhunt && window.__lemonhunt_scoreboard) {
-      const scoresURL = window.__lemonhunt_scoreboard.replace(/\/+$/, '') + '/scores';
+    if (app.scoreboard && window.__lemonhunt_scoreboard) {
+      const scoresURL = window.__lemonhunt_scoreboard.replace(/\/+$/, '') + (app.boardPath || '/scores');
       const boardEl = document.getElementById('board');
       const list = document.getElementById('board-list');
       const note = document.getElementById('board-note');
       const medals = ['🥇', '🥈', '🥉'];
-      const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
       function showBoard(runs) {
         list.replaceChildren(...runs.map((run, i) => {
           const li = document.createElement('li');
           if (i === 0) { li.className = 'first'; }
-          li.title = `${run.won ? 'won' : 'lost'} in ${clock(run.secs)}, ${run.aim}% aim`;
+          li.title = app.describe(run);
           // textContent, never innerHTML: the names are the players'.
           li.append(`${medals[i] || (i + 1) + '.'} ${run.name}`);
           const score = document.createElement('span');
@@ -369,6 +376,7 @@
       boardEl.hidden = false;
       loadBoard();
       window.__lemonhunt_board_changed = loadBoard;
+      window.__lemondrop_board_changed = loadBoard;
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') { loadBoard(); }
       });

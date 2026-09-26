@@ -286,7 +286,7 @@ func (g *game) render(b *buffer.Buffer) {
 	cv.fill(0, 0, W, H, style(textCol, screenBg))
 
 	fit := fitSize(W, H)
-	if g.phase == phTitle && fit != 0 && fit != g.b {
+	if (g.phase == phTitle || g.phase == phName) && fit != 0 && fit != g.b {
 		g.setSize(fit)
 	}
 	if fit < g.b {
@@ -503,38 +503,214 @@ func (g *game) drawNext(cv canvas, x0, y0 int) {
 	}
 }
 
-// drawOverlay puts the title, the pause and the end over the board.
+// drawOverlay puts the title, the name entry, the pause and the end over
+// the board. The title and the end carry a board of the best ten: the
+// world's when the shared leaderboard answers, the game's own otherwise,
+// with as many rows and columns as the board's size leaves room for.
 func (g *game) drawOverlay(cv canvas) {
-	var lines [4]string
-	n := 0
+	o := overlay{cv: cv, g: g}
 	switch {
+	case g.phase == phName:
+		o.lines = 6
 	case g.phase == phTitle:
-		lines, n = [4]string{"LEMON DROP", "", "ENTER  play", "ESC    quit"}, 4
+		o.lines, o.board = 6, true
 	case g.phase == phOver && g.now-g.overAt > 0.6:
-		lines, n = [4]string{"GAME OVER", "", "R      play again", "ESC    quit"}, 4
+		o.lines, o.board = 5, true
 	case g.paused:
-		lines, n = [4]string{"PAUSED", "", "P      go on"}, 3
+		o.lines = 3
 	default:
 		return
 	}
-	boxW := 0
-	for _, l := range lines[:n] {
-		boxW = max(boxW, textWidth(l))
-	}
-	boxW = min(boxW+4, g.gw)
-	boxH := n + 2
-	cx := g.bx + g.gw/2
-	y0 := g.by + (g.gh/2-boxH)/2
-	x0 := cx - boxW/2
-	bg := style(textCol, screenBg)
-	cv.fill(x0, y0, boxW, boxH, bg)
-	for i, l := range lines[:n] {
-		st := bg
-		if i == 0 {
-			st = style(accent, screenBg)
+	o.layout()
+	switch {
+	case g.phase == phName:
+		o.title("YOUR NAME")
+		o.skip()
+		e := o.text(o.x, "> ", o.label)
+		e = o.cv.text(e, o.y, g.typing, o.value)
+		if int(g.now*2)&1 == 0 {
+			o.cv.set(e, o.y, '_', o.hi)
 		}
-		cv.text(x0+2, y0+1+i, l, st)
+		o.y++
+		o.skip()
+		if g.name == "" {
+			o.keys("ENTER", "keep", "ESC", "quit")
+		} else {
+			o.keys("ENTER", "keep", "ESC", "back")
+		}
+	case g.phase == phTitle:
+		o.title("LEMON DROP")
+		e := o.text(o.x, "PLAYER ", o.label)
+		o.text(e, g.name, o.value)
+		o.y++
+		o.skip()
+		o.drawBoard()
+		o.skip()
+		o.keys("ENTER", "play", "N", "name")
+	case g.phase == phOver:
+		o.title("GAME OVER")
+		e := o.text(o.x, "SCORE ", o.label)
+		e = o.cv.number(e, o.y, g.score, o.value)
+		g.drawRank(o, e+2)
+		o.y++
+		o.skip()
+		o.drawBoard()
+		o.skip()
+		o.keys("R", "play again", "", "")
+	default:
+		o.title("PAUSED")
+		o.skip()
+		o.keys("P", "go on", "", "")
 	}
+}
+
+// drawRank says where the run that just ended stands: on the world's board
+// when it has one, or else on the game's own.
+func (g *game) drawRank(o overlay, x int) {
+	switch {
+	case g.worldRank < 0:
+		clipText(o.cv, x, o.y, "sending…", o.x+o.w-x, o.label)
+	case g.worldRank > 0:
+		e := o.cv.text(x, o.y, "#", o.hi)
+		e = o.cv.number(e, o.y, g.worldRank, o.hi)
+		if e+6 <= o.x+o.w {
+			o.cv.text(e, o.y, " world", o.label)
+		}
+	case g.localRank > 0:
+		e := o.cv.text(x, o.y, "#", o.hi)
+		o.cv.number(e, o.y, g.localRank, o.hi)
+	}
+}
+
+// overlay is a box over the board, written a line at a time.
+type overlay struct {
+	cv                       canvas
+	g                        *game
+	lines                    int  // lines other than the board's
+	board                    bool // with a board of the best
+	rows                     int  // the board's entries that fit
+	x, y, w                  int  // where the text goes, and how wide
+	label, value, hi, accent cell.Style
+}
+
+func (o *overlay) layout() {
+	g := o.g
+	pad := 2
+	if g.gw < 30 {
+		pad = 1
+	}
+	o.w = g.gw - 2*pad
+	h := g.gh/2 - 2 // the box's inside, at most
+	if o.board {
+		entries, _, _ := g.shownBoard()
+		o.rows = max(0, min(len(entries), h-o.lines-1-boolInt(o.wide())))
+	}
+	inside := o.lines
+	if o.board {
+		inside += 1 + boolInt(o.wide()) + max(o.rows, 1)
+	}
+	boxH := min(inside+2, g.gh/2)
+	top := g.by + (g.gh/2-boxH)/2
+	o.cv.fill(g.bx, top, g.gw, boxH, style(textCol, screenBg))
+	o.x, o.y = g.bx+pad, top+1
+	o.label, o.value = style(labelCol, screenBg), style(textCol, screenBg)
+	o.hi, o.accent = style(accent, screenBg), style(accent, screenBg)
+}
+
+// wide reports whether the board has room for clears and levels as well.
+func (o *overlay) wide() bool { return o.w >= 32 }
+
+func (o *overlay) text(x int, s string, st cell.Style) int { return o.cv.text(x, o.y, s, st) }
+
+func (o *overlay) title(s string) {
+	o.cv.text(o.x, o.y, s, o.accent)
+	o.y++
+}
+
+func (o *overlay) skip() { o.y++ }
+
+// keys writes up to two keys and what they do, one line each.
+func (o *overlay) keys(k1, what1, k2, what2 string) {
+	for _, kw := range [2][2]string{{k1, what1}, {k2, what2}} {
+		if kw[0] == "" {
+			continue
+		}
+		o.cv.text(o.x, o.y, kw[0], o.value)
+		o.cv.text(o.x+7, o.y, kw[1], o.label)
+		o.y++
+	}
+}
+
+// drawBoard writes the board of the best: a heading, then a line a run.
+func (o *overlay) drawBoard() {
+	g := o.g
+	entries, mark, world := g.shownBoard()
+	switch {
+	case world:
+		o.title("WORLD'S BEST")
+	case g.worldState == worldLoading:
+		o.cv.text(o.x, o.y, "connecting…", o.label)
+		o.y++
+	case g.worldState == worldOffline:
+		o.cv.text(o.x, o.y, "offline: this machine", o.label)
+		o.y++
+	default:
+		o.title("BEST HERE")
+	}
+	// Columns: place, name, score; and when there is room, clears and level.
+	scoreEnd := o.x + o.w
+	if o.wide() {
+		scoreEnd = o.x + o.w - 9
+		o.cv.text(o.x+3, o.y, "NAME", o.label)
+		o.cv.text(scoreEnd-5, o.y, "SCORE", o.label)
+		o.cv.text(scoreEnd+1, o.y, " CLR", o.label)
+		o.cv.text(scoreEnd+6, o.y, " LV", o.label)
+		o.y++
+	}
+	nameW := min(nameMax, scoreEnd-o.x-3-8)
+	if o.rows == 0 {
+		o.cv.text(o.x, o.y, "no runs yet", o.label)
+		o.y++
+		return
+	}
+	for i, e := range entries[:o.rows] {
+		st := o.value
+		if i+1 == mark {
+			st = o.hi
+		}
+		numberRight(o.cv, o.x+2, o.y, i+1, o.label)
+		clipText(o.cv, o.x+3, o.y, e.Name, nameW, st)
+		numberRight(o.cv, scoreEnd, o.y, e.Score, st)
+		if o.wide() {
+			numberRight(o.cv, scoreEnd+5, o.y, e.Clears, o.label)
+			numberRight(o.cv, scoreEnd+9, o.y, e.Level, o.label)
+		}
+		o.y++
+	}
+}
+
+// numberRight writes n so that it ends just before column end.
+func numberRight(cv canvas, end, y, n int, st cell.Style) {
+	cv.number(end-digits(n), y, n, st)
+}
+
+// clipText writes at most w characters of s.
+func clipText(cv canvas, x, y int, s string, w int, st cell.Style) {
+	for _, r := range s {
+		if w == 0 {
+			return
+		}
+		cv.set(x, y, r, st)
+		x++
+		w--
+	}
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // centre writes s centred on column cx.

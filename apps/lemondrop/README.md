@@ -8,11 +8,12 @@ go install github.com/thebanri/limoni/apps/lemondrop@latest
 lemondrop            # play
 lemondrop -fps 30    # fewer frames, for a slow terminal or link
 lemondrop -mute      # no sound
+lemondrop -board off # keep the scores on this machine
 ```
 
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop):
-the same code, compiled to WebAssembly and drawn by xterm.js, with sound.
-There the best score is kept in the browser's storage.
+the same code, compiled to WebAssembly and drawn by xterm.js, with sound
+and the same leaderboard.
 
 Pieces fall as in any falling-block game, in one of four colours: lemon,
 lime, grapefruit and blueberry. When one lands it crumbles into sand of its
@@ -26,9 +27,7 @@ chain and scores double, the third triple, and so on.
 
 A clear scores ten points for each block's worth of grains in it, times the
 level and the chain. Every four clears is a level, and pieces fall faster.
-Dropping a piece with `space` or `↓` scores a little too. The best score is
-kept in `limoni/lemondrop-best` under your configuration directory, or in
-the browser's storage.
+Dropping a piece with `space` or `↓` scores a little too.
 
 | key | |
 | :-- | :-- |
@@ -39,12 +38,35 @@ the browser's storage.
 | `space` | drop |
 | `P` | pause (`R` restarts from the pause) |
 | `M` | sound off and on |
+| `N` | on the title: change your name |
 | `Esc` or `Q` | quit |
 
 In kitty, Ghostty, WezTerm and foot, which report key releases, held arrows
 repeat at the game's own pace and `↓` drops fast until you let go. Elsewhere
 the terminal's own key repeat does the repeating, and each `↓` drops the
 piece a block.
+
+## Leaderboard
+
+The first time, the game asks for a name. Every run that ends goes on two
+boards: the game's own best ten, kept with the name in
+`limoni/lemondrop.json` under your configuration directory (or in the
+browser's storage), and the world's, on the same server as Lemon Hunt's
+([apps/scoreboard](../scoreboard), at `/drop/scores`). The title and the end
+show the world's board when it answers, the game's own when it does not, and
+where the run just ended stands on it.
+
+The game does not send its score. It sends what the run did: how long it
+lasted, how many pieces it placed, the points from dropping them, and each
+clear as its size and its place in a chain. The server works the score out
+from that with the same rule, and turns away a run the game could not have
+produced (a clear narrower than the board, a chain that skips, more sand
+cleared than the pieces brought). Anyone could still send a run they did not
+play; this keeps the board plausible, not honest.
+
+`-board URL` points the game at another server, or `LEMONDROP_BOARD`;
+`-board off` keeps the scores on this machine. The requests run off the
+frame, and a slow or missing server never holds up a frame.
 
 ## How it is drawn
 

@@ -2,7 +2,7 @@
 // verify-wasm-lemonhunt.mjs does for the other game.
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
-// Audio context, starts a run,
+// Audio context, types a name, starts a run,
 // moves and drops pieces, pauses, and quits with Esc. Each step asserts on
 // what reached the screen: the title, the panel of a run, the board in
 // truecolor half blocks, the pause, and that Esc ended the program. The
@@ -56,9 +56,14 @@ const send = (s) => globalThis.__limoni_input?.(s);
 await sleep(600);
 globalThis.__limoni_resize?.(100, 40);
 await sleep(600);
-const title = captured;
+const asked = captured;
 
 let mark = captured.length;
+send("Tester\r"); // the name, then on to the title (Node has no localStorage)
+await sleep(700);
+const title = since(mark);
+
+mark = captured.length;
 send("\r"); // ENTER plays
 await sleep(700);
 const run = since(mark);
@@ -85,10 +90,13 @@ send("\x1b"); // Esc, alone, as xterm.js sends it
 await sleep(800);
 
 const checks = [
-  ["alternate screen (?1049h)", title.includes("\x1b[?1049h")],
-  ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(title)],
-  ["half blocks (▀)", title.includes("▀")],
-  ["title and panel (ENTER  play, SCORE, NEXT)", ["ENTER  play", "SCORE", "NEXT"].every((s) => title.includes(s))],
+  ["alternate screen (?1049h)", asked.includes("\x1b[?1049h")],
+  ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(asked)],
+  ["half blocks (▀)", asked.includes("▀")],
+  ["the name first (YOUR NAME), and the panel (SCORE, NEXT)", ["YOUR NAME", "SCORE", "NEXT"].every((s) => asked.includes(s))],
+  // "ENTER" stands where the name entry had it, so the diff does not send
+  // it again.
+  ["the title with the name (PLAYER, Tester, play)", ["PLAYER", "Tester", "play"].every((s) => title.includes(s))],
   // The panel is already on the title, so the diff does not send it again;
   // the pause below is only reachable in a run.
   ["a run after Enter redrew the board", run.length > 1000],

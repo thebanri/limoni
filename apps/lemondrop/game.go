@@ -52,6 +52,7 @@ const (
 	phTitle phase = iota
 	phPlay
 	phOver
+	phName // typing the player's name
 )
 
 // shapes holds each piece's four blocks in every rotation, as (x, y) in a
@@ -151,13 +152,31 @@ type game struct {
 	gainT       float64 // how long ago it was scored
 	gainCombo   int
 
-	now, acc  float64
-	ticks     uint64
-	overAt    float64
-	attractT  float64
-	rng       uint64
-	store     store
-	scoreSeen bool // the best score was saved for this run
+	now, acc float64
+	ticks    uint64
+	overAt   float64
+	attractT float64
+	rng      uint64
+	store    store
+
+	// The player, and the boards: the game's own and the world's.
+	name, typing string
+	back         phase // where the name entry goes back to
+	local        [boardSize]scoreEntry
+	nLocal       int
+	localRank    int // the last run's place on the game's own board
+	world        [boardSize]scoreEntry
+	nWorld       int
+	worldState   int
+	worldRank    int // the last run's place on the world's: -1 sending
+	remote       *remote
+
+	// What the run did, for the leaderboard to score again.
+	pieces   int
+	dropPts  int
+	clearLog [maxLog][2]int32
+	nlog     int
+	startAt  float64
 
 	// The picture: see render.go.
 	bg                   [maxCells]cell.Color
@@ -224,7 +243,9 @@ func (g *game) start() {
 	g.setSize(b)
 	g.phase, g.paused = phPlay, false
 	g.score, g.clears, g.level, g.combo = 0, 0, 1, 0
-	g.gain, g.gainT, g.scoreSeen = 0, 99, false
+	g.gain, g.gainT = 0, 99
+	g.pieces, g.dropPts, g.nlog, g.startAt = 0, 0, 0, g.now
+	g.localRank, g.worldRank = 0, 0
 	g.holdL, g.holdR, g.holdDown = false, false, false
 	g.nbag = 0
 	g.next = g.draw()
@@ -341,7 +362,9 @@ func (g *game) moved() {
 // hardDrop puts the piece where it would land and makes it sand at once.
 func (g *game) hardDrop() {
 	y := g.dropY()
-	g.score += (y - g.cur.y) / g.b * 2
+	pts := (y - g.cur.y) / g.b * 2
+	g.score += pts
+	g.dropPts += pts
 	g.cur.y = y
 	g.dropping = true
 	g.lock()
@@ -393,6 +416,7 @@ func (g *game) lock() {
 	if g.phase != phPlay {
 		return
 	}
+	g.pieces++
 	if g.dropping {
 		g.sound(sfxDrop, 1)
 	} else {
@@ -408,14 +432,18 @@ func (g *game) gameOver() {
 	g.phase, g.overAt = phOver, g.now
 	g.holdL, g.holdR, g.holdDown = false, false, false
 	g.sound(sfxOver, 1)
-	if g.score > g.best {
-		g.best = g.score
+	g.best = max(g.best, g.score)
+	e := scoreEntry{Name: g.name, Score: g.score, Clears: g.clears, Level: g.level, Secs: g.runSecs()}
+	if e.Name == "" {
+		e.Name = "?"
 	}
-	if !g.scoreSeen {
-		g.scoreSeen = true
-		g.store.save(g.best)
-	}
+	g.localRank = g.addLocal(e)
+	g.persist()
+	g.sendRun()
 }
+
+// runSecs is how long the run has lasted, in whole seconds, at least one.
+func (g *game) runSecs() int { return max(1, int(g.now-g.startAt)) }
 
 // fallSpeed is how fast pieces fall at a level, in blocks a second.
 func fallSpeed(level int) float64 {
@@ -442,6 +470,7 @@ func (g *game) update(elapsed float64) {
 func (g *game) tick() {
 	g.now += dt
 	g.ticks++
+	g.pollRemote()
 	g.spin += dt / spinTurn
 	g.gainT += dt
 
@@ -484,8 +513,9 @@ func (g *game) pieceTick() {
 		p.fall--
 		p.y++
 		g.resting = 0
-		if g.holdDown {
-			g.score += boolInt(p.y%b == 0)
+		if g.holdDown && p.y%b == 0 {
+			g.score++
+			g.dropPts++
 		}
 	}
 	if !g.fits(p.kind, p.rot, p.x, p.y+1) {
@@ -753,7 +783,9 @@ func (g *game) findClear() {
 	}
 	// Points are per block's worth of grains, so the score does not depend
 	// on the size of the window.
-	pts := (found*10 + g.b*g.b/2) / (g.b * g.b) * g.level * g.combo
+	base := (found*10 + g.b*g.b/2) / (g.b * g.b)
+	g.logClear(base, g.combo)
+	pts := base * g.level * g.combo
 	g.score += pts
 	g.gain, g.gainT, g.gainCombo = pts, 0, g.combo
 }
@@ -784,11 +816,4 @@ func (g *game) trickle() {
 	if g.audio != nil && !g.muted && g.phase == phPlay {
 		g.audio.play(sfxTrickle, 0.25+0.55*vol, 0)
 	}
-}
-
-func boolInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }

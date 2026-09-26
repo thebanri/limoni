@@ -16,7 +16,11 @@ a patch bump (`v0.x.y`) does not.
 - `apps/lemondrop`, a falling-block game in its own module where landed
   pieces crumble into sand: a run of one colour from wall to wall clears.
   Half-block grains over a faint half lemon; the sand only visits rows that
-  can move, and a frame allocates nothing through the diff.
+  can move, and a frame allocates nothing through the diff. Sound, a name,
+  and a world leaderboard on the same server as Lemon Hunt's.
+- `apps/scoreboard` serves Lemon Drop's board at `/drop/scores`, with its
+  own table and rules: it scores a run from what the run did, clear by
+  clear, rather than taking the game's word for it.
 
 ## [v0.9.2] — 2026-09-25
 
