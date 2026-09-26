@@ -286,20 +286,23 @@ func (g *game) render(b *buffer.Buffer) {
 	cv.fill(0, 0, W, H, style(textCol, screenBg))
 
 	fit := fitSize(W, H)
-	if (g.phase == phTitle || g.phase == phName) && fit != 0 && fit != g.b {
-		g.setSize(fit)
-	}
-	if fit < g.b {
+	switch {
+	case fit == 0:
+		// Not even the smallest board fits: say so, and hold a run.
 		if g.phase == phPlay {
-			g.paused = true
+			g.setPaused(true)
 		}
 		centre(cv, W/2, H/2-1, "Lemon Drop needs a larger window:", style(textCol, screenBg))
-		need := "44×20 or more"
-		if g.phase != phTitle && fit != 0 {
-			need = "enlarge it to go on, or R to restart"
-		}
-		centre(cv, W/2, H/2, need, style(labelCol, screenBg))
+		centre(cv, W/2, H/2, "44×20 or more", style(labelCol, screenBg))
 		return
+	case g.phase == phTitle || g.phase == phName:
+		if fit != g.b {
+			g.setSize(fit)
+		}
+	case fit < g.b:
+		// A run, or its end, in a window that shrank under it: the board
+		// is made smaller rather than the game stopped.
+		g.rescale(fit)
 	}
 	if g.bgFor != g.b {
 		g.buildBackground()
@@ -420,7 +423,19 @@ func (g *game) drawPanel(cv canvas) {
 	lab, val := style(labelCol, screenBg), style(textCol, screenBg)
 
 	cv.text(x, y, "LEMON DROP", style(accent, screenBg))
-	y += 2
+	y++
+	// The pause button, for a mouse: a run can be paused and let go on with
+	// a click as well as with P or Esc.
+	g.pauseBtn.w = 0
+	if g.phase == phPlay {
+		label := "[ || PAUSE ]"
+		if g.paused {
+			label = "[ >  GO ON ]"
+		}
+		g.pauseBtn.x, g.pauseBtn.y = x, y
+		g.pauseBtn.w = cv.text(x, y, label, style(screenBg, accent)) - x
+	}
+	y++
 	cv.text(x, y, "NEXT", lab)
 	y++
 	if g.phase == phPlay {
@@ -456,8 +471,8 @@ func (g *game) drawPanel(cv canvas) {
 		{"Z", "turn back"},
 		{"↓", "soft drop"},
 		{"SPACE", "drop"},
-		{"P", "pause"},
-		{"ESC", "quit"},
+		{"P ESC", "pause"},
+		{"Q", "quit"},
 		{"M", "sound off"},
 	}
 	switch {
@@ -513,11 +528,11 @@ func (g *game) drawOverlay(cv canvas) {
 	case g.phase == phName:
 		o.lines = 6
 	case g.phase == phTitle:
-		o.lines, o.board = 6, true
+		o.lines, o.board = 7, true
 	case g.phase == phOver && g.now-g.overAt > 0.6:
-		o.lines, o.board = 5, true
+		o.lines, o.board = 6, true
 	case g.paused:
-		o.lines = 3
+		o.lines = 5
 	default:
 		return
 	}
@@ -534,7 +549,7 @@ func (g *game) drawOverlay(cv canvas) {
 		o.y++
 		o.skip()
 		if g.name == "" {
-			o.keys("ENTER", "keep", "ESC", "quit")
+			o.keys("ENTER", "keep", "", "")
 		} else {
 			o.keys("ENTER", "keep", "ESC", "back")
 		}
@@ -547,6 +562,7 @@ func (g *game) drawOverlay(cv canvas) {
 		o.drawBoard()
 		o.skip()
 		o.keys("ENTER", "play", "N", "name")
+		o.keys("Q", "quit", "", "")
 	case g.phase == phOver:
 		o.title("GAME OVER")
 		e := o.text(o.x, "SCORE ", o.label)
@@ -556,11 +572,12 @@ func (g *game) drawOverlay(cv canvas) {
 		o.skip()
 		o.drawBoard()
 		o.skip()
-		o.keys("R", "play again", "", "")
+		o.keys("R", "play again", "Q", "quit")
 	default:
 		o.title("PAUSED")
 		o.skip()
-		o.keys("P", "go on", "", "")
+		o.keys("P ESC", "go on", "R", "restart")
+		o.keys("Q", "quit", "", "")
 	}
 }
 

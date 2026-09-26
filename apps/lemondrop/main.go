@@ -74,6 +74,8 @@ func main() {
 			last = now
 		} else if ev.Type == limoni.EventKey {
 			g.key(ev.Key)
+		} else if ev.Type == limoni.EventMouse {
+			g.mouse(ev.Mouse)
 		}
 		g.render(f.Buffer)
 		return !g.quit
@@ -106,22 +108,22 @@ func (g *game) key(k limoni.KeyEvent) {
 	press := !k.Release && !k.Repeat
 
 	if g.phase == phName {
-		if k.Type == limoni.KeyEsc && press {
-			g.phase = g.back // keep the name there was
-			if g.name == "" {
-				g.quit = true
+		switch {
+		case k.Type == limoni.KeyEsc:
+			// Back, keeping the name there was; with none yet there is
+			// nowhere to go back to, and Esc never quits.
+			if press && g.name != "" {
+				g.phase = g.back
 			}
-		} else if press || k.Repeat {
+		case press || k.Repeat:
 			g.nameKey(k)
 		}
 		return
 	}
-	if k.Type == limoni.KeyEsc || rn && ch == 'q' {
-		if press {
-			g.quit = true
-		}
-		return
-	}
+	// Esc never quits: in a run it pauses, and Q quits from the title, the
+	// pause and the end, where a run is not lost to a slip of the finger.
+	esc := press && k.Type == limoni.KeyEsc
+	quit := press && rn && ch == 'q'
 	if press && rn && ch == 'm' {
 		g.muted = !g.muted
 		return
@@ -130,6 +132,8 @@ func (g *game) key(k limoni.KeyEvent) {
 	switch g.phase {
 	case phTitle:
 		switch {
+		case quit:
+			g.quit = true
 		case press && (k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace):
 			g.start()
 		case press && rn && ch == 'n':
@@ -137,7 +141,12 @@ func (g *game) key(k limoni.KeyEvent) {
 		}
 		return
 	case phOver:
-		if press && (rn && ch == 'r' || k.Type == limoni.KeyEnter) {
+		switch {
+		case quit:
+			g.quit = true
+		case esc:
+			g.phase = phTitle
+		case press && (rn && ch == 'r' || k.Type == limoni.KeyEnter):
 			g.start()
 		}
 		return
@@ -145,12 +154,17 @@ func (g *game) key(k limoni.KeyEvent) {
 
 	if g.paused {
 		switch {
-		case press && rn && ch == 'p':
-			g.paused = false
-			g.sound(sfxPause, 0.8)
+		case quit:
+			g.quit = true
+		case esc || press && rn && ch == 'p':
+			g.setPaused(false)
 		case press && rn && ch == 'r':
 			g.start()
 		}
+		return
+	}
+	if esc || quit {
+		g.setPaused(true)
 		return
 	}
 
@@ -198,9 +212,29 @@ func (g *game) key(k limoni.KeyEvent) {
 	case k.Type == limoni.KeySpace:
 		g.hardDrop()
 	case rn && ch == 'p':
-		g.sound(sfxPause, 0.8)
-		g.paused = true
-		g.holdL, g.holdR, g.holdDown = false, false, false
+		g.setPaused(true)
+	}
+}
+
+// setPaused pauses a run or lets it go on.
+func (g *game) setPaused(on bool) {
+	if g.phase != phPlay || g.paused == on {
+		return
+	}
+	g.sound(sfxPause, 0.8)
+	g.paused = on
+	g.holdL, g.holdR, g.holdDown = false, false, false
+}
+
+// mouse handles a click: on the pause button, it pauses the run or lets it
+// go on.
+func (g *game) mouse(m limoni.MouseEvent) {
+	if m.Button != limoni.MouseLeft || m.Drag {
+		return
+	}
+	b := &g.pauseBtn
+	if b.w > 0 && int(m.Y) == b.y && int(m.X) >= b.x && int(m.X) < b.x+b.w {
+		g.setPaused(!g.paused)
 	}
 }
 

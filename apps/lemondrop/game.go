@@ -180,7 +180,8 @@ type game struct {
 
 	// The picture: see render.go.
 	bg                   [maxCells]cell.Color
-	bgFor                int // the b the background was drawn for
+	bgFor                int                   // the b the background was drawn for
+	pauseBtn             struct{ x, y, w int } // where the pause button was drawn; w 0 when it was not
 	spin, spinDrawn      float64
 	ndyn                 int // the pixels the lemon's turning changes:
 	dynIdx               [maxCells]int32
@@ -222,6 +223,57 @@ func (g *game) wake(y0, y1 int) {
 		g.awake[y] = true
 	}
 	g.settled = false
+}
+
+// rescale redraws the board at nb grains to a block, for a window that has
+// grown too small for the one it had: leaving fullscreen, say. Each new
+// grain takes the colour of the old one at its place, so the sand keeps
+// its shape and its colours, only coarser; the piece keeps its place in
+// blocks. A clear still flashing is finished first. The sand settles again
+// from where it is.
+func (g *game) rescale(nb int) {
+	ob := g.b
+	if nb == ob || nb < minB || nb > maxB {
+		return
+	}
+	if g.flashT > 0 {
+		for _, i := range g.clr[:g.nclr] {
+			g.sand[i] = 0
+		}
+		g.flashT, g.nclr = 0, 0
+	}
+	old, ogw := g.sand, g.gw
+	g.b, g.gw, g.gh = nb, cols*nb, rows*nb
+	clear(g.sand[:])
+	for y := 0; y < g.gh; y++ {
+		oy := (2*y + 1) * ob / (2 * nb)
+		for x := 0; x < g.gw; x++ {
+			g.sand[y*g.gw+x] = old[oy*ogw+(2*x+1)*ob/(2*nb)]
+		}
+	}
+	clear(g.vel[:])
+	clear(g.frac[:])
+	clear(g.awake[:])
+	g.wakeAll()
+	p := &g.cur
+	p.x, p.y, p.fall = divRound(p.x*nb, ob), floorDiv(p.y*nb, ob), 0
+	p.x = max(0, min(p.x, g.gw-nb))
+	for !g.fits(p.kind, p.rot, p.x, p.y) && p.y > -4*nb {
+		p.y--
+	}
+	for !g.fits(p.kind, p.rot, p.x, p.y) && p.x > 0 {
+		p.x--
+	}
+}
+
+func divRound(a, b int) int { return floorDiv(2*a+b, 2*b) }
+
+func floorDiv(a, b int) int {
+	q := a / b
+	if a%b != 0 && (a < 0) != (b < 0) {
+		q--
+	}
+	return q
 }
 
 // fitSize is the largest b whose board and panel fit a w×h window, or 0.

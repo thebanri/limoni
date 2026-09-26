@@ -3,9 +3,10 @@
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
 // Audio context, types a name, starts a run,
-// moves and drops pieces, pauses, and quits with Esc. Each step asserts on
-// what reached the screen: the title, the panel of a run, the board in
-// truecolor half blocks, the pause, and that Esc ended the program. The
+// moves and drops pieces, pauses with Esc and goes on with it, and quits
+// with Q from the pause. Each step asserts on what reached the screen: the
+// title, the panel of a run, the board in truecolor half blocks, the
+// pause, and that Esc did not end the program but Q did. The
 // releases the page sends (CSI 1;1:3B for ↓ let go) go through as well, so
 // a parser that read one as a second press would show here as a crash or a
 // run that never ends.
@@ -80,13 +81,18 @@ await sleep(300);
 const played = since(mark);
 
 mark = captured.length;
-send("p");
+send("\x1b"); // Esc, alone, as xterm.js sends it: a pause, not the end
 await sleep(300);
 const paused = since(mark);
-send("p");
-await sleep(200);
+const stillRunning = !exited;
+mark = captured.length;
+send("\x1b"); // and again: the run goes on
+await sleep(300);
+const resumed = since(mark);
 
-send("\x1b"); // Esc, alone, as xterm.js sends it
+send("p"); // P pauses as well, and Q quits from the pause
+await sleep(200);
+send("q");
 await sleep(800);
 
 const checks = [
@@ -101,10 +107,13 @@ const checks = [
   // the pause below is only reachable in a run.
   ["a run after Enter redrew the board", run.length > 1000],
   ["the board moved under the keys", played.length > 500],
-  ["the pause (PAUSED)", paused.includes("PAUSED")],
+  ["Esc pauses, and does not end the game (PAUSED)", paused.includes("PAUSED") && stillRunning],
+  // The button reads PAUSE again; its brackets stay where they were, so
+  // the diff sends the word alone.
+  ["Esc again goes on (the button says PAUSE again)", resumed.includes("PAUSE") && !resumed.includes("PAUSED")],
   ["clips loaded into Web Audio", audio.buffers > 0],
   ["sounds played (start, moves, drops)", audio.started >= 3],
-  ["Esc ended the program", exited],
+  ["Q in the pause ended the program", exited],
 ];
 
 console.log(`captured ${captured.length} bytes from the engine\n`);

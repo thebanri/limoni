@@ -36,10 +36,16 @@ Dropping a piece with `space` or `↓` scores a little too.
 | `Z` | turn the other way |
 | `↓` or `S` | soft drop |
 | `space` | drop |
-| `P` | pause (`R` restarts from the pause) |
+| `P` or `Esc`, or click `[ \|\| PAUSE ]` | pause, and go on (`R` restarts from the pause) |
 | `M` | sound off and on |
 | `N` | on the title: change your name |
-| `Esc` or `Q` | quit |
+| `Q` | quit, from the title, the pause or the end |
+
+`Esc` never quits: in a run it pauses, so a run is not lost to a slip, and in
+the browser's fullscreen it reaches the game too (hold it down to leave
+fullscreen, in Chromium browsers). If the window shrinks under a run, as it
+does leaving fullscreen, the board is redrawn with smaller blocks and the run
+goes on.
 
 In kitty, Ghostty, WezTerm and foot, which report key releases, held arrows
 repeat at the game's own pace and `↓` drops fast until you let go. Elsewhere
