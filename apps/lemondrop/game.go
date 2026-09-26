@@ -119,10 +119,12 @@ type game struct {
 	clr   [maxCells]int32 // the grains flashing now
 	nclr  int
 
-	awake   [maxGH]bool // rows the next pass visits: see fall
-	settled bool        // no row is awake, so the sand has nothing to do
-	flashT  float64     // time left on the current flash; 0 when none
-	combo   int         // clears since the last piece landed
+	vel     [maxCells]uint8 // a grain's speed down, in 1/32 grain a step; 0 at rest
+	frac    [maxCells]uint8 // how far it has got towards its next cell, in 1/32
+	awake   [maxGH]bool     // rows the next pass visits: see fall
+	settled bool            // no row is awake, so the sand has nothing to do
+	flashT  float64         // time left on the current flash; 0 when none
+	combo   int             // clears since the last piece landed
 
 	cur, next piece
 	bag       [7]int
@@ -177,6 +179,8 @@ func (g *game) intn(n int) int { return int(g.rnd() >> 33 % uint64(n)) }
 func (g *game) setSize(b int) {
 	g.b, g.gw, g.gh = b, cols*b, rows*b
 	clear(g.sand[:])
+	clear(g.vel[:])
+	clear(g.frac[:])
 	clear(g.awake[:])
 	g.nclr, g.flashT, g.settled = 0, 0, true
 }
@@ -327,9 +331,9 @@ func (g *game) hardDrop() {
 	g.lock()
 }
 
-// shadeAt is a block's shading at a grain inside it: lit on the top and left
-// edges, dark on the bottom and right, speckled inside. The grains keep it
-// when they turn to sand, so a landed block visibly crumbles.
+// shadeAt is a falling block's shading at a grain inside it: lit on the top
+// and left edges, dark on the bottom and right, speckled inside. It is for
+// the piece in the air only; landed grains take shades at random (lock).
 func shadeAt(lx, ly, b int) uint8 {
 	switch {
 	case lx == 0 || ly == 0:
@@ -353,9 +357,18 @@ func (g *game) lock() {
 			}
 			for lx := 0; lx < b; lx++ {
 				i := y*g.gw + x0 + lx
-				if g.sand[i] == 0 {
-					g.sand[i] = p.colour | shadeAt(lx, ly, b)<<shadeShift
+				if g.sand[i] != 0 {
+					continue
 				}
+				// Each grain gets a shade of its own, so the block is sand
+				// the moment it lands, not a block drawn in grains; and a
+				// start of its own, so its grains do not move in step.
+				r := g.rnd()
+				g.sand[i] = p.colour | sandShade[r&7]<<shadeShift
+				if y < g.gh-1 {
+					g.vel[i] = landSpeed
+				}
+				g.frac[i] = uint8(r>>8) & 31
 			}
 		}
 	}
@@ -502,53 +515,76 @@ func (g *game) sandTick() {
 	if g.settled {
 		return
 	}
-	moved := false
-	for n := (g.b + 2) / 3; n > 0; n-- {
-		if g.fall() {
-			moved = true
-		}
-	}
+	loose := g.fall()
 	if g.flashT == 0 {
 		g.findClear()
 	}
-	if !moved && g.flashT == 0 {
+	if !loose && g.flashT == 0 {
 		g.settled = true
 	}
 }
 
-// fall moves every loose grain one step: down if it can, else down to one
-// side, at random. It runs bottom-up, so a grain moves at most once a pass,
-// and it alternates direction by row and by pass so piles do not lean.
+// The sand's motion. A grain is either at rest or loose; a loose grain
+// gains speed every step, from nothing up to a top speed that grows with the
+// grains to a block, so that sand falls about as many blocks a second in
+// any window. Speeds are under a cell a step, so a grain moves at most one
+// cell a step, and a falling column spreads out a little as it goes, the
+// way poured sand does.
+const (
+	gravity   = 1 // speed gained a step, in 1/32 grain
+	landSpeed = 4 // the speed a landed piece's grains start at
+)
+
+// sandShade is a grain's shade from three random bits: mostly the middle
+// two, now and then a dark or a light one.
+var sandShade = [8]uint8{0, 1, 1, 1, 2, 2, 2, 3}
+
+func (g *game) topSpeed() uint8 { return uint8(min(31, 32*g.b/5)) }
+
+// fall moves the sand one step. A loose grain speeds up, and when it has
+// gathered a whole cell it moves: down if it can, else down to one side. A
+// grain that can go nowhere comes to rest, unless the grain under it is
+// still falling, in which case it waits for it. Sliding down the side of a
+// pile is slower than falling, and a grain sometimes hesitates before it
+// slides, so a pile crumbles rather than collapsing in one step. The pass
+// runs bottom-up, so a grain moves at most once, and alternates direction
+// by row and by step so piles do not lean.
 //
 // Most of a board is at rest most of the time, so a pass visits only the
-// rows that can have a loose grain: those a grain arrived in on the last
-// pass (it may go on falling), those woken by a landed piece or a clear,
-// and the row above one a grain has just left — in the same pass, since the
-// pass is going upwards anyway. A column over a clear therefore still falls
-// as one, and a settled pile costs nothing.
+// rows that can hold a loose grain: those that held one after the last
+// step, those woken by a landed piece or a clear, and the row above one a
+// grain has just left, in the same pass, since the pass is going upwards
+// anyway. A settled pile costs nothing. fall reports whether any grain is
+// still loose.
 func (g *game) fall() bool {
 	gw, gh := g.gw, g.gh
 	s := g.sand[:gw*gh]
-	moved, left := false, false // left: a grain left the row below, this pass
+	vel, frac := g.vel[:gw*gh], g.frac[:gw*gh]
+	top := g.topSpeed()
+	loose, left := false, false // left: a grain left the row below, this pass
 	r := g.rng
 	for y := gh - 2; y >= 0; y-- {
 		if !g.awake[y] && !left {
 			continue
 		}
 		g.awake[y], left = false, false
-		row, below := s[y*gw:y*gw+gw], s[(y+1)*gw:(y+1)*gw+gw]
+		base := y * gw
 		rev := (uint64(y)+g.ticks)&1 == 0
 		for k := 0; k < gw; k++ {
 			x := k
 			if rev {
 				x = gw - 1 - k
 			}
-			v := row[x]
+			i := base + x
+			v := s[i]
 			if v == 0 || v&clearBit != 0 {
 				continue
 			}
-			to := x
-			if below[x] != 0 {
+			// Where it can go: straight down, or else to a side, at random.
+			down, to := i+gw, -1
+			if s[down] == 0 {
+				to = down
+			} else {
 				r ^= r << 13
 				r ^= r >> 7
 				r ^= r << 17
@@ -557,21 +593,58 @@ func (g *game) fall() bool {
 					d = -1
 				}
 				switch {
-				case x+d >= 0 && x+d < gw && below[x+d] == 0:
-					to = x + d
-				case x-d >= 0 && x-d < gw && below[x-d] == 0:
-					to = x - d
-				default:
+				case x+d >= 0 && x+d < gw && s[down+d] == 0:
+					to = down + d
+				case x-d >= 0 && x-d < gw && s[down-d] == 0:
+					to = down - d
+				}
+			}
+			if to < 0 {
+				// (The floor row is never visited, so a grain there is at
+				// rest whatever its speed says.)
+				if y+1 < gh-1 && vel[down] != 0 && s[down]&clearBit == 0 {
+					// Waiting on a falling grain: ready to follow it.
+					frac[i] = 31
+					g.awake[y] = true
+					loose = true
+				} else {
+					vel[i], frac[i] = 0, 0
+				}
+				continue
+			}
+			sp := min(vel[i]+gravity, top)
+			if to != down {
+				// A slide: slower, and not every grain goes at once.
+				sp = min(sp, top/2)
+				if r&0x30 == 0 {
+					vel[i] = max(sp, 1)
+					g.awake[y] = true
+					loose = true
 					continue
 				}
 			}
-			below[to], row[x] = v, 0
-			moved, left = true, true
+			f := frac[i] + sp
+			if f < 32 {
+				vel[i], frac[i] = sp, f
+				g.awake[y] = true
+				loose = true
+				continue
+			}
+			s[i], vel[i], frac[i] = 0, 0, 0
+			left = true
+			if y+1 == gh-1 {
+				// The floor: nothing below it to fall into, and no pass
+				// visits it to bring the grain to rest.
+				s[to] = v
+				continue
+			}
+			s[to], vel[to], frac[to] = v, sp, f-32
+			loose = true
 			g.awake[y+1] = true
 		}
 	}
 	g.rng = r | 1
-	return moved
+	return loose
 }
 
 // wakeAll has the next pass visit every row: for a board changed by hand.

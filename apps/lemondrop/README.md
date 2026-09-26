@@ -15,7 +15,9 @@ score is kept in the browser's storage.
 
 Pieces fall as in any falling-block game, in one of four colours: lemon,
 lime, grapefruit and blueberry. When one lands it crumbles into sand of its
-colour, which runs down the pile. A run of one colour that reaches from the
+colour, grains of it in their own shades, and the sand runs down the pile:
+it starts slowly and gathers speed as it falls, and slides down the sides
+of a heap a little slower still, so a landed block visibly crumbles. A run of one colour that reaches from the
 left wall to the right wall is the line: it flashes and is gone. Grains that
 touch only at a corner still join. Whatever rested on it then falls, and if
 that makes another run before the next piece lands, the second clear is a
@@ -60,10 +62,11 @@ stack and the background all live in fixed arrays in one value made at
 start-up, and the tests check it through Limoni's diff as well
 (`TestFramesAllocateNothing`).
 
-The sand only visits the rows that can hold a loose grain: rows a grain fell
-into on the last pass, rows a landed piece or a clear woke, and the row above
-one a grain has just left, which is visited in the same pass. A column over a
-clear still falls as one, and a settled pile costs nothing. A clear is looked
+Each grain has a speed and how far it has got towards its next cell, one
+byte each, which move with it. The sand only visits the rows that can hold a
+loose grain: rows with one still moving or waiting after the last step, rows
+a landed piece or a clear woke, and the row above one a grain has just left,
+which is visited in the same pass. A settled pile costs nothing. A clear is looked
 for only from the left wall, because a run that does not touch it cannot
 reach across, and each grain is visited at most once.
 
@@ -71,8 +74,11 @@ On one core of a 2.1 GHz Xeon, at 100×40 with a board of loose sand:
 
 | | time | allocations | sent to the terminal |
 | :-- | --: | --: | --: |
-| a frame: step, render and diff | ~40 µs | 0 | ~1.3 KB |
-| the worst sand pass: every row of the largest board awake | ~30 µs | 0 | |
+| a frame: step, render and diff | ~60 µs | 0 | ~1.6 KB |
+| the worst sand pass: every row of the largest board awake | ~40 µs | 0 | |
+
+About half of a frame is Limoni's diff, which grows with the cells that
+changed: sand that falls smoothly changes more of them, for longer.
 
 ```bash
 go test -run '^$' -bench . -benchmem

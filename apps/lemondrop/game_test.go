@@ -96,6 +96,89 @@ func TestSandSlidesOffAStep(t *testing.T) {
 	}
 }
 
+// A landed piece is sand at once: its grains do not keep the block's
+// bevel, lit on the top and left and dark on the bottom and right.
+func TestALandedBlockLosesItsBlockShading(t *testing.T) {
+	g := playing()
+	g.cur.kind, g.cur.rot = 3, 0 // the O: four blocks, all flat on the floor
+	g.hardDrop()
+	bevel, n := 0, 0
+	for y := 0; y < g.gh; y++ {
+		for x := 0; x < g.gw; x++ {
+			v := g.at(x, y)
+			if v == 0 {
+				continue
+			}
+			n++
+			// Where the bevel would have put a shade, and whether it did.
+			lx, ly := (x-g.cur.x)%g.b, y%g.b
+			if lx < 0 {
+				lx += g.b
+			}
+			if v>>shadeShift&3 == shadeAt(lx, ly, g.b) {
+				bevel++
+			}
+		}
+	}
+	if n == 0 || bevel*10 > n*6 {
+		t.Fatalf("%d of %d grains still carry the block's shading", bevel, n)
+	}
+}
+
+// An upright I, four blocks tall and one wide, does not stay a pillar: it
+// slumps into a heap wider than it was.
+func TestAPillarOfSandSlumps(t *testing.T) {
+	g := playing()
+	g.phase = phTitle
+	g.cur = piece{kind: 0, rot: 1, colour: 2, x: 16}
+	g.cur.y = g.dropY()
+	g.lock()
+	settle(t, g)
+	wide := 0
+	for x := 0; x < g.gw; x++ {
+		if g.at(x, g.gh-1) != 0 {
+			wide++
+		}
+	}
+	if wide <= 2*g.b {
+		t.Fatalf("the pillar spread to %d grains on the floor, want more than %d", wide, 2*g.b)
+	}
+	if n := grains(g); n != 4*g.b*g.b {
+		t.Fatalf("%d grains after the slump, want %d", n, 4*g.b*g.b)
+	}
+}
+
+// Sand speeds up as it falls, and it takes a visible while to cross the
+// board: a grain let go at the top reaches the floor in more than half a
+// second and less than two.
+func TestSandFallsGathersSpeed(t *testing.T) {
+	g := playing()
+	g.phase = phTitle
+	g.sand[10] = 1
+	g.wakeAll()
+	var at [3]int // steps to fall a third, two thirds, all the way
+	for step := 1; step < 1000 && at[2] == 0; step++ {
+		g.sandTick()
+		for y := 0; y < g.gh; y++ {
+			if g.at(10, y) == 0 {
+				continue
+			}
+			for k := range at {
+				if at[k] == 0 && y >= (k+1)*(g.gh-1)/3 {
+					at[k] = step
+				}
+			}
+		}
+	}
+	secs := float64(at[2]) / hz
+	if secs < 0.5 || secs > 2 {
+		t.Fatalf("a grain fell the board in %.2f s", secs)
+	}
+	if first, last := at[0], at[2]-at[1]; last >= first {
+		t.Errorf("the first third took %d steps and the last %d: no acceleration", first, last)
+	}
+}
+
 // ── clears ───────────────────────────────────────────────────────────────
 
 func stripe(g *game, y, x0, x1 int, v uint8) {
