@@ -36,12 +36,30 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 
 	runDone := make(chan error, 1)
 	go func() { runDone <- p.Run(ctx) }()
-	fps := p.fps
-	if fps <= 0 {
-		fps = 30
+
+	// A frame rate asks for continuous redraws, for a View that animates on
+	// its own. Without one the loop sleeps until something happens: a redraw
+	// request, input, or an Update that changed the model without asking for
+	// a redraw. That last one is drawn at once if the screen has not been
+	// drawn for a frame, and otherwise at the end of that frame, so a stream
+	// of such Updates costs thirty frames a second at most. An idle Program
+	// used to wake thirty times a second to draw the same screen again.
+	var tick <-chan time.Time
+	if p.fps > 0 {
+		ticker := time.NewTicker(time.Second / time.Duration(p.fps))
+		defer ticker.Stop()
+		tick = ticker.C
 	}
-	ticker := time.NewTicker(time.Second / time.Duration(fps))
-	defer ticker.Stop()
+	var lastDraw time.Time
+	draw := func() error {
+		lastDraw = time.Now()
+		return p.Draw(term)
+	}
+	settle := time.NewTimer(idleFrame)
+	settle.Stop()
+	defer settle.Stop()
+	var settled <-chan time.Time
+	answered := b.ProbeAnswered()
 	for {
 		select {
 		case err := <-runDone:
@@ -64,12 +82,36 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 			if err := p.SendDriver(ctx, event); err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
-		case <-ticker.C:
-			if err := p.Draw(term); err != nil {
+		case <-tick:
+			if err := draw(); err != nil {
+				return err
+			}
+		case <-p.changed:
+			if tick != nil || settled != nil {
+				break // the next tick or the pending frame draws it
+			}
+			if wait := idleFrame - time.Since(lastDraw); wait > 0 {
+				settle.Reset(wait)
+				settled = settle.C
+				break
+			}
+			if err := draw(); err != nil {
+				return err
+			}
+		case <-settled:
+			settled = nil
+			if err := draw(); err != nil {
+				return err
+			}
+		case <-answered:
+			// Late answers to the capability probe: the frame on screen may
+			// have been encoded for another terminal. Draw repaints it.
+			answered = nil
+			if err := draw(); err != nil {
 				return err
 			}
 		case <-p.Redraws():
-			if err := p.Draw(term); err != nil {
+			if err := draw(); err != nil {
 				return err
 			}
 		case n := <-p.notifications:
@@ -150,6 +192,10 @@ func WithoutDefaultQuitKeys() Option {
 	return WithCatchCtrlC(true)
 }
 
+// WithFPS makes RunTerminal redraw continuously at fps frames a second, for a
+// View that changes without messages — one that reads the clock, say. Without
+// it RunTerminal draws only when something happens, and an idle Program does
+// not wake at all.
 func WithFPS(fps int) Option {
 	return func(opts *programOptions) {
 		if fps > 0 {
@@ -157,6 +203,13 @@ func WithFPS(fps int) Option {
 		}
 	}
 }
+
+// idleFrame is, for RunTerminal without a frame rate, the least time between
+// two frames drawn for Updates that changed the model without asking for a
+// redraw: the frame of the 30 fps loop this replaced. A variable so tests
+// can stretch it.
+var idleFrame = time.Second / 30
+
 func WithAltScreen() Option { return func(opts *programOptions) { opts.altScreen = true } }
 
 type commandResult struct {
@@ -173,6 +226,9 @@ type Program struct {
 	messages       chan Msg
 	commandResults chan commandResult
 	redraw         chan struct{}
+	// changed carries, coalesced like redraw, that an Update ran without
+	// asking for a redraw. RunTerminal draws it within a frame.
+	changed chan struct{}
 
 	onPanic    func(any)
 	fps        int
@@ -217,6 +273,7 @@ func New(options ...Option) *Program {
 		messages:       make(chan Msg, opts.messageQueue),
 		commandResults: make(chan commandResult, opts.commandQueue),
 		redraw:         make(chan struct{}, 1),
+		changed:        make(chan struct{}, 1),
 		onPanic:        opts.onPanic,
 		fps:            opts.fps,
 		altScreen:      opts.altScreen,
@@ -414,6 +471,11 @@ func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
 	}
 	if result.Redraw {
 		p.RequestRedraw()
+	} else {
+		select {
+		case p.changed <- struct{}{}:
+		default:
+		}
 	}
 	return result.Quit
 }
