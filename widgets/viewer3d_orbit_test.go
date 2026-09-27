@@ -87,3 +87,34 @@ func TestViewer3DStatePressFocuses(t *testing.T) {
 		t.Errorf("focused %q after pressing the viewer, want model", focused)
 	}
 }
+
+// A viewer already closer than the zoom floor keeps its own distance when a
+// State is attached, and zooming in does not push it back out.
+func TestViewer3DStateKeepsACloseViewer(t *testing.T) {
+	s := &Viewer3DState{}
+	v := &Viewer3D{Model: graphics.NewCube(2), Distance: 0.3, State: s}
+	area := cell.NewRect(0, 0, 20, 10)
+	v.Draw(cell.NewContext(area, cell.Style{}), buffer.NewBuffer(area))
+	if s.Distance != 0 {
+		t.Fatalf("state distance %v after drawing a viewer at 0.3, want 0", s.Distance)
+	}
+	s.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '+'})
+	if s.Distance > 0 {
+		t.Errorf("zooming in moved the camera out: state distance %v", s.Distance)
+	}
+}
+
+// Zooming in before the first frame is clamped once the viewer is drawn, so
+// zooming out afterwards responds straight away.
+func TestViewer3DStateZoomBeforeFirstFrame(t *testing.T) {
+	s := &Viewer3DState{}
+	for i := 0; i < 100; i++ {
+		s.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '+'})
+	}
+	v := &Viewer3D{Model: graphics.NewCube(2), State: s}
+	area := cell.NewRect(0, 0, 20, 10)
+	v.Draw(cell.NewContext(area, cell.Style{}), buffer.NewBuffer(area))
+	if want := orbitMinDist - 3.5; s.Distance != want {
+		t.Fatalf("state distance %v after the first frame, want %v", s.Distance, want)
+	}
+}

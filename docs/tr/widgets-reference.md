@@ -335,4 +335,6 @@ v3d := &widgets.Viewer3D{
 f.RenderWidget(v3d, alan)
 ```
 
+Kullanıcının döndürebileceği bir kamera için bir durum verin: `State: &widgets.Viewer3DState{}` ile sürüklemek modeli döndürür, tekerlek yakınlaştırır; tuş olaylarını `state.HandleKey`'e iletmek ok tuşlarını ve `+`/`-` tuşlarını ekler. Durumun açıları ve uzaklığı görüntüleyicininkilere eklenir, böylece uygulama modeli yine kendisi döndürebilir.
+
 Varsayılan olarak Braille noktalarıyla çizer; `Marker: widgets.MarkerSextant` ya da `MarkerQuadrant`, Braille içermeyen fontlar için dolu bloklarla çizer. `Pixels: true` modeli bir resim olarak çizip terminalin görüntü protokolüyle (kitty, iTerm2, Sixel) gönderir; protokol yoksa noktalara döner. Duran model bir kez kodlanır; hareket eden model her karede kodlanır — ölçüldüğü makinede kitty ile 60×24'lük bir alan için yaklaşık 7 ms ve 2.7 MB — bu yüzden isteğe bağlıdır.

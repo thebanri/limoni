@@ -9,10 +9,9 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Added
-- `Viewer3DState`, an opt-in orbit camera for `Viewer3D` (#61): dragging
-  rotates, the wheel and `+`/`-` zoom, the arrow keys rotate. Its angles and
-  distance add to the viewer's own, the mouse handler is built once per state,
-  and `Draw` still allocates nothing.
+- `Viewer3DState`, an opt-in orbit camera for `Viewer3D`: dragging rotates,
+  the wheel and `+`/`-` zoom, the arrow keys rotate. Its angles and distance
+  add to the viewer's own, and `Draw` still allocates nothing (issue #61).
 - `apps/lemonhunt`, a short first-person game in its own module: a
   half-block raycaster with lit textures, pixel-art rats, a boss, 3D half
   lemons, particles and synthesised stereo sound, at 0 allocations a frame

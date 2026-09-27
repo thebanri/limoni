@@ -28,12 +28,12 @@ const (
 // across frames. Its angles and distance are added to the viewer's RotX, RotY
 // and Distance, so an application can still spin the model itself.
 type Viewer3DState struct {
-	// RotX and RotY are in degrees, wrapped to [0, 360).
+	// RotX and RotY are in degrees, kept in [0, 360) as they change.
 	RotX, RotY float64
 	// Distance moves the camera away from (positive) or toward the model.
 	Distance float64
 
-	// The viewer's own distance in the last frame, to keep zoom in range.
+	// Last frame's distance and context, for zoom and the mouse handlers.
 	baseDist        float64
 	lastX, lastY    int
 	id              string
@@ -57,9 +57,15 @@ func (s *Viewer3DState) rotate(dx, dy float64) {
 
 func (s *Viewer3DState) zoom(step float64) {
 	s.Distance += step
-	// Before the first frame the viewer's distance is unknown; Draw clamps.
+	s.clampDistance()
+}
+
+// clampDistance keeps the camera from zooming closer than orbitMinDist, or
+// than the viewer's own distance if that is already closer. Before the first
+// frame the viewer's distance is unknown, so Draw clamps then.
+func (s *Viewer3DState) clampDistance() {
 	if s.baseDist > 0 {
-		s.Distance = math.Max(s.Distance, orbitMinDist-s.baseDist)
+		s.Distance = math.Max(s.Distance, math.Min(orbitMinDist, s.baseDist)-s.baseDist)
 	}
 }
 
@@ -311,7 +317,8 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	if s := v.State; s != nil {
 		s.baseDist = dist
-		dist = math.Max(dist+s.Distance, orbitMinDist)
+		s.clampDistance()
+		dist += s.Distance
 		if ctx.RegisterMouse != nil {
 			s.id, s.setFocus, s.capture = v.ID, ctx.SetFocus, ctx.CaptureMouse
 			ctx.RegisterMouse(area, s.handlers())

@@ -429,4 +429,6 @@ v3d := &widgets.Viewer3D{
 f.RenderWidget(v3d, area)
 ```
 
+For a camera the user can orbit, give it a state: `State: &widgets.Viewer3DState{}` makes dragging rotate the model and the wheel zoom, and passing key events to `state.HandleKey` adds the arrow keys and `+`/`-`. The state's angles and distance add to the viewer's own, so the application can still spin the model itself.
+
 It draws Braille dots by default; `Marker: widgets.MarkerSextant` or `MarkerQuadrant` draws solid blocks for fonts without Braille. `Pixels: true` renders the model as a picture and sends it with the terminal's image protocol (kitty, iTerm2, Sixel), falling back to dots where there is none. A still model is encoded once; a moving one costs an encode per frame — about 7 ms and 2.7 MB for a 60×24 area with kitty on the machine this was measured on — so it is opt-in.
