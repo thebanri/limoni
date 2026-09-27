@@ -12,8 +12,114 @@ import (
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/graphics"
 )
+
+const (
+	orbitDragStep = 1.5  // degrees per cell dragged
+	orbitKeyStep  = 5.0  // degrees per arrow key
+	orbitZoomStep = 0.25 // distance per wheel notch or +/-
+	orbitMinDist  = 0.5  // closest the camera gets
+)
+
+// Viewer3DState lets the mouse and keyboard orbit a Viewer3D: dragging
+// rotates, the wheel and +/- zoom, the arrow keys rotate. Keep one per viewer
+// across frames. Its angles and distance are added to the viewer's RotX, RotY
+// and Distance, so an application can still spin the model itself.
+type Viewer3DState struct {
+	// RotX and RotY are in degrees, wrapped to [0, 360).
+	RotX, RotY float64
+	// Distance moves the camera away from (positive) or toward the model.
+	Distance float64
+
+	// The viewer's own distance in the last frame, to keep zoom in range.
+	baseDist        float64
+	lastX, lastY    int
+	id              string
+	setFocus        func(string)
+	capture         func(func(driver.MouseEvent))
+	onMouse, onDrag func(driver.MouseEvent)
+}
+
+func wrapDegrees(a float64) float64 {
+	a = math.Mod(a, 360)
+	if a < 0 {
+		a += 360
+	}
+	return a
+}
+
+func (s *Viewer3DState) rotate(dx, dy float64) {
+	s.RotY = wrapDegrees(s.RotY + dx)
+	s.RotX = wrapDegrees(s.RotX + dy)
+}
+
+func (s *Viewer3DState) zoom(step float64) {
+	s.Distance += step
+	// Before the first frame the viewer's distance is unknown; Draw clamps.
+	if s.baseDist > 0 {
+		s.Distance = math.Max(s.Distance, orbitMinDist-s.baseDist)
+	}
+}
+
+// HandleKey rotates with the arrow keys and zooms with + and -. It reports
+// whether the key was used.
+func (s *Viewer3DState) HandleKey(ev driver.KeyEvent) bool {
+	if s == nil {
+		return false
+	}
+	switch {
+	case ev.Type == driver.KeyArrowLeft:
+		s.rotate(-orbitKeyStep, 0)
+	case ev.Type == driver.KeyArrowRight:
+		s.rotate(orbitKeyStep, 0)
+	case ev.Type == driver.KeyArrowUp:
+		s.rotate(0, -orbitKeyStep)
+	case ev.Type == driver.KeyArrowDown:
+		s.rotate(0, orbitKeyStep)
+	case ev.Type == driver.KeyRune && (ev.Ch == '+' || ev.Ch == '='):
+		s.zoom(-orbitZoomStep)
+	case ev.Type == driver.KeyRune && ev.Ch == '-':
+		s.zoom(orbitZoomStep)
+	default:
+		return false
+	}
+	return true
+}
+
+// handlers are built once per state, so registering them each frame does
+// not allocate.
+func (s *Viewer3DState) handlers() func(driver.MouseEvent) {
+	if s.onMouse == nil {
+		s.onDrag = func(ev driver.MouseEvent) {
+			if !ev.Drag {
+				return
+			}
+			x, y := int(ev.X), int(ev.Y)
+			s.rotate(float64(x-s.lastX)*orbitDragStep, float64(y-s.lastY)*orbitDragStep)
+			s.lastX, s.lastY = x, y
+		}
+		s.onMouse = func(ev driver.MouseEvent) {
+			switch {
+			case ev.Button == driver.MouseScrollUp:
+				s.zoom(-orbitZoomStep)
+			case ev.Button == driver.MouseScrollDown:
+				s.zoom(orbitZoomStep)
+			case ev.Button == driver.MouseLeft && !ev.Drag:
+				// This region covers the viewer's click-to-focus one.
+				if s.id != "" && s.setFocus != nil {
+					s.setFocus(s.id)
+				}
+				if s.capture != nil {
+					s.lastX, s.lastY = int(ev.X), int(ev.Y)
+					s.capture(s.onDrag)
+				}
+			}
+		}
+	}
+	return s.onMouse
+}
 
 // Viewer3D is a high-level widget that renders 3D models with rotation, lighting,
 // shading (Wireframe, Solid, Lambertian, Gouraud), and texture mapping.
@@ -39,6 +145,10 @@ type Viewer3D struct {
 
 	// Distance is the camera distance from the object (default: 3.5).
 	Distance float64
+
+	// State, when set, lets the mouse and keyboard orbit the model; see
+	// Viewer3DState.
+	State *Viewer3DState
 
 	// Scale is the zoom/scale multiplier (default: 1.0).
 	Scale float64
@@ -172,7 +282,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if v.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(v.ID)
 	}
-	if v.ID != "" && ctx.RegisterClick != nil {
+	if v.ID != "" && ctx.RegisterClick != nil && v.State == nil {
 		ctx.RegisterClick(ctx.Area, func() {
 			if ctx.SetFocus != nil {
 				ctx.SetFocus(v.ID)
@@ -198,6 +308,14 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	dist := v.Distance
 	if dist <= 0.1 {
 		dist = 3.5
+	}
+	if s := v.State; s != nil {
+		s.baseDist = dist
+		dist = math.Max(dist+s.Distance, orbitMinDist)
+		if ctx.RegisterMouse != nil {
+			s.id, s.setFocus, s.capture = v.ID, ctx.SetFocus, ctx.CaptureMouse
+			ctx.RegisterMouse(area, s.handlers())
+		}
 	}
 	scaleFactor := v.Scale
 	if scaleFactor <= 0 {
@@ -309,9 +427,18 @@ type viewerKey struct {
 	wireStyle         cell.Style
 }
 
+// angles are RotX and RotY with the orbit state's added.
+func (v *Viewer3D) angles() (float64, float64) {
+	if s := v.State; s != nil {
+		return v.RotX + s.RotX, v.RotY + s.RotY
+	}
+	return v.RotX, v.RotY
+}
+
 func (v *Viewer3D) viewKey(area cell.Rect, dist, scale float64, shading string, texture image.Image) viewerKey {
+	rotX, rotY := v.angles()
 	k := viewerKey{
-		area: area, rotX: v.RotX, rotY: v.RotY, rotZ: v.RotZ, dist: dist, scale: scale, shading: shading,
+		area: area, rotX: rotX, rotY: rotY, rotZ: v.RotZ, dist: dist, scale: scale, shading: shading,
 		nVertices: len(v.Model.Vertices), nFaces: len(v.Model.Faces), texture: imageIdentity(texture),
 		light: v.Light, wireframe: v.Wireframe, wireStyle: v.WireframeStyle,
 	}
@@ -361,7 +488,8 @@ func (v *Viewer3D) rasterize(t raster3D, virtualW, virtualH, baseScale, dist flo
 	}
 	rotated := v.rotated[:len(model.Vertices)]
 	projected := v.projected[:len(model.Vertices)]
-	rot := newEulerRotation(v.RotX, v.RotY, v.RotZ)
+	rotX, rotY := v.angles()
+	rot := newEulerRotation(rotX, rotY, v.RotZ)
 	for i, vert := range model.Vertices {
 		r := rot.apply(vert)
 		rotated[i] = r

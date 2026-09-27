@@ -8,6 +8,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -324,3 +325,20 @@ func TestViewer3DPixels(t *testing.T) {
 
 // Viewer3D is a Widget, so layouts and Frame.RenderWidget can place it.
 var _ Widget = (*Viewer3D)(nil)
+
+// With an orbit State the draw still does not allocate: the mouse handler is
+// built once and registering it each frame costs nothing.
+func BenchmarkViewer3DDrawOrbit(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	ctx.RegisterMouse = func(cell.Rect, func(driver.MouseEvent)) {}
+	ctx.CaptureMouse = func(func(driver.MouseEvent)) {}
+	state := &Viewer3DState{}
+	v := &Viewer3D{Model: graphics.NewSphere(1, 24, 24), Shading: ShadingLambert, RotX: 20, State: state}
+	v.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		state.RotY = float64(i % 360)
+		v.Draw(ctx, buf)
+	}
+}
