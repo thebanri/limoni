@@ -21,19 +21,29 @@ func TestViewer3DOrbitThroughTheFrame(t *testing.T) {
 	if !term.Click(20, 10) {
 		t.Fatal("pressing the viewer was not routed")
 	}
-	if !term.Drag(30, 6) {
-		t.Fatal("the drag was not routed to the capture")
+	// A drag arrives as several motion events, each measured from the last;
+	// the release, wherever it lands, does not move the model.
+	for _, p := range [][2]uint16{{25, 8}, {30, 6}} {
+		if !term.Mouse(driver.MouseEvent{X: p[0], Y: p[1], Button: driver.MouseLeft, Drag: true}) {
+			t.Fatal("the drag was not routed to the capture")
+		}
 	}
+	term.Mouse(driver.MouseEvent{X: 35, Y: 12, Button: driver.MouseRelease})
 	// 10 cells right and 4 up at 1.5° per cell.
 	if state.RotY != 15 || state.RotX != 354 {
 		t.Fatalf("after dragging (20,10)->(30,6): RotX %v RotY %v, want 354 15", state.RotX, state.RotY)
 	}
 
 	term.Render(viewer, area)
-	if !term.Mouse(driver.MouseEvent{X: 5, Y: 5, Button: driver.MouseScrollUp}) {
-		t.Fatal("the wheel was not routed")
-	}
-	if state.Distance != -0.25 {
-		t.Fatalf("distance after one wheel notch in: %v, want -0.25", state.Distance)
+	for _, notch := range []struct {
+		button driver.MouseButton
+		want   float64
+	}{{driver.MouseScrollUp, -0.25}, {driver.MouseScrollDown, 0}, {driver.MouseScrollDown, 0.25}} {
+		if !term.Mouse(driver.MouseEvent{X: 5, Y: 5, Button: notch.button}) {
+			t.Fatal("the wheel was not routed")
+		}
+		if state.Distance != notch.want {
+			t.Fatalf("distance %v after a wheel notch, want %v", state.Distance, notch.want)
+		}
 	}
 }

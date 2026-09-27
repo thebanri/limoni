@@ -11,17 +11,23 @@ import (
 
 func TestViewer3DStateKeys(t *testing.T) {
 	s := &Viewer3DState{}
-	for _, k := range []driver.KeyType{driver.KeyArrowRight, driver.KeyArrowRight, driver.KeyArrowUp} {
+	for _, k := range []driver.KeyType{driver.KeyArrowRight, driver.KeyArrowRight, driver.KeyArrowUp,
+		driver.KeyArrowLeft, driver.KeyArrowDown, driver.KeyArrowDown} {
 		if !s.HandleKey(driver.KeyEvent{Type: k}) {
 			t.Fatalf("key %v not handled", k)
 		}
 	}
-	if s.RotY != 10 || s.RotX != 355 {
-		t.Errorf("RotX %v RotY %v after →→↑, want 355 10", s.RotX, s.RotY)
+	if s.RotY != 5 || s.RotX != 5 {
+		t.Errorf("RotX %v RotY %v after →→↑←↓↓, want 5 5", s.RotX, s.RotY)
 	}
-	s.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: '-'})
-	if s.Distance != 0.25 {
-		t.Errorf("distance %v after -, want 0.25", s.Distance)
+	for _, key := range []struct {
+		ch   rune
+		want float64
+	}{{'-', 0.25}, {'-', 0.5}, {'+', 0.25}, {'=', 0}} {
+		s.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: key.ch})
+		if s.Distance != key.want {
+			t.Errorf("distance %v after %q, want %v", s.Distance, key.ch, key.want)
+		}
 	}
 	if s.HandleKey(driver.KeyEvent{Type: driver.KeyRune, Ch: 'x'}) {
 		t.Error("x was reported as handled")
@@ -67,6 +73,12 @@ func TestViewer3DStateAddsToAngles(t *testing.T) {
 	got := draw(&Viewer3D{Model: graphics.NewCube(2), RotX: 10, RotY: 40, State: &Viewer3DState{RotX: 20}})
 	if got != want {
 		t.Errorf("RotX 10 plus state 20 drew differently from RotX 30:\n%s\nwant:\n%s", got, want)
+	}
+	// The default distance is 3.5, so a state 1.5 further out is distance 5.
+	want = draw(&Viewer3D{Model: graphics.NewCube(2), RotX: 30, Distance: 5})
+	got = draw(&Viewer3D{Model: graphics.NewCube(2), RotX: 30, State: &Viewer3DState{Distance: 1.5}})
+	if got != want {
+		t.Errorf("state distance 1.5 drew differently from distance 5:\n%s\nwant:\n%s", got, want)
 	}
 }
 

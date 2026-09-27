@@ -309,6 +309,16 @@ func TestViewer3DPixels(t *testing.T) {
 	if rec.img == first {
 		t.Error("a rotated model reused the old picture")
 	}
+	// Orbiting through a State is a change too.
+	v.State = &Viewer3DState{}
+	v.Draw(rec.ctx(area), buf)
+	orbited := rec.img
+	v.State.RotY = 30
+	v.Draw(rec.ctx(area), buf)
+	if rec.img == orbited {
+		t.Error("an orbited model reused the old picture")
+	}
+	v.State = nil
 	ctx := rec.ctx(area)
 	if n := testing.AllocsPerRun(10, func() { v.RotY++; v.Draw(ctx, buf) }); n != 0 {
 		t.Errorf("%.0f allocs per moving pixel frame in the widget (encoding is the terminal's)", n)
