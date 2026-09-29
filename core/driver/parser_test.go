@@ -202,6 +202,66 @@ func TestParseNavigationAndEditingKeys(t *testing.T) {
 	}
 }
 
+func TestParseSS3Keys(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		wantKey KeyType
+	}{
+		{"Up", "\x1bOA", KeyArrowUp},
+		{"Down", "\x1bOB", KeyArrowDown},
+		{"Right", "\x1bOC", KeyArrowRight},
+		{"Left", "\x1bOD", KeyArrowLeft},
+		{"Home", "\x1bOH", KeyHome},
+		{"End", "\x1bOF", KeyEnd},
+		{"F1", "\x1bOP", KeyF1},
+		{"F2", "\x1bOQ", KeyF2},
+		{"F3", "\x1bOR", KeyF3},
+		{"F4", "\x1bOS", KeyF4},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			for _, chunks := range []struct {
+				name string
+				ends []int
+			}{
+				{"complete", []int{3}},
+				{"split after ESC", []int{1, 3}},
+				{"split after SS3", []int{2, 3}},
+				{"byte at a time", []int{1, 2, 3}},
+			} {
+				t.Run(chunks.name, func(t *testing.T) {
+					var buf []byte
+					start := 0
+					for _, end := range chunks.ends {
+						buf = append(buf, c.in[start:end]...)
+						start = end
+						if end < len(c.in) {
+							ev, consumed := ParseEvent(buf)
+							if ev != (Event{}) || consumed != 0 {
+								t.Fatalf("partial %q: ev=%+v consumed=%d, want no event or consumption", buf, ev, consumed)
+							}
+							continue
+						}
+
+						buf = append(buf, 'x')
+						ev, consumed := ParseEvent(buf)
+						want := Event{Type: EventKey, Key: KeyEvent{Type: c.wantKey}}
+						if ev != want || consumed != len(c.in) {
+							t.Fatalf("got ev=%+v consumed=%d, want ev=%+v consumed=%d", ev, consumed, want, len(c.in))
+						}
+						ev, consumed = ParseEvent(buf[consumed:])
+						want = Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: 'x'}}
+						if ev != want || consumed != 1 {
+							t.Fatalf("following key: ev=%+v consumed=%d, want ev=%+v consumed=1", ev, consumed, want)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
 // Function keys F1–F12 via SS3 (\x1bO...) and CSI tilde (\x1b[...~).
 func TestParseFunctionKeys(t *testing.T) {
 	cases := []struct {

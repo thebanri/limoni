@@ -61,12 +61,24 @@ func ParseEvent(buf []byte) (Event, int) {
 	switch buf[1] {
 	case '[': // CSI (Control Sequence Introducer) dizisi
 		return parseCSI(buf)
-	case 'O': // SS3 Alternatif Fonksiyon tuşları dizisi (örn: \x1b[OP -> \x1bOP)
+	case 'O': // SS3 application cursor keys and F1-F4.
 		if len(buf) < 3 {
 			return Event{}, 0
 		}
 		ev := Event{Type: EventKey}
 		switch buf[2] {
+		case 'A':
+			ev.Key.Type = KeyArrowUp
+		case 'B':
+			ev.Key.Type = KeyArrowDown
+		case 'C':
+			ev.Key.Type = KeyArrowRight
+		case 'D':
+			ev.Key.Type = KeyArrowLeft
+		case 'H':
+			ev.Key.Type = KeyHome
+		case 'F':
+			ev.Key.Type = KeyEnd
 		case 'P':
 			ev.Key.Type = KeyF1
 		case 'Q':
