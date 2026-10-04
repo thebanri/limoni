@@ -1,69 +1,79 @@
 # 🌟 Awesome Limoni
 
-A curated list of amazing applications, tools, custom widgets, templates, and libraries built with or for [**Limoni**](https://github.com/thebanri/limoni) 🍋.
+Applications, tools, widgets and writing built with or for [**Limoni**](https://github.com/thebanri/limoni) 🍋.
+
+The list is short on purpose: it names things that exist and says what they
+are. Examples that live in this repository are listed as examples, not as
+third-party projects. Yours belongs here — see [Submitting](#-submitting-your-project).
 
 ---
 
 ## 📑 Contents
 
-- [🚀 Applications & Dashboards](#-applications--dashboards)
-- [🛠️ Developer Tools & CLI](#️-developer-tools--cli)
-- [🧩 Third-Party Widgets & Addons](#-third-party-widgets--addons)
-- [🎨 Themes & Palettes](#-themes--palettes)
-- [🎓 Tutorials & Community Articles](#-tutorials--community-articles)
-- [🤝 Submitting Your Project](#-submitting-your-project)
+- [🚀 Applications](#-applications)
+- [🧪 Examples in this repository](#-examples-in-this-repository)
+- [🛠️ Developer tools](#️-developer-tools)
+- [🧩 Third-party widgets and addons](#-third-party-widgets-and-addons)
+- [🎓 Writing](#-writing)
+- [🤝 Submitting your project](#-submitting-your-project)
 
 ---
 
-## 🚀 Applications & Dashboards
+## 🚀 Applications
 
-- **[zest](https://github.com/thebanri/limoni/tree/main/cmd/zest)** — Log viewer that follows files and pipes, colours by level, and filters a million lines without stalling; Limoni's flagship app.
-- **[Limoni 3D Mesh Viewer](https://github.com/thebanri/limoni/tree/main/examples/3d_viewer)** — Real-time 3D model viewer supporting `.obj`, `.stl`, `.ply`, Lambertian diffuse, and Gouraud shading.
-- **[Limoni Voice](https://github.com/thebanri/limoni-voice)** — Voice-driven interactive terminal interface and audio assistant powered by Limoni.
-- **[DevOps Cluster Monitor](https://github.com/thebanri/limoni/tree/main/examples/dashboard)** — System monitoring dashboard with live CPU/RAM sparklines and streaming log viewer.
-- **[Virtual 1M Transaction Ledger](https://github.com/thebanri/limoni/tree/main/examples/table_virtual)** — High-frequency crypto ledger demonstrating 1,000,000 rows with 0 allocations.
-- **[Limoni Todo](https://github.com/thebanri/limoni/tree/main/examples/todo)** — Feature-packed task management app built on The Elm Architecture.
-- **[Remote Limoni SSH PTY](https://github.com/thebanri/limoni/tree/main/examples/ssh_server)** — Multi-tenant remote terminal server serving 60 FPS interactive TUI sessions.
-
----
-
-## 🛠️ Developer Tools & CLI
-
-- **[Limoni CLI Runner (`cmd/limoni`)](https://github.com/thebanri/limoni/tree/main/cmd/limoni)** — Project generator, widget scaffold, and terminal capability detector.
-- **[Limoni WebAssembly Runner](https://github.com/thebanri/limoni/tree/main/examples/wasm)** — Run any Limoni TUI directly in modern web browsers via xterm.js.
+- **[zest](https://github.com/thebanri/limoni/tree/main/cmd/zest)** — Log viewer that follows files and pipes, colours by level, and filters a million lines without stalling.
+- **[globe](https://github.com/thebanri/limoni/tree/main/apps/globe)** — A searchable, zoomable ASCII globe. `go install github.com/thebanri/limoni/apps/globe@latest`
+- **[backdrop-shell](https://github.com/thebanri/limoni/tree/main/apps/backdrop-shell)** — Your shell, in any terminal, in front of an animated backdrop scene.
+- **[Castle Lemonstein](https://github.com/thebanri/limoni/tree/main/apps/castle-lemonstein)** — A short raycaster game in half blocks, with a shared leaderboard.
+- **[Lemon Drop](https://github.com/thebanri/limoni/tree/main/apps/lemondrop)** — Falling blocks that turn to sand.
+- **[Limoni Voice](https://github.com/thebanri/limoni-voice)** — A voice-driven terminal assistant built on Limoni.
 
 ---
 
-## 🧩 Third-Party Widgets & Addons
+## 🧪 Examples in this repository
 
-- **[Analog Gauge / Speedometer](https://github.com/thebanri/limoni/tree/main/examples/custom_widget)** — Circular needle meter using Braille arc math and interactive mouse dragging.
-- **[Matrix Rain Generator](https://github.com/thebanri/limoni/tree/main/examples/demo)** — Falling green digital rain animation widget.
-
----
-
-## 🎨 Themes & Palettes
-
-- **Catppuccin Limoni** — Soothing pastel theme for Limoni terminals (Latte, Frappé, Macchiato, Mocha).
-- **Tokyo Night Limoni** — Clean dark cyberpunk blue/purple palette.
-- **Gruvbox Retro** — Warm retro groove colors.
+- **[3d_viewer](https://github.com/thebanri/limoni/tree/main/examples/3d_viewer)** — OBJ/STL/PLY viewer with Lambert and Gouraud shading and orbit controls.
+- **[dashboard](https://github.com/thebanri/limoni/tree/main/examples/dashboard)** — Live CPU and memory sparklines, a process table and a streaming log.
+- **[table_virtual](https://github.com/thebanri/limoni/tree/main/examples/table_virtual)** — A one-million-row table that only touches the visible rows.
+- **[todo](https://github.com/thebanri/limoni/tree/main/examples/todo)** — A declarative (Elm architecture) todo app with tags, filters and fuzzy search.
+- **[ssh_server](https://github.com/thebanri/limoni/tree/main/examples/ssh_server)** — One Limoni app per SSH session, in one process.
+- **[custom_widget](https://github.com/thebanri/limoni/tree/main/examples/custom_widget)** — An analog gauge drawn with Braille arcs, dragged with the mouse: how to write your own widget.
+- **[wasm](https://github.com/thebanri/limoni/tree/main/examples/wasm)** — The engine compiled to WebAssembly and drawn by xterm.js; it is the [browser playground](https://thebanri.github.io/limoni/).
 
 ---
 
-## 🎓 Tutorials & Community Articles
+## 🛠️ Developer tools
 
-- [Building 60 FPS Terminal UIs in Go with Zero Allocations](https://github.com/thebanri/limoni/blob/main/docs/architecture.md)
-- [How to Render 3D Models inside Linux & macOS Terminals](https://github.com/thebanri/limoni/blob/main/docs/graphics-and-canvas.md)
-- [The Elm Architecture for Go Developers](https://github.com/thebanri/limoni/blob/main/docs/core-api.md)
+- **[limoni](https://github.com/thebanri/limoni/tree/main/cmd/limoni)** — `limoni new` generates a project with a test already written; `limoni doctor` shows what your terminal answered and what Limoni will use.
+- **[limoni-mcp](https://github.com/thebanri/limoni/tree/main/cmd/limoni-mcp)** — Lets an MCP client (Claude Code, Cursor, …) drive a running Limoni app by widget role and label.
 
 ---
 
-## 🤝 Submitting Your Project
+## 🧩 Third-party widgets and addons
 
-Built something awesome with Limoni? We'd love to feature it!
+None yet. A widget in its own module that implements `widgets.Widget` is
+exactly what this section is for.
+
+---
+
+## 🎓 Writing
+
+- [Every number we almost published](https://github.com/thebanri/limoni/blob/main/docs/blog/every-number-we-almost-published.md) — the benchmark mistakes caught before they shipped.
+- [Ask the terminal, then measure it anyway](https://github.com/thebanri/limoni/blob/main/docs/blog/measure-the-terminal.md) — how Limoni decides what a terminal can do.
+- [An AI agent drove our log viewer](https://github.com/thebanri/limoni/blob/main/docs/blog/an-agent-drove-our-log-viewer.md) — a headless Claude Code agent operating zest over MCP, and where it got stuck.
+- [Architecture](https://github.com/thebanri/limoni/blob/main/docs/architecture.md) — the flat cell grid, the diff, and why the draw path does not allocate.
+
+---
+
+## 🤝 Submitting your project
+
+Built something with Limoni? Add it:
 
 1. Fork the [Limoni repository](https://github.com/thebanri/limoni).
-2. Add your project to this file (`AWESOME.md`) in alphabetical order under the appropriate section:
+2. Add one line to the right section of `AWESOME.md`, in alphabetical order:
    ```markdown
-   - **[Project Name](https://github.com/your-name/your-project)** — Brief description of what your project does.
+   - **[Project Name](https://github.com/your-name/your-project)** — What it does, in one sentence.
    ```
-3. Submit a Pull Request with the title `awesome: add <project-name>`.
+3. Open a pull request titled `awesome: add <project-name>`.
+
+A screenshot or GIF in your README helps people decide to try it.
