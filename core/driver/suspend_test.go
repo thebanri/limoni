@@ -112,3 +112,38 @@ func TestSuspendRefusedWithoutATerminal(t *testing.T) {
 		t.Fatalf("Suspend = %v, want ErrSuspendUnsupported", err)
 	}
 }
+
+// limoni.New sets a backend up, and Program.RunTerminal sets up the backend
+// it is given: Setup runs twice for every limoni.RunProgram. The second raw
+// mode used to record the raw terminal as the one to restore, so Close left
+// the shell with no echo and no line editing — hidden by shells that reset
+// the terminal after each command, plain in bash.
+func TestSetupTwiceStillRestoresTheTerminal(t *testing.T) {
+	t.Setenv("LIMONI_PROBE", "0")
+	master, slave := openPTY(t)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			if _, err := master.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	b := NewBackend(slave, slave)
+	if err := b.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tio, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tio.Lflag&unix.ECHO == 0 || tio.Lflag&unix.ICANON == 0 {
+		t.Fatal("Close left the terminal in raw mode after a second Setup")
+	}
+}

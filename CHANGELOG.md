@@ -49,6 +49,12 @@ a patch bump (`v0.x.y`) does not.
   listed under Fixed.
 
 ### Fixed
+- Every `limoni.RunProgram` left the terminal in raw mode on exit — no echo,
+  no line editing — in shells that do not reset it after each command
+  (bash). `limoni.New` sets the backend up and `RunTerminal` set it up again;
+  the second raw mode recorded the raw terminal as the one to restore.
+  `Setup` now does nothing the second time. Checked in bash with
+  `examples/counter`: `-icanon -echo` before, `icanon echo` after.
 - `Markdown` read what converters from HTML write: backslash escapes
   (`1\.`, `\|`), spaced rules (`* * *`), link titles, and markup inside a
   link's text. A word wider than the row is broken across rows; it was cut

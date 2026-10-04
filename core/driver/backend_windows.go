@@ -30,6 +30,7 @@ type Backend struct {
 	inlineMu     sync.RWMutex
 	replies      replyCollector
 	looping      atomic.Bool
+	setUp        bool // Setup has run
 }
 
 // NewBackend returns a new Windows Backend.
@@ -75,7 +76,14 @@ func (b *Backend) SetSize(w, h uint16) {
 }
 
 // Setup switches the terminal to raw / VT100 mode and sends the screen setup codes.
+//
+// A second call does nothing, as on Unix: the console mode recorded by a
+// second one is the raw mode, which Close would then restore.
 func (b *Backend) Setup() error {
+	if b.setUp {
+		return nil
+	}
+	b.setUp = true
 	if b.portableIO != nil {
 		setupCmds := fullScreenSetupCmds()
 		if height := b.Inline(); height > 0 {

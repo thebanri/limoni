@@ -33,6 +33,7 @@ type Backend struct {
 	looping    atomic.Bool // the event loop that reads replies is running
 	reader     *ttyReader  // reads the terminal; paused while it is released
 	released   atomic.Bool // the terminal belongs to another program (Release)
+	setUp      bool        // Setup has run
 }
 
 // SetInline switches the backend to inline rendering: no alternate screen, the
@@ -102,7 +103,16 @@ func (b *Backend) SetSize(w, h uint16) {
 
 // Setup switches the terminal into raw mode and sends screen setup escape codes
 // (alternate screen buffer, hide cursor, SGR mouse tracking, focus in/out reporting, bracketed paste, disable auto-wrap).
+//
+// A second call does nothing: limoni.New sets the backend up and
+// Program.RunTerminal sets up the backend it is given, and a second raw mode
+// recorded the raw terminal as the one to restore, so Close left the shell
+// with no echo and no line editing.
 func (b *Backend) Setup() error {
+	if b.setUp {
+		return nil
+	}
+	b.setUp = true
 	// Inline mode keeps the normal screen buffer and leaves auto-wrap on: the
 	// frame lives among the user's scrollback rather than replacing it, and a
 	// row that overflows should wrap the way ordinary terminal output does.
@@ -119,6 +129,7 @@ func (b *Backend) Setup() error {
 	// Enter raw mode
 	state, err := MakeRaw(int(b.in.Fd()))
 	if err != nil {
+		b.setUp = false
 		return fmt.Errorf("failed to put terminal in raw mode: %w", err)
 	}
 	b.state = state
