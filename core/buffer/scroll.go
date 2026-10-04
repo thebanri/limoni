@@ -2,7 +2,6 @@ package buffer
 
 import (
 	"bytes"
-	"hash/maphash"
 	"strconv"
 	"unsafe"
 
@@ -39,12 +38,7 @@ const keyCells = 8
 
 // rowKey hashes a row's first cells: rows with different keys differ, so
 // keys rule out most shifts before whole rows are hashed.
-func rowKey(row []cell.Cell) uint64 {
-	return maphash.Bytes(rowSeed, cellBytes(row[:min(len(row), keyCells)]))
-}
-
-// rowSeed seeds the row hashes; they are only compared within one process.
-var rowSeed = maphash.MakeSeed()
+func rowKey(row []cell.Cell) uint64 { return rowHash(row[:min(len(row), keyCells)]) }
 
 // cellBytes is a row's cells as their memory. A Cell is 16 bytes with no
 // padding (TestCellHasNoPadding), so equal bytes are equal cells and the
@@ -55,11 +49,6 @@ func cellBytes(row []cell.Cell) []byte {
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(&row[0])), len(row)*int(unsafe.Sizeof(row[0])))
 }
-
-// rowHash hashes a row's cells. It was FNV-1a over each field of each cell:
-// four multiplications a cell, and the scroll search ran it over both
-// buffers on every frame.
-func rowHash(row []cell.Cell) uint64 { return maphash.Bytes(rowSeed, cellBytes(row)) }
 
 func rowsEqual(a, b []cell.Cell) bool { return bytes.Equal(cellBytes(a), cellBytes(b)) }
 
