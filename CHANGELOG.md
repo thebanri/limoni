@@ -76,6 +76,12 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- Perspective-correct texture mapping in `Viewer3D` (#60): texture
+  coordinates are interpolated as u/w, v/w and 1/w, so a textured face at an
+  angle no longer warps along its diagonal — the straight edge of a texture
+  on a receding floor strayed 16.5 pixels, now 1.0. `Canvas` gains
+  `DrawTexturedTrianglePerspective`; `DrawTexturedTriangleDepth` keeps its
+  affine mapping. Still 0 allocations a frame.
 - Release binaries: `.goreleaser.yaml` and a workflow build zest, the
   `limoni` CLI, globe, backdrop-shell, Castle Lemonstein and Lemon Drop for
   Linux, macOS and Windows (amd64, arm64) on every tag, plus zest as .deb,

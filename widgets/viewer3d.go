@@ -402,7 +402,7 @@ type raster3D interface {
 	DrawFilledTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, style cell.Style)
 	DrawLambertTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, normal graphics.Vector3D, light graphics.Light, baseStyle cell.Style)
 	DrawGouraudTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, c0, c1, c2 cell.Color, baseStyle cell.Style)
-	DrawTexturedTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, uv0, uv1, uv2 graphics.UV, img image.Image)
+	DrawTexturedTrianglePerspective(p0, p1, p2 graphics.Vertex2D, z0, z1, z2, w0, w1, w2 float64, uv0, uv1, uv2 graphics.UV, img image.Image)
 	DrawLine(x1, y1, x2, y2 int, style cell.Style)
 }
 
@@ -601,7 +601,8 @@ func (v *Viewer3D) rasterize(t raster3D, virtualW, virtualH, baseScale, dist flo
 				switch shading {
 				case ShadingTexture:
 					if texture != nil {
-						t.DrawTexturedTriangleDepth(sa, sb, sc, a.pos.Z, b.pos.Z, c.pos.Z, a.uv, b.uv, c.uv, texture)
+						t.DrawTexturedTrianglePerspective(sa, sb, sc, a.pos.Z, b.pos.Z, c.pos.Z,
+							a.pos.Z+dist, b.pos.Z+dist, c.pos.Z+dist, a.uv, b.uv, c.uv, texture)
 					} else {
 						t.DrawFilledTriangleDepth(sa, sb, sc, a.pos.Z, b.pos.Z, c.pos.Z, faceStyle)
 					}

@@ -69,7 +69,12 @@ func gouraudTriangleDepth[T dotTarget](t T, p0, p1, p2 graphics.Vertex2D, z0, z1
 	}
 }
 
-func texturedTriangleDepth[T dotTarget](t T, p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
+// texturedTriangleDepth maps img onto the triangle. w0..w2 are the vertices'
+// perspective divisors (view depth plus camera distance): texture
+// coordinates are interpolated as u/w, v/w and 1/w and divided back per dot,
+// so a textured face seen at an angle is not warped along its diagonal.
+// Equal ws give plain screen-space (affine) mapping.
+func texturedTriangleDepth[T dotTarget](t T, p0, p1, p2 graphics.Vertex2D, z0, z1, z2, w0, w1, w2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
 	if img == nil || img.Bounds().Empty() {
 		return
 	}
@@ -78,6 +83,10 @@ func texturedTriangleDepth[T dotTarget](t T, p0, p1, p2 graphics.Vertex2D, z0, z
 	if !ok {
 		return
 	}
+	if w0 <= 0 || w1 <= 0 || w2 <= 0 {
+		w0, w1, w2 = 1, 1, 1
+	}
+	i0, i1, i2 := 1/w0, 1/w1, 1/w2
 	bounds := img.Bounds()
 	imgW, imgH := bounds.Dx(), bounds.Dy()
 	for y := minY; y <= maxY; y++ {
@@ -87,8 +96,9 @@ func texturedTriangleDepth[T dotTarget](t T, p0, p1, p2 graphics.Vertex2D, z0, z
 			l2 := ((p2.Y-p0.Y)*(fx-p2.X) + (p0.X-p2.X)*(fy-p2.Y)) / denom
 			l3 := 1.0 - l1 - l2
 			if l1 >= -0.005 && l2 >= -0.005 && l3 >= -0.005 {
-				u := l1*uv0.U + l2*uv1.U + l3*uv2.U
-				v := l1*uv0.V + l2*uv1.V + l3*uv2.V
+				iw := l1*i0 + l2*i1 + l3*i2
+				u := (l1*uv0.U*i0 + l2*uv1.U*i1 + l3*uv2.U*i2) / iw
+				v := (l1*uv0.V*i0 + l2*uv1.V*i1 + l3*uv2.V*i2) / iw
 				tx := min(max(int(u*float64(imgW)), 0), imgW-1)
 				ty := min(max(int(v*float64(imgH)), 0), imgH-1)
 				r, g, b, a := texel(img, bounds.Min.X+tx, bounds.Min.Y+ty)
@@ -126,7 +136,18 @@ func (c *Canvas) DrawTexturedTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1,
 	if c == nil || c.width == 0 || c.height == 0 {
 		return
 	}
-	texturedTriangleDepth(c, p0, p1, p2, z0, z1, z2, uv0, uv1, uv2, img)
+	texturedTriangleDepth(c, p0, p1, p2, z0, z1, z2, 1, 1, 1, uv0, uv1, uv2, img)
+}
+
+// DrawTexturedTrianglePerspective is DrawTexturedTriangleDepth with
+// perspective-correct texture coordinates: w0, w1 and w2 are each vertex's
+// distance from the camera along the view axis, the divisor of its
+// projection. Viewer3D draws with it.
+func (c *Canvas) DrawTexturedTrianglePerspective(p0, p1, p2 graphics.Vertex2D, z0, z1, z2, w0, w1, w2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
+	if c == nil || c.width == 0 || c.height == 0 {
+		return
+	}
+	texturedTriangleDepth(c, p0, p1, p2, z0, z1, z2, w0, w1, w2, uv0, uv1, uv2, img)
 }
 
 // pixelTarget is an RGBA image with a z-buffer, for rendering a model as a
@@ -184,7 +205,11 @@ func (p *pixelTarget) DrawGouraudTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0,
 }
 
 func (p *pixelTarget) DrawTexturedTriangleDepth(p0, p1, p2 graphics.Vertex2D, z0, z1, z2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
-	texturedTriangleDepth(p, p0, p1, p2, z0, z1, z2, uv0, uv1, uv2, img)
+	texturedTriangleDepth(p, p0, p1, p2, z0, z1, z2, 1, 1, 1, uv0, uv1, uv2, img)
+}
+
+func (p *pixelTarget) DrawTexturedTrianglePerspective(p0, p1, p2 graphics.Vertex2D, z0, z1, z2, w0, w1, w2 float64, uv0, uv1, uv2 graphics.UV, img image.Image) {
+	texturedTriangleDepth(p, p0, p1, p2, z0, z1, z2, w0, w1, w2, uv0, uv1, uv2, img)
 }
 
 // DrawLine draws a one-pixel line (Bresenham), not depth tested, as the
