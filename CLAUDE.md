@@ -265,9 +265,13 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    capture), not only with the in-memory tests. The kitty keyboard answer now
    pushes level 1 (`CSI > 1 u`, popped by `RestoreModes` on Close and Suspend):
    verified in kitty 0.48.2 that Ctrl+I, Esc and Alt+key arrive distinct.
-   Level 1 leaves Enter, Tab and Backspace legacy by design, so Shift+Enter is
-   still plain Enter; going further (level 8) needs flag 4 and IME text, and
-   breaks AltGr layouts if done carelessly. Not yet used: the DA1 sixel bit.
+   Level 1 leaves only *unmodified* Enter, Tab and Backspace legacy: kitty
+   0.49.2 sends Shift+Enter as `CSI 13;2u`, and a Limoni TextInput run in it
+   took Shift+Enter as a newline (captured with `kitten @ send-key`, #56).
+   Terminals without the protocol (VTE, older Konsole) send `\r` for both;
+   there Alt+Enter (`ESC \r`) is the newline that works. Going further
+   (level 8) needs flag 4 and IME text, and breaks AltGr layouts if done
+   carelessly. Not yet used: the DA1 sixel bit.
    `WithKeyReleases` / `SetKeyReleases` push flags 3 instead (event types):
    presses arrive as before, repeats and releases as `CSI …;mods:2|3 u` or
    `CSI 1;mods:3 A`, parsed into `KeyEvent.Repeat`/`Release`. Opt-in only — to

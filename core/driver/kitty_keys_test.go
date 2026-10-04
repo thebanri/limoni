@@ -9,9 +9,15 @@ func TestParseKittyKeyboardKeys(t *testing.T) {
 		in   string
 		want KeyEvent
 	}{
-		// Shift+Enter as the higher protocol levels send it (level 1, which
-		// Limoni turns on, leaves Enter in its legacy form).
+		// Level 1 leaves only *unmodified* Enter, Tab and Backspace in their
+		// legacy form. With a modifier they are CSI u: these are the bytes
+		// kitty 0.49.2 sent at level 1 (captured with kitten @ send-key), so
+		// Shift+Enter reaches TextInput as a newline.
 		{"\x1b[13;2u", KeyEvent{Type: KeyEnter, Shift: true}},
+		{"\x1b[13;5u", KeyEvent{Type: KeyEnter, Ctrl: true}},
+		{"\x1b[13;3u", KeyEvent{Type: KeyEnter, Alt: true}},
+		{"\x1b[9;2u", KeyEvent{Type: KeyTab, Shift: true}},
+		{"\x1b[127;2u", KeyEvent{Type: KeyBackspace, Shift: true}},
 		{"\x1b[27u", KeyEvent{Type: KeyEsc}},
 		{"\x1b[105;5u", KeyEvent{Type: KeyRune, Ch: 'i', Ctrl: true}}, // Ctrl+I, not Tab
 		{"\x1b[9;5u", KeyEvent{Type: KeyTab, Ctrl: true}},
