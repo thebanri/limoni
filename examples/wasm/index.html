@@ -108,13 +108,14 @@
     /* A fixed height, not a minimum: xterm's own element keeps the size of
        the last fit, and would hold the box at fullscreen size after leaving. */
     #terminal { height: 420px; }
-    /* Games draw a complete frame and have no terminal scrollback. xterm's
-       default viewport otherwise reserves a visible vertical scrollbar. */
-    body.game #terminal .xterm-viewport {
+    /* Every app here draws a complete frame on the alternate screen and has
+       no terminal scrollback; the wheel goes to the app. xterm's default
+       viewport otherwise reserves a visible (white) vertical scrollbar. */
+    #terminal .xterm-viewport {
       overflow: hidden !important;
       scrollbar-width: none;
     }
-    body.game #terminal .xterm-viewport::-webkit-scrollbar { display: none; }
+    #terminal .xterm-viewport::-webkit-scrollbar { display: none; }
 
     /* A game opens in most of the window rather than the playground's box:
        the terminal as tall as the window allows below the header (232px:
