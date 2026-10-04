@@ -116,7 +116,7 @@ hiçbir zaman dışarı verilmez.
 | Ryzen 5 5600, Go 1.27.1 üzerinde ölçüldü | Gecikme | Tahsisat |
 | :--- | ---: | ---: |
 | Tam ekran diff, 120×40, her hücre değişmiş | ~50 µs | 0 |
-| Ekranın %10'u değişmiş | ~24 µs | 0 |
+| Ekranın %10'u değişmiş | ~11 µs | 0 |
 | Hiçbir şey değişmemiş | ~2 ns | 0 |
 | Üst üste 100 blok, çizim ve diff | ~68 µs | 0 |
 

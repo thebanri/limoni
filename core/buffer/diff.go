@@ -101,11 +101,19 @@ func diff(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, error) {
 		}
 	}
 
-	// Count modified cells
+	// Count modified cells, skipping unchanged rows with one memory compare
+	// each: most rows of most frames are unchanged.
 	dirtyCount := 0
-	for i := 0; i < totalCells; i++ {
-		if front.Content[i] != back.Content[i] {
-			dirtyCount++
+	w := int(width)
+	for start := 0; start < totalCells; start += w {
+		fr, br := front.Content[start:start+w], back.Content[start:start+w]
+		if rowsEqual(fr, br) {
+			continue
+		}
+		for i := range fr {
+			if fr[i] != br[i] {
+				dirtyCount++
+			}
 		}
 	}
 
@@ -144,6 +152,9 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 		first := int(-1)
 		last := int(-1)
 		rowOffset := int(y) * int(width)
+		if rowsEqual(front.Content[rowOffset:rowOffset+int(width)], back.Content[rowOffset:rowOffset+int(width)]) {
+			continue // an unchanged row, found with one memory compare
+		}
 		for x := 0; x < int(width); x++ {
 			idx := rowOffset + x
 			if front.Content[idx] != back.Content[idx] {

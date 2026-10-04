@@ -113,7 +113,7 @@ default, only the same user can connect, and secret fields are never exposed.
 | Measured on a Ryzen 5 5600, Go 1.27.1 | Latency | Allocations |
 | :--- | ---: | ---: |
 | Full-screen diff, 120×40, every cell changed | ~50 µs | 0 |
-| 10% of the screen changed | ~24 µs | 0 |
+| 10% of the screen changed | ~11 µs | 0 |
 | Nothing changed | ~2 ns | 0 |
 | 100 layered blocks, drawn and diffed | ~68 µs | 0 |
 
