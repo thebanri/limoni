@@ -50,6 +50,10 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- `limonivet` reports a `Block` given a title or border style but no
+  `Borders`, which draws neither border nor title. That mistake hid the
+  frames of the counter example and of every playground scene; CI now runs
+  the check over the repository.
 - `LIMONI_CAST=demo.cast ./app` records any Limoni application as an
   asciicast v2 file, a frame per line as it is drawn, for `agg` (GIF),
   `asciinema play` or asciinema.org; `Terminal.RecordCast(w)` from code. Off,

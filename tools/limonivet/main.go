@@ -1,4 +1,6 @@
-// Command limonivet reports code that breaks Limoni session replay.
+// Command limonivet reports Limoni code that compiles but does not do what it
+// says: model methods that break session replay, and Blocks that draw
+// nothing.
 //
 //	go run github.com/thebanri/limoni/tools/limonivet ./...
 //
@@ -7,8 +9,9 @@
 package main
 
 import (
+	"github.com/thebanri/limoni/tools/limonivet/invisibleblock"
 	"github.com/thebanri/limoni/tools/limonivet/nondeterminism"
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
-func main() { singlechecker.Main(nondeterminism.Analyzer) }
+func main() { multichecker.Main(nondeterminism.Analyzer, invisibleblock.Analyzer) }
