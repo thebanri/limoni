@@ -349,6 +349,12 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 			continue
 		}
 
+		// Blank lines between blocks are one break, however many there are:
+		// HTML converted to Markdown often leaves two or three.
+		if trimmed == "" && i > 0 && strings.TrimSpace(lines[i-1]) == "" {
+			continue
+		}
+
 		if isThematicBreak(trimmed) {
 			m.cachedLines = append(m.cachedLines, markdownLine{isDivider: true})
 			continue

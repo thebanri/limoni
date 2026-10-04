@@ -75,6 +75,7 @@ a patch bump (`v0.x.y`) does not.
   link's text. A word wider than the row is broken across rows; it was cut
   at the edge and the rest of it lost. A fragment link (`#notes`) is plain
   text, and a link whose text is its address does not print it twice.
+  Several blank lines in a row are one break, as in any Markdown renderer.
 - `Image.Draw` allocated on every frame through an image protocol: the
   background colour was boxed into a `color.Color`.
 - The flattened and faded copies `Image` caches were keyed by a pointer the

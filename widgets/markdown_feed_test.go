@@ -138,3 +138,16 @@ func TestMarkdownHeadingSpacing(t *testing.T) {
 		}
 	}
 }
+
+// Several blank lines between paragraphs are one break, as in any Markdown
+// renderer; HTML converted to Markdown often leaves two or three. Inside a
+// code block they are kept.
+func TestMarkdownCollapsesBlankLines(t *testing.T) {
+	_, _, rows := drawMarkdown(t, "one\n\n\n\ntwo\n```\na\n\n\nb\n```", 20, 8)
+	want := []string{"one", "", "two", " a", "", "", " b"}
+	for i, w := range want {
+		if rows[i] != w {
+			t.Fatalf("rows %q, want %q", rows[:len(want)], want)
+		}
+	}
+}
