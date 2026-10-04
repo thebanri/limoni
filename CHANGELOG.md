@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.11.0] — 2026-10-05
+
 ### Added
 - `StatusBar` (new `ID` field) and rich `Text` are in the semantic tree.
   With an ID the node's value is their text — key hints an agent or a
@@ -768,7 +770,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/thebanri/limoni/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/thebanri/limoni/compare/v0.9.5...v0.10.0
 [v0.9.5]: https://github.com/thebanri/limoni/compare/v0.9.4...v0.9.5
 [v0.9.4]: https://github.com/thebanri/limoni/compare/v0.9.3...v0.9.4
