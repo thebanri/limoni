@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.10.0] — 2026-10-04
+
 ### Added
 - `ExecCmd` and `SuspendCmd` for Programs: hand the terminal to an editor,
   a pager or a shell and take it back, or stop on Ctrl+Z, from Update.
@@ -140,6 +142,10 @@ a patch bump (`v0.x.y`) does not.
   where `▁` belongs. Found by a pkg.go.dev example whose output looked wrong.
 
 ### Breaking
+- `ColorPickerState`, `PopupState`, `SelectState`, `SliderState`,
+  `ViewportState` and `ToastItem` are no longer comparable with `==`: each now
+  keeps its mouse handlers, built once, so drawing it allocates nothing.
+  Compare the fields you care about instead, as with `ListState` in v0.3.0.
 - A `Program` no longer receives pointer movement as `MousePressMsg`. Any-motion
   tracking reports every move, and a move with no button held reached `Update`
   as a press with `Button == MouseNone`, so a model that handled presses
@@ -735,7 +741,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.9.5...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.10.0...HEAD
+[v0.10.0]: https://github.com/thebanri/limoni/compare/v0.9.5...v0.10.0
 [v0.9.5]: https://github.com/thebanri/limoni/compare/v0.9.4...v0.9.5
 [v0.9.4]: https://github.com/thebanri/limoni/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/thebanri/limoni/compare/v0.9.2...v0.9.3
