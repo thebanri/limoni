@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/thebanri/limoni/core/cell"
@@ -16,7 +17,7 @@ import (
 // frames as output events, then a resize event when the window changes.
 func TestRecordCastWritesAsciicast(t *testing.T) {
 	t.Setenv("LIMONI_PROBE", "0")
-	io := driver.NewMemoryTerminalIO(nil, 30, 4)
+	io := &resizableIO{w: 30, h: 4}
 	b := driver.NewPortableBackend(io)
 	if err := b.Setup(); err != nil {
 		t.Fatal(err)
@@ -38,7 +39,8 @@ func TestRecordCastWritesAsciicast(t *testing.T) {
 	}
 	draw("first frame")
 	draw("second frame")
-	b.SetSize(40, 6)
+	io.resize(40, 6) // Windows asks the IO for its size,
+	b.SetSize(40, 6) // Unix the backend
 	draw("after resize")
 	if err := term.Close(); err != nil {
 		t.Fatal(err)
@@ -77,4 +79,28 @@ func TestRecordCastWritesAsciicast(t *testing.T) {
 	if !resized {
 		t.Errorf("no resize event to 40x6")
 	}
+}
+
+// resizableIO is an in-memory terminal whose size the test changes.
+type resizableIO struct {
+	mu   sync.Mutex
+	w, h uint16
+	out  bytes.Buffer
+}
+
+func (r *resizableIO) Read([]byte) (int, error) { select {} }
+func (r *resizableIO) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.out.Write(p)
+}
+func (r *resizableIO) Size() (uint16, uint16, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.w, r.h, nil
+}
+func (r *resizableIO) resize(w, h uint16) {
+	r.mu.Lock()
+	r.w, r.h = w, h
+	r.mu.Unlock()
 }

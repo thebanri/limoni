@@ -13,6 +13,7 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/graphics"
 	"github.com/thebanri/limoni/widgets"
 )
 
@@ -29,9 +30,14 @@ type Terminal struct {
 func NewTerminal(width, height uint16) *Terminal {
 	area := cell.NewRect(0, 0, width, height)
 	focus := terminal.NewFocusManager()
+	frame := terminal.NewFrame(nil, focus)
+	// Decided once, as a real Terminal does: left at zero, every widget that
+	// can show a picture asked the environment again on every frame, and on
+	// Windows each lookup allocates.
+	frame.ImageProtocol = uint8(graphics.DetectProtocol())
 	return &Terminal{
 		buffer: buffer.NewBuffer(area),
-		frame:  terminal.NewFrame(nil, focus),
+		frame:  frame,
 	}
 }
 

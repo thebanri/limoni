@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -39,23 +40,25 @@ func setPTYSize(master *os.File, cols, rows uint16) error {
 func startInPTY(cmd *exec.Cmd, cols, rows uint16) (*os.File, error) {
 	master, path, err := openPTY()
 	if err != nil {
-		return nil, err
-	}
-	if err := setPTYSize(master, cols, rows); err != nil {
-		master.Close()
-		return nil, err
+		return nil, fmt.Errorf("open a pseudo-terminal: %w", err)
 	}
 	tty, err := os.OpenFile(path, os.O_RDWR|unix.O_NOCTTY, 0)
 	if err != nil {
 		master.Close()
-		return nil, err
+		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer tty.Close() // the child has its own copies
+	// The size is set once the terminal side is open: macOS refuses
+	// TIOCSWINSZ on a master whose terminal nobody has opened yet.
+	if err := setPTYSize(tty, cols, rows); err != nil {
+		master.Close()
+		return nil, fmt.Errorf("set the terminal size: %w", err)
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
 	if err := cmd.Start(); err != nil {
 		master.Close()
-		return nil, err
+		return nil, fmt.Errorf("start %s: %w", cmd.Path, err)
 	}
 	return master, nil
 }
