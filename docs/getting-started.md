@@ -256,6 +256,28 @@ sections := limoni.SplitVertical(area, limoni.Ratio(2), limoni.Ratio(1)) // 2/3 
 
 ---
 
+## 🌐 Show It in a Browser (`limoni serve`)
+
+`limoni serve` runs a program once per browser tab, in a real
+pseudo-terminal, and draws it with xterm.js. It is for showing an app to
+someone who has no terminal open: a demo, a workshop, a screen share.
+
+```bash
+go build -o myapp .
+go run github.com/thebanri/limoni/cmd/limoni@latest serve ./myapp
+#   http://127.0.0.1:7681/?token=3f9c…
+```
+
+Build first: with `go run .` every tab compiles the program again. The
+program runs as you, so the server listens on loopback and every request
+must carry the random token it prints; `-addr :8080` opens it to other
+machines (it says so when it starts), `-max` bounds how many copies run at
+once, and closing a tab hangs its copy up. Linux and macOS.
+
+Unlike the [browser playground](https://thebanri.github.io/limoni/), which
+compiles Limoni to WebAssembly, the program here is the native binary — any
+terminal program works, not only Limoni ones.
+
 ## 📚 Next Steps
 
 - [Core Engine Architecture & Zero-Alloc Diff](./architecture.md)

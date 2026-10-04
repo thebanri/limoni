@@ -244,6 +244,28 @@ cols := limoni.SplitHorizontal(area, limoni.Percentage(25), limoni.Percentage(75
 
 ---
 
+## 🌐 Tarayıcıda Göstermek (`limoni serve`)
+
+`limoni serve` bir programı her tarayıcı sekmesi için gerçek bir sözde
+terminalde (PTY) bir kez çalıştırır ve xterm.js ile çizer. Terminali açık
+olmayan birine uygulama göstermek içindir: demo, atölye, ekran paylaşımı.
+
+```bash
+go build -o myapp .
+go run github.com/thebanri/limoni/cmd/limoni@latest serve ./myapp
+#   http://127.0.0.1:7681/?token=3f9c…
+```
+
+Önce derleyin: `go run .` ile her sekme programı yeniden derler. Program
+sizin kullanıcınızla çalışır; bu yüzden sunucu yalnızca loopback'te dinler ve
+her istek açılışta yazdırılan rastgele token'ı taşımalıdır. `-addr :8080`
+diğer makinelere açar (açılırken bunu söyler), `-max` aynı anda kaç kopya
+çalışacağını sınırlar, sekmeyi kapatmak o kopyayı sonlandırır. Linux ve macOS.
+
+Limoni'yi WebAssembly'ye derleyen [tarayıcı oyun alanının](https://thebanri.github.io/limoni/)
+aksine burada çalışan program yerel ikili dosyadır; yalnızca Limoni
+uygulamaları değil, her terminal programı çalışır.
+
 ## 📚 Diğer Kaynaklar
 
 - [Çekirdek Motor API'leri (docs/core-api.md)](../core-api.md)

@@ -57,6 +57,8 @@ func run(args []string, out io.Writer) error {
 		return runNew(args[1:], out)
 	case "doctor":
 		return runDoctor(out)
+	case "serve":
+		return runServe(args[1:], out)
 	case "version":
 		fmt.Fprintf(out, "limoni scaffold (limoni %s)\n", limoniVersion)
 		return nil
@@ -77,6 +79,7 @@ Commands:
   limoni new <name>          Create directory <name> and write an application into it
                              (-template counter|dashboard|form|ssh; each comes with a uitest test)
   limoni doctor              Ask the terminal what it supports; paste this in bug reports
+  limoni serve <program>     Run <program> in the browser, one copy per tab (xterm.js)
   limoni version             Print version information
 
 Options:
