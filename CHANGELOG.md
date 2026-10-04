@@ -9,11 +9,12 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Changed
-- Test coverage of the library packages: 76.6% → about 80% (measured
-  without the examples, apps and benchmark runners). New tests for the
+- Test coverage of the library packages: 76.6% → 80.0% (16,910 of 21,137
+  statements, measured without the examples, apps and benchmark runners). New tests for the
   graphics loaders reading files (#37), `limoni doctor`'s report (#38),
   `Image`, TreeView's keyboard, Table's horizontal scrolling and grid
-  joins, and filled and textured triangles; two of them found the bugs
+  joins, filled and textured triangles, `component`'s event handlers and
+  dividers, and every kind of `ClickAction`, in front of and behind a modal; two of them found the bugs
   listed under Fixed.
 
 ### Fixed
