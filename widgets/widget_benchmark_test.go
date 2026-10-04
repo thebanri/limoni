@@ -245,3 +245,108 @@ func BenchmarkButtonDraw(b *testing.B) {
 		w.Draw(ctx, buf)
 	}
 }
+
+// The widgets below register handlers or format text; drawn through a frame
+// they are held at zero by TestInteractiveWidgetsDrawWithoutAllocating in
+// benchmarks/. Here their drawing alone is held there by CI (#12).
+
+func BenchmarkTreeViewDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	tree := &TreeView{ID: "widget_id", State: NewTreeViewState(), ShowGuides: true, Roots: []TreeNode{
+		{ID: "src", Label: "src", Icon: "📁", Expanded: true, Children: []TreeNode{{ID: "a", Label: "main.go"}, {ID: "b", Label: "util.go"}}},
+		{ID: "doc", Label: "docs"},
+	}}
+	tree.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tree.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkToastDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	tm := NewToastManager(ToastTopRight)
+	tm.Success("Saved", "3 files written")
+	tm.Error("Failed", "network unreachable")
+	tm.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tm.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkDialogDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	d := &Dialog{ID: "widget_id", Title: "Quit?", Message: "You have unsaved changes in three files.",
+		SubMessage: "They will be lost.", Buttons: []DialogButton{{Text: "Save"}, {Text: "Discard"}}, State: &DialogState{}}
+	d.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		d.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkSelectOpenDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	state := NewSelectState()
+	state.Open = true
+	s := &Select{ID: "widget_id", Options: []string{"small", "medium", "large"}, State: state}
+	s.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkColorPickerDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	cp := &ColorPicker{ID: "widget_id", State: NewColorPickerState(200, 120, 40)}
+	cp.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cp.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkCommandPaletteOpenDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	state := NewCommandPaletteState()
+	state.AllItems = []CommandItem{{Label: "Open file", Detail: "Ctrl+O"}, {Label: "Save", Detail: "Ctrl+S"}}
+	state.Open()
+	cp := &CommandPalette{ID: "widget_id", State: state}
+	cp.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cp.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkTextAreaDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	state := NewTextAreaState()
+	state.SetValue("a message that wraps over more than one row of the area,\nand a second line")
+	ta := TextArea{ID: "widget_id", State: state, Focused: true}
+	ta.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ta.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkMarkdownBlocksDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	md := NewMarkdown("### Steps\n1. one\n   - nested\n> a quote\n```go\nfunc main() {}\n```\n| a | b |\n|---|--:|\n| x | 1 |\n")
+	md.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		md.Draw(ctx, buf)
+	}
+}
