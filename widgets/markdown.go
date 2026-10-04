@@ -160,7 +160,7 @@ func appendClusters(row []cell.Cell, text string, style cell.Style, width int) [
 // out as a unit (a table).
 type markdownLine struct {
 	isDivider bool
-	isHeader  bool // a level 1 or 2 heading: two blank rows follow it
+	isHeader  bool // a level 1 or 2 heading with text right below it: a blank row follows
 	prefix    string
 	// prefixStyle draws the prefix; zero is the list marker colour.
 	prefixStyle cell.Style
@@ -373,7 +373,9 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 			text = rest
 			heading := theme.Headings[level-1]
 			lineStyle = lineStyle.Merge(heading)
-			line.isHeader = level <= 2
+			// A blank row sets a main heading off from what follows, unless
+			// the source already has one there.
+			line.isHeader = level <= 2 && i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != ""
 			if heading.Bg.Type() != cell.ColorDefault {
 				text = " " + text + " "
 			}
@@ -736,7 +738,7 @@ func (m *Markdown) buildRows(width uint16, baseStyle cell.Style, placements []ma
 		}
 		rows = append(rows, row)
 		if line.isHeader {
-			rows = append(rows, blank(), blank())
+			rows = append(rows, blank())
 		}
 	}
 	return rows, placements
@@ -931,7 +933,7 @@ func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
 			h++
 			continue
 		case line.isHeader:
-			h += 3
+			h += 2
 		default:
 			h++
 		}

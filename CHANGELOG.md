@@ -31,6 +31,10 @@ a patch bump (`v0.x.y`) does not.
   row so the selected row's text does not move.
 
 ### Changed
+- A level 1 or 2 heading in `Markdown` is followed by one blank row, or by
+  the source's own blank line when it has one. It was always two more, so a
+  heading with a blank line after it — the usual way to write one — stood
+  three rows above its text.
 - The diff skips unchanged rows with one memory compare each:
   `BenchmarkDiff_PartialChanges` 26.4 → 11.3 µs, `BenchmarkDiff_FullChanges`
   +1.5%, measured back to back on one machine.

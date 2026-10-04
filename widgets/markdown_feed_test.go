@@ -13,7 +13,7 @@ import (
 // reader must see the punctuation, not the backslashes.
 func TestMarkdownBackslashEscapes(t *testing.T) {
 	_, _, rows := drawMarkdown(t, "## 1\\. Investigate\nAirPods \\| Photo\n\\# Comments: 3\n\\- not a list", 40, 8)
-	want := []string{"1. Investigate", "", "", "AirPods | Photo", "# Comments: 3", "- not a list"}
+	want := []string{"1. Investigate", "", "AirPods | Photo", "# Comments: 3", "- not a list"}
 	for i, w := range want {
 		if rows[i] != w {
 			t.Fatalf("row %d = %q, want %q\nrows %q", i, rows[i], w, rows)
@@ -105,7 +105,7 @@ func TestMarkdownTheme(t *testing.T) {
 	if c := buf.CellAt(0, 0); c.Style.Bg != pink {
 		t.Errorf("the heading's padding is not on its background: %+v", c.Style)
 	}
-	if c := buf.CellAt(0, 3); c.Style.Fg != pink {
+	if c := buf.CellAt(0, 2); c.Style.Fg != pink {
 		t.Errorf("the bullet is not in the theme's colour: %+v", c.Style)
 	}
 
@@ -114,7 +114,19 @@ func TestMarkdownTheme(t *testing.T) {
 	theme.Bullet = cell.Style{Fg: cell.NewColorRGB(1, 2, 3)}
 	buf = buffer.NewBuffer(area)
 	md.Draw(cell.NewContext(area, cell.Style{}), buf)
-	if c := buf.CellAt(0, 3); c.Style.Fg != theme.Bullet.Fg {
+	if c := buf.CellAt(0, 2); c.Style.Fg != theme.Bullet.Fg {
 		t.Errorf("a changed theme was not redrawn: %+v", c.Style)
+	}
+}
+
+// A main heading is set off by one blank row: its own when text follows
+// it at once, the source's when there is one. Two were added whatever the
+// source had, so "# Title" and a blank line made three.
+func TestMarkdownHeadingSpacing(t *testing.T) {
+	for _, src := range []string{"# Title\ntext", "# Title\n\ntext"} {
+		_, _, rows := drawMarkdown(t, src, 20, 4)
+		if rows[0] != "Title" || rows[1] != "" || rows[2] != "text" {
+			t.Errorf("%q drew %q", src, rows[:3])
+		}
 	}
 }
