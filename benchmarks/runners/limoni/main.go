@@ -57,7 +57,11 @@ func main() {
 	// Ultraviolet emits ECH/REP too, so enabling them here compares the same
 	// class of encoding rather than handicapping one side. Truecolor is pinned
 	// for the same reason.
-	diffOpts := buffer.DiffOptions{TrueColor: true, Colors256: true, EraseChar: true, RepeatChar: true}
+	// Every encoding the diff has, as Ultraviolet uses all of its own:
+	// ECH/EL and REP for runs, scroll regions (DECSTBM + SU/SD) for rows that
+	// moved, and ICH/DCH for rows whose text shifted.
+	diffOpts := buffer.DiffOptions{TrueColor: true, Colors256: true, EraseChar: true, RepeatChar: true,
+		ScrollRegions: true, InsertDelete: true}
 
 	workloads := make([]benchmarks.WorkloadReport, 0, len(specs))
 	for _, spec := range specs {

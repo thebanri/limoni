@@ -16,11 +16,11 @@
 | **External Dependencies** | **2 (`golang.org/x/sys`, `golang.org/x/crypto`)** | ~15 transitive modules | ~15 transitive modules | crates.io graph |
 | **Concurrency Model**  | **Synchronized Model Lifecycle & Event Loops** | Single-threaded TEA loop | Single-threaded TEA loop | Manual thread coordination |
 
-> ¹ Scroll regions and `ICH`/`DCH` landed after the published cross-framework runs: the Limoni runner in `benchmarks/runners/limoni` does not turn them on, so none of the byte counts in [benchmarks](benchmarks.md) include them. On a one-line log scroll they take an 80×24 frame from 1,189 bytes to 125, and a character typed at the start of a line from 77 bytes to 11 (`core/buffer/vt_test.go`); those are Limoni-only numbers, not a comparison. Quoting a ratio against Ultraviolet with them needs the runs repeated as [the methodology](benchmark-methodology.md) describes.
+> ¹ The cross-framework runs use scroll regions and `ICH`/`DCH` since #55, as Ultraviolet uses its own. They change no byte count in that suite, whose workloads do not scroll; on a log gaining a line they take an 80×24 frame from 1,189 bytes to 125 (`core/buffer/vt_test.go`). Turning them on in the runner showed that the scroll search taxed every frame, which is fixed; on frames whose content really moves it still costs up to 18 µs ([§2.6](benchmark-methodology.md#26-scroll-regions-and-ichdch-55)).
 >
 > **On the Bubble Tea v2 column:** the entries are taken from upstream documentation, not from Limoni's own measurements. Charm rebuilt its renderer on [Ultraviolet](https://github.com/charmbracelet/ultraviolet), a cell-based diffing layer, so the architectural gap Limoni originally opened against **v1** does not carry over to **v2** unchanged.
 >
-> Ultraviolet *is* now measured here, and Limoni is 1.9×–20× faster on the comparable render workloads while emitting far fewer bytes per frame ([§2.4](benchmark-methodology.md#24-ultraviolet)). That is **not** a Bubble Tea v2 result: a v2 program also pays for its runtime, message dispatch and view construction, none of which this measures. No runner in this repository links Bubble Tea v2, so treat any performance claim against v2 itself as unproven.
+> Ultraviolet *is* now measured here, and Limoni is 3.3×–37× faster on the comparable render workloads while emitting far fewer bytes per frame ([§2.4](benchmark-methodology.md#24-ultraviolet)). That is **not** a Bubble Tea v2 result: a v2 program also pays for its runtime, message dispatch and view construction, none of which this measures. No runner in this repository links Bubble Tea v2, so treat any performance claim against v2 itself as unproven.
 
 ## 🍋 Limoni Composable (Lego UI) vs. 🎀 Charm Lip Gloss **v1**
 

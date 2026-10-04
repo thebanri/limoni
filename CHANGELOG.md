@@ -9,6 +9,15 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Changed
+- The diff skips unchanged rows with one memory compare each:
+  `BenchmarkDiff_PartialChanges` 26.4 → 11.3 µs, `BenchmarkDiff_FullChanges`
+  +1.5%, measured back to back on one machine.
+- The cross-framework runner uses scroll regions and ICH/DCH, as Ultraviolet
+  uses its own, and the published comparison was re-run (#55): against
+  Ultraviolet 3.3×–37×, against Ratatui 0.30.2 1.3×–7.5× on the comparable
+  workloads. Two workloads are slower with the option than without it
+  (`table-10000` 93 → 111 µs, `full-redraw-120x40` 56 → 59 µs); the
+  methodology's §2.6 has every number, before and after.
 - Test coverage of the library packages: 76.6% → 80.0% (16,910 of 21,137
   statements, measured without the examples, apps and benchmark runners). New tests for the
   graphics loaders reading files (#37), `limoni doctor`'s report (#38),
@@ -18,6 +27,15 @@ a patch bump (`v0.x.y`) does not.
   listed under Fixed.
 
 ### Fixed
+- The scroll search taxed every frame of every application (scroll regions
+  are on by default): it hashed every row of both buffers, field by field,
+  whether anything had scrolled or not. A one-cell change cost 26.9 µs
+  instead of 9.8 in the cross-framework runner. It now bails out on a plain
+  row compare, rules frames out by a key of each row's first cells, hashes
+  with `maphash`, and tries only the shifts the keys allow; a one-cell change
+  is 4.0 µs. It also scrolled when scrolling cost more than the plain diff
+  (a table sent 339 bytes a frame instead of 298); it now scrolls only when
+  that writes fewer cells (#55).
 - On Windows, closing a backend while its event channel was full left the
   input loop blocked forever: it sent without watching for the close. The
   three copies of the input loop (portable, Unix TTY, Windows) are now one,

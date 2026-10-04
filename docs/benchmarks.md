@@ -61,6 +61,18 @@ one machine. Reproduce with the command above.
 > re-measured, so compare the ratios, not the rows.
 
 > [!NOTE]
+> **The diff skips unchanged rows now (#55).** Each row is compared with one
+> memory compare before its cells are looked at. Measured back to back on the
+> machine above against the commit before (`-count=5`, medians):
+> `BenchmarkDiff_PartialChanges` 26.4 → 11.3 µs, `BenchmarkDiff_FullChanges`
+> 61.2 → 62.1 µs (+1.5%: every row is checked and none is skipped),
+> `BenchmarkDiff_NoChanges` unchanged. With scroll regions on, as applications
+> have them, a one-cell change went from 62 to 4 µs; see
+> [the methodology, §2.6](benchmark-methodology.md#26-scroll-regions-and-ichdch-55).
+> The absolute figures in the table were not re-measured, so compare the
+> ratios, not the rows.
+
+> [!NOTE]
 > **Transparency & Engineering Integrity Guarantee**:
 > We do not use synthetic shortcuts, artificial buffer clears, or zero-offset static loops.
 > - **Diff Benchmarks**: Run against a persistent double-buffer where cells genuinely mutate every single frame, forcing the full diff algorithm and ANSI encoder to run end-to-end.

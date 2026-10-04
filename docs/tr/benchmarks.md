@@ -58,6 +58,17 @@ orandır. Yukarıdaki komutla yeniden üretilebilir.
 > değil oranları karşılaştırın.
 
 > [!NOTE]
+> **Diff artık değişmeyen satırları atlıyor (#55).** Her satır, hücrelerine
+> bakılmadan önce tek bir bellek karşılaştırmasıyla denetleniyor. Yukarıdaki
+> makinede bir önceki commit'e karşı arka arkaya ölçüldü (`-count=5`, medyan):
+> `BenchmarkDiff_PartialChanges` 26,4 → 11,3 µs, `BenchmarkDiff_FullChanges`
+> 61,2 → 62,1 µs (+%1,5: her satır denetleniyor ve hiçbiri atlanmıyor),
+> `BenchmarkDiff_NoChanges` değişmedi. Uygulamalarda olduğu gibi kaydırma
+> bölgeleri açıkken tek hücrelik bir değişiklik 62 µs'den 4 µs'ye indi;
+> bkz. [metodoloji, §2.6](../benchmark-methodology.md#26-scroll-regions-and-ichdch-55).
+> Tablodaki mutlak sayılar yeniden ölçülmedi; satırları değil oranları karşılaştırın.
+
+> [!NOTE]
 > **Şeffaflık ve Mühendislik Dürüstlüğü Garantisi**:
 > Sentetik kısayollar, yapay tampon temizlemeleri veya statik sıfır-offset döngüleri kullanılmaz.
 > - **Diff Kıyaslamaları**: Hücrelerin her karede bizzat değiştiği kalıcı çift tampon üzerinde çalışır; diff motorunu ve ANSI kodlayıcısını uçtan uca çalıştırır.

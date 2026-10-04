@@ -147,19 +147,27 @@ v0.0.0-20260703014108-f5a850f9c2b7`.
 #### Comparable workloads
 
 Three runs per implementation, 1,000 frames each, run sequentially on one
-machine. The figure is the median p50 across the three runs; ± is the full
-spread, `(max − min) / median`.
+machine: AMD Ryzen 5 5600, Linux 7.2.9, Go 1.27.1, 2026-10-04. The figure is
+the median p50 across the three runs; ± is the full spread,
+`(max − min) / median`. The Limoni runner uses every encoding the diff has,
+scroll regions and ICH/DCH included, as Ultraviolet uses all of its own
+([§2.6](#26-scroll-regions-and-ichdch-55)).
 
 | Workload | Limoni | Ultraviolet | ratio | Limoni bytes/frame | UV bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `table-10000` | 87.7 µs ±1% | 337.1 µs ±1% | 3.8× | 298 | 1136 |
-| `hundred-layers` | 79.5 µs ±0% | 319.7 µs ±1% | 4.0× | 110 | 11743 |
-| `virtual-1000000` | 92.1 µs ±5% | 388.8 µs ±1% | 4.2× | 0 | 1888 |
-| `full-redraw-120x40` | 56.6 µs ±2% | 475.6 µs ±0% | 8.4× | 377 | 6329 |
-| `single-cell-update` | 9.4 µs ±0% | 89.7 µs ±1% | 9.5× | 7 | 3 |
-| `resize` | 8.7 µs ±14% | 89.8 µs ±0% | 10.4× | 162 | 8 |
-| `text-heavy-120x40` | 14.7 µs ±0% | 285.0 µs ±1% | 19.5× | 0 | 0 |
-| `unicode-emoji` | 6.5 µs ±1% | 138.0 µs ±1% | 21.3× | 0 | 25 |
+| `table-10000` | 111.3 µs ±0% | 368.7 µs ±1% | 3.3× | 298 | 1136 |
+| `hundred-layers` | 79.5 µs ±2% | 329.1 µs ±0% | 4.1× | 110 | 11743 |
+| `virtual-1000000` | 84.3 µs ±8% | 442.2 µs ±4% | 5.2× | 0 | 1888 |
+| `resize` | 11.9 µs ±12% | 91.8 µs ±4% | 7.7× | 162 | 8 |
+| `full-redraw-120x40` | 58.8 µs ±0% | 475.6 µs ±0% | 8.1× | 377 | 6329 |
+| `single-cell-update` | 4.0 µs ±8% | 89.7 µs ±1% | 22.6× | 7 | 3 |
+| `text-heavy-120x40` | 9.5 µs ±12% | 348.6 µs ±1% | 36.7× | 0 | 0 |
+| `unicode-emoji` | 4.7 µs ±11% | 171.2 µs ±1% | 36.7× | 0 | 0 |
+
+The ratios are larger than in the previous run (3.8×–21.3×) mostly because the
+diff now skips unchanged rows with one memory compare each, not because of the
+scroll regions: those change no byte count in this suite. [§2.6](#26-scroll-regions-and-ichdch-55)
+has both, before and after, on the same machine.
 
 Byte counts were **bit-identical across all three runs** for every workload and
 every implementation, so that column carries no spread.
@@ -267,17 +275,18 @@ its own successor. Four defects, in descending order of severity:
 #### Comparable workloads
 
 Three runs per implementation, 1,000 frames each, run sequentially on one
-machine, rustc 1.98.1. Median p50 across the three runs; ± is the full spread.
+machine (as above), rustc 1.99.0. Median p50 across the three runs; ± is the
+full spread.
 
 | Workload | Limoni | Ratatui 0.30.2 | ratio | Limoni bytes/frame | Ratatui bytes/frame |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `hundred-layers` | 79.5 µs ±0% | 106.3 µs ±2% | 1.3× | 110 | 911 |
-| `single-cell-update` | 9.4 µs ±0% | 15.9 µs ±3% | 1.7× | 7 | 32 |
-| `virtual-1000000` | 92.1 µs ±5% | 139.4 µs ±0% | 1.5× | 0 | 25 |
-| `full-redraw-120x40` | 56.6 µs ±2% | 173.6 µs ±2% | 3.1× | 377 | 5828 |
-| `unicode-emoji` | 6.5 µs ±1% | 27.9 µs ±1% | 4.3× | 0 | 25 |
-| `text-heavy-120x40` | 14.7 µs ±0% | 64.6 µs ±2% | 4.4× | 0 | 25 |
-| `resize` | 8.7 µs ±14% | 95.3 µs ±25% | 11.0× | 162 | 1856 |
+| `hundred-layers` | 79.5 µs ±2% | 104.0 µs ±0% | 1.3× | 110 | 911 |
+| `virtual-1000000` | 84.3 µs ±8% | 141.6 µs ±1% | 1.7× | 0 | 25 |
+| `full-redraw-120x40` | 58.8 µs ±0% | 174.4 µs ±0% | 3.0× | 377 | 5828 |
+| `single-cell-update` | 4.0 µs ±8% | 16.2 µs ±3% | 4.1× | 7 | 32 |
+| `unicode-emoji` | 4.7 µs ±11% | 29.3 µs ±1% | 6.3× | 0 | 25 |
+| `text-heavy-120x40` | 9.5 µs ±12% | 66.7 µs ±2% | 7.0× | 0 | 25 |
+| `resize` | 11.9 µs ±12% | 89.9 µs ±0% | 7.5× | 162 | 1856 |
 
 Byte counts were bit-identical across all three runs.
 
@@ -347,6 +356,48 @@ The report's `ratatui_version` field is stamped from `Cargo.lock` at build time
 by `build.rs`, so the version label cannot drift from what was linked.
 
 ---
+
+### 2.6 Scroll regions and ICH/DCH (#55)
+
+The diff can move rows that scrolled (DECSTBM + SU/SD) and shift text within
+a row (ICH/DCH). Applications get both by default; the Limoni runner had
+neither, so no published byte count included them. Turning them on in the
+runner is what this section measures: Limoni only, three runs each, same
+machine and day as above.
+
+| Workload | off, before | on, before the fix | on, now | bytes/frame |
+| :--- | ---: | ---: | ---: | ---: |
+| `single-cell-update` | 9.8 µs ±11% | 26.9 µs ±0% | 4.0 µs ±8% | 7 |
+| `text-heavy-120x40` | 13.9 µs ±1% | 56.0 µs ±3% | 9.5 µs ±12% | 0 |
+| `unicode-emoji` | 6.5 µs ±25% | 23.2 µs ±3% | 4.7 µs ±11% | 0 |
+| `native-image-capability` | 10.7 µs ±6% | 26.8 µs ±3% | 8.2 µs ±24% | 0 |
+| `virtual-1000000` | 88.4 µs ±3% | 130.1 µs ±6% | 84.3 µs ±8% | 0 |
+| `hundred-layers` | 79.5 µs ±0% | 99.0 µs ±0% | 79.5 µs ±2% | 110 |
+| `resize` | 11.7 µs ±5% | 12.2 µs ±5% | 11.9 µs ±12% | 162 |
+| `full-redraw-120x40` | 56.3 µs ±0% | 98.3 µs ±0% | **58.8 µs ±0%** | 377 |
+| `table-10000` | 93.2 µs ±0% | 154.9 µs ±1% | **111.3 µs ±0%** | 298 (339 before the fix) |
+
+**Turning them on found a bug.** The scroll search hashed every row of both
+buffers on every frame, whether anything had scrolled or not, with FNV over
+each field of each cell: a one-cell update cost 26.9 µs instead of 9.8, and
+every application paid it, because applications have the option on. It now
+counts changed rows with a memory compare first and stops when fewer than two
+changed, rules out the remaining frames by a key of each row's first eight
+cells, hashes with `maphash` only when a scroll is still possible, and tries
+only the shifts the keys allow. The diff also skips unchanged rows with one
+memory compare each, which is what made most workloads faster than with the
+option off. `table-10000` sent *more* bytes with scroll regions (339 against
+298): the selection bar moving down the table matched many rows shifted, but
+in place each of them differed in a few digits only. A scroll is now taken
+only when it writes fewer cells than the plain diff would.
+
+**Where it is still slower.** `table-10000` costs 111.3 µs against 93.2 µs
+with the option off, and `full-redraw-120x40` 58.8 against 56.3. In both the
+content really moves, so the search runs, finds a shift, and the cost check
+then turns it down. That is the price of looking. None of this suite's
+workloads is a log gaining a line, where scrolling pays: 1,189 bytes become
+125 for an 80×24 frame (`core/buffer/vt_test.go`), and the diff with the
+option on handles that case in 29 µs (`BenchmarkDiff_ScrollRegions_LogScroll`).
 
 ## 3. Workloads
 
