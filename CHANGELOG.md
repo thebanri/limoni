@@ -9,6 +9,11 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Added
+- The mouse can be left to the terminal: `limoni.WithoutMouse()`,
+  `limoni.WithoutProgramMouse()`, and `Terminal.SetMouse` /
+  `Backend.SetMouse` to change it while running. Off, no clicks, wheel or
+  pointer movement reach the application and text can be selected without
+  Shift. The choice holds through Suspend and Release.
 - `ExecCmd` and `Terminal.Release` work on Windows. The console reader
   waits on the console handle and a wake-up event and reads only when a key
   press with text is queued, so it can be stopped while another program

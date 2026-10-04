@@ -173,6 +173,12 @@ func WithPanicHandler(handler func(any)) ProgramOption { return engine.WithPanic
 // such as one from package backdrop. It mirrors WithBackdrop for Run.
 func WithProgramBackdrop(bg Backdrop) ProgramOption { return engine.WithBackdrop(bg) }
 
+// WithoutProgramMouse leaves the mouse to the terminal: no clicks, wheel or
+// pointer movement reach the model, and text can be selected as in a shell,
+// without holding Shift. Most terminals turn the wheel into arrow keys on the
+// alternate screen.
+func WithoutProgramMouse() ProgramOption { return engine.WithoutMouse() }
+
 // WithProgramFPS sets a continuous redraw rate for a Program, for a View that
 // changes without messages. Without it a Program draws only when something
 // happens (input, a redraw request, an Update) and uses no CPU while idle.

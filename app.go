@@ -106,6 +106,7 @@ type appConfig struct {
 	automationPath   string
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
+	noMouse          bool
 	suspendOnCtrlZ   bool
 	title            string
 	hasTitle         bool
@@ -175,6 +176,16 @@ func WithSuspend() AppOption {
 func WithInline(height uint16) AppOption {
 	return func(c *appConfig) {
 		c.inlineHeight = height
+	}
+}
+
+// WithoutMouse leaves the mouse to the terminal: no clicks, wheel or pointer
+// movement reach the application, and text can be selected as in a shell,
+// without holding Shift. Most terminals turn the wheel into arrow keys on the
+// alternate screen. Terminal.SetMouse changes it while running.
+func WithoutMouse() AppOption {
+	return func(c *appConfig) {
+		c.noMouse = true
 	}
 }
 
@@ -250,7 +261,7 @@ func RunWithContext(ctx context.Context, appFn func(f *Frame, ev *Event) bool, o
 		}
 	}
 
-	term, err := NewInline(cfg.inlineHeight)
+	term, err := newTerminal(cfg.inlineHeight, !cfg.noMouse)
 	if err != nil {
 		return err
 	}

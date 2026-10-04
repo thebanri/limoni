@@ -34,6 +34,7 @@ type Backend struct {
 	reader     *ttyReader  // reads the terminal; paused while it is released
 	released   atomic.Bool // the terminal belongs to another program (Release)
 	setUp      bool        // Setup has run
+	mouse      mouseCapture
 }
 
 // SetInline switches the backend to inline rendering: no alternate screen, the
@@ -116,10 +117,8 @@ func (b *Backend) Setup() error {
 	// Inline mode keeps the normal screen buffer and leaves auto-wrap on: the
 	// frame lives among the user's scrollback rather than replacing it, and a
 	// row that overflows should wrap the way ordinary terminal output does.
-	setupCmds := fullScreenSetupCmds()
-	if height := b.Inline(); height > 0 {
-		setupCmds = inlineSetupCmds(height)
-	}
+	setupCmds := setupSequence(b.Inline(), b.mouse.enabled())
+	b.mouse.active.Store(true)
 	setupCmds = b.replies.withProbe(setupCmds)
 	if b.portableIO != nil {
 		_, err := b.portableIO.Write([]byte(setupCmds))

@@ -11,6 +11,7 @@ import (
 // Backend is the portable IO/event shell. Platform-specific raw mode and
 // signal implementations can wrap TerminalIO without changing the parser.
 type Backend struct {
+	mouse         mouseCapture
 	in            io.Reader
 	out           io.Writer
 	width, height uint16

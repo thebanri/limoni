@@ -33,6 +33,9 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 	// the kitty keyboard flags.
 	defer term.RestoreModes()
 	b.StartEventLoop()
+	if p.noMouse {
+		_ = term.SetMouse(false)
+	}
 	if p.backdrop != nil {
 		term.SetBackdrop(p.backdrop)
 	}
@@ -171,6 +174,7 @@ type programOptions struct {
 	fps          int
 	altScreen    bool
 	catchCtrlC   bool
+	noMouse      bool
 	observer     Observer
 	backdrop     terminal.Backdrop
 }
@@ -212,6 +216,9 @@ func WithPanicHandler(handler func(any)) Option {
 func WithCatchCtrlC(catch bool) Option {
 	return func(opts *programOptions) { opts.catchCtrlC = catch }
 }
+
+// WithoutMouse leaves the mouse to the terminal; see terminal.Terminal.SetMouse.
+func WithoutMouse() Option { return func(opts *programOptions) { opts.noMouse = true } }
 
 // WithoutDefaultQuitKeys disables automatic termination on Ctrl+C in RunTerminal.
 func WithoutDefaultQuitKeys() Option {
@@ -268,6 +275,7 @@ type Program struct {
 	fps        int
 	altScreen  bool
 	catchCtrlC bool
+	noMouse    bool
 	backdrop   terminal.Backdrop
 
 	observer Observer
@@ -315,6 +323,7 @@ func New(options ...Option) *Program {
 		backdrop:       opts.backdrop,
 		altScreen:      opts.altScreen,
 		catchCtrlC:     opts.catchCtrlC,
+		noMouse:        opts.noMouse,
 		observer:       opts.observer,
 		stop:           make(chan struct{}),
 		notifications:  make(chan Notification, 4),

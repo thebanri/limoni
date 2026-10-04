@@ -353,6 +353,16 @@ func (t *Terminal) Suspend() error {
 	return nil
 }
 
+// SetMouse says whether the application takes the mouse; see
+// driver.Backend.SetMouse. Off, the terminal keeps the mouse for selecting
+// text, and no clicks, wheel or pointer movement reach the application.
+func (t *Terminal) SetMouse(enabled bool) error {
+	if t == nil || t.driver == nil {
+		return nil
+	}
+	return t.driver.SetMouse(enabled)
+}
+
 // Release hands the terminal to fn — an editor, a pager, a shell — and takes
 // it back when fn returns, with raw mode and the screen set up again and the
 // next frame forced to repaint in full. Nothing may draw while fn runs; the

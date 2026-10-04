@@ -181,8 +181,15 @@ func New() (*Terminal, error) {
 // many rows in the normal screen buffer instead of switching to the alternate
 // screen, leaving the scrollback and the drawn frame in place on exit.
 func NewInline(height uint16) (*Terminal, error) {
+	return newTerminal(height, true)
+}
+
+// newTerminal is NewInline, with mouse reporting decided before the setup
+// sequence is sent.
+func newTerminal(height uint16, mouse bool) (*Terminal, error) {
 	b := driver.NewBackend(os.Stdin, os.Stdout)
 	b.SetInline(height)
+	_ = b.SetMouse(mouse)
 	if err := b.Setup(); err != nil {
 		return nil, err
 	}

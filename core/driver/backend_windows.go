@@ -32,6 +32,7 @@ type Backend struct {
 	looping      atomic.Bool
 	setUp        bool           // Setup has run
 	reader       *consoleReader // reads the console; paused while it is released
+	mouse        mouseCapture
 }
 
 // NewBackend returns a new Windows Backend.
@@ -86,10 +87,8 @@ func (b *Backend) Setup() error {
 	}
 	b.setUp = true
 	if b.portableIO != nil {
-		setupCmds := fullScreenSetupCmds()
-		if height := b.Inline(); height > 0 {
-			setupCmds = inlineSetupCmds(height)
-		}
+		setupCmds := setupSequence(b.Inline(), b.mouse.enabled())
+		b.mouse.active.Store(true)
 		setupCmds = b.replies.withProbe(setupCmds)
 		_, err := b.portableIO.Write([]byte(setupCmds))
 		return err
@@ -101,10 +100,8 @@ func (b *Backend) Setup() error {
 	}
 	b.state = state
 
-	setupCmds := fullScreenSetupCmds()
-	if height := b.Inline(); height > 0 {
-		setupCmds = inlineSetupCmds(height)
-	}
+	setupCmds := setupSequence(b.Inline(), b.mouse.enabled())
+	b.mouse.active.Store(true)
 	setupCmds = b.replies.withProbe(setupCmds)
 	if _, err := b.out.WriteString(setupCmds); err != nil {
 		b.Close()

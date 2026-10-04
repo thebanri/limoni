@@ -188,10 +188,8 @@ func (b *Backend) handOver(fn func() error) error {
 		return fmt.Errorf("limoni: resume: %w", err)
 	}
 	b.state = state
-	setup := fullScreenSetupCmds()
-	if height := b.Inline(); height > 0 {
-		setup = inlineSetupCmds(height)
-	}
+	setup := setupSequence(b.Inline(), b.mouse.enabled())
+	b.mouse.active.Store(true)
 	// The terminal may be a different one, or the same one reconfigured, so
 	// ask it again what it supports.
 	setup = b.replies.withProbe(setup)

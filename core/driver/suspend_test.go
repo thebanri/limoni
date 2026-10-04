@@ -4,7 +4,10 @@ package driver
 
 import (
 	"os"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -145,5 +148,44 @@ func TestSetupTwiceStillRestoresTheTerminal(t *testing.T) {
 	}
 	if tio.Lflag&unix.ECHO == 0 || tio.Lflag&unix.ICANON == 0 {
 		t.Fatal("Close left the terminal in raw mode after a second Setup")
+	}
+}
+
+// The application's choice about the mouse holds through a suspend: the
+// setup sent on resume asks for no mouse reporting either.
+func TestSuspendKeepsTheMouseOff(t *testing.T) {
+	t.Setenv("LIMONI_PROBE", "0")
+	master, slave := openPTY(t)
+	var out strings.Builder
+	var mu sync.Mutex
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := master.Read(buf)
+			mu.Lock()
+			out.Write(buf[:n])
+			mu.Unlock()
+			if err != nil {
+				return
+			}
+		}
+	}()
+	b := NewBackend(slave, slave)
+	_ = b.SetMouse(false)
+	if err := b.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	restore := stopSelf
+	stopSelf = func() error { return nil }
+	t.Cleanup(func() { stopSelf = restore })
+	if err := b.Suspend(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	if s := out.String(); strings.Count(s, "\x1b[?1049h") != 2 || strings.Contains(s, "\x1b[?1003h") {
+		t.Fatalf("the mouse was asked for around the suspend: %q", s)
 	}
 }

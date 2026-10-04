@@ -10,6 +10,7 @@ import (
 
 // Backend manages WebAssembly browser execution with xterm.js / DOM events.
 type Backend struct {
+	mouse        mouseCapture
 	events       chan Event
 	done         chan struct{}
 	width        uint16
@@ -96,10 +97,8 @@ func (b *Backend) Setup() error {
 
 	// Written after the callbacks are registered, so the output bridge is in
 	// place by the time the first bytes are emitted.
-	setup := fullScreenSetupCmds()
-	if height := b.Inline(); height > 0 {
-		setup = inlineSetupCmds(height)
-	}
+	setup := setupSequence(b.Inline(), b.mouse.enabled())
+	b.mouse.active.Store(true)
 	// xterm.js answers the probe. There is no shell to leak late replies
 	// into, so Close does not wait for them here.
 	setup = b.replies.withProbe(setup)
