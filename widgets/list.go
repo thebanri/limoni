@@ -113,6 +113,10 @@ type List struct {
 	SelectedStyle cell.Style
 	// HighlightSymbol is the symbol placed left of the selected item (e.g. "> ").
 	HighlightSymbol string
+	// HighlightSpacing keeps the symbol's width free on every row, so the
+	// text of the selected row lines up with the rest instead of moving
+	// right when it is selected.
+	HighlightSpacing bool
 
 	// State points to the list's selected index and scroll state.
 	State *ListState
@@ -202,7 +206,7 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.IsFocused(l.ID) {
 		listStyle = listStyle.Merge(l.FocusedStyle)
 	}
-	selStyle := listStyle.Merge(l.SelectedStyle)
+	styler, _ := l.Provider.(ListStyler)
 
 	selected := -1
 	offset := 0
@@ -295,9 +299,11 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		isSel := itemIdx == selected
 		itemStyle := listStyle
-
+		if styler != nil {
+			itemStyle = itemStyle.Merge(styler.StyleAt(itemIdx))
+		}
 		if isSel {
-			itemStyle = selStyle
+			itemStyle = itemStyle.Merge(l.SelectedStyle)
 		}
 
 		// Clear and fill the row's background
@@ -321,12 +327,12 @@ func (l List) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// Draw the text (allocation-free string rendering)
 		textX := area.X
 		rightLimit := area.X + area.Width
-		if isSel && l.HighlightSymbol != "" {
+		if l.HighlightSymbol != "" && (isSel || l.HighlightSpacing) {
 			symWidth := uint16(cell.StringWidth(l.HighlightSymbol))
-			if textX < rightLimit {
+			if isSel && textX < rightLimit {
 				buf.SetStringWithin(textX, currY, l.HighlightSymbol, itemStyle, rightLimit-textX)
-				textX += symWidth
 			}
+			textX += symWidth
 		}
 		if textX < rightLimit {
 			buf.SetStringWithin(textX, currY, itemText, itemStyle, rightLimit-textX)

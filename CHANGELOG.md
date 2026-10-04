@@ -26,6 +26,9 @@ a patch bump (`v0.x.y`) does not.
   links, code, quotes, bullets, rules and image text. The default draws as
   before.
 - `graphics.FlattenImageRGB`, which takes no `color.Color`.
+- `List` rows styled by their provider (`ListStyler`), and
+  `List.HighlightSpacing`, which keeps the highlight symbol's width on every
+  row so the selected row's text does not move.
 
 ### Changed
 - The diff skips unchanged rows with one memory compare each:
