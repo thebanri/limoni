@@ -56,9 +56,8 @@ Write a `-benchmem` benchmark for every new widget and check `0 B/op`. If a widg
 genuinely cannot avoid allocating, say so in its doc comment with the measured
 number rather than leaving it for someone to discover.
 
-**Comments in English.** Parts of the codebase still carry Turkish comments
-(`widgets/`, `core/terminal/`, `graphics/`, `layout/`, `animation/`). New code is
-English; converting the rest is welcome. User-facing docs stay bilingual —
+**Comments in English.** The library's comments are English throughout
+(db87987); keep new code that way. User-facing docs stay bilingual —
 `README.md` / `README_TR.md` and `docs/` / `docs/tr/` — that is deliberate.
 
 **Benchmark honesty is a hard rule.** This repository publishes comparisons against
@@ -129,6 +128,7 @@ The package was renamed to `core/engine`; that doc is stale in places.
 | `testkit` | Deterministic in-memory terminal, golden files |
 | `uitest` | Playwright-style locators and waiting assertions over the semantic tree |
 | `automation` | Semantic tree over a Unix socket (wired into apps only with `-tags limoni_debug`) |
+| `cmd/limoni` | `new` (templates counter/dashboard/form/chat/ssh, each with a uitest test), `doctor`, and `serve`: a program per browser tab in a PTY, drawn by xterm.js, over an RFC 6455 WebSocket written in the standard library |
 | `cmd/limoni-mcp` | MCP bridge from agents to the automation socket |
 | `benchmarks` | Harness plus the cross-framework runners |
 | `apps/globe` | A searchable, zoomable ASCII globe — a separate module, so it ships to nobody |
@@ -227,6 +227,38 @@ with `golang.org/x/mod/zip`, rather than reasoning about it — that is how the
 14.3 MB was found in the first place. An untagged nested module still installs:
 `go install github.com/thebanri/limoni/apps/globe@latest` resolves to a
 pseudo-version of the default branch, so no `apps/globe/v0.1.0` tag is needed.
+
+**Injected input must look like a terminal's.** The parser reports the space
+bar as `KeySpace`, not `KeyRune ' '`. `uitest.Type` and the automation
+socket's `type_text` sent `KeyRune`, so tests typed spaces into a `TextArea`
+that ignored `KeySpace` and no user could. Inject typed text with
+`driver.KeyForRune`, and when a test passes but a real terminal fails, check
+the injected events against `driver.ParseEvent` of the real bytes.
+
+**A `Block` without `Borders` draws nothing** — not the border, not the title
+(the title lives on the top border). It hid the counter example's and every
+playground scene's frame. `limonivet` (run in CI) now reports it.
+
+**Go colours are premultiplied.** `color.Color.RGBA()` returns channels
+already multiplied by alpha; blending them as `fg*a + bg*(1-a)` weights alpha
+twice. Image's half-block blend did, and drew dark fringes.
+
+**Reverse video swaps explicit colours too.** A cursor drawn as reverse
+*and* black-on-white is shown white-on-black — invisible on a dark input.
+Mark a cursor with reverse video alone.
+
+**A closure that names a large struct moves it to the heap** on every call of
+the function that builds it, whether or not the closure is built: `Table`'s
+fallback click closure mentioned `t`, and every draw allocated. Copy the
+fields into locals, or build handlers once in the widget's state (the pattern
+every interactive widget now follows; `TestInteractiveWidgetsDrawWithoutAllocating`
+in `benchmarks/` holds them at zero through a real frame).
+
+**Look at it in a browser.** `limoni serve ./app` plus headless Chromium
+driven over CDP is how this repo's visual bugs were found: the invisible
+playground frames, emoji one column wide in xterm.js without the Unicode 11
+addon, the dropped spaces, the invisible cursor. `LIMONI_CAST=x.cast ./app`
+and `agg x.cast x.gif` record the same thing for a README.
 
 ---
 
@@ -403,7 +435,8 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    per border cell (~4%) and stays at zero allocations. Only the light set is
    merged — heavy and double lines have no honest junction with light ones.
 
-9. **Test coverage.** 72% across the library packages, up from 68%.
+9. **Test coverage.** 80.0% across the library packages (without examples,
+   apps and benchmark runners), up from 72%.
    awesome-go asks for 80% and will not consider the project before
    2027-01-06 anyway (they require five months of history).
 
@@ -415,9 +448,10 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    than once per frame.
 
    Still thin, and open as `testing` issues #35-#40 for contributors:
-   `cmd/limoni` (36%), `benchmarks` (56%), `testkit` (59%),
-   `compat/bubbletea` (60%), `core/accessibility` (65%), `core/driver` (69%),
-   `graphics` (69%), `widgets` (70%).
+   `benchmarks` (56%), `compat/bubbletea` (60%), `testkit` (62%),
+   `core/accessibility` (65%). The tests added for 80% found two bugs:
+   half-transparent image pixels blended twice, and `Sparkline`/`BarChart`
+   never drawing `▁`.
 
    Two things to know before writing tests here. Assert the answer, not the
    line: a test that only reaches code is worth nothing when the code is
