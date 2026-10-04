@@ -133,6 +133,8 @@ func (a *fakeApp) loop(stop chan struct{}) {
 			switch {
 			case ev.Type == driver.EventKey && ev.Key.Type == driver.KeyRune && a.focus == "name":
 				a.name += string(ev.Key.Ch)
+			case ev.Type == driver.EventKey && ev.Key.Type == driver.KeySpace && a.focus == "name":
+				a.name += " " // a terminal's space bar, which type_text now sends as one
 			case ev.Type == driver.EventMouse && ev.Mouse.Y == 18:
 				a.agree = !a.agree
 			case ev.Type == driver.EventMouse && ev.Mouse.X >= 40 && ev.Mouse.Y == 0:

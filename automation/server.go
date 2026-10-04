@@ -318,7 +318,7 @@ func (s *Server) handle(req Request) Response {
 		for _, r := range req.Text {
 			state.Injector(driver.Event{
 				Type: driver.EventKey,
-				Key:  driver.KeyEvent{Type: driver.KeyRune, Ch: r},
+				Key:  driver.KeyForRune(r),
 			})
 		}
 		return Response{OK: true}

@@ -196,7 +196,7 @@ func (a *runApp) key(key driver.KeyEvent, _ string) error {
 
 func (a *runApp) typeText(text string) error {
 	for _, r := range text {
-		if err := a.key(driver.KeyEvent{Type: driver.KeyRune, Ch: r}, ""); err != nil {
+		if err := a.key(driver.KeyForRune(r), ""); err != nil {
 			return err
 		}
 	}
@@ -287,7 +287,7 @@ func (a *programApp) key(key driver.KeyEvent, _ string) error {
 
 func (a *programApp) typeText(text string) error {
 	for _, r := range text {
-		if err := a.key(driver.KeyEvent{Type: driver.KeyRune, Ch: r}, ""); err != nil {
+		if err := a.key(driver.KeyForRune(r), ""); err != nil {
 			return err
 		}
 	}

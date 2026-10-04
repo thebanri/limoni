@@ -59,6 +59,15 @@ func (s *TextAreaState) HandleKey(ev driver.KeyEvent) bool {
 		s.Text[s.Cursor] = ev.Ch
 		s.Cursor++
 		return true
+	case driver.KeySpace:
+		if ev.Ctrl || ev.Alt {
+			return false
+		}
+		s.Text = append(s.Text, 0)
+		copy(s.Text[s.Cursor+1:], s.Text[s.Cursor:])
+		s.Text[s.Cursor] = ' '
+		s.Cursor++
+		return true
 	case driver.KeyEnter:
 		s.Text = append(s.Text, 0)
 		copy(s.Text[s.Cursor+1:], s.Text[s.Cursor:])

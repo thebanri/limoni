@@ -483,11 +483,14 @@ func putGlyph(buf *buffer.Buffer, x, y uint16, r rune, width int, st cell.Style)
 }
 
 // paintCursor draws the software cursor: the cell under it inverted.
+// paintCursor marks the cell at x, y as the text cursor by drawing it in
+// reverse video: the cell's own colours swapped, so the block shows on any
+// background. It once also set black on white — which reverse video swaps
+// back to white on black, so on a dark theme a cursor over a space could not
+// be seen at all.
 func paintCursor(buf *buffer.Buffer, x, y uint16) {
 	if c := buf.Get(x, y); c != nil {
-		c.Style.Modifier |= cell.ModifierReverse | cell.ModifierBold
-		c.Style.Bg = cell.NewColorRGB(255, 255, 255)
-		c.Style.Fg = cell.NewColorRGB(0, 0, 0)
+		c.Style.Modifier |= cell.ModifierReverse
 	}
 }
 

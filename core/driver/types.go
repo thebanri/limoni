@@ -74,6 +74,18 @@ type KeyEvent struct {
 	Release bool
 }
 
+// KeyForRune is the key event a terminal sends when r is typed. Most
+// characters are KeyRune, but the parser reports the space bar as KeySpace,
+// and code that injects typed text (tests, automation) must do the same or
+// it exercises a path no terminal takes: TextArea once ignored KeySpace, so
+// tests typed spaces into it that no user could.
+func KeyForRune(r rune) KeyEvent {
+	if r == ' ' {
+		return KeyEvent{Type: KeySpace}
+	}
+	return KeyEvent{Type: KeyRune, Ch: r}
+}
+
 // MouseButton represents a mouse button action.
 type MouseButton uint8
 
