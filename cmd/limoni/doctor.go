@@ -9,6 +9,7 @@ import (
 
 	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
+	"github.com/thebanri/limoni/graphics"
 )
 
 // doctorTimeout bounds the wait for the terminal's answers. A local terminal
@@ -83,7 +84,7 @@ func runDoctor(out io.Writer) error {
 	}
 
 	fmt.Fprintln(out, "\nEnvironment")
-	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_HYPERLINKS", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME", "LIMONI_NOTIFY", "LIMONI_POINTER", "LIMONI_KITTY_KEYBOARD", "LIMONI_SCROLL"} {
+	for _, name := range []string{"TERM", "COLORTERM", "TERM_PROGRAM", "TMUX", "SSH_TTY", "LIMONI_REP", "LIMONI_HYPERLINKS", "LIMONI_NO_SYNC", "LIMONI_PROBE", "LIMONI_GRAPHEME", "LIMONI_NOTIFY", "LIMONI_POINTER", "LIMONI_KITTY_KEYBOARD", "LIMONI_SCROLL", "LIMONI_GRAPHICS"} {
 		if v, ok := os.LookupEnv(name); ok {
 			fmt.Fprintf(out, "  %-16s  %s\n", name, v)
 		}
@@ -107,7 +108,26 @@ func runDoctor(out io.Writer) error {
 	row("scroll regions", detected.ScrollRegions, final.ScrollRegions)
 	row("pointer shape (OSC 22)", detected.PointerShape, final.PointerShape)
 	fmt.Fprintf(out, "  %-22s  %-7s  →  %s\n", "notifications", notifyName(detected.Notify), notifyName(final.Notify))
+	mark := ""
+	if detected.GraphicsProto != final.GraphicsProto {
+		mark = "  (changed)"
+	}
+	fmt.Fprintf(out, "  %-22s  %-7s  →  %s%s\n", "images", protocolName(detected.GraphicsProto), protocolName(final.GraphicsProto), mark)
 	return nil
+}
+
+func protocolName(p graphics.Protocol) string {
+	switch p {
+	case graphics.ProtocolKitty:
+		return "kitty"
+	case graphics.ProtocolSixel:
+		return "sixel"
+	case graphics.ProtocolIterm2:
+		return "iTerm2"
+	case graphics.ProtocolHalfBlock:
+		return "half blocks"
+	}
+	return "auto"
 }
 
 func describeMode(m driver.ModeState) string {

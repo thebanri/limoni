@@ -293,7 +293,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// To keep native graphics (Kitty/Sixel/iTerm2) in the background from showing through,
 	// register a solid background image at z = -2 under the palette and its shadow:
 	if ctx.RegisterImage != nil {
-		proto := graphics.DetectProtocol()
+		proto := imageProtocol(ctx)
 		if proto != graphics.ProtocolHalfBlock {
 			backdropW := uint16(paletW + 2)
 			backdropH := uint16(paletH + 1)

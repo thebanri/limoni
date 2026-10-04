@@ -214,14 +214,15 @@ var hyperlinkTerms = []string{"kitty", "ghostty", "foot", "wezterm", "alacritty"
 var knownTerminals = map[string]struct {
 	trueColor, rep, links, pointer bool
 	notify                         NotifyProtocol
+	images                         graphics.Protocol // ProtocolAuto: say nothing
 }{
 	"xterm":    {trueColor: false, rep: true}, // 24-bit SGR is accepted but may be approximated
-	"kitty":    {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC99},
-	"wezterm":  {trueColor: true, rep: true, links: true, notify: NotifyOSC9},
+	"kitty":    {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC99, images: graphics.ProtocolKitty},
+	"wezterm":  {trueColor: true, rep: true, links: true, notify: NotifyOSC9, images: graphics.ProtocolKitty},
 	"foot":     {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9},
-	"ghostty":  {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9},
+	"ghostty":  {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9, images: graphics.ProtocolKitty},
 	"contour":  {trueColor: true, rep: true, links: true},
-	"iterm2":   {trueColor: true, rep: true, links: true, notify: NotifyOSC9},
+	"iterm2":   {trueColor: true, rep: true, links: true, notify: NotifyOSC9, images: graphics.ProtocolIterm2},
 	"konsole":  {trueColor: true, rep: true, links: true},
 	"xterm.js": {trueColor: true, rep: true},
 	// tmux interprets REP itself before redrawing on the outer terminal, so
@@ -268,6 +269,18 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 		p.RepeatChar = true
 	case driver.No:
 		p.RepeatChar = false
+	}
+	// The environment cannot see through SSH, tmux or su, so a terminal that
+	// was guessed to have no image protocol may still have one: its name says
+	// so, or its DA1 answer lists Sixel (xterm -ti vt340, mlterm, foot in
+	// tmux). Only the half-block guess is upgraded, and LIMONI_GRAPHICS still
+	// wins.
+	if p.GraphicsProto == graphics.ProtocolHalfBlock && os.Getenv("LIMONI_GRAPHICS") == "" {
+		if known := knownTerminals[strings.ToLower(r.Name)]; known.images != graphics.ProtocolAuto {
+			p.GraphicsProto = known.images
+		} else if r.Sixel {
+			p.GraphicsProto = graphics.ProtocolSixel
+		}
 	}
 	switch os.Getenv("LIMONI_REP") {
 	case "1":

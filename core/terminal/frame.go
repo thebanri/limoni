@@ -124,6 +124,10 @@ type Frame struct {
 	// context; see cell.Context.Hyperlinks.
 	Hyperlinks bool
 
+	// ImageProtocol mirrors the terminal's chosen image protocol into every
+	// draw context; see cell.Context.ImageProtocol.
+	ImageProtocol uint8
+
 	// WidgetStats holds how long each widget drawn in this frame took to render.
 	WidgetStats []WidgetStat
 	// Accessibility holds this frame's semantic nodes. Children may point into
@@ -980,6 +984,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	// Build the drawing context with a clean style and a clipped area
 	ctx := cell.NewContext(area, defStyle)
 	ctx.Hyperlinks = f.Hyperlinks
+	ctx.ImageProtocol = f.ImageProtocol
 	if f.ThemeSet {
 		// Built once: a closure made here was an allocation per widget per
 		// frame whenever a theme was set.

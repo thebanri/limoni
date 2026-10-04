@@ -313,7 +313,7 @@ func (b Block) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	if b.Opaque && blockStyle.Bg.Type() != cell.ColorDefault && ctx.RegisterImage != nil {
-		proto := graphics.DetectProtocol()
+		proto := imageProtocol(ctx)
 		if proto != graphics.ProtocolHalfBlock {
 			solidImg := getSolidImage(blockStyle.Bg)
 			ctx.RegisterImage(area, solidImg, -99, false) // Marker for frame.go to map ZIndex

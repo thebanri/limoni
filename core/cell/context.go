@@ -31,6 +31,13 @@ type Context struct {
 	// across the entire widget catalogue.
 	Hyperlinks bool
 
+	// ImageProtocol is the graphics.Protocol the terminal settled on, as a
+	// number because this package sits below graphics. Zero (ProtocolAuto)
+	// means no terminal said: a widget then falls back to
+	// graphics.DetectProtocol. It sits beside Hyperlinks in the padding after
+	// Style, for the same reason.
+	ImageProtocol uint8
+
 	// RegisterClick is a callback bridge populated by the terminal layer
 	// allowing widgets to register clickable regions during rendering.
 	//

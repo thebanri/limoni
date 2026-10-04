@@ -27,6 +27,17 @@ a patch bump (`v0.x.y`) does not.
   (positive is left, the same rule as `DeltaY`). They used to arrive as a
   press of no button.
 - `limoni.MouseNone` is re-exported with the other buttons.
+- The image protocol follows the capability handshake (#57). The environment
+  cannot see through SSH, tmux or `su`, so a terminal guessed to have no image
+  protocol is upgraded when its XTVERSION name has one (kitty, Ghostty,
+  WezTerm, iTerm2) or its DA1 answer lists Sixel. Konsole 26.08.1, which no
+  environment variable identifies, now gets Sixel instead of half blocks, and
+  kitty reached with its variables stripped gets kitty graphics.
+  `LIMONI_GRAPHICS` still wins. `limoni doctor` shows the decision.
+- `cell.Context.ImageProtocol`: widgets read the terminal's choice from the
+  draw context instead of the environment. `Image`, `Viewer3D`, `Block`,
+  `Dialog` and `CommandPalette` used to call `graphics.DetectProtocol` on
+  every draw, reading a dozen environment variables each time.
 
 ## [v0.9.5] — 2026-10-01
 

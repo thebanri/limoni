@@ -373,6 +373,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// Reset the registered click regions
 	t.frame.Reset()
 	t.frame.Hyperlinks = t.caps.Hyperlinks
+	t.frame.ImageProtocol = uint8(t.caps.GraphicsProto)
 	if t.frame.FocusManager != nil {
 		t.frame.FocusManager.Clear()
 	}

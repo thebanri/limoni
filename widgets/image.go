@@ -9,6 +9,16 @@ import (
 	"github.com/thebanri/limoni/graphics"
 )
 
+// imageProtocol is the image protocol the terminal drawing ctx settled on,
+// which may come from the capability handshake (a Sixel terminal found by
+// its DA1 answer). Outside a terminal it is what the environment suggests.
+func imageProtocol(ctx cell.Context) graphics.Protocol {
+	if ctx.ImageProtocol != 0 {
+		return graphics.Protocol(ctx.ImageProtocol)
+	}
+	return graphics.DetectProtocol()
+}
+
 // Image draws real pictures such as PNG/JPG in the terminal, using the
 // native image protocols (Kitty, Sixel, iTerm2).
 type Image struct {
@@ -93,7 +103,7 @@ func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
 	}
 
-	proto := graphics.DetectProtocol()
+	proto := imageProtocol(ctx)
 	if !im.ForceHalfBlock && !im.OpaqueBackground && !im.Transparent && proto != graphics.ProtocolHalfBlock {
 		// Native image protocols leave transparent pixels to the terminal's default
 		// background. In most terminals that is black, which makes a rectangle or

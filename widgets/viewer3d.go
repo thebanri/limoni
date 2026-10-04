@@ -338,7 +338,7 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
-	pixels := v.Pixels && ctx.RegisterImage != nil && v.imageProtocol() != graphics.ProtocolHalfBlock
+	pixels := v.Pixels && ctx.RegisterImage != nil && v.imageProtocol(ctx) != graphics.ProtocolHalfBlock
 	var target raster3D
 	var virtualW, virtualH float64
 	redraw := true
@@ -476,7 +476,10 @@ func imageIdentity(img image.Image) uintptr {
 	return 1 // a value type: treat every frame's as the same picture
 }
 
-func (v *Viewer3D) imageProtocol() graphics.Protocol {
+func (v *Viewer3D) imageProtocol(ctx cell.Context) graphics.Protocol {
+	if ctx.ImageProtocol != 0 {
+		return graphics.Protocol(ctx.ImageProtocol)
+	}
 	if !v.protoKnown {
 		v.proto, v.protoKnown = graphics.DetectProtocol(), true
 	}

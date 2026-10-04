@@ -65,7 +65,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Opaque backdrop for native image protocols (Kitty, Sixel, iTerm2):
 	if ctx.RegisterImage != nil {
-		proto := graphics.DetectProtocol()
+		proto := imageProtocol(ctx)
 		if proto != graphics.ProtocolHalfBlock {
 			backdropArea := ctx.Area
 			if di.Shadow {
