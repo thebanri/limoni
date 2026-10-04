@@ -260,28 +260,25 @@ func (im *Image) SizeHint(maxArea cell.Rect) (width, height uint16) {
 // blendColor combines semi-transparent or fully transparent image pixels with the
 // container's background colour by alpha blending.
 func blendColor(fgColor color.Color, bg cell.Color) cell.Color {
+	// RGBA returns colour already multiplied by alpha, so the background is
+	// what is added, not a second weighting of the foreground: multiplying
+	// by alpha again drew a half-transparent edge at a quarter strength, a
+	// dark fringe around every anti-aliased picture.
 	r, g, b, a := fgColor.RGBA()
 	if a < 4000 {
 		return bg
 	}
-	if a >= 65000 || bg.Type() == cell.ColorDefault {
+	if a >= 65000 {
 		return cell.NewColorRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))
 	}
-
-	alpha := float64(a) / 65535.0
-
-	// Foreground colour channels
-	fgR := uint8(r >> 8)
-	fgG := uint8(g >> 8)
-	fgB := uint8(b >> 8)
-
-	// Background colour channels
+	if bg.Type() == cell.ColorDefault {
+		// The background is unknown: show the colour itself.
+		return cell.NewColorRGB(uint8(r*0xFFFF/a>>8), uint8(g*0xFFFF/a>>8), uint8(b*0xFFFF/a>>8))
+	}
+	rest := 1 - float64(a)/0xFFFF
 	bgR, bgG, bgB := bg.RGB()
-
-	// Alpha blending: C = C_fg * alpha + C_bg * (1 - alpha)
-	blendR := uint8(float64(fgR)*alpha + float64(bgR)*(1.0-alpha))
-	blendG := uint8(float64(fgG)*alpha + float64(bgG)*(1.0-alpha))
-	blendB := uint8(float64(fgB)*alpha + float64(bgB)*(1.0-alpha))
-
-	return cell.NewColorRGB(blendR, blendG, blendB)
+	mix := func(premultiplied uint32, back uint8) uint8 {
+		return uint8(min(255, float64(premultiplied)/257+float64(back)*rest+0.5))
+	}
+	return cell.NewColorRGB(mix(r, bgR), mix(g, bgG), mix(b, bgB))
 }

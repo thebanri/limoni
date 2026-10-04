@@ -9,6 +9,12 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Fixed
+- Half-transparent pixels of an `Image` drawn in half blocks were weighted
+  by their alpha twice: Go's colours come premultiplied, and the blend
+  multiplied again. A 50% red over dark blue came out (64,0,49) instead of
+  (128,0,50), white at `Opacity: 0.5` over black came out 63 instead of
+  128, and every anti-aliased edge had a dark fringe. Found by the first
+  tests of `Image.Draw`, which had none.
 - A `TextArea` dropped every space typed into it: terminals send the space
   bar as `KeySpace`, which it did not handle. Tests did not see it because
   `uitest`'s `Type` and the automation socket's `type_text` (MCP) sent a
