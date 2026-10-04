@@ -27,6 +27,11 @@ a patch bump (`v0.x.y`) does not.
   nothing at all. Same in `examples/counter`. Its intro text was broken by
   hand at 48 columns into a 44-column paragraph, leaving "by" and "is" on
   lines of their own.
+- The playground said it loads "~5 MB" (Lemon Drop "~4 MB"). GitHub Pages
+  serves the modules gzip-compressed: 1.44 MB and 1.38 MB actually travel
+  (#51). `wasm-opt -Oz` (binaryen 133) takes the raw module from 6.38 to
+  5.92 MB but the compressed one only from 1.743 to 1.737 MB, so it is not
+  worth a build step; TinyGo was not measured.
 - The playground (and `limoni serve`) measured text with xterm.js's default
   Unicode 6 widths, where an emoji such as 🍋 is one column and Limoni lays it
   out in two; the rest of the row shifted. Both load the Unicode 11 addon.
