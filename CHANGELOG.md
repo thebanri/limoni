@@ -9,6 +9,14 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Fixed
+- The browser playground drew none of its frames or titles: its scenes'
+  `Block`s set a title and a border style but no `Borders`, which draws
+  nothing at all. Same in `examples/counter`. Its intro text was broken by
+  hand at 48 columns into a 44-column paragraph, leaving "by" and "is" on
+  lines of their own.
+- The playground (and `limoni serve`) measured text with xterm.js's default
+  Unicode 6 widths, where an emoji such as 🍋 is one column and Limoni lays it
+  out in two; the rest of the row shifted. Both load the Unicode 11 addon.
 - A click on a `Popup` menu item did nothing: the item's hover region was
   registered after its click region, and the region registered last takes a
   left click, so the hover handler got it and ignored it. The menu never ran
@@ -29,6 +37,14 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- `limoni serve <program>`: runs a program once per browser tab in a real
+  pseudo-terminal and draws it with xterm.js — a demo or workshop without a
+  terminal. Loopback by default, a random token on every request, the
+  WebSocket refused to other sites' pages (Origin), `-max` copies at once, and
+  a closed tab hangs its program up (killed if it ignores the hangup). Linux
+  and macOS; the WebSocket is written against RFC 6455 in the standard
+  library, so the module gains no dependency. Checked in Chromium with the
+  dashboard and counter examples.
 - `MouseWheelMsg.Position`: the cell under the pointer, so a model with two
   scrollable panes can scroll the one under the wheel (#49). Unkeyed
   `MouseWheelMsg{dx, dy}` literals need the field names now.

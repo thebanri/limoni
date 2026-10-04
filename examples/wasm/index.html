@@ -14,6 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@0.8.0/lib/addon-unicode11.js"></script>
   <script src="wasm_exec.js"></script>
   <style>
     :root {
@@ -465,8 +466,13 @@
       fontFamily: 'ui-monospace, Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,
       lineHeight: 1.0,
-      theme: { background: '#010409', foreground: '#c9d1d9' }
+      theme: { background: '#010409', foreground: '#c9d1d9' },
+      allowProposedApi: true // the unicode API below
     });
+    // xterm.js measures with Unicode 6 unless told otherwise, where an emoji
+    // such as 🍋 is one column; Limoni lays it out in two.
+    term.loadAddon(new Unicode11Addon.Unicode11Addon());
+    term.unicode.activeVersion = '11';
 
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);

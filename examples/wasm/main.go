@@ -223,6 +223,7 @@ func (m *playground) View(frame *terminal.Frame) {
 func (m *playground) viewCube(frame *terminal.Frame, area cell.Rect) {
 	block := widgets.Block{
 		Title:       " 3D Wireframe — software rasteriser, zero allocations ",
+		Borders:     widgets.BorderAll,
 		BorderStyle: accent,
 		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
 	}
@@ -236,14 +237,17 @@ func (m *playground) viewCube(frame *terminal.Frame, area cell.Rect) {
 	if inner.Width > 56 {
 		frame.RenderWidget(&widgets.Paragraph{
 			Text: fmt.Sprintf(
-				"Compiled with GOOS=js GOARCH=wasm and driven by\n"+
+				// Sentences are left for the paragraph to wrap: lines broken by
+				// hand at 48 columns wrapped again at 44, leaving "by" and
+				// "is" alone on lines of their own.
+				"Compiled with GOOS=js GOARCH=wasm and driven by "+
 					"xterm.js in this browser tab.\n\n"+
 					"• Rotation: %.0f°\n"+
 					"• Frames rendered: %d\n"+
 					"• Braille canvas: 2×4 subpixels per cell\n"+
 					"• Diff engine: double-buffered, 0 B/op\n\n"+
-					"Every frame goes through the same ANSI diff\n"+
-					"that runs in a real terminal — nothing here is\n"+
+					"Every frame goes through the same ANSI diff "+
+					"that runs in a real terminal — nothing here is "+
 					"a browser-specific rendering path.",
 				m.angle, m.frame,
 			),
@@ -297,6 +301,7 @@ func (m *playground) viewCube(frame *terminal.Frame, area cell.Rect) {
 func (m *playground) viewCharts(frame *terminal.Frame, area cell.Rect) {
 	block := widgets.Block{
 		Title:       " Live Charts — Braille line, bars, sparkline ",
+		Borders:     widgets.BorderAll,
 		BorderStyle: accent,
 		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
 	}
@@ -362,6 +367,7 @@ func (m *playground) viewCharts(frame *terminal.Frame, area cell.Rect) {
 func (m *playground) viewScroll(frame *terminal.Frame, area cell.Rect) {
 	block := widgets.Block{
 		Title:       " Viewport + Scrollbar — 200 lines, wheel and keys work ",
+		Borders:     widgets.BorderAll,
 		BorderStyle: accent,
 		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
 	}
@@ -385,6 +391,7 @@ func (m *playground) viewScroll(frame *terminal.Frame, area cell.Rect) {
 func (m *playground) viewAbout(frame *terminal.Frame, area cell.Rect) {
 	block := widgets.Block{
 		Title:       " About Limoni ",
+		Borders:     widgets.BorderAll,
 		BorderStyle: accent,
 		TitleStyle:  cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Modifier: cell.ModifierBold},
 	}

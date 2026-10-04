@@ -54,6 +54,7 @@ func (m *AppModel) View(frame *limoni.Frame) {
 
 	frame.RenderWidget(limoni.Block{
 		Title:       " 🍋 Limoni Counter Application ",
+		Borders:     limoni.BorderAll,
 		BorderStyle: accent,
 	}, rows[0])
 
@@ -64,6 +65,7 @@ func (m *AppModel) View(frame *limoni.Frame) {
 
 	frame.RenderWidget(limoni.Block{
 		Title:       " [+] Increment  [-] Decrement  [Q/Esc] Quit ",
+		Borders:     limoni.BorderAll,
 		BorderStyle: muted,
 	}, rows[2])
 }
