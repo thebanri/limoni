@@ -46,6 +46,9 @@ type Terminal struct {
 	// lastDrawnImages is the list of images drawn in the previous frame.
 	lastDrawnImages []ImageRegion
 
+	// kitty is what kitty has been sent: see kittyImages.
+	kitty kittyImages
+
 	// Dither transition state
 	transitionActive   bool
 	transitionProgress float64
@@ -193,6 +196,9 @@ func (t *Terminal) Close() error {
 	}
 	if t.driver != nil {
 		t.RestoreModes()
+		if len(t.kitty.ids) > 0 {
+			_, _ = t.driver.Write(t.kitty.freeAll(nil))
+		}
 		if err := t.driver.Close(); err != nil {
 			return err
 		}
@@ -527,11 +533,9 @@ func (t *Terminal) present(t0 time.Time) error {
 				}
 			}
 
-			if imagesChanged {
-				if proto == graphics.ProtocolKitty {
-					t.writeBuf = append(t.writeBuf, "\x1b_Ga=d,d=A,q=2\x1b\\"...)
-				}
-
+			if imagesChanged && proto == graphics.ProtocolKitty {
+				t.writeBuf = t.kitty.place(t.writeBuf, imageRegions, cellW, cellH)
+			} else if imagesChanged {
 				for _, reg := range imageRegions {
 					zIndex := reg.ZIndex
 					if proto == graphics.ProtocolKitty && zIndex == 0 {
@@ -543,7 +547,8 @@ func (t *Terminal) present(t0 time.Time) error {
 						t.writeBuf = append(t.writeBuf, escSeq...)
 					}
 				}
-
+			}
+			if imagesChanged {
 				if cap(t.lastDrawnImages) >= len(imageRegions) {
 					t.lastDrawnImages = t.lastDrawnImages[:len(imageRegions)]
 				} else {
@@ -555,7 +560,7 @@ func (t *Terminal) present(t0 time.Time) error {
 		} else {
 			if t.lastImageCount > 0 {
 				if proto == graphics.ProtocolKitty {
-					t.writeBuf = append(t.writeBuf, "\x1b_Ga=d,d=A,q=2\x1b\\"...)
+					t.writeBuf = t.kitty.freeAll(t.writeBuf)
 				}
 				t.lastImageCount = 0
 				t.lastDrawnImages = nil
@@ -954,6 +959,9 @@ func (t *Terminal) layersHash() string {
 
 // ForceFullRedraw forces every screen cell to be redrawn through the diff.
 func (t *Terminal) ForceFullRedraw() {
+	// The terminal may be a new one (after a suspend) that has none of the
+	// pictures sent to the old one: send them again.
+	t.kitty.stale = true
 	if t.back != nil {
 		for i := range t.back.Content {
 			t.back.Content[i].Content = cell.RuneInvalid

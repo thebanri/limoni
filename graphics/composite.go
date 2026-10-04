@@ -51,6 +51,9 @@ func FlattenImageRGB(src image.Image, r, g, b uint8) image.Image {
 	if src == nil {
 		return nil
 	}
+	if c, ok := src.(*Clip); ok {
+		return flattenClip(c, r, g, b)
+	}
 	// Nothing to composite: a photo is returned as it is, not copied.
 	if knownOpaque(src) {
 		return src

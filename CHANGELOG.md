@@ -26,6 +26,15 @@ a patch bump (`v0.x.y`) does not.
   (ConPTY) on the Windows runner; with the reader not stopped, the child's
   editor never gets its line.
 
+### Changed
+- Kitty is sent each picture once and shown it with placements. Whenever
+  any picture on screen moved, every one was deleted and sent again; now
+  only the placements are, and a picture scrolled half out of view
+  (`graphics.Clip`, which `Markdown` uses) is shown with a source
+  rectangle. A picture no longer shown is freed in kitty. Scrolling an
+  article with a photo 20 lines in kitty 0.49.2 (nom): 6,538,810 bytes →
+  24,797. Sixel and iTerm2 are sent pixels as before.
+
 ## [v0.10.0] — 2026-10-04
 
 ### Added

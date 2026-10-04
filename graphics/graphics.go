@@ -559,6 +559,7 @@ func ForgetImage(img image.Image) {
 	}
 	escapeCacheMu.Unlock()
 	forgetDerived(img)
+	generation.Add(1)
 }
 
 // GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
@@ -582,6 +583,11 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 	}
 	escapeCacheMu.RUnlock()
 
+	// A Clip is sent as the pixels of its part; only kitty does better, and
+	// the terminal handles that itself.
+	if c, ok := img.(*Clip); ok {
+		img = c.Image
+	}
 	var seq string
 	switch proto {
 	case ProtocolKitty:

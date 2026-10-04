@@ -106,9 +106,9 @@ func (m *Markdown) pictureSize(img image.Image, width int) (cols, rows int, show
 	return cols, rows, true
 }
 
-// slice is the part of the picture shown when only rows v0 to v1 of its
-// rows rows are in view.
-func (p *markdownPicture) slice(v0, v1, rows int) image.Image {
+// slice is the part of the picture shown when only rows v0 to v1 of the
+// cols×rows cells it is laid out in are in view: a graphics.Clip.
+func (p *markdownPicture) slice(v0, v1, cols, rows int) image.Image {
 	if v0 == 0 && v1 == rows {
 		return p.img
 	}
@@ -130,11 +130,14 @@ func (p *markdownPicture) slice(v0, v1, rows int) image.Image {
 		draw.Draw(dst, dst.Bounds(), p.img, r.Min, draw.Src)
 		s = dst
 	}
+	// The part's pixels for protocols that are sent pixels; for kitty, the
+	// whole picture and which rows of it show.
+	clip := &graphics.Clip{Image: s, Full: p.img, Cols: cols, Rows: rows, Top: v0, Bottom: v1}
 	if p.slices == nil {
 		p.slices = make(map[[2]int]image.Image)
 	}
-	p.slices[key] = s
-	return s
+	p.slices[key] = clip
+	return clip
 }
 
 // forgetPictures drops what was kept for the pictures of the last content,
@@ -174,7 +177,7 @@ func (m *Markdown) drawPictures(ctx cell.Context, buf *buffer.Buffer, offset int
 			p = &markdownPicture{img: pl.img}
 			m.pictures[pl.src] = p
 		}
-		p.view.Img = p.slice(v0, v1, pl.rows)
+		p.view.Img = p.slice(v0, v1, pl.cols, pl.rows)
 		child := ctx
 		child.Style = baseStyle
 		child.Area = cell.NewRect(ctx.Area.X+uint16(pl.col), ctx.Area.Y+uint16(top+v0), uint16(pl.cols), uint16(v1-v0))
