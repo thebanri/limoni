@@ -1,8 +1,10 @@
 package widgets
 
 import (
+	"strings"
 	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/layout"
@@ -36,6 +38,10 @@ const (
 
 // Text renders multiple rich-text lines with optional cell-aware wrapping.
 type Text struct {
+	// ID focuses the text and names it in the semantic tree, where its value
+	// is the text of its spans, line by line; building that costs one
+	// allocation per frame. Without an ID the node has no value and drawing
+	// allocates nothing.
 	ID           string
 	Lines        []Line
 	Style        cell.Style
@@ -257,4 +263,35 @@ func TextFromRichText(text string, baseStyle cell.Style, theme Theme) Text {
 		Lines: lines,
 		Style: baseStyle,
 	}
+}
+
+// AccessibilityNode describes the text: with an ID, the text of its spans,
+// one line per row of the source.
+func (t Text) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	node := accessibility.AccessibilityNode{ID: t.ID, Role: accessibility.RoleGeneric, Label: "Text", Bounds: bounds}
+	if focused {
+		node.State |= accessibility.StateFocused
+	}
+	if t.ID == "" {
+		return node
+	}
+	size := 0
+	for _, line := range t.Lines {
+		size++
+		for _, span := range line.Spans {
+			size += len(span.Text)
+		}
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for i, line := range t.Lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		for _, span := range line.Spans {
+			b.WriteString(span.Text)
+		}
+	}
+	node.Value = b.String()
+	return node
 }

@@ -1,6 +1,9 @@
 package widgets
 
 import (
+	"strings"
+
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -33,6 +36,12 @@ func (it StatusItem) width() int {
 // comes next and is cut from its left edge, and the centre group is left out
 // rather than overlap either of them.
 type StatusBar struct {
+	// ID names the bar in the semantic tree. With one, the node's value is
+	// the bar's text, so a screen reader or an agent can read the key hints;
+	// building it costs one allocation per frame. Without one, the node has
+	// no value and drawing allocates nothing.
+	ID string
+
 	Left, Center, Right []StatusItem
 
 	// Style fills the whole row; KeyStyle is merged over it for item keys.
@@ -169,3 +178,38 @@ func (s StatusBar) drawRightClipped(buf *buffer.Buffer, x, y, limit uint16, skip
 
 // SizeHint takes the width offered and one row.
 func (s StatusBar) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
+
+// AccessibilityNode describes the bar: with an ID, its items as text, "key
+// text" each, groups separated by the separator.
+func (s StatusBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+	node := accessibility.AccessibilityNode{ID: s.ID, Role: accessibility.RoleGeneric, Label: "Status bar", Bounds: bounds}
+	if focused {
+		node.State |= accessibility.StateFocused
+	}
+	if s.ID == "" {
+		return node
+	}
+	groups := [3][]StatusItem{s.Left, s.Center, s.Right}
+	size := 0
+	for _, group := range groups {
+		for _, it := range group {
+			size += len(s.separator()) + len(it.Key) + 1 + len(it.Text)
+		}
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for _, group := range groups {
+		for _, it := range group {
+			if b.Len() > 0 {
+				b.WriteString(s.separator())
+			}
+			b.WriteString(it.Key)
+			if it.Key != "" && it.Text != "" {
+				b.WriteByte(' ')
+			}
+			b.WriteString(it.Text)
+		}
+	}
+	node.Value = b.String()
+	return node
+}

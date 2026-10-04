@@ -9,6 +9,10 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Added
+- `StatusBar` (new `ID` field) and rich `Text` are in the semantic tree.
+  With an ID the node's value is their text — key hints an agent or a
+  screen reader can now read — at one allocation per frame; without one
+  they cost nothing, as before.
 - The mouse can be left to the terminal: `limoni.WithoutMouse()`,
   `limoni.WithoutProgramMouse()`, and `Terminal.SetMouse` /
   `Backend.SetMouse` to change it while running. Off, no clicks, wheel or
