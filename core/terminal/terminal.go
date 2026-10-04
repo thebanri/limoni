@@ -18,6 +18,10 @@ type Terminal struct {
 	// driver is the layer that handles low-level TTY raw mode and I/O.
 	driver *driver.Driver
 
+	// cast records the frames as asciicast while it is set (RecordCast,
+	// LIMONI_CAST); nil otherwise, which costs the draw path one check.
+	cast *castRecorder
+
 	// front is the active buffer written in the current frame.
 	front *buffer.Buffer
 
@@ -110,7 +114,7 @@ func New(b *driver.Backend) (*Terminal, error) {
 	focusMgr := NewFocusManager()
 
 	detected := DetectCapabilities()
-	return &Terminal{
+	t := &Terminal{
 		driver:   b,
 		front:    front,
 		back:     back,
@@ -119,7 +123,11 @@ func New(b *driver.Backend) (*Terminal, error) {
 		caps:     detected,
 		detected: detected,
 		bgOff:    backdropOff(),
-	}, nil
+	}
+	if err := t.recordCastFromEnv(); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // RestoreModes undoes what the application changed on the terminal beyond
@@ -177,11 +185,18 @@ func (t *Terminal) SetKeyReleases(on bool) {
 
 // Close restores the terminal state and closes the underlying driver.
 func (t *Terminal) Close() error {
+	var castErr error
+	if t.cast != nil {
+		castErr = t.cast.close()
+		t.cast = nil
+	}
 	if t.driver != nil {
 		t.RestoreModes()
-		return t.driver.Close()
+		if err := t.driver.Close(); err != nil {
+			return err
+		}
 	}
-	return nil
+	return castErr
 }
 
 // Driver returns the underlying driver instance.
@@ -366,6 +381,9 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	// clear the screen and redraw the whole frame onto the cleared screen.
 	if w != t.front.Area.Width || h != t.front.Area.Height {
 		t.front.Resize(cell.NewRect(0, 0, w, h))
+		if t.cast != nil {
+			t.cast.resize(w, h)
+		}
 	}
 
 	// Clear the active drawing buffer
@@ -553,6 +571,9 @@ func (t *Terminal) present(t0 time.Time) error {
 	if len(t.writeBuf) > 0 {
 		if _, err := t.driver.Write(t.writeBuf); err != nil {
 			return err
+		}
+		if t.cast != nil {
+			t.cast.output(t.writeBuf)
 		}
 		t.drawn = true
 	}

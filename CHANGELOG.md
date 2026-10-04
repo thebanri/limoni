@@ -50,6 +50,11 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- `LIMONI_CAST=demo.cast ./app` records any Limoni application as an
+  asciicast v2 file, a frame per line as it is drawn, for `agg` (GIF),
+  `asciinema play` or asciinema.org; `Terminal.RecordCast(w)` from code. Off,
+  it costs the draw path one nil check (still 0 allocations). Checked by
+  recording the dashboard in kitty and rendering it with agg 1.9.0.
 - `limoni new -template chat`: a chat interface — the transcript is
   Markdown, a reply streams in a piece at a time, Shift+Enter (or Alt+Enter)
   starts a new line, Esc stops a reply, and `reply.go` holds the one

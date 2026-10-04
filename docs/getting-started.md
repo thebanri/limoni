@@ -278,6 +278,23 @@ Unlike the [browser playground](https://thebanri.github.io/limoni/), which
 compiles Limoni to WebAssembly, the program here is the native binary — any
 terminal program works, not only Limoni ones.
 
+## 🎬 Record It (`LIMONI_CAST`)
+
+Any Limoni application records what it draws when `LIMONI_CAST` names a file:
+
+```bash
+LIMONI_CAST=demo.cast ./myapp      # use it, then quit
+agg demo.cast demo.gif             # https://github.com/asciinema/agg
+asciinema play demo.cast           # or upload it to asciinema.org
+```
+
+The file is [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/):
+one line per frame, written as it is drawn, so a recording survives an
+application that is killed rather than closed. Only what Limoni draws is
+recorded, not the capability queries around it; the first terminal a
+process opens takes the file (an SSH server's later sessions do not).
+`Terminal.RecordCast(w)` does the same from code.
+
 ## 📚 Next Steps
 
 - [Core Engine Architecture & Zero-Alloc Diff](./architecture.md)

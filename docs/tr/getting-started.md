@@ -266,6 +266,23 @@ Limoni'yi WebAssembly'ye derleyen [tarayıcı oyun alanının](https://thebanri.
 aksine burada çalışan program yerel ikili dosyadır; yalnızca Limoni
 uygulamaları değil, her terminal programı çalışır.
 
+## 🎬 Kaydetmek (`LIMONI_CAST`)
+
+Her Limoni uygulaması, `LIMONI_CAST` bir dosya adı verdiğinde çizdiğini kaydeder:
+
+```bash
+LIMONI_CAST=demo.cast ./myapp      # kullanın, sonra çıkın
+agg demo.cast demo.gif             # https://github.com/asciinema/agg
+asciinema play demo.cast           # ya da asciinema.org'a yükleyin
+```
+
+Dosya [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/)
+biçimindedir: her kare çizildiği anda bir satır olarak yazılır, bu yüzden
+kapatılmak yerine öldürülen bir uygulamanın kaydı da oynatılabilir. Yalnızca
+Limoni'nin çizdiği kaydedilir, etrafındaki yetenek sorguları değil; dosyayı
+sürecin açtığı ilk terminal alır (bir SSH sunucusunun sonraki oturumları
+almaz). Koddan aynısını `Terminal.RecordCast(w)` yapar.
+
 ## 📚 Diğer Kaynaklar
 
 - [Çekirdek Motor API'leri (docs/core-api.md)](../core-api.md)
