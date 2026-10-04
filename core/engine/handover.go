@@ -40,9 +40,10 @@ type Handover struct {
 // A nil Stdin, Stdout or Stderr is the process's own, which is the terminal a
 // Program started by RunProgram draws on.
 //
-// The terminal can only be handed over where the application owns one: on a
-// Unix terminal. Elsewhere — a remote session, the browser, Windows for now —
-// done receives driver.ErrReleaseUnsupported and cmd is not started.
+// The terminal can only be handed over where the application owns one: a
+// Unix terminal or a Windows console. Elsewhere — a remote session, the
+// browser, input piped in — done receives driver.ErrReleaseUnsupported and
+// cmd is not started.
 func ExecCmd(cmd *exec.Cmd, done func(error) Msg) Cmd {
 	return func(context.Context) Msg {
 		return handoverMsg{

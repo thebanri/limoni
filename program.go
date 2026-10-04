@@ -96,8 +96,8 @@ func NotifyCmd(title, body string) Cmd { return engine.NotifyCmd(title, body) }
 // ExecCmd hands the terminal to cmd — an editor, a pager, a shell — and takes
 // it back when cmd exits; done turns cmd's error into a message for Update
 // (nil for none). A nil Stdin, Stdout or Stderr is the process's own. Where
-// there is no terminal to hand over (a remote session, the browser, Windows
-// for now) done receives ErrReleaseUnsupported and cmd is not started.
+// there is no terminal to hand over (a remote session, the browser) done
+// receives ErrReleaseUnsupported and cmd is not started.
 //
 //	return limoni.UpdateResult{Commands: []limoni.Cmd{
 //		limoni.ExecCmd(exec.Command(editor, path), func(err error) limoni.Msg {

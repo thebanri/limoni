@@ -8,6 +8,15 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- `ExecCmd` and `Terminal.Release` work on Windows. The console reader
+  waits on the console handle and a wake-up event and reads only when a key
+  press with text is queued, so it can be stopped while another program
+  has the console; Ctrl+C typed in that program is ignored until it returns.
+  `TestReleaseHandsTheConsoleToTheProgram` runs a child in a pseudo console
+  (ConPTY) on the Windows runner; with the reader not stopped, the child's
+  editor never gets its line.
+
 ## [v0.10.0] — 2026-10-04
 
 ### Added

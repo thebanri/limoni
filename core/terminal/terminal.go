@@ -359,8 +359,8 @@ func (t *Terminal) Suspend() error {
 // caller owns that (Program.RunTerminal does it on its own loop).
 //
 // It returns driver.ErrReleaseUnsupported, without calling fn, where there is
-// no terminal to hand over: a remote or in-memory backend, the browser, and
-// Windows for now. Otherwise it returns fn's error.
+// no terminal to hand over: a remote or in-memory backend, the browser, or
+// input that is not a terminal. Otherwise it returns fn's error.
 func (t *Terminal) Release(fn func() error) error {
 	if t == nil || t.driver == nil {
 		return driver.ErrReleaseUnsupported

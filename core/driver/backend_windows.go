@@ -30,7 +30,8 @@ type Backend struct {
 	inlineMu     sync.RWMutex
 	replies      replyCollector
 	looping      atomic.Bool
-	setUp        bool // Setup has run
+	setUp        bool           // Setup has run
+	reader       *consoleReader // reads the console; paused while it is released
 }
 
 // NewBackend returns a new Windows Backend.
@@ -183,9 +184,21 @@ func (b *Backend) startEventLoop() {
 		return w, h, true
 	}
 	ticker := time.NewTicker(200 * time.Millisecond)
+	// A console is read so that Release can stop the reading; anything else
+	// (a remote session, a pipe) the plain way.
+	input := (<-chan []byte)(nil)
+	if b.portableIO == nil {
+		if cr, err := newConsoleReader(b.in); err == nil {
+			b.reader = cr
+			input = cr.chunks(512, b.done)
+		}
+	}
+	if input == nil {
+		input = readChunks(r, 512, b.done)
+	}
 	go func() {
 		defer ticker.Stop()
-		b.parseInput(readChunks(r, 512, b.done), ticker.C, poll)
+		b.parseInput(input, ticker.C, poll)
 	}()
 }
 
