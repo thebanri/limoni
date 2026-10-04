@@ -15,12 +15,22 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"text/template"
 )
 
-// limoniVersion is the Limoni version the scaffold reports.
-const limoniVersion = "latest"
+// limoniVersion is the Limoni version the scaffold reports: the module
+// version this binary was built from (go install …@v0.10.0, or a release
+// build from a tagged checkout), or "latest" for a development build.
+var limoniVersion = buildVersion()
+
+func buildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "latest"
+}
 
 // scaffoldData is what the templates are rendered with.
 type scaffoldData struct {
