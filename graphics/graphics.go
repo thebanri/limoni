@@ -544,11 +544,12 @@ var (
 	escapeCacheMu       sync.RWMutex
 )
 
-// GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
-// ForgetImage drops the cached escape sequences of img. The cache is keyed
-// by the image value, so an image whose pixels are rewritten in place — a
-// frame buffer reused for animation — must be forgotten before it is shown
-// again, or the terminal is sent the old picture.
+// ForgetImage drops everything cached for img: its escape sequences, and the
+// flattened and faded copies Image.Draw made of it. The caches are keyed by
+// the image value, so an image whose pixels are rewritten in place — a frame
+// buffer reused for animation — must be forgotten before it is shown again,
+// or the terminal is sent the old picture. Forgetting an image that is no
+// longer shown also releases the memory the caches held for it.
 func ForgetImage(img image.Image) {
 	escapeCacheMu.Lock()
 	for key := range escapeSequenceCache {
@@ -557,7 +558,10 @@ func ForgetImage(img image.Image) {
 		}
 	}
 	escapeCacheMu.Unlock()
+	forgetDerived(img)
 }
+
+// GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
 
 func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
 	key := ImageCacheKey{

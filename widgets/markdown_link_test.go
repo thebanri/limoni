@@ -59,8 +59,8 @@ func TestMarkdownNonLinksAreLeftAlone(t *testing.T) {
 		"a [ref][1] style link",
 		"empty [](https://example.com)",
 		"no target []()",
-		"a [title](https://example.com \"hi\") with a title",
 		"brackets [like this] alone",
+		"a [title](https://example.com \"unclosed) title",
 	} {
 		segs := parseInlineStyles(src, cell.Style{}, true)
 		if got := segText(segs); got != src {
@@ -71,6 +71,18 @@ func TestMarkdownNonLinksAreLeftAlone(t *testing.T) {
 				t.Errorf("%q produced a link", src)
 			}
 		}
+	}
+}
+
+// A link may carry a title, `[text](url "title")`, as converters from HTML
+// write for <a title=...>. The title is not drawn; the link still works.
+func TestMarkdownLinkTitleIsDropped(t *testing.T) {
+	segs := parseInlineStyles(`a [title](https://example.com "hi") with a title`, cell.Style{}, true)
+	if got := segText(segs); got != "a title with a title" {
+		t.Fatalf("drawn as %q", got)
+	}
+	if segs[1].Style.Link == 0 {
+		t.Fatal("the titled link is not a link")
 	}
 }
 

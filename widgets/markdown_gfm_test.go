@@ -66,7 +66,7 @@ func TestMarkdownDrawsTheBlocksRepliesUse(t *testing.T) {
 		}
 	}
 	// The code is highlighted: "func" is a keyword, on the code background.
-	if c := buf.CellAt(1, 9); c.Style.Bg != markdownCodeBg || c.Style.Fg != DefaultCodeTheme[TokenKeyword].Fg {
+	if c := buf.CellAt(1, 9); c.Style.Bg != DefaultMarkdownTheme.CodeBlock.Bg || c.Style.Fg != DefaultCodeTheme[TokenKeyword].Fg {
 		t.Errorf("func is not highlighted as a keyword on the code background: %+v", c.Style)
 	}
 	if c := buf.CellAt(0, 13); c.Style.Modifier&cell.ModifierStrikethrough == 0 {
@@ -84,7 +84,7 @@ func TestMarkdownUnclosedFenceIsCode(t *testing.T) {
 	if rows[1] != " def f():" || rows[2] != "     return 1" {
 		t.Fatalf("rows %q", rows[:3])
 	}
-	if buf.CellAt(0, 1).Style.Bg != markdownCodeBg {
+	if buf.CellAt(0, 1).Style.Bg != DefaultMarkdownTheme.CodeBlock.Bg {
 		t.Errorf("the unclosed block has no code background")
 	}
 }

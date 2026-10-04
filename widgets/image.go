@@ -100,7 +100,7 @@ func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	if im.OpaqueBackground && bgCol.Type() != cell.ColorDefault {
 		r, g, b := bgCol.RGB()
-		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
+		img = graphics.FlattenImageRGB(img, r, g, b)
 	}
 
 	proto := imageProtocol(ctx)
@@ -109,7 +109,7 @@ func (im *Image) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// background. In most terminals that is black, which makes a rectangle or
 		// band that differs from the widget's background.
 		r, g, b := ctx.Style.Bg.RGB()
-		img = graphics.FlattenImage(img, color.RGBA{R: r, G: g, B: b, A: 255})
+		img = graphics.FlattenImageRGB(img, r, g, b)
 	}
 	if im.ForceHalfBlock || proto == graphics.ProtocolHalfBlock {
 		im.drawHalfBlock(ctx, buf, img)

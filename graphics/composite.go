@@ -10,11 +10,27 @@ import (
 )
 
 var (
-	flattenedImageCache = make(map[flattenedImageKey]image.Image)
+	flattenedImageCache = make(map[flattenedImageKey]derivedImage)
 	flattenedCacheMu    sync.RWMutex
-	opacityImageCache   = make(map[opacityImageKey]image.Image)
+	opacityImageCache   = make(map[opacityImageKey]derivedImage)
 	opacityCacheMu      sync.RWMutex
 )
+
+// derivedImage is a cached result and the image it was made from. Keeping
+// the source is what makes a pointer a safe key: while the entry exists the
+// source cannot be collected, so its address cannot be reused by a different
+// picture that would then be answered with this one's pixels.
+type derivedImage struct{ src, dst image.Image }
+
+// knownOpaque reports, without reading a pixel, whether img has no
+// transparency: the types image/jpeg and grey-scale decoders produce.
+func knownOpaque(img image.Image) bool {
+	switch img.(type) {
+	case *image.YCbCr, *image.Gray, *image.Gray16, *image.CMYK:
+		return true
+	}
+	return false
+}
 
 type flattenedImageKey struct {
 	pointer       uintptr
@@ -24,10 +40,21 @@ type flattenedImageKey struct {
 
 // FlattenImage composites transparent pixels over an opaque background.
 func FlattenImage(src image.Image, background color.Color) image.Image {
+	r, g, b, _ := background.RGBA()
+	return FlattenImageRGB(src, uint8(r>>8), uint8(g>>8), uint8(b>>8))
+}
+
+// FlattenImageRGB is FlattenImage over the background r, g, b. It takes no
+// color.Color, whose boxing would cost a draw that calls it every frame an
+// allocation even when the result is cached.
+func FlattenImageRGB(src image.Image, r, g, b uint8) image.Image {
 	if src == nil {
 		return nil
 	}
-	br, bg, bb, _ := background.RGBA()
+	// Nothing to composite: a photo is returned as it is, not copied.
+	if knownOpaque(src) {
+		return src
+	}
 	bounds := src.Bounds()
 	// Images such as image.Uniform report effectively unbounded bounds, and
 	// allocating a buffer that size overflows or panics. Returning the source
@@ -40,24 +67,24 @@ func FlattenImage(src image.Image, background color.Color) image.Image {
 	cacheable := false
 	value := reflect.ValueOf(src)
 	if value.Kind() == reflect.Pointer {
-		key = flattenedImageKey{pointer: value.Pointer(), r: uint8(br >> 8), g: uint8(bg >> 8), b: uint8(bb >> 8), width: width, height: height}
+		key = flattenedImageKey{pointer: value.Pointer(), r: r, g: g, b: b, width: width, height: height}
 		cacheable = true
 		flattenedCacheMu.RLock()
-		if cached, ok := flattenedImageCache[key]; ok {
+		if cached, ok := flattenedImageCache[key]; ok && cached.src == src {
 			flattenedCacheMu.RUnlock()
-			return cached
+			return cached.dst
 		}
 		flattenedCacheMu.RUnlock()
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
-	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: background}, image.Point{}, draw.Src)
+	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: color.RGBA{R: r, G: g, B: b, A: 255}}, image.Point{}, draw.Src)
 	draw.Draw(dst, dst.Bounds(), src, bounds.Min, draw.Over)
 	if cacheable {
 		flattenedCacheMu.Lock()
 		if len(flattenedImageCache) > 256 {
 			clear(flattenedImageCache)
 		}
-		flattenedImageCache[key] = dst
+		flattenedImageCache[key] = derivedImage{src, dst}
 		flattenedCacheMu.Unlock()
 	}
 	return dst
@@ -93,9 +120,9 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 			height:  bounds.Dy(),
 		}
 		opacityCacheMu.RLock()
-		if cached, ok := opacityImageCache[key]; ok {
+		if cached, ok := opacityImageCache[key]; ok && cached.src == src {
 			opacityCacheMu.RUnlock()
-			return cached
+			return cached.dst
 		}
 		opacityCacheMu.RUnlock()
 	}
@@ -131,8 +158,26 @@ func ApplyOpacity(src image.Image, opacity float64) image.Image {
 		if len(opacityImageCache) > 256 {
 			clear(opacityImageCache)
 		}
-		opacityImageCache[key] = dst
+		opacityImageCache[key] = derivedImage{src, dst}
 		opacityCacheMu.Unlock()
 	}
 	return dst
+}
+
+// forgetDerived drops what FlattenImage and ApplyOpacity made from img.
+func forgetDerived(img image.Image) {
+	flattenedCacheMu.Lock()
+	for key, entry := range flattenedImageCache {
+		if entry.src == img {
+			delete(flattenedImageCache, key)
+		}
+	}
+	flattenedCacheMu.Unlock()
+	opacityCacheMu.Lock()
+	for key, entry := range opacityImageCache {
+		if entry.src == img {
+			delete(opacityImageCache, key)
+		}
+	}
+	opacityCacheMu.Unlock()
 }

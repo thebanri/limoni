@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"image"
 	"strings"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -19,6 +20,20 @@ type Markdown struct {
 	Style        cell.Style
 	FocusedStyle cell.Style
 	ScrollOffset *int
+	// Theme colours headings, links, code, quotes and the rest; nil is
+	// DefaultMarkdownTheme.
+	Theme *MarkdownTheme
+	// Images returns the picture an image refers to — the src of
+	// ![alt](src) — or nil while there is none to show. An image that stands
+	// on a line of its own is drawn with the terminal's image protocol, or in
+	// half blocks where there is none; until Images returns it, and for an
+	// image inside a sentence, its alt text is shown instead. Images is
+	// asked on every draw, so it must be cheap and must not allocate: a map
+	// lookup. The layout follows when its answer changes. Fetching is the
+	// application's: MarkdownImageSources lists what a document refers to.
+	Images func(src string) image.Image
+	// MaxImageRows caps the height of a picture in rows; zero is 20.
+	MaxImageRows int
 
 	// Caching fields to avoid heap allocation on draw loops
 	lastContent   string
@@ -26,9 +41,15 @@ type Markdown struct {
 	lastWidth     uint16
 	lastBaseStyle cell.Style
 	lastLinks     bool
+	lastTheme     MarkdownTheme
 	cachedLines   []markdownLine
 	cachedRows    [][]cell.Cell
 	plain         string // the text without markup, for the semantic tree
+
+	// Pictures laid out in cachedRows, and what is kept of each source
+	// image while the content stays: see markdown_images.go.
+	placements []markdownPlacement
+	pictures   map[string]*markdownPicture
 
 	// The scrolling handlers, built once, and the last frame they read.
 	onMouse, onDrag   func(driver.MouseEvent)
@@ -97,6 +118,18 @@ func (m *Markdown) WithID(id string) *Markdown {
 	return m
 }
 
+// WithTheme sets the colours; nil is DefaultMarkdownTheme.
+func (m *Markdown) WithTheme(t *MarkdownTheme) *Markdown {
+	m.Theme = t
+	return m
+}
+
+// WithImages sets where pictures come from; see Markdown.Images.
+func (m *Markdown) WithImages(images func(src string) image.Image) *Markdown {
+	m.Images = images
+	return m
+}
+
 // WithScrollOffset binds an external scroll offset pointer.
 func (m *Markdown) WithScrollOffset(offset *int) *Markdown {
 	m.ScrollOffset = offset
@@ -142,6 +175,9 @@ type markdownLine struct {
 
 	code  *markdownCode  // a line of a fenced code block
 	table *markdownTable // a whole table
+	// image is a picture standing on a line of its own. segments hold its
+	// alt text, drawn instead while there is no picture to show.
+	image *markdownImage
 }
 
 // markdownCode is a line inside a fenced code block, highlighted as the
@@ -179,12 +215,50 @@ type rawSegment struct {
 	Style cell.Style
 }
 
-var (
-	markdownBulletColor = cell.NewColorRGB(0, 255, 0)
-	markdownQuoteColor  = cell.NewColorRGB(110, 118, 129)
-	markdownCodeBg      = cell.NewColorRGB(30, 32, 38)
-	markdownRuleColor   = cell.NewColorRGB(100, 100, 100)
-)
+// MarkdownTheme is how a Markdown document is coloured. Each style is merged
+// over the text's own, so a zero field leaves that part in the text's style.
+type MarkdownTheme struct {
+	// Headings are levels 1 to 6. A heading whose style has a background is
+	// drawn with a space either side, as a label.
+	Headings [6]cell.Style
+	Link     cell.Style
+	// Code is inline `code`; CodeBlock is the background of a fenced block,
+	// whose text is coloured by DefaultCodeTheme.
+	Code      cell.Style
+	CodeBlock cell.Style
+	// Quote is the bar before quoted text, which is also set in italics.
+	Quote  cell.Style
+	Bullet cell.Style // list markers
+	Rule   cell.Style // horizontal rules and table rules
+	// Image is the alt text drawn for a picture that is not shown.
+	Image cell.Style
+}
+
+// DefaultMarkdownTheme is the theme a Markdown without one draws in.
+var DefaultMarkdownTheme = MarkdownTheme{
+	Headings: [6]cell.Style{
+		{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold},
+		{Fg: cell.NewColorRGB(0, 255, 0), Modifier: cell.ModifierBold},
+		{Fg: cell.NewColorRGB(255, 200, 80), Modifier: cell.ModifierBold},
+		{Modifier: cell.ModifierBold},
+		{Modifier: cell.ModifierBold},
+		{Modifier: cell.ModifierBold},
+	},
+	Link:      cell.Style{Fg: cell.NewColorRGB(100, 160, 255), Modifier: cell.ModifierUnderline},
+	Code:      cell.Style{Fg: cell.NewColorRGB(255, 100, 100), Bg: cell.NewColorRGB(45, 45, 45)},
+	CodeBlock: cell.Style{Bg: cell.NewColorRGB(30, 32, 38)},
+	Quote:     cell.Style{Fg: cell.NewColorRGB(110, 118, 129)},
+	Bullet:    cell.Style{Fg: cell.NewColorRGB(0, 255, 0)},
+	Rule:      cell.Style{Fg: cell.NewColorRGB(100, 100, 100)},
+	Image:     cell.Style{Fg: cell.NewColorRGB(110, 118, 129), Modifier: cell.ModifierItalic},
+}
+
+func (m *Markdown) theme() *MarkdownTheme {
+	if m.Theme != nil {
+		return m.Theme
+	}
+	return &DefaultMarkdownTheme
+}
 
 // parse turns the source into styled lines. links says whether the terminal
 // can show OSC 8 hyperlinks, which changes the output: with them, `[text](url)`
@@ -197,15 +271,20 @@ var (
 // language, and pipe tables. A code block that has not been closed yet — a
 // reply still streaming in — runs to the end of the text.
 func (m *Markdown) parse(baseStyle cell.Style, links bool) {
+	theme := m.theme()
 	if m.Content == m.lastContent && m.Style == m.lastStyle && baseStyle == m.lastBaseStyle &&
-		links == m.lastLinks && m.cachedLines != nil {
+		links == m.lastLinks && *theme == m.lastTheme && m.cachedLines != nil {
 		return
+	}
+	if m.Content != m.lastContent {
+		m.forgetPictures()
 	}
 
 	m.lastContent = m.Content
 	m.lastStyle = m.Style
 	m.lastBaseStyle = baseStyle
 	m.lastLinks = links
+	m.lastTheme = *theme
 	m.lastWidth = 0
 	m.cachedLines = m.cachedLines[:0]
 	m.cachedRows = nil
@@ -248,11 +327,11 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 		// A pipe table: a header row, a delimiter row, then body rows.
 		if strings.HasPrefix(trimmed, "|") && i+1 < len(lines) && isTableDelimiter(lines[i+1]) {
 			table := &markdownTable{}
-			table.header = m.tableCells(trimmed, baseStyle.Merge(cell.Style{Modifier: cell.ModifierBold}), links)
+			table.header = m.tableCells(trimmed, baseStyle.Merge(cell.Style{Modifier: cell.ModifierBold}), links, theme)
 			table.align = tableAlignment(lines[i+1], len(table.header))
 			i += 2
 			for ; i < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[i]), "|"); i++ {
-				table.rows = append(table.rows, m.tableCells(strings.TrimSpace(lines[i]), baseStyle, links))
+				table.rows = append(table.rows, m.tableCells(strings.TrimSpace(lines[i]), baseStyle, links, theme))
 			}
 			i--
 			m.cachedLines = append(m.cachedLines, markdownLine{table: table})
@@ -270,7 +349,7 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 			continue
 		}
 
-		if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+		if isThematicBreak(trimmed) {
 			m.cachedLines = append(m.cachedLines, markdownLine{isDivider: true})
 			continue
 		}
@@ -283,7 +362,7 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 		for strings.HasPrefix(text, ">") {
 			text = strings.TrimSpace(strings.TrimPrefix(text, ">"))
 			line.prefix += "│ "
-			line.prefixStyle = baseStyle.Merge(cell.Style{Fg: markdownQuoteColor})
+			line.prefixStyle = baseStyle.Merge(theme.Quote)
 			lineStyle = lineStyle.Merge(cell.Style{Modifier: cell.ModifierItalic})
 		}
 		if line.prefix != "" {
@@ -292,18 +371,23 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 
 		if level, rest := headingLevel(text); level > 0 {
 			text = rest
-			switch level {
-			case 1:
-				lineStyle = lineStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 255), Modifier: cell.ModifierBold})
-				line.isHeader = true
-			case 2:
-				lineStyle = lineStyle.Merge(cell.Style{Fg: cell.NewColorRGB(0, 255, 0), Modifier: cell.ModifierBold})
-				line.isHeader = true
-			case 3:
-				lineStyle = lineStyle.Merge(cell.Style{Fg: cell.NewColorRGB(255, 200, 80), Modifier: cell.ModifierBold})
-			default:
-				lineStyle = lineStyle.Merge(cell.Style{Modifier: cell.ModifierBold})
+			heading := theme.Headings[level-1]
+			lineStyle = lineStyle.Merge(heading)
+			line.isHeader = level <= 2
+			if heading.Bg.Type() != cell.ColorDefault {
+				text = " " + text + " "
 			}
+		} else if alt, src, href, ok := blockImage(text); ok && line.prefix == "" {
+			line.image = &markdownImage{alt: alt, src: src}
+			placeholder := imagePlaceholder(alt)
+			style := lineStyle.Merge(theme.Image)
+			if href != "" {
+				style = linkedStyle(style, theme, href, links)
+			}
+			line.segments = wordSegments(line.segments, []rawSegment{{Text: placeholder, Style: style}})
+			plain.WriteString("[image: " + alt + "]\n")
+			m.cachedLines = append(m.cachedLines, line)
+			continue
 		} else if marker, rest, ok := listMarker(text); ok {
 			// Nesting follows the source's indentation, two columns a level.
 			line.indent = min(leadingColumns(rawLine)/2*2, 8)
@@ -311,20 +395,9 @@ func (m *Markdown) parse(baseStyle cell.Style, links bool) {
 			line.prefix += marker
 		}
 
-		for _, seg := range parseInlineStyles(text, lineStyle, links) {
-			words := strings.Split(seg.Text, " ")
-			wordRunes := make([][]rune, len(words))
-			widths := make([]int, len(words))
-			for i, word := range words {
-				wordRunes[i] = []rune(word)
-				widths[i] = cell.StringWidth(word)
-			}
-			line.segments = append(line.segments, StyledSegment{
-				Style:      seg.Style,
-				Words:      words,
-				WordRunes:  wordRunes,
-				WordWidths: widths,
-			})
+		segments := parseInline(text, lineStyle, links, theme)
+		line.segments = wordSegments(line.segments, segments)
+		for _, seg := range segments {
 			plain.WriteString(seg.Text)
 		}
 		plain.WriteByte('\n')
@@ -470,10 +543,10 @@ func tableAlignment(delimiter string, columns int) []byte {
 	return align
 }
 
-func (m *Markdown) tableCells(line string, style cell.Style, links bool) []markdownCell {
+func (m *Markdown) tableCells(line string, style cell.Style, links bool, theme *MarkdownTheme) []markdownCell {
 	var cells []markdownCell
 	for _, text := range splitTableRow(line) {
-		segs := parseInlineStyles(text, style, links)
+		segs := parseInline(text, style, links, theme)
 		w := 0
 		for _, s := range segs {
 			w += cell.StringWidth(s.Text)
@@ -549,6 +622,7 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 	}
+	m.drawPictures(ctx, buf, offset, baseStyle)
 }
 
 // visualRows expands parsed markdown into the exact cell rows used by Draw.
@@ -558,18 +632,20 @@ func (m *Markdown) visualRows(width uint16, baseStyle cell.Style) [][]cell.Cell 
 	if width == 0 {
 		return nil
 	}
-	if width == m.lastWidth && baseStyle == m.lastBaseStyle && m.cachedRows != nil {
+	if width == m.lastWidth && baseStyle == m.lastBaseStyle && m.cachedRows != nil && !m.picturesChanged() {
 		return m.cachedRows
 	}
 	m.lastWidth = width
 	m.lastBaseStyle = baseStyle
-	m.cachedRows = m.buildRows(width, baseStyle)
+	m.cachedRows, m.placements = m.buildRows(width, baseStyle, m.placements[:0])
 	return m.cachedRows
 }
 
-// buildRows lays the parsed lines out at width.
-func (m *Markdown) buildRows(width uint16, baseStyle cell.Style) [][]cell.Cell {
+// buildRows lays the parsed lines out at width, and appends where each
+// picture went to placements.
+func (m *Markdown) buildRows(width uint16, baseStyle cell.Style, placements []markdownPlacement) ([][]cell.Cell, []markdownPlacement) {
 	w := int(width)
+	theme := m.theme()
 	rows := make([][]cell.Cell, 0, len(m.cachedLines))
 	blank := func() []cell.Cell { return make([]cell.Cell, 0, w) }
 	pad := func(row []cell.Cell, n int, style cell.Style) []cell.Cell {
@@ -582,25 +658,40 @@ func (m *Markdown) buildRows(width uint16, baseStyle cell.Style) [][]cell.Cell {
 		switch {
 		case line.isDivider:
 			row := blank()
-			style := baseStyle.Merge(cell.Style{Fg: markdownRuleColor})
+			style := baseStyle.Merge(theme.Rule)
 			for len(row) < w {
 				row = append(row, cell.Cell{Content: '┄', Style: style})
 			}
 			rows = append(rows, row)
 			continue
 		case line.code != nil:
-			rows = append(rows, codeRow(line.code, w, baseStyle))
+			rows = append(rows, codeRow(line.code, w, baseStyle, theme))
 			continue
 		case line.table != nil:
-			rows = append(rows, tableRows(line.table, w, baseStyle)...)
+			rows = append(rows, tableRows(line.table, w, baseStyle, theme)...)
 			continue
+		case line.image != nil:
+			if img := m.picture(line.image.src); img != nil {
+				cols, height, show := m.pictureSize(img, w-line.indent)
+				if !show {
+					continue // a tracking pixel: nothing to see, and no alt text either
+				}
+				placements = append(placements, markdownPlacement{
+					src: line.image.src, img: img,
+					row: len(rows), rows: height, col: line.indent, cols: cols,
+				})
+				for range height {
+					rows = append(rows, blank())
+				}
+				continue
+			}
 		}
 
 		row := pad(blank(), line.indent, baseStyle)
 		if line.prefix != "" {
 			prefixStyle := line.prefixStyle
 			if prefixStyle == (cell.Style{}) {
-				prefixStyle = baseStyle.Merge(cell.Style{Fg: markdownBulletColor})
+				prefixStyle = baseStyle.Merge(theme.Bullet)
 			}
 			row = appendClusters(row, line.prefix, prefixStyle, w)
 		}
@@ -627,6 +718,19 @@ func (m *Markdown) buildRows(width uint16, baseStyle cell.Style) [][]cell.Cell {
 				if space == 1 && len(row) < w {
 					row = append(row, cell.Cell{Content: ' ', Style: seg.Style})
 				}
+				// A word wider than a whole row — a long address, mostly — is
+				// broken across rows rather than cut off at the edge.
+				for wordWidth > w-len(row) && w-len(row) > 0 && len(row) >= indent {
+					head, _ := cell.Truncate(word, w-len(row))
+					if head == "" {
+						break // a wide character in a one-column gap
+					}
+					row = appendClusters(row, head, seg.Style, w)
+					rows = append(rows, row)
+					row = startRow()
+					word = word[len(head):]
+					wordWidth = cell.StringWidth(word)
+				}
 				row = appendClusters(row, word, seg.Style, w)
 			}
 		}
@@ -635,19 +739,19 @@ func (m *Markdown) buildRows(width uint16, baseStyle cell.Style) [][]cell.Cell {
 			rows = append(rows, blank(), blank())
 		}
 	}
-	return rows
+	return rows, placements
 }
 
 // codeRow draws one line of a code block on its own background, cut at the
 // width rather than wrapped, as an editor shows it.
-func codeRow(code *markdownCode, width int, baseStyle cell.Style) []cell.Cell {
-	bg := baseStyle.Merge(cell.Style{Bg: markdownCodeBg})
+func codeRow(code *markdownCode, width int, baseStyle cell.Style, theme *MarkdownTheme) []cell.Cell {
+	bg := baseStyle.Merge(theme.CodeBlock)
 	row := make([]cell.Cell, 0, width)
 	row = append(row, cell.Cell{Content: ' ', Style: bg})
 	pos := 0
 	draw := func(text string, kind TokenKind) {
 		style := bg.Merge(DefaultCodeTheme[kind])
-		style.Bg = markdownCodeBg
+		style.Bg = bg.Bg
 		row = appendClusters(row, text, style, width)
 	}
 	for _, span := range code.spans {
@@ -669,7 +773,7 @@ func codeRow(code *markdownCode, width int, baseStyle cell.Style) []cell.Cell {
 // tableRows draws a table with box-drawing rules between its columns. When
 // it is wider than width, the widest columns give up room first and cells
 // are cut with an ellipsis.
-func tableRows(t *markdownTable, width int, baseStyle cell.Style) [][]cell.Cell {
+func tableRows(t *markdownTable, width int, baseStyle cell.Style, theme *MarkdownTheme) [][]cell.Cell {
 	cols := len(t.header)
 	for _, r := range t.rows {
 		cols = max(cols, len(r))
@@ -708,7 +812,7 @@ func tableRows(t *markdownTable, width int, baseStyle cell.Style) [][]cell.Cell 
 		widths[widest]--
 	}
 
-	ruleStyle := baseStyle.Merge(cell.Style{Fg: markdownRuleColor})
+	ruleStyle := baseStyle.Merge(theme.Rule)
 	line := func(row []markdownCell) []cell.Cell {
 		out := make([]cell.Cell, 0, width)
 		for i := 0; i < cols; i++ {
@@ -775,7 +879,8 @@ func (m *Markdown) visualLineCount(width uint16) int {
 	if width == 0 {
 		return 0
 	}
-	return len(m.buildRows(width, m.lastBaseStyle))
+	rows, _ := m.buildRows(width, m.lastBaseStyle, nil)
+	return len(rows)
 }
 
 func maxMarkdownOffset(lineCount, visibleHeight int) int {
@@ -874,26 +979,41 @@ func (m *Markdown) Measure(maxArea cell.Rect) layout.Measure {
 	}
 }
 
-// markdownLinkStyle is how a link is drawn whether or not the terminal can
-// make it clickable, so that link text is recognisable either way.
-func markdownLinkStyle(baseStyle cell.Style) cell.Style {
-	return baseStyle.Merge(cell.Style{
-		Fg:       cell.NewColorRGB(100, 160, 255),
-		Modifier: cell.ModifierUnderline,
-	})
+// linkedStyle is how a link to url is drawn: in the theme's link style, and
+// clickable where the terminal shows OSC 8 hyperlinks. A link to a fragment
+// of the page ("#notes") goes nowhere in a terminal, so it is plain text.
+func linkedStyle(style cell.Style, theme *MarkdownTheme, url string, links bool) cell.Style {
+	if strings.HasPrefix(url, "#") {
+		return style
+	}
+	style = style.Merge(theme.Link)
+	if links {
+		style = style.WithLink(url)
+	}
+	return style
 }
 
 // parseMarkdownLink reads `[label](url)` starting at the opening bracket. It
 // returns ok=false for anything that is not a complete link — a lone bracket,
 // a reference-style link, an unclosed URL — which is then drawn as the
-// literal text it is.
+// literal text it is. A title, `[label](url "title")`, is read and dropped.
+// The label may itself be an image: `[![alt](src)](url)`.
 func parseMarkdownLink(runes []rune, start int) (label, url string, next int, ok bool) {
 	n := len(runes)
 	i := start + 1
 	labelStart := i
+	if i+1 < n && runes[i] == '!' && runes[i+1] == '[' {
+		// An image as the label: skip over it whole.
+		if _, _, after, isImage := parseMarkdownLink(runes, i+1); isImage {
+			i = after
+		}
+	}
 	for i < n && runes[i] != ']' {
 		if runes[i] == '[' || runes[i] == '\n' {
 			return "", "", 0, false
+		}
+		if runes[i] == '\\' && i+1 < n {
+			i++ // an escaped bracket belongs to the label
 		}
 		i++
 	}
@@ -903,18 +1023,147 @@ func parseMarkdownLink(runes []rune, start int) (label, url string, next int, ok
 	label = string(runes[labelStart:i])
 	i += 2
 	urlStart := i
+	urlEnd := -1
 	for i < n && runes[i] != ')' {
 		if runes[i] == ' ' {
-			// `[text](url "title")` — the title is not rendered, and a bare
-			// space in a URL means this is not one.
-			return "", "", 0, false
+			// A space ends the address: what follows must be a title in
+			// quotes, or this is not a link.
+			urlEnd = i
+			for i < n && runes[i] == ' ' {
+				i++
+			}
+			if i >= n || (runes[i] != '"' && runes[i] != '\'') {
+				return "", "", 0, false
+			}
+			quote := runes[i]
+			i++
+			for i < n && runes[i] != quote {
+				i++
+			}
+			if i >= n {
+				return "", "", 0, false
+			}
+			i++
+			for i < n && runes[i] == ' ' {
+				i++
+			}
+			if i >= n || runes[i] != ')' {
+				return "", "", 0, false
+			}
+			break
 		}
 		i++
 	}
-	if i >= n || label == "" || i == urlStart {
+	if urlEnd < 0 {
+		urlEnd = i
+	}
+	if i >= n || urlEnd == urlStart {
 		return "", "", 0, false
 	}
-	return label, string(runes[urlStart:i]), i + 1, true
+	return label, string(runes[urlStart:urlEnd]), i + 1, true
+}
+
+// blockImage reports whether a line is nothing but an image, `![alt](src)`,
+// or a linked one, `[![alt](src)](href)`.
+func blockImage(text string) (alt, src, href string, ok bool) {
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, "![") && !strings.HasPrefix(text, "[![") {
+		return "", "", "", false
+	}
+	runes := []rune(text)
+	if runes[0] == '!' {
+		alt, src, next, ok := parseMarkdownLink(runes, 1)
+		if !ok || next != len(runes) {
+			return "", "", "", false
+		}
+		return unescapeMarkdown(alt), src, "", true
+	}
+	label, href, next, ok := parseMarkdownLink(runes, 0)
+	if !ok || next != len(runes) {
+		return "", "", "", false
+	}
+	inner := []rune(label)
+	if len(inner) < 2 || inner[0] != '!' {
+		return "", "", "", false
+	}
+	alt, src, next, ok = parseMarkdownLink(inner, 1)
+	if !ok || next != len(inner) {
+		return "", "", "", false
+	}
+	return unescapeMarkdown(alt), src, href, true
+}
+
+// imagePlaceholder is the text drawn for a picture that is not shown.
+func imagePlaceholder(alt string) string {
+	if alt == "" {
+		return "▣ image"
+	}
+	return "▣ " + alt
+}
+
+// isMarkdownPunct reports whether a backslash before r escapes it: the
+// ASCII punctuation CommonMark lets a backslash escape.
+func isMarkdownPunct(r rune) bool {
+	return r < 0x80 && strings.ContainsRune("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", r)
+}
+
+// unescapeMarkdown drops the backslash from escaped punctuation.
+func unescapeMarkdown(text string) string {
+	if !strings.Contains(text, "\\") {
+		return text
+	}
+	runes := []rune(text)
+	out := runes[:0]
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '\\' && i+1 < len(runes) && isMarkdownPunct(runes[i+1]) {
+			i++
+		}
+		out = append(out, runes[i])
+	}
+	return string(out)
+}
+
+// isThematicBreak reports whether a line is a horizontal rule: three or more
+// of the same -, * or _, which may be spaced ("* * *").
+func isThematicBreak(line string) bool {
+	if line == "" {
+		return false
+	}
+	mark, count := line[0], 0
+	if mark != '-' && mark != '*' && mark != '_' {
+		return false
+	}
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case mark:
+			count++
+		case ' ', '\t':
+		default:
+			return false
+		}
+	}
+	return count >= 3
+}
+
+// wordSegments splits parsed segments into words and measures them, once,
+// for the layout.
+func wordSegments(dst []StyledSegment, segments []rawSegment) []StyledSegment {
+	for _, seg := range segments {
+		words := strings.Split(seg.Text, " ")
+		wordRunes := make([][]rune, len(words))
+		widths := make([]int, len(words))
+		for i, word := range words {
+			wordRunes[i] = []rune(word)
+			widths[i] = cell.StringWidth(word)
+		}
+		dst = append(dst, StyledSegment{
+			Style:      seg.Style,
+			Words:      words,
+			WordRunes:  wordRunes,
+			WordWidths: widths,
+		})
+	}
+	return dst
 }
 
 // emphasisMark reports whether the single star at i opens emphasis (closing
@@ -926,20 +1175,33 @@ func emphasisMark(runes []rune, i int, closing bool) bool {
 	return i+1 < len(runes) && runes[i+1] != ' '
 }
 
+// parseInlineStyles reads inline markup in the default theme.
 func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegment {
+	return parseInline(text, baseStyle, links, &DefaultMarkdownTheme)
+}
+
+// parseInline reads emphasis, strikethrough, code, links, images and
+// backslash escapes into styled segments.
+func parseInline(text string, baseStyle cell.Style, links bool, theme *MarkdownTheme) []rawSegment {
 	var segments []rawSegment
 	runes := []rune(text)
 	var curr []rune
 	i := 0
 	n := len(runes)
 	style := baseStyle
+	flush := func() {
+		if len(curr) > 0 {
+			segments = append(segments, rawSegment{Text: string(curr), Style: style})
+			curr = nil
+		}
+	}
 
 	for i < n {
-		if i+1 < n && runes[i] == '*' && runes[i+1] == '*' {
-			if len(curr) > 0 {
-				segments = append(segments, rawSegment{Text: string(curr), Style: style})
-				curr = nil
-			}
+		if runes[i] == '\\' && i+1 < n && isMarkdownPunct(runes[i+1]) {
+			curr = append(curr, runes[i+1])
+			i += 2
+		} else if i+1 < n && runes[i] == '*' && runes[i+1] == '*' {
+			flush()
 			if (style.Modifier & cell.ModifierBold) != 0 {
 				style.Modifier &= ^cell.ModifierBold
 			} else {
@@ -947,10 +1209,7 @@ func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegme
 			}
 			i += 2
 		} else if i+1 < n && runes[i] == '~' && runes[i+1] == '~' {
-			if len(curr) > 0 {
-				segments = append(segments, rawSegment{Text: string(curr), Style: style})
-				curr = nil
-			}
+			flush()
 			style.Modifier ^= cell.ModifierStrikethrough
 			i += 2
 		} else if runes[i] == '*' && !emphasisMark(runes, i, style.Modifier&cell.ModifierItalic != 0) {
@@ -959,33 +1218,43 @@ func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegme
 			curr = append(curr, runes[i])
 			i++
 		} else if runes[i] == '*' {
-			if len(curr) > 0 {
-				segments = append(segments, rawSegment{Text: string(curr), Style: style})
-				curr = nil
-			}
+			flush()
 			if (style.Modifier & cell.ModifierItalic) != 0 {
 				style.Modifier &= ^cell.ModifierItalic
 			} else {
 				style.Modifier |= cell.ModifierItalic
 			}
 			i++
-		} else if runes[i] == '[' {
-			label, url, next, isLink := parseMarkdownLink(runes, i)
-			if !isLink {
+		} else if runes[i] == '!' && i+1 < n && runes[i+1] == '[' {
+			// An image inside a sentence is not drawn as a picture: its alt
+			// text stands in for it.
+			alt, _, next, isImage := parseMarkdownLink(runes, i+1)
+			if !isImage {
 				curr = append(curr, runes[i])
 				i++
 				continue
 			}
-			if len(curr) > 0 {
-				segments = append(segments, rawSegment{Text: string(curr), Style: style})
-				curr = nil
+			flush()
+			segments = append(segments, rawSegment{Text: imagePlaceholder(unescapeMarkdown(alt)), Style: style.Merge(theme.Image)})
+			i = next
+		} else if runes[i] == '[' {
+			label, url, next, isLink := parseMarkdownLink(runes, i)
+			if !isLink || label == "" {
+				curr = append(curr, runes[i])
+				i++
+				continue
 			}
-			linkStyle := markdownLinkStyle(style)
-			if links {
-				linkStyle = linkStyle.WithLink(url)
+			flush()
+			linkStyle := linkedStyle(style, theme, url, links)
+			for _, seg := range parseInline(label, linkStyle, false, theme) {
+				if links && linkStyle.Link != 0 {
+					seg.Style = seg.Style.WithLink(url)
+				}
+				segments = append(segments, seg)
 			}
-			segments = append(segments, rawSegment{Text: label, Style: linkStyle})
-			if !links {
+			// Where the address cannot be clicked it is written out, unless
+			// the text already is the address.
+			if !links && !strings.HasPrefix(url, "#") && unescapeMarkdown(label) != url {
 				segments = append(segments, rawSegment{
 					Text:  " (" + url + ")",
 					Style: style.Merge(cell.Style{Modifier: cell.ModifierDim}),
@@ -993,14 +1262,8 @@ func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegme
 			}
 			i = next
 		} else if runes[i] == '`' {
-			if len(curr) > 0 {
-				segments = append(segments, rawSegment{Text: string(curr), Style: style})
-				curr = nil
-			}
-			codeStyle := baseStyle.Merge(cell.Style{
-				Fg: cell.NewColorRGB(255, 100, 100),
-				Bg: cell.NewColorRGB(45, 45, 45),
-			})
+			flush()
+			codeStyle := baseStyle.Merge(theme.Code)
 			i++
 			var codeRunes []rune
 			for i < n && runes[i] != '`' {
@@ -1016,8 +1279,6 @@ func parseInlineStyles(text string, baseStyle cell.Style, links bool) []rawSegme
 			i++
 		}
 	}
-	if len(curr) > 0 {
-		segments = append(segments, rawSegment{Text: string(curr), Style: style})
-	}
+	flush()
 	return segments
 }
