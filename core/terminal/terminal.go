@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -350,6 +351,28 @@ func (t *Terminal) Suspend() error {
 	t.reportVersion = 0
 	t.ForceFullRedraw()
 	return nil
+}
+
+// Release hands the terminal to fn — an editor, a pager, a shell — and takes
+// it back when fn returns, with raw mode and the screen set up again and the
+// next frame forced to repaint in full. Nothing may draw while fn runs; the
+// caller owns that (Program.RunTerminal does it on its own loop).
+//
+// It returns driver.ErrReleaseUnsupported, without calling fn, where there is
+// no terminal to hand over: a remote or in-memory backend, the browser, and
+// Windows for now. Otherwise it returns fn's error.
+func (t *Terminal) Release(fn func() error) error {
+	if t == nil || t.driver == nil {
+		return driver.ErrReleaseUnsupported
+	}
+	t.RestoreModes()
+	err := t.driver.Release(fn)
+	if errors.Is(err, driver.ErrReleaseUnsupported) {
+		return err
+	}
+	t.reportVersion = 0
+	t.ForceFullRedraw()
+	return err
 }
 
 // Draw initiates a frame drawing pass. It detects terminal resize, clears the front buffer,

@@ -128,6 +128,19 @@ func (p *Program) RunTerminal(ctx context.Context, term *terminal.Terminal, b *d
 			}
 		case n := <-p.notifications:
 			term.Notify(n.Title, n.Body)
+		case h := <-p.handovers:
+			// The loop is the terminal's only writer, so nothing draws while
+			// another program has it; Updates meanwhile are drawn after.
+			var err error
+			if h.Suspend {
+				err = term.Suspend()
+			} else {
+				err = term.Release(h.Run)
+			}
+			h.Done(err)
+			if err := draw(); err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			p.Stop()
 			return ctx.Err()
@@ -268,6 +281,7 @@ type Program struct {
 	stop     chan struct{}
 
 	notifications chan Notification
+	handovers     chan Handover
 }
 
 // Draw renders the current model view through an existing Limoni terminal.
@@ -304,6 +318,7 @@ func New(options ...Option) *Program {
 		observer:       opts.observer,
 		stop:           make(chan struct{}),
 		notifications:  make(chan Notification, 4),
+		handovers:      make(chan Handover, 1),
 	}
 }
 
@@ -466,7 +481,7 @@ func (p *Program) callInit() (commands []Cmd) {
 }
 
 func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
-	if p.takeNotify(message) {
+	if p.takeNotify(message) || p.takeHandover(ctx, message) {
 		return false
 	}
 	var result UpdateResult

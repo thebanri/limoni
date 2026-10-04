@@ -8,6 +8,25 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+- `ExecCmd` and `SuspendCmd` for Programs: hand the terminal to an editor,
+  a pager or a shell and take it back, or stop on Ctrl+Z, from Update.
+  `Terminal.Release` and `Backend.Release` underneath. The Unix input reader
+  now waits in `select` on the terminal and a wake-up pipe, so it can be
+  paused: a reader blocked in `read` took the first keys typed into the
+  editor. An interrupt typed in the released program no longer quits the
+  application. On Windows `Release` returns `ErrReleaseUnsupported` for now.
+- `Markdown` draws pictures: an image on a line of its own, `![alt](src)` or
+  `[![alt](src)](href)`, is drawn through the image protocol (half blocks
+  without one) once `Markdown.Images` returns it, and only the part in view
+  while it is scrolled half out. `MarkdownImageSources` lists what a
+  document refers to; tracking pixels are skipped. 0 allocs/op
+  (`BenchmarkMarkdownPictureDraw`).
+- `MarkdownTheme` (`Markdown.Theme`, `DefaultMarkdownTheme`): headings,
+  links, code, quotes, bullets, rules and image text. The default draws as
+  before.
+- `graphics.FlattenImageRGB`, which takes no `color.Color`.
+
 ### Changed
 - The diff skips unchanged rows with one memory compare each:
   `BenchmarkDiff_PartialChanges` 26.4 → 11.3 µs, `BenchmarkDiff_FullChanges`
@@ -27,6 +46,18 @@ a patch bump (`v0.x.y`) does not.
   listed under Fixed.
 
 ### Fixed
+- `Markdown` read what converters from HTML write: backslash escapes
+  (`1\.`, `\|`), spaced rules (`* * *`), link titles, and markup inside a
+  link's text. A word wider than the row is broken across rows; it was cut
+  at the edge and the rest of it lost. A fragment link (`#notes`) is plain
+  text, and a link whose text is its address does not print it twice.
+- `Image.Draw` allocated on every frame through an image protocol: the
+  background colour was boxed into a `color.Color`.
+- The flattened and faded copies `Image` caches were keyed by a pointer the
+  cache did not hold, so a picture allocated at a freed one's address could
+  be answered with the old pixels. The cache now holds the source;
+  `ForgetImage` drops these copies too. An opaque decoded photo is no
+  longer copied to be flattened.
 - The scroll search taxed every frame of every application (scroll regions
   are on by default): it hashed every row of both buffers, field by field,
   whether anything had scrolled or not. A one-cell change cost 26.9 µs

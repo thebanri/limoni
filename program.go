@@ -2,6 +2,9 @@ package limoni
 
 import (
 	"context"
+	"os/exec"
+
+	"github.com/thebanri/limoni/core/driver"
 
 	"github.com/thebanri/limoni/core/engine"
 )
@@ -89,6 +92,27 @@ func NowCmd() Cmd { return engine.NowCmd() }
 // NotifyCmd shows a desktop notification in terminals that support one
 // (kitty, iTerm2, WezTerm, Ghostty, foot) and does nothing elsewhere.
 func NotifyCmd(title, body string) Cmd { return engine.NotifyCmd(title, body) }
+
+// ExecCmd hands the terminal to cmd — an editor, a pager, a shell — and takes
+// it back when cmd exits; done turns cmd's error into a message for Update
+// (nil for none). A nil Stdin, Stdout or Stderr is the process's own. Where
+// there is no terminal to hand over (a remote session, the browser, Windows
+// for now) done receives ErrReleaseUnsupported and cmd is not started.
+//
+//	return limoni.UpdateResult{Commands: []limoni.Cmd{
+//		limoni.ExecCmd(exec.Command(editor, path), func(err error) limoni.Msg {
+//			return editedMsg{err}
+//		}),
+//	}}
+func ExecCmd(cmd *exec.Cmd, done func(error) Msg) Cmd { return engine.ExecCmd(cmd, done) }
+
+// SuspendCmd stops the application and hands the terminal back to the shell,
+// as Ctrl+Z does elsewhere; `fg` resumes it with the screen repainted.
+func SuspendCmd() Cmd { return engine.SuspendCmd() }
+
+// ErrReleaseUnsupported is what ExecCmd reports where the terminal cannot be
+// handed to another program.
+var ErrReleaseUnsupported = driver.ErrReleaseUnsupported
 
 // WithProgramObserver attaches an observer, such as a session.Recorder, to a
 // Program.

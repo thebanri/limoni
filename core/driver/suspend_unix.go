@@ -30,38 +30,11 @@ func (b *Backend) Suspend() error {
 	if b.portableIO != nil || b.in == nil || b.out == nil {
 		return ErrSuspendUnsupported
 	}
-
-	restore := fullScreenRestoreCmds()
-	if height := b.Inline(); height > 0 {
-		restore = inlineRestoreCmds(height)
-	}
-	if _, err := b.out.WriteString(restore); err != nil {
-		return err
-	}
-	if b.state != nil {
-		if err := Restore(int(b.in.Fd()), b.state); err != nil {
-			return err
+	return b.handOver(func() error {
+		// Stops here until the shell continues us.
+		if err := stopSelf(); err != nil {
+			return fmt.Errorf("limoni: suspend: %w", err)
 		}
-		b.state = nil
-	}
-
-	// Stops here until the shell continues us.
-	if err := stopSelf(); err != nil {
-		return fmt.Errorf("limoni: suspend: %w", err)
-	}
-
-	state, err := MakeRaw(int(b.in.Fd()))
-	if err != nil {
-		return fmt.Errorf("limoni: resume: %w", err)
-	}
-	b.state = state
-	setup := fullScreenSetupCmds()
-	if height := b.Inline(); height > 0 {
-		setup = inlineSetupCmds(height)
-	}
-	// The terminal may be a different one, or the same one reconfigured, so
-	// ask it again what it supports.
-	setup = b.replies.withProbe(setup)
-	_, err = b.out.WriteString(setup)
-	return err
+		return nil
+	})
 }

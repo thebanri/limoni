@@ -213,6 +213,9 @@ func (a *runApp) screen() (string, error) {
 // commands are scheduled, and every input goes through the real message loop.
 // The program is stopped when the test ends.
 //
+// The terminal is in memory: ExecCmd and SuspendCmd receive
+// driver.ErrReleaseUnsupported, as in a remote session.
+//
 // Because the loop runs on its own goroutine, an input's effect is not visible
 // the moment the action returns. Assertions wait for it; that is the point of
 // them.
@@ -222,6 +225,18 @@ func Program(t testing.TB, width, height uint16, model engine.Model, opts ...Opt
 	program := engine.New(engine.WithModel(model))
 	a := &programApp{term: testkit.NewTerminal(width, height), program: program, ctx: ctx, done: make(chan error, 1)}
 	go func() { a.done <- program.Run(ctx) }()
+	// The terminal here is in memory, with nothing to hand to an editor:
+	// ExecCmd and SuspendCmd hear so, as they would in a remote session.
+	go func() {
+		for {
+			select {
+			case h := <-program.Handovers():
+				h.Done(driver.ErrReleaseUnsupported)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	t.Cleanup(func() {
 		cancel()
 		program.Stop()

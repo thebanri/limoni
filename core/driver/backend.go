@@ -31,6 +31,8 @@ type Backend struct {
 	mu         sync.RWMutex
 	replies    replyCollector
 	looping    atomic.Bool // the event loop that reads replies is running
+	reader     *ttyReader  // reads the terminal; paused while it is released
+	released   atomic.Bool // the terminal belongs to another program (Release)
 }
 
 // SetInline switches the backend to inline rendering: no alternate screen, the
@@ -223,13 +225,20 @@ func (b *Backend) startEventLoop() {
 	sigTerm := make(chan os.Signal, 1)
 	signal.Notify(sigTerm, os.Interrupt, unix.SIGTERM)
 	go func() {
-		select {
-		case <-sigTerm:
-			_ = b.Close()
-			os.Exit(130)
-		case <-b.done:
-			signal.Stop(sigTerm)
-			return
+		for {
+			select {
+			case sig := <-sigTerm:
+				// Ctrl+C in a program the terminal was released to reaches
+				// this process too; that program is the one to stop.
+				if sig == os.Interrupt && b.released.Load() {
+					continue
+				}
+				_ = b.Close()
+				os.Exit(130)
+			case <-b.done:
+				signal.Stop(sigTerm)
+				return
+			}
 		}
 	}()
 
@@ -258,8 +267,15 @@ func (b *Backend) startEventLoop() {
 		}
 	}()
 
-	// 2. Read the TTY and turn its bytes into events.
-	go b.parseInput(readChunks(b.in, 512, b.done), nil, nil)
+	// 2. Read the TTY and turn its bytes into events. The reader can be
+	// paused, so Release can hand the terminal to another program.
+	r, err := newTTYReader(b.in)
+	if err != nil {
+		go b.parseInput(readChunks(b.in, 512, b.done), nil, nil)
+		return
+	}
+	b.reader = r
+	go b.parseInput(r.chunks(512, b.done), nil, nil)
 }
 
 // Size returns the terminal window's current rows and columns.

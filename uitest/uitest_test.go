@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -390,4 +391,38 @@ func (l *logT) Helper() {}
 
 func (l *logT) Logf(format string, args ...any) {
 	l.lines = append(l.lines, fmt.Sprintf(format, args...))
+}
+
+// editor asks for an editor on 'e' and shows what came back.
+type editor struct{ status string }
+
+type editorClosed struct{ err error }
+
+func (m *editor) Init() []engine.Cmd { return nil }
+
+func (m *editor) Update(msg engine.Msg) engine.UpdateResult {
+	switch msg := msg.(type) {
+	case engine.KeyPressMsg:
+		if msg.Key.Ch == 'e' {
+			return engine.UpdateResult{Commands: []engine.Cmd{engine.ExecCmd(exec.Command("true"), func(err error) engine.Msg {
+				return editorClosed{err}
+			})}}
+		}
+	case editorClosed:
+		m.status = fmt.Sprint(msg.err)
+		return engine.UpdateResult{Redraw: true}
+	}
+	return engine.UpdateResult{}
+}
+
+func (m *editor) View(f *terminal.Frame) {
+	f.RenderWidget(label{widgets.Accessible{ID: "status", Label: m.status}}, cell.NewRect(0, 0, 40, 1))
+}
+
+// A test's terminal is in memory, with nothing to hand to an editor: the
+// model hears so, as it would in a remote session, rather than never hearing.
+func TestProgramAnswersExecCmdWithUnsupported(t *testing.T) {
+	page := Program(t, 60, 3, &editor{})
+	page.Press("e")
+	page.Expect(page.GetByID("status")).ToHaveLabel(driver.ErrReleaseUnsupported.Error())
 }
