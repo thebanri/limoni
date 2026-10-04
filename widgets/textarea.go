@@ -1,9 +1,10 @@
 package widgets
 
 import (
-	"github.com/thebanri/limoni/core/accessibility"
-	"strings"
+	"slices"
+	"unicode/utf8"
 
+	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 	"github.com/thebanri/limoni/core/driver"
@@ -14,14 +15,33 @@ import (
 type TextAreaState struct {
 	Text   []rune
 	Cursor int
+
+	// Top is the first visible row of the wrapped text. Draw moves it to
+	// keep the cursor in view.
+	Top int
+
+	// text is Text as UTF-8, rebuilt only when Text changes.
+	text  string
+	built []rune
 }
 
 func NewTextAreaState() *TextAreaState { return &TextAreaState{Text: make([]rune, 0, 128)} }
+
+// Value returns the text as a string.
 func (s *TextAreaState) Value() string {
 	if s == nil {
 		return ""
 	}
-	return string(s.Text)
+	return s.str()
+}
+
+// str is Text as a string, converted only when Text has changed.
+func (s *TextAreaState) str() string {
+	if !slices.Equal(s.built, s.Text) {
+		s.text = string(s.Text)
+		s.built = append(s.built[:0], s.Text...)
+	}
+	return s.text
 }
 func (s *TextAreaState) SetValue(value string) { s.Text = []rune(value); s.Cursor = len(s.Text) }
 
@@ -78,6 +98,22 @@ func (s *TextAreaState) HandleKey(ev driver.KeyEvent) bool {
 	case driver.KeyEnd:
 		s.Cursor = lineEnd(s.Text, s.Cursor)
 		return true
+	case driver.KeyArrowUp:
+		start := lineStart(s.Text, s.Cursor)
+		if start == 0 {
+			return false
+		}
+		prev := lineStart(s.Text, start-1)
+		s.Cursor = min(prev+(s.Cursor-start), start-1)
+		return true
+	case driver.KeyArrowDown:
+		end := lineEnd(s.Text, s.Cursor)
+		if end >= len(s.Text) {
+			return false
+		}
+		column := s.Cursor - lineStart(s.Text, s.Cursor)
+		s.Cursor = min(end+1+column, lineEnd(s.Text, end+1))
+		return true
 	}
 	return false
 }
@@ -96,11 +132,59 @@ func lineEnd(text []rune, cursor int) int {
 }
 
 // TextArea is a multiline focusable text editor.
+//
+// Long lines wrap at the width, by grapheme cluster; the view follows the
+// cursor, which is drawn while the area has the focus. Drawing does not
+// allocate.
 type TextArea struct {
 	ID           string
 	State        *TextAreaState
 	Style        cell.Style
 	FocusedStyle cell.Style
+	// Placeholder is shown, dimmed, while the text is empty.
+	Placeholder string
+	// Focused draws the area as focused whatever the focus manager says,
+	// for applications that track focus themselves.
+	Focused bool
+}
+
+// walkWrapped calls visit for each grapheme cluster of text laid out in
+// width columns: its row and column, and the rune index it starts at. A
+// newline ends a row and is not visited. It returns the row and column the
+// cursor (a rune index) falls on, and the number of rows.
+func walkWrapped(text string, width, cursor int, visit func(row, col int, cluster string, w int)) (cursorRow, cursorCol, rows int) {
+	row, col, runeIdx := 0, 0, 0
+	cursorRow, cursorCol = -1, 0
+	for rest := text; rest != ""; {
+		cluster, w, next := cell.NextCluster(rest)
+		n := utf8.RuneCountInString(cluster)
+		if cluster == "\n" {
+			if cursorRow < 0 && runeIdx >= cursor {
+				cursorRow, cursorCol = row, col
+			}
+			row, col = row+1, 0
+		} else {
+			if col+w > width && col > 0 {
+				row, col = row+1, 0
+			}
+			if cursorRow < 0 && runeIdx+n > cursor {
+				cursorRow, cursorCol = row, col
+			}
+			if visit != nil {
+				visit(row, col, cluster, w)
+			}
+			col += w
+		}
+		runeIdx += n
+		rest = next
+	}
+	if cursorRow < 0 {
+		cursorRow, cursorCol = row, col
+		if col >= width {
+			cursorRow, cursorCol = row+1, 0
+		}
+	}
+	return cursorRow, cursorCol, max(row, cursorRow) + 1
 }
 
 func (a TextArea) Draw(ctx cell.Context, buf *buffer.Buffer) {
@@ -136,12 +220,33 @@ func (a TextArea) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 	}
-	lines := strings.Split(string(a.State.Text), "\n")
-	for row, line := range lines {
-		if row >= int(ctx.Area.Height) {
-			break
+	focused := a.Focused || ctx.IsFocused(a.ID)
+	st := a.State
+	width, height := int(ctx.Area.Width), int(ctx.Area.Height)
+	if len(st.Text) == 0 && a.Placeholder != "" {
+		setClipped(buf, ctx.Area.X, ctx.Area.Y, a.Placeholder, style.Merge(cell.Style{Modifier: cell.ModifierDim}), width)
+	}
+	text := st.str()
+	st.Cursor = clampInt(st.Cursor, 0, len(st.Text))
+	cursorRow, cursorCol, _ := walkWrapped(text, width, st.Cursor, nil)
+	if cursorRow < st.Top {
+		st.Top = cursorRow
+	} else if cursorRow >= st.Top+height {
+		st.Top = cursorRow - height + 1
+	}
+	top := st.Top
+	walkWrapped(text, width, st.Cursor, func(row, col int, cluster string, w int) {
+		if row < top || row >= top+height || col+w > width {
+			return
 		}
-		setClipped(buf, ctx.Area.X, ctx.Area.Y+uint16(row), line, style, int(ctx.Area.Width))
+		x, y := ctx.Area.X+uint16(col), ctx.Area.Y+uint16(row-top)
+		buf.SetCell(x, y, cell.Cell{Content: cell.ClusterContent(cluster, w), Style: style})
+		if w == 2 {
+			buf.SetCell(x+1, y, cell.Cell{Content: cell.RuneContinuation, Style: style})
+		}
+	})
+	if focused && cursorCol < width {
+		paintCursor(buf, ctx.Area.X+uint16(cursorCol), ctx.Area.Y+uint16(cursorRow-top))
 	}
 }
 func (a TextArea) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, maxArea.Height }

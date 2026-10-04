@@ -47,6 +47,12 @@ a patch bump (`v0.x.y`) does not.
   block that has not been closed yet — a reply still streaming — is drawn as
   code. It used to know `#`, `##`, bullets and rules only, while the README
   said "GFM". `LanguageByName` maps a fence's tag to a `Language`.
+- `TextArea` wraps long lines by grapheme cluster, scrolls to keep the
+  cursor in view (`TextAreaState.Top`), draws the cursor while focused, has
+  a `Placeholder` and a `Focused` override, and moves between lines with ↑
+  and ↓. It drew neither a cursor nor anything past its last row, and
+  converted and split its whole text on every frame; it now draws without
+  allocating.
 - `Markdown.AccessibilityNode`: the widget had none, so the semantic tree,
   screen readers, `uitest` and agents could not read it. Its value is the
   text without the markup.
