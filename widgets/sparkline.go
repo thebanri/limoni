@@ -18,7 +18,10 @@ type Sparkline struct {
 	Color cell.Color
 }
 
-var sparklineBlocks = []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+// sparklineBlocks are the eight partial heights, one eighth apart. The table
+// once began with a space instead of ▁, so a value an eighth of a cell high
+// drew nothing and the line had seven steps.
+var sparklineBlocks = [...]rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if len(s.Data) == 0 || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
@@ -89,7 +92,11 @@ func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if dy < fullCells {
 				c.Content = '█'
 			} else if dy == fullCells && remainder > 0.05 {
-				blockIdx := int(remainder * 7.9)
+				// The nearest eighth: 0.125 is ▁, 0.5 is ▄.
+				blockIdx := int(remainder*8+0.5) - 1
+				if blockIdx < 0 {
+					blockIdx = 0
+				}
 				if blockIdx > 7 {
 					blockIdx = 7
 				}

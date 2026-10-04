@@ -62,3 +62,15 @@ func TestBarChart_DrawHorizontal(t *testing.T) {
 		t.Fatal("expected non-nil cell at (0, 0)")
 	}
 }
+
+// An eighth of a cell is ▁. The symbol table had a space there, so the
+// lowest step drew nothing — the same slip Sparkline's table had.
+func TestBarChartDrawsTheLowestEighth(t *testing.T) {
+	// Three rows: two of chart, one of labels. 1 of 16 is an eighth of them.
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 6, 3))
+	chart := BarChart{Data: []BarData{{Label: "a", Value: 1}}, Max: 16, Min: 0, BarWidth: 1}
+	chart.Draw(cell.NewContext(buf.Area, cell.Style{}), buf)
+	if got := buf.Get(1, 1).Content; got != '▁' {
+		t.Errorf("a bar an eighth of a cell high drew %q, want ▁", got)
+	}
+}

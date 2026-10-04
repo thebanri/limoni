@@ -39,7 +39,7 @@ type BarChart struct {
 	DefaultColor   cell.Color
 }
 
-var verticalBlockSymbols = []rune{' ', ' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+var verticalBlockSymbols = []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 // Draw renders the bar chart to the buffer.
 func (bc BarChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
