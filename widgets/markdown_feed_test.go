@@ -51,6 +51,14 @@ func TestMarkdownBreaksWordsWiderThanTheRow(t *testing.T) {
 	if !strings.Contains(joined, "end") {
 		t.Fatalf("the text after the address was lost:\n%s", strings.Join(rows, "\n"))
 	}
+
+	// In a quoted list item the continuation ("│ ") is narrower than the
+	// first row's prefix ("│ • "); the address must still be broken there.
+	_, _, rows = drawMarkdown(t, "> - see "+long+" end", 20, 8)
+	joined = strings.Join(rows, "")
+	if !strings.Contains(strings.NewReplacer(" ", "", "│", "").Replace(joined), long) {
+		t.Fatalf("the address in a quote was not drawn whole:\n%s", strings.Join(rows, "\n"))
+	}
 }
 
 // Markup inside a link's text is read: `[$179 at **Amazon**](url)` is bold

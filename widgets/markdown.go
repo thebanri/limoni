@@ -722,7 +722,7 @@ func (m *Markdown) buildRows(width uint16, baseStyle cell.Style, placements []ma
 				}
 				// A word wider than a whole row — a long address, mostly — is
 				// broken across rows rather than cut off at the edge.
-				for wordWidth > w-len(row) && w-len(row) > 0 && len(row) >= indent {
+				for wordWidth > w-len(row) && w-len(row) > 0 {
 					head, _ := cell.Truncate(word, w-len(row))
 					if head == "" {
 						break // a wide character in a one-column gap
