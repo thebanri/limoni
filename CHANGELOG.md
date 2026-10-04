@@ -53,6 +53,17 @@ a patch bump (`v0.x.y`) does not.
   listed under Fixed.
 
 ### Fixed
+- Ctrl+Z could leave the application stopped for good. The SIGTSTP it sent
+  itself may be taken by another thread — one created by C, with SIGTSTP
+  blocked — so the stop landed asynchronously, after the backend had already
+  put the terminal back in raw mode and sent the setup sequence and the
+  capability probe. The shell then read the terminal's answers as a command
+  line, and the `fg` typed next with them. It now stops the whole process
+  group, as the terminal does (so `script` or `go run` around it stops too),
+  and waits for SIGCONT before setting the terminal up again. Found porting
+  nom, which uses cgo for SQLite: the second suspend in a row lost every key.
+  `TestSuspendStopsBeforeSettingUpAgain` stops a real child process with the
+  signal blocked on the suspending thread; it fails on the old code.
 - Every `limoni.RunProgram` left the terminal in raw mode on exit — no echo,
   no line editing — in shells that do not reset it after each command
   (bash). `limoni.New` sets the backend up and `RunTerminal` set it up again;
