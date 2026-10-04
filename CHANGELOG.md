@@ -8,6 +8,14 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Changed
+- Test coverage of the library packages: 76.6% → about 80% (measured
+  without the examples, apps and benchmark runners). New tests for the
+  graphics loaders reading files (#37), `limoni doctor`'s report (#38),
+  `Image`, TreeView's keyboard, Table's horizontal scrolling and grid
+  joins, and filled and textured triangles; two of them found the bugs
+  listed under Fixed.
+
 ### Fixed
 - Half-transparent pixels of an `Image` drawn in half blocks were weighted
   by their alpha twice: Go's colours come premultiplied, and the blend

@@ -47,8 +47,13 @@ func runDoctor(out io.Writer) error {
 		return err
 	}
 
-	final := detected.WithReport(report)
+	printDoctor(out, report, elapsed, detected, detected.WithReport(report))
+	return nil
+}
 
+// printDoctor writes the report: what the terminal answered, the environment,
+// and what Limoni will use, guessed against answered.
+func printDoctor(out io.Writer, report driver.TerminalReport, elapsed time.Duration, detected, final terminal.CapabilityProfile) {
 	fmt.Fprintln(out, "Terminal")
 	switch {
 	case report.Name != "":
@@ -113,7 +118,6 @@ func runDoctor(out io.Writer) error {
 		mark = "  (changed)"
 	}
 	fmt.Fprintf(out, "  %-22s  %-7s  →  %s%s\n", "images", protocolName(detected.GraphicsProto), protocolName(final.GraphicsProto), mark)
-	return nil
 }
 
 func protocolName(p graphics.Protocol) string {
