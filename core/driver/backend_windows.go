@@ -4,6 +4,7 @@ package driver
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -151,115 +152,32 @@ func (b *Backend) StartEventLoop() {
 }
 
 func (b *Backend) startEventLoop() {
-	inputChan := make(chan []byte, 32)
-	go func() {
-		buf := make([]byte, 512)
-		for {
-			var n int
-			var err error
-			if b.portableIO != nil {
-				n, err = b.portableIO.Read(buf)
-			} else if b.in != nil {
-				n, err = b.in.Read(buf)
-			} else {
-				return
-			}
-			if err != nil {
-				return
-			}
-			if n > 0 {
-				temp := make([]byte, n)
-				copy(temp, buf[:n])
-				select {
-				case inputChan <- temp:
-				case <-b.done:
-					return
-				}
-			}
+	var r io.Reader
+	switch {
+	case b.portableIO != nil:
+		r = b.portableIO
+	case b.in != nil:
+		r = b.in
+	default:
+		return
+	}
+	// The console sends no resize signal: poll its size.
+	var lastW, lastH uint16
+	if w, h, err := b.Size(); err == nil {
+		lastW, lastH = w, h
+	}
+	poll := func() (uint16, uint16, bool) {
+		w, h, err := b.Size()
+		if err != nil || (w == lastW && h == lastH) {
+			return w, h, false
 		}
-	}()
-
+		lastW, lastH = w, h
+		return w, h, true
+	}
+	ticker := time.NewTicker(200 * time.Millisecond)
 	go func() {
-		var readBuf []byte
-		const escTimeoutDuration = 25 * time.Millisecond
-		var escTimer *time.Timer
-		var escTimerChan <-chan time.Time
-
-		// Poll the window size periodically (Windows only)
-		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
-
-		var lastW, lastH uint16
-		if w, h, err := b.Size(); err == nil {
-			lastW, lastH = w, h
-		}
-
-		for {
-			select {
-			case <-b.done:
-				if escTimer != nil {
-					escTimer.Stop()
-				}
-				return
-
-			case <-ticker.C:
-				if w, h, err := b.Size(); err == nil && (w != lastW || h != lastH) {
-					lastW, lastH = w, h
-					select {
-					case b.events <- Event{
-						Type: EventResize,
-						Resize: ResizeEvent{
-							Width:  w,
-							Height: h,
-						},
-					}:
-					case <-b.done:
-						return
-					}
-				}
-
-			case chunk := <-inputChan:
-				readBuf = append(readBuf, chunk...)
-				if escTimer != nil {
-					escTimer.Stop()
-					escTimer = nil
-					escTimerChan = nil
-				}
-
-				for len(readBuf) > 0 {
-					ev, consumed := ParseBracketedPaste(readBuf)
-					if consumed == 0 {
-						ev, consumed = ParseEvent(readBuf)
-					}
-					if consumed > 0 {
-						if ev.Type != EventNone && !b.replies.record(ev) {
-							b.events <- ev
-						}
-						readBuf = readBuf[consumed:]
-					} else {
-						break
-					}
-				}
-
-				if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-					escTimer = time.NewTimer(escTimeoutDuration)
-					escTimerChan = escTimer.C
-				}
-
-			case <-escTimerChan:
-				if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-					b.events <- Event{
-						Type: EventKey,
-						Key: KeyEvent{
-							Type: KeyEsc,
-						},
-					}
-					readBuf = readBuf[:0]
-				}
-				escTimer = nil
-				escTimerChan = nil
-			}
-		}
+		b.parseInput(readChunks(r, 512, b.done), ticker.C, poll)
 	}()
 }
 

@@ -18,6 +18,12 @@ a patch bump (`v0.x.y`) does not.
   listed under Fixed.
 
 ### Fixed
+- On Windows, closing a backend while its event channel was full left the
+  input loop blocked forever: it sent without watching for the close. The
+  three copies of the input loop (portable, Unix TTY, Windows) are now one,
+  `parseInput`, which gives way to the close on every send (#53).
+- `limoni version` printed "latest" whatever was installed; it reports the
+  module version the binary was built from.
 - Half-transparent pixels of an `Image` drawn in half blocks were weighted
   by their alpha twice: Go's colours come premultiplied, and the blend
   multiplied again. A 50% red over dark blue came out (64,0,49) instead of

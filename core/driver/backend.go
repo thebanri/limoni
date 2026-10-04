@@ -193,119 +193,24 @@ func (b *Backend) StartEventLoop() {
 
 func (b *Backend) startEventLoop() {
 	if b.portableIO != nil {
-		inputChan := make(chan []byte, 32)
-		go func() {
-			buf := make([]byte, 1024)
-			for {
-				n, err := b.portableIO.Read(buf)
-				if err != nil {
-					close(inputChan)
-					return
-				}
-				if n > 0 {
-					temp := make([]byte, n)
-					copy(temp, buf[:n])
-					select {
-					case inputChan <- temp:
-					case <-b.done:
-						return
-					}
-				}
+		// No SIGWINCH from a portable terminal: poll its size instead.
+		poll := func() (uint16, uint16, bool) {
+			w, h, err := b.portableIO.Size()
+			if err != nil {
+				return 0, 0, false
 			}
-		}()
-
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if w == b.width && h == b.height {
+				return w, h, false
+			}
+			b.width, b.height = w, h
+			return w, h, true
+		}
+		ticker := time.NewTicker(250 * time.Millisecond)
 		go func() {
-			var readBuf []byte
-			const escTimeoutDuration = 25 * time.Millisecond
-			var escTimer *time.Timer
-			var escTimerChan <-chan time.Time
-
-			ticker := time.NewTicker(250 * time.Millisecond)
 			defer ticker.Stop()
-
-			for {
-				select {
-				case <-b.done:
-					if escTimer != nil {
-						escTimer.Stop()
-					}
-					return
-
-				case <-ticker.C:
-					if w, h, err := b.portableIO.Size(); err == nil {
-						b.mu.Lock()
-						if w != b.width || h != b.height {
-							b.width, b.height = w, h
-							b.mu.Unlock()
-							select {
-							case b.events <- Event{
-								Type: EventResize,
-								Resize: ResizeEvent{
-									Width:  w,
-									Height: h,
-								},
-							}:
-							case <-b.done:
-								return
-							}
-						} else {
-							b.mu.Unlock()
-						}
-					}
-
-				case chunk, ok := <-inputChan:
-					if !ok {
-						return
-					}
-					readBuf = append(readBuf, chunk...)
-					if escTimer != nil {
-						escTimer.Stop()
-						escTimer = nil
-						escTimerChan = nil
-					}
-
-					for len(readBuf) > 0 {
-						ev, consumed := ParseBracketedPaste(readBuf)
-						if consumed == 0 {
-							ev, consumed = ParseEvent(readBuf)
-						}
-						if consumed > 0 {
-							if ev.Type != EventNone && !b.replies.record(ev) {
-								select {
-								case b.events <- ev:
-								case <-b.done:
-									return
-								}
-							}
-							readBuf = readBuf[consumed:]
-						} else {
-							break
-						}
-					}
-
-					if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-						escTimer = time.NewTimer(escTimeoutDuration)
-						escTimerChan = escTimer.C
-					}
-
-				case <-escTimerChan:
-					if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-						select {
-						case b.events <- Event{
-							Type: EventKey,
-							Key: KeyEvent{
-								Type: KeyEsc,
-							},
-						}:
-						case <-b.done:
-							return
-						}
-						readBuf = readBuf[:0]
-					}
-					escTimer = nil
-					escTimerChan = nil
-				}
-			}
+			b.parseInput(readChunks(b.portableIO, 1024, b.done), ticker.C, poll)
 		}()
 		return
 	}
@@ -353,105 +258,8 @@ func (b *Backend) startEventLoop() {
 		}
 	}()
 
-	// 2. Start the TTY input reader and the ESC timeout event loop
-	inputChan := make(chan []byte, 32)
-	go func() {
-		buf := make([]byte, 512)
-		for {
-			n, err := b.in.Read(buf)
-			if err != nil {
-				// The reader goroutine exits on error or when the file is closed
-				close(inputChan)
-				return
-			}
-			if n > 0 {
-				temp := make([]byte, n)
-				copy(temp, buf[:n])
-				select {
-				case inputChan <- temp:
-				case <-b.done:
-					return
-				}
-			}
-		}
-	}()
-
-	go func() {
-		var readBuf []byte
-		const escTimeoutDuration = 25 * time.Millisecond
-		var escTimer *time.Timer
-		var escTimerChan <-chan time.Time
-
-		for {
-			select {
-			case <-b.done:
-				if escTimer != nil {
-					escTimer.Stop()
-				}
-				return
-
-			case chunk, ok := <-inputChan:
-				if !ok {
-					return
-				}
-				readBuf = append(readBuf, chunk...)
-
-				// Stop the ESC timer if it is running (a new byte arrived; an escape sequence may be continuing)
-				if escTimer != nil {
-					escTimer.Stop()
-					escTimer = nil
-					escTimerChan = nil
-				}
-
-				// Parse the buffer
-				for len(readBuf) > 0 {
-					ev, consumed := ParseBracketedPaste(readBuf)
-					if consumed == 0 {
-						ev, consumed = ParseEvent(readBuf)
-					}
-					if consumed > 0 {
-						if ev.Type != EventNone && !b.replies.record(ev) {
-							select {
-							case b.events <- ev:
-							case <-b.done:
-								return
-							}
-						}
-						readBuf = readBuf[consumed:]
-					} else {
-						// An incomplete sequence is pending
-						break
-					}
-				}
-
-				// If only a single '\x1b' (Escape) is left in the buffer, start a timeout to
-				// find out whether it was the ESC key.
-				if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-					escTimer = time.NewTimer(escTimeoutDuration)
-					escTimerChan = escTimer.C
-				}
-
-			case <-escTimerChan:
-				// The timeout expired with no new byte, so the '\x1b' left in the buffer
-				// is taken as a press of the ESC key.
-				if len(readBuf) == 1 && readBuf[0] == '\x1b' {
-					select {
-					case b.events <- Event{
-						Type: EventKey,
-						Key: KeyEvent{
-							Type: KeyEsc,
-						},
-					}:
-					case <-b.done:
-						return
-					}
-					readBuf = readBuf[:0]
-				}
-				escTimer = nil
-				escTimerChan = nil
-			}
-		}
-	}()
+	// 2. Read the TTY and turn its bytes into events.
+	go b.parseInput(readChunks(b.in, 512, b.done), nil, nil)
 }
 
 // Size returns the terminal window's current rows and columns.
