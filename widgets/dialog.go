@@ -1,9 +1,11 @@
 package widgets
 
 import (
-	"fmt"
-	"github.com/thebanri/limoni/core/accessibility"
+	"strconv"
+	"strings"
 	"unicode/utf8"
+
+	"github.com/thebanri/limoni/core/accessibility"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -35,6 +37,100 @@ type Dialog struct {
 	Shadow             bool
 	FocusedButton      int
 	OnButtonHover      func(index int)
+
+	// State keeps the buttons' IDs, labels and mouse handlers between
+	// frames. With one the dialog draws without allocating; without one it
+	// builds them every frame (about a dozen allocations for two buttons).
+	State *DialogState
+}
+
+// DialogState is what a Dialog keeps between frames. Keep one per dialog.
+type DialogState struct {
+	// For each button: its focus ID and drawn label, rebuilt when the
+	// dialog's ID or the button's text changes.
+	ids, labels  []string
+	idsFor       string
+	labelsFor    []string
+	hover        []func(driver.MouseEvent)
+	click        []func()
+	lastHandlers []func()
+	lastOnHover  func(int)
+	lastSetFocus func(string)
+}
+
+// prepare brings the cached IDs and labels up to date with di.
+func (s *DialogState) prepare(di *Dialog) {
+	n := len(di.Buttons)
+	if s.idsFor != di.ID || len(s.ids) != n {
+		s.ids = s.ids[:0]
+		for i := 0; i < n; i++ {
+			s.ids = append(s.ids, dialogButtonID(di.ID, i))
+		}
+		s.idsFor = di.ID
+	}
+	for len(s.labels) < n {
+		s.labels = append(s.labels, "")
+		s.labelsFor = append(s.labelsFor, "\x00") // never a button's text
+	}
+	for i, b := range di.Buttons {
+		if s.labelsFor[i] != b.Text {
+			s.labels[i], s.labelsFor[i] = dialogButtonLabel(b.Text), b.Text
+		}
+	}
+	for len(s.lastHandlers) < n {
+		s.lastHandlers = append(s.lastHandlers, nil)
+	}
+	for i, b := range di.Buttons {
+		s.lastHandlers[i] = b.Handler
+	}
+	s.lastOnHover = di.OnButtonHover
+}
+
+// handlers returns button i's hover and click handlers, built once per state;
+// they read the last frame's callbacks.
+func (s *DialogState) handlers(i int) (func(driver.MouseEvent), func()) {
+	for len(s.hover) <= i {
+		b := len(s.hover)
+		s.hover = append(s.hover, func(driver.MouseEvent) { s.enter(b) })
+		s.click = append(s.click, func() {
+			s.enter(b)
+			if b < len(s.lastHandlers) && s.lastHandlers[b] != nil {
+				s.lastHandlers[b]()
+			}
+		})
+	}
+	return s.hover[i], s.click[i]
+}
+
+func (s *DialogState) enter(i int) {
+	if s.lastSetFocus != nil && i < len(s.ids) {
+		s.lastSetFocus(s.ids[i])
+	}
+	if s.lastOnHover != nil {
+		s.lastOnHover(i)
+	}
+}
+
+func dialogButtonID(id string, i int) string { return id + "_btn_" + strconv.Itoa(i) }
+
+func dialogButtonLabel(text string) string { return " [ " + text + " ] " }
+
+// isDialogButtonID reports whether focused is dialogButtonID(id, i), without
+// building it.
+func isDialogButtonID(focused, id string, i int) bool {
+	rest, ok := strings.CutPrefix(focused, id)
+	if !ok {
+		return false
+	}
+	rest, ok = strings.CutPrefix(rest, "_btn_")
+	return ok && rest == strconv.Itoa(i)
+}
+
+// dialogButton is one button's layout for a frame.
+type dialogButton struct {
+	label, id string
+	width     int
+	style     cell.Style
 }
 
 // Draw renders the premium glassmorphism dialog inside ctx.Area.
@@ -231,27 +327,36 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			spacing = 1
 		}
 
-		type btnLayout struct {
-			text  string
-			width int
-			btn   DialogButton
-			btnID string
-			style cell.Style
+		var st *DialogState
+		if di.State != nil {
+			st = di.State
+			st.prepare(&di)
+			st.lastSetFocus = ctx.SetFocus
 		}
 
-		btnList := make([]btnLayout, len(di.Buttons))
+		// Up to eight buttons are laid out on the stack.
+		var layoutStore [8]dialogButton
+		btnList := layoutStore[:0]
+		if len(di.Buttons) > len(layoutStore) {
+			btnList = make([]dialogButton, 0, len(di.Buttons))
+		}
 		totalBtnsW := 0
 
 		hasDialogFocus := false
 		for j := range di.Buttons {
-			if ctx.FocusedID == fmt.Sprintf("%s_btn_%d", di.ID, j) {
+			if isDialogButtonID(ctx.FocusedID, di.ID, j) {
 				hasDialogFocus = true
 				break
 			}
 		}
 
 		for i, btn := range di.Buttons {
-			btnID := fmt.Sprintf("%s_btn_%d", di.ID, i)
+			var btnID, btnText string
+			if st != nil {
+				btnID, btnText = st.ids[i], st.labels[i]
+			} else {
+				btnID, btnText = dialogButtonID(di.ID, i), dialogButtonLabel(btn.Text)
+			}
 			if ctx.RegisterFocus != nil {
 				ctx.RegisterFocus(btnID)
 			}
@@ -261,7 +366,6 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			} else if di.FocusedButton >= 0 && di.FocusedButton < len(di.Buttons) {
 				isFocused = (di.FocusedButton == i)
 			}
-			btnText := fmt.Sprintf(" [ %s ] ", btn.Text)
 			btnW := displayWidth(btnText)
 
 			bStyle := cell.Style{
@@ -296,13 +400,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				}
 			}
 
-			btnList[i] = btnLayout{
-				text:  btnText,
-				width: btnW,
-				btn:   btn,
-				btnID: btnID,
-				style: bStyle,
-			}
+			btnList = append(btnList, dialogButton{label: btnText, id: btnID, width: btnW, style: bStyle})
 			totalBtnsW += btnW
 			if i > 0 {
 				totalBtnsW += spacing
@@ -322,45 +420,21 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if maxW <= 0 {
 				break
 			}
-			textToDraw := item.text
-			if item.width > maxW {
-				textToDraw = clipString(textToDraw, maxW)
-			}
-			drawnW := cell.StringWidth(textToDraw)
-			buf.SetString(uint16(curBtnX), btnY, textToDraw, item.style)
+			drawnW := int(setClipped(buf, uint16(curBtnX), btnY, item.label, item.style, maxW))
 
 			// Register hover and click handlers strictly within dialog inner bounds
 			if drawnW > 0 {
 				btnArea := cell.NewRect(uint16(curBtnX), btnY, uint16(drawnW), 1)
-				handler := item.btn.Handler
-				btnID := item.btnID
-				btnIndex := i
-
-				// Mouse hover callback
-				if ctx.RegisterMouse != nil {
-					ctx.RegisterMouse(btnArea, func(ev driver.MouseEvent) {
-						if ctx.SetFocus != nil {
-							ctx.SetFocus(btnID)
-						}
-						if di.OnButtonHover != nil {
-							di.OnButtonHover(btnIndex)
-						}
-					})
-				}
-
-				// Click callback
-				if ctx.RegisterClick != nil {
-					ctx.RegisterClick(btnArea, func() {
-						if ctx.SetFocus != nil {
-							ctx.SetFocus(btnID)
-						}
-						if di.OnButtonHover != nil {
-							di.OnButtonHover(btnIndex)
-						}
-						if handler != nil {
-							handler()
-						}
-					})
+				if st != nil {
+					hover, click := st.handlers(i)
+					if ctx.RegisterMouse != nil {
+						ctx.RegisterMouse(btnArea, hover)
+					}
+					if ctx.RegisterClick != nil {
+						ctx.RegisterClick(btnArea, click)
+					}
+				} else {
+					registerDialogButton(ctx, btnArea, item.id, i, di.Buttons[i].Handler, di.OnButtonHover)
 				}
 			}
 
@@ -402,33 +476,13 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		maxMsgW = innerW
 	}
 
-	var msgLines []string
-	if di.Message != "" {
-		msgLines = splitMessage(di.Message, maxMsgW)
-	}
-
-	var subLines []string
-	if di.SubMessage != "" {
-		subLines = splitMessage(di.SubMessage, maxMsgW)
-	}
-
 	curY := topMsgY
-	for _, line := range msgLines {
-		if curY >= bottomMsgY {
-			break
-		}
-		lineText := line
-		if cell.StringWidth(lineText) > innerW {
-			lineText = clipString(lineText, innerW)
-		}
-		lineW := cell.StringWidth(lineText)
-		lineX := x + 1 + uint16((innerW-lineW)/2)
-		buf.SetString(lineX, curY, lineText, bodyStyle.AddModifier(cell.ModifierBold))
-		curY++
+	if di.Message != "" {
+		curY = drawDialogText(buf, di.Message, x+1, innerW, maxMsgW, curY, bottomMsgY, bodyStyle.AddModifier(cell.ModifierBold))
 	}
 
-	if len(subLines) > 0 && curY < bottomMsgY {
-		if int(bottomMsgY)-int(curY) > len(subLines) {
+	if di.SubMessage != "" && curY < bottomMsgY {
+		if int(bottomMsgY)-int(curY) > countDialogLines(di.SubMessage, maxMsgW) {
 			curY++
 		}
 		subStyle := cell.Style{
@@ -436,20 +490,116 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			Bg:       bgCol,
 			Modifier: cell.ModifierItalic,
 		}
-		for _, line := range subLines {
-			if curY >= bottomMsgY {
-				break
-			}
-			lineText := line
-			if cell.StringWidth(lineText) > innerW {
-				lineText = clipString(lineText, innerW)
-			}
-			lineW := cell.StringWidth(lineText)
-			lineX := x + 1 + uint16((innerW-lineW)/2)
-			buf.SetString(lineX, curY, lineText, subStyle)
-			curY++
+		drawDialogText(buf, di.SubMessage, x+1, innerW, maxMsgW, curY, bottomMsgY, subStyle)
+	}
+}
+
+// registerDialogButton registers a button's hover and click for a Dialog
+// without a State: two closures, built every frame.
+func registerDialogButton(ctx cell.Context, area cell.Rect, id string, index int, handler func(), onHover func(int)) {
+	setFocus := ctx.SetFocus
+	enter := func() {
+		if setFocus != nil {
+			setFocus(id)
+		}
+		if onHover != nil {
+			onHover(index)
 		}
 	}
+	if ctx.RegisterMouse != nil {
+		ctx.RegisterMouse(area, func(driver.MouseEvent) { enter() })
+	}
+	if ctx.RegisterClick != nil {
+		ctx.RegisterClick(area, func() {
+			enter()
+			if handler != nil {
+				handler()
+			}
+		})
+	}
+}
+
+// drawDialogText wraps text at maxW and draws each line centred in the
+// innerW columns starting at left, from row y down to (not including)
+// bottom. It returns the row after the last one drawn.
+func drawDialogText(buf *buffer.Buffer, text string, left uint16, innerW, maxW int, y, bottom uint16, style cell.Style) uint16 {
+	for rest := text; y < bottom; y++ {
+		var line string
+		var width int
+		line, width, rest = nextDialogLine(rest, maxW)
+		if line == "" {
+			break
+		}
+		if width > innerW {
+			width = innerW
+		}
+		cx := left + uint16((innerW-width)/2)
+		limit := int(left) + innerW
+		// Words are drawn one by one, a single space apart, as the line was
+		// measured.
+		for words := line; words != ""; {
+			word, after, _ := strings.Cut(words, " ")
+			words = strings.TrimLeft(after, " ")
+			if word == "" {
+				continue
+			}
+			room := limit - int(cx)
+			if room <= 0 {
+				break
+			}
+			cx += setClipped(buf, cx, y, word, style, room)
+			if words != "" && int(cx) < limit {
+				buf.SetString(cx, y, " ", style)
+				cx++
+			}
+		}
+	}
+	return y
+}
+
+// countDialogLines is how many lines drawDialogText wraps text into.
+func countDialogLines(text string, maxW int) int {
+	n := 0
+	for rest := text; ; n++ {
+		var line string
+		line, _, rest = nextDialogLine(rest, maxW)
+		if line == "" {
+			return n
+		}
+	}
+}
+
+// nextDialogLine takes the first line of text wrapped at maxW: the words,
+// split at spaces, that fit with one space between them. line runs from the
+// first word to the last, width is its width with single spaces, and rest is
+// what remains. A word wider than maxW gets a line of its own.
+func nextDialogLine(text string, maxW int) (line string, width int, rest string) {
+	start, end := -1, 0
+	i := 0
+	for i < len(text) {
+		if text[i] == ' ' {
+			i++
+			continue
+		}
+		j := i
+		for j < len(text) && text[j] != ' ' {
+			j++
+		}
+		w := cell.StringWidth(text[i:j])
+		switch {
+		case start < 0:
+			start, end, width = i, j, w
+		case maxW > 0 && width+1+w > maxW:
+			return text[start:end], width, text[i:]
+		default:
+			end, width = j, width+1+w
+		}
+		i = j
+	}
+	if start < 0 {
+		return "", 0, ""
+	}
+	return text[start:end], width, ""
 }
 
 // blendWithColor blends a cell color with a target solid color by a given alpha.
@@ -482,31 +632,6 @@ func displayWidth(s string) int {
 // SizeHint tells the layout the dialog is drawn at a flexible size.
 func (di Dialog) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	return maxArea.Width, maxArea.Height
-}
-
-// splitMessage breaks long messages into lines that fit the box width.
-func splitMessage(msg string, maxW int) []string {
-	if maxW <= 0 {
-		return []string{msg}
-	}
-	var lines []string
-	words := splitWords(msg)
-	var currentLine string
-
-	for _, word := range words {
-		if currentLine == "" {
-			currentLine = word
-		} else if cell.StringWidth(currentLine)+1+cell.StringWidth(word) <= maxW {
-			currentLine += " " + word
-		} else {
-			lines = append(lines, currentLine)
-			currentLine = word
-		}
-	}
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-	return lines
 }
 
 // AccessibilityNode returns the semantic node description for Dialog.

@@ -25,6 +25,10 @@ type ViewportState struct {
 	visibleHeight int
 
 	scratch *buffer.Buffer
+
+	// The wheel handler, built once, and the step it scrolls by.
+	wheel     func(driver.MouseEvent)
+	wheelStep int
 }
 
 // NewViewportState returns a viewport scrolled to the top-left.
@@ -351,6 +355,17 @@ func (v Viewport) registerWheel(ctx cell.Context, area, contentArea cell.Rect) {
 		step = 3
 	}
 	state := v.State
+	state.wheelStep = step
+	if state.wheel == nil {
+		state.wheel = func(ev driver.MouseEvent) {
+			switch ev.Button {
+			case driver.MouseScrollUp:
+				state.ScrollBy(-state.wheelStep)
+			case driver.MouseScrollDown:
+				state.ScrollBy(state.wheelStep)
+			}
+		}
+	}
 
 	// Registered on the content area only, so the scrollbar keeps its own
 	// click-to-jump handler on the last column.
@@ -358,14 +373,7 @@ func (v Viewport) registerWheel(ctx cell.Context, area, contentArea cell.Rect) {
 	if wheelArea.Width == 0 {
 		wheelArea = area
 	}
-	ctx.RegisterMouse(wheelArea, func(ev driver.MouseEvent) {
-		switch ev.Button {
-		case driver.MouseScrollUp:
-			state.ScrollBy(-step)
-		case driver.MouseScrollDown:
-			state.ScrollBy(step)
-		}
-	})
+	ctx.RegisterMouse(wheelArea, state.wheel)
 }
 
 // SizeHint reports the full area: a viewport fills whatever it is given.

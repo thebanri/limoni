@@ -28,6 +28,8 @@ type Paragraph struct {
 	lastWidth   uint16
 	lastWrap    bool
 	cachedLines []string
+	altWidth    uint16
+	altLines    []string
 }
 
 // NewParagraph creates a new Paragraph widget with wrapping enabled by default.
@@ -88,17 +90,7 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		mergedStyle = mergedStyle.Merge(p.FocusedStyle)
 	}
 
-	// Split the text into lines and cache them
-	if p.Text != p.lastText || area.Width != p.lastWidth || p.Wrap != p.lastWrap || p.cachedLines == nil {
-		p.lastText = p.Text
-		p.lastWidth = area.Width
-		p.lastWrap = p.Wrap
-		if p.Wrap {
-			p.cachedLines = wrapText(p.Text, area.Width)
-		} else {
-			p.cachedLines = splitLines(p.Text)
-		}
-	}
+	lines := p.lines(area.Width)
 
 	bg := mergedStyle.Bg
 	if bg.Type() == cell.ColorDefault && ctx.Style.Bg.Type() != cell.ColorDefault {
@@ -106,7 +98,7 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Draw line by line without going past the bounds' height
-	for i, line := range p.cachedLines {
+	for i, line := range lines {
 		if uint16(i) >= area.Height {
 			break
 		}
@@ -122,7 +114,7 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 	if bg.Type() != cell.ColorDefault {
-		for i := len(p.cachedLines); uint16(i) < area.Height; i++ {
+		for i := len(lines); uint16(i) < area.Height; i++ {
 			currY := area.Y + uint16(i)
 			for x := area.X; x < area.X+area.Width; x++ {
 				if c := buf.Get(x, currY); c != nil {
@@ -136,33 +128,52 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 // SizeHint reports the width and height the text would like.
 // Layout negotiation: if Wrap is on, it works out how many lines the text takes at the given width (maxArea.Width).
+// lines is the text split into lines at width, from a cache of the last two
+// widths. A Viewport measures its child at one width and draws it at another;
+// with a single slot, every frame wrapped the text twice.
+func (p *Paragraph) lines(width uint16) []string {
+	if !p.Wrap {
+		width = 0 // unwrapped lines do not depend on the width
+	}
+	if p.Text != p.lastText || p.Wrap != p.lastWrap {
+		p.lastText, p.lastWrap = p.Text, p.Wrap
+		p.cachedLines, p.altLines = nil, nil
+	}
+	if p.cachedLines != nil && p.lastWidth == width {
+		return p.cachedLines
+	}
+	if p.altLines != nil && p.altWidth == width {
+		p.cachedLines, p.altLines = p.altLines, p.cachedLines
+		p.lastWidth, p.altWidth = p.altWidth, p.lastWidth
+		return p.cachedLines
+	}
+	p.altLines, p.altWidth = p.cachedLines, p.lastWidth
+	if width > 0 {
+		p.cachedLines = wrapText(p.Text, width)
+	} else {
+		p.cachedLines = splitLines(p.Text)
+	}
+	p.lastWidth = width
+	return p.cachedLines
+}
+
 func (p *Paragraph) SizeHint(maxArea cell.Rect) (width, height uint16) {
 	if len(p.Text) == 0 {
 		return 0, 0
 	}
 
-	// Split the text into lines and cache them
-	if p.Text != p.lastText || maxArea.Width != p.lastWidth || p.Wrap != p.lastWrap || p.cachedLines == nil {
-		p.lastText = p.Text
-		p.lastWidth = maxArea.Width
-		p.lastWrap = p.Wrap
-		if p.Wrap && maxArea.Width > 0 {
-			p.cachedLines = wrapText(p.Text, maxArea.Width)
-		} else {
-			p.cachedLines = splitLines(p.Text)
-		}
-	}
+	lines := p.lines(maxArea.Width)
 
 	// Find the width of the longest line
 	maxW := 0
-	for _, line := range p.cachedLines {
+	for _, line := range lines {
 		if width := cell.StringWidth(line); width > maxW {
 			maxW = width
 		}
 	}
 
 	w := uint16(maxW)
-	h := uint16(len(p.cachedLines))
+	h := uint16(len(lines))
 
 	// Do not exceed the bounds
 	if w > maxArea.Width {
