@@ -288,12 +288,11 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if v.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(v.ID)
 	}
-	if v.ID != "" && ctx.RegisterClick != nil && v.State == nil {
-		ctx.RegisterClick(ctx.Area, func() {
-			if ctx.SetFocus != nil {
-				ctx.SetFocus(v.ID)
-			}
-		})
+	if v.ID != "" && ctx.RegisterClickAction != nil && v.State == nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: v.ID})
+	} else if v.ID != "" && ctx.RegisterClick != nil && ctx.SetFocus != nil && v.State == nil {
+		setFocus, id := ctx.SetFocus, v.ID
+		ctx.RegisterClick(ctx.Area, func() { setFocus(id) })
 	}
 
 	// Auto-load texture from ImagePath if provided

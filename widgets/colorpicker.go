@@ -41,6 +41,81 @@ type ColorPickerState struct {
 	ActiveSlider int // 0: Red, 1: Green, 2: Blue
 	HexInput     string
 	HexEditing   bool
+
+	// Mouse handlers, built once, and the last frame's layout they read.
+	onField, onHue       func(driver.MouseEvent)
+	onSwatch             []func()
+	fieldX, fieldY, hueY int
+	fieldW, fieldH       int
+	palette              []cell.Color
+
+	// The text the picker shows, formatted again only when it changes.
+	rgbText, hsvText, hexText string
+	rgbFor                    [3]uint8
+	hsvFor                    [3]float64
+	hexFor                    string
+	textSet                   bool
+}
+
+// texts brings the RGB, HSV and hex labels up to date.
+func (s *ColorPickerState) texts() {
+	rgb, hsv := [3]uint8{s.Red, s.Green, s.Blue}, [3]float64{s.Hue, s.Sat, s.Val}
+	if !s.textSet || rgb != s.rgbFor {
+		s.rgbText, s.rgbFor = fmt.Sprintf("RGB: %3d %3d %3d", s.Red, s.Green, s.Blue), rgb
+	}
+	if !s.textSet || hsv != s.hsvFor {
+		s.hsvText, s.hsvFor = fmt.Sprintf("HSV: %3.0f° %2.0f%% %2.0f%%", s.Hue, s.Sat*100, s.Val*100), hsv
+	}
+	if !s.textSet || s.HexInput != s.hexFor {
+		s.hexText, s.hexFor = "#"+s.HexInput, s.HexInput
+	}
+	s.textSet = true
+}
+
+// fieldHandler picks saturation and value from a click or drag in the 2D
+// field; hueHandler the hue from the bar. Built once per state.
+func (s *ColorPickerState) fieldHandler() func(driver.MouseEvent) {
+	if s.onField == nil {
+		s.onField = func(ev driver.MouseEvent) {
+			if ev.Button != driver.MouseLeft && !ev.Drag {
+				return
+			}
+			relX := clampInt(int(ev.X)-s.fieldX, 0, s.fieldW-1)
+			relY := clampInt(int(ev.Y)-s.fieldY, 0, s.fieldH-1)
+			s.SetHSV(s.Hue, float64(relX)/float64(s.fieldW-1), 1.0-float64(relY)/float64(s.fieldH-1))
+			s.ActiveMode = 0
+		}
+	}
+	return s.onField
+}
+
+func (s *ColorPickerState) hueHandler() func(driver.MouseEvent) {
+	if s.onHue == nil {
+		s.onHue = func(ev driver.MouseEvent) {
+			if ev.Button != driver.MouseLeft && !ev.Drag {
+				return
+			}
+			relY := clampInt(int(ev.Y)-s.hueY, 0, s.fieldH-1)
+			s.SetHSV(float64(relY)/float64(s.fieldH-1)*360.0, s.Sat, s.Val)
+			s.ActiveMode = 1
+		}
+	}
+	return s.onHue
+}
+
+// swatchHandler picks preset i from the last frame's palette.
+func (s *ColorPickerState) swatchHandler(i int) func() {
+	for len(s.onSwatch) <= i {
+		index := len(s.onSwatch)
+		s.onSwatch = append(s.onSwatch, func() {
+			if index >= len(s.palette) {
+				return
+			}
+			s.PaletteIndex = index
+			s.SetRGB(s.palette[index].RGB())
+		})
+	}
+	return s.onSwatch[i]
 }
 
 // NewColorPickerState creates a state initialized with the given RGB color.
@@ -324,27 +399,9 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Register 2D Field Mouse Drag & Click
 	if ctx.RegisterMouse != nil && cp.State != nil {
 		st := cp.State
+		st.fieldX, st.fieldY, st.fieldW, st.fieldH = int(area.X), int(contentY), fieldW, fieldH
 		fieldArea := cell.Rect{X: area.X, Y: contentY, Width: uint16(fieldW), Height: uint16(fieldH)}
-		ctx.RegisterMouse(fieldArea, func(ev driver.MouseEvent) {
-			if ev.Button == driver.MouseLeft || ev.Drag {
-				relX := int(ev.X) - int(fieldArea.X)
-				relY := int(ev.Y) - int(fieldArea.Y)
-				if relX < 0 {
-					relX = 0
-				} else if relX >= fieldW {
-					relX = fieldW - 1
-				}
-				if relY < 0 {
-					relY = 0
-				} else if relY >= fieldH {
-					relY = fieldH - 1
-				}
-				newSat := float64(relX) / float64(fieldW-1)
-				newVal := 1.0 - (float64(relY) / float64(fieldH-1))
-				st.SetHSV(st.Hue, newSat, newVal)
-				st.ActiveMode = 0
-			}
-		})
+		ctx.RegisterMouse(fieldArea, st.fieldHandler())
 	}
 
 	// 2. VERTICAL HUE RAINBOW BAR (Middle)
@@ -371,20 +428,9 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Register Hue Bar Mouse Drag & Click
 	if ctx.RegisterMouse != nil && cp.State != nil {
 		st := cp.State
+		st.hueY = int(contentY)
 		hueArea := cell.Rect{X: hueBarX, Y: contentY, Width: 3, Height: uint16(fieldH)}
-		ctx.RegisterMouse(hueArea, func(ev driver.MouseEvent) {
-			if ev.Button == driver.MouseLeft || ev.Drag {
-				relY := int(ev.Y) - int(hueArea.Y)
-				if relY < 0 {
-					relY = 0
-				} else if relY >= fieldH {
-					relY = fieldH - 1
-				}
-				newHue := (float64(relY) / float64(fieldH-1)) * 360.0
-				st.SetHSV(newHue, st.Sat, st.Val)
-				st.ActiveMode = 1
-			}
-		})
+		ctx.RegisterMouse(hueArea, st.hueHandler())
 	}
 
 	// 3. RIGHT DETAILS & PREVIEW PANEL
@@ -412,11 +458,12 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// RGB Values
 	rgbY := contentY + 4
-	buf.SetString(infoX, rgbY, fmt.Sprintf("RGB: %3d %3d %3d", state.Red, state.Green, state.Blue), baseStyle)
+	state.texts()
+	buf.SetString(infoX, rgbY, state.rgbText, baseStyle)
 
 	// HSV Values
 	hsvY := contentY + 5
-	buf.SetString(infoX, hsvY, fmt.Sprintf("HSV: %3.0f° %2.0f%% %2.0f%%", state.Hue, state.Sat*100, state.Val*100), tabStyle)
+	buf.SetString(infoX, hsvY, state.hsvText, tabStyle)
 
 	// 4. BOTTOM PRESET PALETTE SWATCHES
 	swatchY := contentY + uint16(fieldH) + 1
@@ -436,15 +483,8 @@ func (cp ColorPicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			buf.SetCell(swX, swatchY, cell.Cell{Content: symbol, Style: swStyle})
 
 			if ctx.RegisterClick != nil && cp.State != nil {
-				palIdx := i
-				st := cp.State
-				targetCol := pCol
-				itemRect := cell.Rect{X: swX, Y: swatchY, Width: 1, Height: 1}
-				ctx.RegisterClick(itemRect, func() {
-					st.PaletteIndex = palIdx
-					r, g, b := targetCol.RGB()
-					st.SetRGB(r, g, b)
-				})
+				cp.State.palette = palette
+				ctx.RegisterClick(cell.Rect{X: swX, Y: swatchY, Width: 1, Height: 1}, cp.State.swatchHandler(i))
 			}
 			swX += 2
 		}
@@ -472,7 +512,8 @@ func (cp ColorPicker) AccessibilityNode(bounds cell.Rect, focused bool) accessib
 	}
 	val := ""
 	if cp.State != nil {
-		val = "#" + cp.State.HexInput
+		cp.State.texts()
+		val = cp.State.hexText
 	}
 	return accessibility.AccessibilityNode{
 		ID:     cp.ID,

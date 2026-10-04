@@ -37,6 +37,14 @@ a patch bump (`v0.x.y`) does not.
   (positive is left, the same rule as `DeltaY`). They used to arrive as a
   press of no button.
 - `limoni.MouseNone` is re-exported with the other buttons.
+- Every widget draws through a real frame without allocating, with its state
+  attached. Slider (3 allocations a frame), Table (4, 20 when sorted), Dialog
+  (18), Viewport (15), TreeView (3), Select (2), Popup (6 open), ColorPicker
+  (20), CommandPalette (5 open), Toast (1), scrolling Markdown and
+  `component.OnClick` built handlers or strings every frame; they now keep
+  them in their state, built once. `Dialog.State` (`DialogState`) is new and
+  optional: without it a dialog still allocates. A test in `benchmarks`
+  (`TestInteractiveWidgetsDrawWithoutAllocating`) holds all of them at zero.
 - Runnable examples on pkg.go.dev: the package overview, `RunProgram`,
   `Border`, `HStack`, `NewTable` and `MessageFromEvent` in the root package;
   `Gauge`, `List`, `Tabs`, `Sparkline` and `TextInputState.HandleKey` in

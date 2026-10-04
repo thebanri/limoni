@@ -107,13 +107,36 @@ func (w MyToggle) Draw(ctx cell.Context, buf *buffer.Buffer) {
 wheel. `ctx.RegisterClick(area, func() {...})` still works for anything else,
 at the cost of one allocation per frame.
 
-**Where it stands.** Checkbox, Radio, TextInput, TextArea, List, Paragraph,
-RichText, Markdown (focus), Progress, Sparkline and Image register actions.
-Tabs, Viewport and Markdown scrolling, Table, TreeView, Select, Popup, Dialog,
-Slider, Scrollbar, ColorPicker, CommandPalette, Toast, VirtualDataView,
-Viewer3D and `component`'s interactive modifiers still register closures,
-because they drag, call application callbacks, or handle several buttons. Each
-of those costs one allocation per frame until it is converted.
+**Where it stands.** Every widget in the catalogue draws through a real frame
+without allocating, with its state attached. Checkbox, Radio, TextInput,
+TextArea, List, Paragraph, RichText, Markdown, Progress, Sparkline, Image,
+Viewer3D and VirtualDataView register actions; Slider, Table, Dialog,
+Viewport, TreeView, Select, Popup, ColorPicker, CommandPalette, Toast,
+Markdown scrolling and `component.OnClick` keep their handlers in their state
+(or in themselves), built once, reading what the last frame drew.
+`TestInteractiveWidgetsDrawWithoutAllocating` in `benchmarks/` draws each of
+those through a `Terminal`, open where they open, and fails on one allocation.
+
+Two exceptions are left. A `Dialog` without a `DialogState` builds its button
+IDs, labels and handlers every frame. A standalone `Scrollbar` with `OnScroll`
+registers a closure, because it has no state to keep one in.
+
+**Keep handlers in state.** When a widget must call application code or drag,
+build the handler once, in the widget's state, and let it read what the last
+frame recorded there:
+
+```go
+func (s *MyState) handler() func(driver.MouseEvent) {
+	if s.onMouse == nil {
+		s.onMouse = func(ev driver.MouseEvent) { s.moveTo(int(ev.X) - s.lastX) }
+	}
+	return s.onMouse
+}
+```
+
+A closure that mentions a large struct (a `Table` value, say) moves the whole
+struct to the heap on every call of the function that builds it, whether or
+not that line runs. Copy the fields it needs into locals first.
 
 **Hold widgets by pointer.** `f.RenderWidget(widgets.Checkbox{...}, area)`
 converts a struct value to the `Widget` interface, and a struct larger than a

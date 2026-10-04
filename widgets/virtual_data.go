@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // ErrVirtualStale reports that a refresh result was superseded by a newer
@@ -74,6 +76,16 @@ const (
 
 // VirtualDataState is a concurrency-safe viewport cache.
 type VirtualDataState struct {
+	// What a VirtualDataView drew last, for its mouse handler, which is
+	// built once. Touched only by the drawing goroutine, not under mu.
+	viewOnMouse  func(driver.MouseEvent)
+	viewOffset   *int
+	viewFirst    int
+	viewVisible  int
+	viewTop      uint16
+	viewHeight   int
+	viewOnSelect func(int, Row)
+
 	mu                sync.RWMutex
 	rows              map[int]Row
 	selected          RowID
@@ -544,4 +556,38 @@ func (s *VirtualDataState) RefreshLatest(ctx context.Context, source VirtualData
 		close(done)
 	}()
 	return done
+}
+
+// viewMouseHandler scrolls a VirtualDataView with the wheel and selects the
+// row under a left click, from the last frame's layout.
+func (s *VirtualDataState) viewMouseHandler() func(driver.MouseEvent) {
+	if s.viewOnMouse == nil {
+		s.viewOnMouse = func(ev driver.MouseEvent) {
+			switch ev.Button {
+			case driver.MouseScrollUp:
+				if s.viewOffset != nil && *s.viewOffset > 0 {
+					(*s.viewOffset)--
+				}
+			case driver.MouseScrollDown:
+				if s.viewOffset != nil {
+					if max := s.Count() - s.viewHeight; *s.viewOffset < max {
+						(*s.viewOffset)++
+					}
+				}
+			case driver.MouseLeft:
+				relY := int(ev.Y) - int(s.viewTop)
+				if relY < 0 || relY >= s.viewVisible {
+					return
+				}
+				index := s.viewFirst + relY
+				if item, ok := s.Row(index); ok {
+					s.Select(item.ID)
+					if s.viewOnSelect != nil {
+						s.viewOnSelect(index, item)
+					}
+				}
+			}
+		}
+	}
+	return s.viewOnMouse
 }

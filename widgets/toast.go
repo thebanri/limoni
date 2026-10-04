@@ -38,6 +38,8 @@ type ToastItem struct {
 	CreatedAt time.Time
 	Duration  time.Duration
 	Dismissed bool
+
+	dismiss func() // the click handler, built on the first frame it is drawn
 }
 
 // ToastManager manages a stack of auto-dismissing toast notifications.
@@ -266,10 +268,11 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		})
 
 		if ctx.RegisterClick != nil {
-			targetID := t.ID
-			ctx.RegisterClick(toastArea, func() {
-				tm.Dismiss(targetID)
-			})
+			if t.dismiss == nil {
+				targetID := t.ID
+				t.dismiss = func() { tm.Dismiss(targetID) }
+			}
+			ctx.RegisterClick(toastArea, t.dismiss)
 		}
 	}
 }

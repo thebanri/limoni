@@ -15,6 +15,11 @@ type InteractiveComponent interface {
 type onClickComponent struct {
 	child   Component
 	handler func(ev driver.MouseEvent)
+
+	// click is registered every frame; built once, it reads area, where
+	// the component was last drawn.
+	click func()
+	area  cell.Rect
 }
 
 // OnClick wraps any component with a click handler.
@@ -34,15 +39,13 @@ func (o *onClickComponent) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		o.child.Draw(ctx, buf)
 	}
 	if ctx.RegisterClick != nil && o.handler != nil {
-		h := o.handler
-		area := ctx.Area
-		ctx.RegisterClick(area, func() {
-			h(driver.MouseEvent{
-				X:      area.X,
-				Y:      area.Y,
-				Button: driver.MouseLeft,
-			})
-		})
+		o.area = ctx.Area
+		if o.click == nil {
+			o.click = func() {
+				o.handler(driver.MouseEvent{X: o.area.X, Y: o.area.Y, Button: driver.MouseLeft})
+			}
+		}
+		ctx.RegisterClick(o.area, o.click)
 	}
 }
 

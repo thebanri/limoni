@@ -27,6 +27,47 @@ type Markdown struct {
 	lastLinks     bool
 	cachedLines   []markdownLine
 	cachedRows    [][]cell.Cell
+
+	// The scrolling handlers, built once, and the last frame they read.
+	onMouse, onDrag   func(driver.MouseEvent)
+	lastMaxOffset     int
+	lastSetFocus      func(string)
+	lastCapture       func(func(driver.MouseEvent))
+	dragY, dragOffset int
+}
+
+// mouseHandler scrolls with the wheel and, on a left press, focuses the
+// widget and starts a drag that scrolls the text. Built once, so a scrolling
+// Markdown draws without allocating.
+func (m *Markdown) mouseHandler() func(driver.MouseEvent) {
+	if m.onMouse == nil {
+		m.onDrag = func(ev driver.MouseEvent) {
+			if ev.Button != driver.MouseRelease && ev.Drag && m.ScrollOffset != nil {
+				*m.ScrollOffset = clampMarkdownOffset(m.dragOffset-(int(ev.Y)-m.dragY), m.lastMaxOffset)
+			}
+		}
+		m.onMouse = func(ev driver.MouseEvent) {
+			if m.ScrollOffset == nil {
+				return
+			}
+			switch ev.Button {
+			case driver.MouseScrollUp:
+				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset-1, m.lastMaxOffset)
+			case driver.MouseScrollDown:
+				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset+1, m.lastMaxOffset)
+			case driver.MouseLeft:
+				// Scroll the text by dragging vertically inside the clicked area.
+				if m.lastSetFocus != nil {
+					m.lastSetFocus(m.ID)
+				}
+				m.dragY, m.dragOffset = int(ev.Y), *m.ScrollOffset
+				if m.lastCapture != nil {
+					m.lastCapture(m.onDrag)
+				}
+			}
+		}
+	}
+	return m.onMouse
 }
 
 // NewMarkdown creates a new Markdown widget.
@@ -230,34 +271,8 @@ func (m *Markdown) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		*m.ScrollOffset = offset
 	}
 	if ctx.RegisterMouse != nil && m.ScrollOffset != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
-			switch ev.Button {
-			case driver.MouseScrollUp:
-				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset-1, maxOffset)
-			case driver.MouseScrollDown:
-				*m.ScrollOffset = clampMarkdownOffset(*m.ScrollOffset+1, maxOffset)
-			case driver.MouseLeft:
-				// Scroll the text by dragging vertically inside the clicked area.
-				// The resize handle is outside the child area, so this handler does not
-				// clash with the height-resizing drag.
-				if ctx.SetFocus != nil {
-					ctx.SetFocus(m.ID)
-				}
-				startY := int(ev.Y)
-				startOffset := *m.ScrollOffset
-				if ctx.CaptureMouse != nil {
-					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
-						if dragEv.Button == driver.MouseRelease {
-							return
-						}
-						if dragEv.Drag {
-							deltaY := int(dragEv.Y) - startY
-							*m.ScrollOffset = clampMarkdownOffset(startOffset-deltaY, maxOffset)
-						}
-					})
-				}
-			}
-		})
+		m.lastMaxOffset, m.lastSetFocus, m.lastCapture = maxOffset, ctx.SetFocus, ctx.CaptureMouse
+		ctx.RegisterMouse(ctx.Area, m.mouseHandler())
 	}
 
 	for row := 0; row < int(ctx.Area.Height); row++ {

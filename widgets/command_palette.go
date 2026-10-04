@@ -39,6 +39,65 @@ type CommandPaletteState struct {
 	MaxVisible int
 	// ScrollOffset is the scroll offset in long lists.
 	ScrollOffset int
+
+	// Row handlers, built once per row index, and the visible row count of
+	// the last frame they scroll by.
+	onRow       []func(driver.MouseEvent)
+	onRowClick  []func()
+	lastVisible int
+}
+
+// choose selects result idx, closes the palette and runs its handler.
+func (cps *CommandPaletteState) choose(idx int) {
+	if idx >= len(cps.Filtered) {
+		return
+	}
+	cps.Selected = idx
+	handler := cps.Filtered[idx].Handler
+	cps.Close()
+	if handler != nil {
+		handler()
+	}
+}
+
+// rowHandler handles the mouse over result idx: a click chooses it, hovering
+// selects it, the wheel moves the selection.
+func (cps *CommandPaletteState) rowHandler(idx int) func(driver.MouseEvent) {
+	for len(cps.onRow) <= idx {
+		i := len(cps.onRow)
+		cps.onRow = append(cps.onRow, func(ev driver.MouseEvent) {
+			switch ev.Button {
+			case driver.MouseLeft:
+				cps.choose(i)
+			case driver.MouseNone:
+				cps.Selected = i
+			case driver.MouseScrollUp:
+				if cps.Selected > 0 {
+					cps.Selected--
+					if cps.Selected < cps.ScrollOffset {
+						cps.ScrollOffset = cps.Selected
+					}
+				}
+			case driver.MouseScrollDown:
+				if cps.Selected < len(cps.Filtered)-1 {
+					cps.Selected++
+					if cps.Selected >= cps.ScrollOffset+cps.lastVisible {
+						cps.ScrollOffset = cps.Selected - cps.lastVisible + 1
+					}
+				}
+			}
+		})
+	}
+	return cps.onRow[idx]
+}
+
+// rowClick chooses result idx. Built once per row index.
+func (cps *CommandPaletteState) rowClick(idx int) func() {
+	for len(cps.onRowClick) <= idx {
+		i := len(cps.onRowClick)
+		cps.onRowClick = append(cps.onRowClick, func() { cps.choose(i) })
+	}
+	return cps.onRowClick[idx]
 }
 
 // NewCommandPaletteState returns a new CommandPaletteState.
@@ -244,12 +303,11 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if cp.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(cp.ID)
 	}
-	if cp.ID != "" && ctx.RegisterClick != nil {
-		ctx.RegisterClick(ctx.Area, func() {
-			if ctx.SetFocus != nil {
-				ctx.SetFocus(cp.ID)
-			}
-		})
+	if cp.ID != "" && ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: cp.ID})
+	} else if cp.ID != "" && ctx.RegisterClick != nil && ctx.SetFocus != nil {
+		setFocus, id := ctx.SetFocus, cp.ID
+		ctx.RegisterClick(ctx.Area, func() { setFocus(id) })
 	}
 
 	panel := cp.panelArea(area)
@@ -509,56 +567,15 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		// Register mouse click and hover events
+		// Register mouse click and hover events, with handlers built once
+		// per row index in the state.
 		rowArea := cell.NewRect(uint16(startX+1), uint16(y), uint16(paletW-2), 1)
-		itemIdx := idx
-		itemHandler := item.Handler
 		if ctx.RegisterClick != nil {
-			ctx.RegisterClick(rowArea, func() {
-				if cp.State != nil {
-					cp.State.Selected = itemIdx
-					cp.State.Close()
-				}
-				if itemHandler != nil {
-					itemHandler()
-				}
-			})
+			ctx.RegisterClick(rowArea, cp.State.rowClick(idx))
 		}
 		if ctx.RegisterMouse != nil {
-			// A copy, so that capturing it does not move visibleCount to the
-			// heap on frames that register no handlers.
-			visibleCount := visibleCount
-			ctx.RegisterMouse(rowArea, func(ev driver.MouseEvent) {
-				if cp.State == nil {
-					return
-				}
-				switch ev.Button {
-				case driver.MouseLeft:
-					if cp.State != nil {
-						cp.State.Selected = itemIdx
-						cp.State.Close()
-					}
-					if itemHandler != nil {
-						itemHandler()
-					}
-				case driver.MouseNone:
-					cp.State.Selected = itemIdx
-				case driver.MouseScrollUp:
-					if cp.State.Selected > 0 {
-						cp.State.Selected--
-						if cp.State.Selected < cp.State.ScrollOffset {
-							cp.State.ScrollOffset = cp.State.Selected
-						}
-					}
-				case driver.MouseScrollDown:
-					if cp.State.Selected < len(cp.State.Filtered)-1 {
-						cp.State.Selected++
-						if cp.State.Selected >= cp.State.ScrollOffset+visibleCount {
-							cp.State.ScrollOffset = cp.State.Selected - visibleCount + 1
-						}
-					}
-				}
-			})
+			cp.State.lastVisible = visibleCount
+			ctx.RegisterMouse(rowArea, cp.State.rowHandler(idx))
 		}
 	}
 

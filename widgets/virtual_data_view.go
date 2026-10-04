@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/driver"
 	"strings"
 )
 
@@ -36,12 +35,11 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if v.ID != "" && ctx.RegisterFocus != nil {
 		ctx.RegisterFocus(v.ID)
 	}
-	if v.ID != "" && ctx.RegisterClick != nil {
-		ctx.RegisterClick(ctx.Area, func() {
-			if ctx.SetFocus != nil {
-				ctx.SetFocus(v.ID)
-			}
-		})
+	if v.ID != "" && ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Focus: v.ID})
+	} else if v.ID != "" && ctx.RegisterClick != nil && ctx.SetFocus != nil {
+		setFocus, id := ctx.SetFocus, v.ID
+		ctx.RegisterClick(ctx.Area, func() { setFocus(id) })
 	}
 	if v.State == nil || v.Source == nil || ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
@@ -71,34 +69,10 @@ func (v VirtualDataView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Register single mouse handler for viewport scrolling and click routing
 	if ctx.RegisterMouse != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
-			if ev.Button == driver.MouseScrollUp && v.Offset != nil && *v.Offset > 0 {
-				(*v.Offset)--
-				return
-			}
-			if ev.Button == driver.MouseScrollDown && v.Offset != nil {
-				max := v.State.Count() - int(ctx.Area.Height)
-				if max < 0 {
-					max = 0
-				}
-				if *v.Offset < max {
-					(*v.Offset)++
-				}
-				return
-			}
-			if ev.Button == driver.MouseLeft {
-				relY := int(ev.Y - ctx.Area.Y)
-				if relY >= 0 && relY < visible {
-					targetIdx := first + relY
-					if item, ok := v.State.Row(targetIdx); ok {
-						v.State.Select(item.ID)
-						if v.OnSelect != nil {
-							v.OnSelect(targetIdx, item)
-						}
-					}
-				}
-			}
-		})
+		st := v.State
+		st.viewOffset, st.viewFirst, st.viewVisible = v.Offset, first, visible
+		st.viewTop, st.viewHeight, st.viewOnSelect = ctx.Area.Y, int(ctx.Area.Height), v.OnSelect
+		ctx.RegisterMouse(ctx.Area, st.viewMouseHandler())
 	}
 
 	visualRow := 0

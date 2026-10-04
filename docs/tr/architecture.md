@@ -112,14 +112,28 @@ func (w MyToggle) Draw(ctx cell.Context, buf *buffer.Buffer) {
 yapar. `ctx.RegisterClick(area, func() {...})` geri kalan her şey için hâlâ
 çalışır; bedeli kare başına bir tahsisattır.
 
-**Durum ne?** Checkbox, Radio, TextInput, TextArea, List, Paragraph, RichText,
-Markdown (odak), Progress, Sparkline ve Image eylem kaydeder. Tabs, Viewport ve
-Markdown kaydırması, Table, TreeView, Select, Popup, Dialog, Slider, Scrollbar,
-ColorPicker, CommandPalette, Toast, VirtualDataView, Viewer3D ve `component`
-paketinin etkileşimli düzenleyicileri hâlâ closure kaydeder; çünkü sürükleme
-yaparlar, uygulama geri çağrılarını çağırırlar ya da birden çok fare tuşunu
-işlerler. Bunların her biri dönüştürülene kadar kare başına bir tahsisata mal
-olur.
+**Durum ne?** Katalogdaki her widget, durumu bağlıyken gerçek bir kare
+üzerinden tahsisatsız çizilir. Checkbox, Radio, TextInput, TextArea, List,
+Paragraph, RichText, Markdown, Progress, Sparkline, Image, Viewer3D ve
+VirtualDataView eylem kaydeder; Slider, Table, Dialog, Viewport, TreeView,
+Select, Popup, ColorPicker, CommandPalette, Toast, Markdown kaydırması ve
+`component.OnClick` işleyicilerini durumlarında (ya da kendilerinde) tutar:
+bir kez kurulurlar ve son karenin çizdiğini okurlar.
+`benchmarks/` içindeki `TestInteractiveWidgetsDrawWithoutAllocating` her
+birini bir `Terminal` üzerinden (açılanları açık hâlde) çizer ve tek bir
+tahsisatta başarısız olur.
+
+İki istisna kaldı. `DialogState` verilmemiş bir `Dialog`, düğme kimliklerini,
+etiketlerini ve işleyicilerini her karede yeniden kurar. `OnScroll` verilmiş
+tek başına bir `Scrollbar` da closure kaydeder, çünkü onu tutacak bir durumu
+yoktur.
+
+**İşleyicileri durumda tutun.** Bir widget uygulama kodunu çağırmak ya da
+sürüklemek zorundaysa, işleyiciyi widget'ın durumunda bir kez kurun ve son
+karenin oraya yazdıklarını okumasına izin verin. Büyük bir struct'tan (örneğin
+bir `Table` değerinden) söz eden bir closure, o satır hiç çalışmasa bile, onu
+kuran fonksiyonun her çağrısında struct'ın tamamını heap'e taşır. Gereken
+alanları önce yerel değişkenlere kopyalayın.
 
 **Widget'ları işaretçiyle tutun.** `f.RenderWidget(widgets.Checkbox{...}, area)`
 bir struct değerini `Widget` arayüzüne dönüştürür ve bir işaretçiden büyük olan
