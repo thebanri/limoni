@@ -9,6 +9,9 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Fixed
+- A single `*` with a space after it no longer starts italics in `Markdown`:
+  "2 * 3 * 4" stayed "2 " and an italic " 3 ". Wrapped lines no longer start
+  with a space.
 - The browser playground drew none of its frames or titles: its scenes'
   `Block`s set a title and a border style but no `Borders`, which draws
   nothing at all. Same in `examples/counter`. Its intro text was broken by
@@ -37,6 +40,16 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- `Markdown` reads what replies are written in: headings `###` to `######`,
+  numbered lists, lists nested by indentation, task lists, quotes, pipe
+  tables (aligned, shrunk to fit with an ellipsis), `~~strikethrough~~`, and
+  fenced code blocks highlighted by language through CodeView's lexer. A code
+  block that has not been closed yet — a reply still streaming — is drawn as
+  code. It used to know `#`, `##`, bullets and rules only, while the README
+  said "GFM". `LanguageByName` maps a fence's tag to a `Language`.
+- `Markdown.AccessibilityNode`: the widget had none, so the semantic tree,
+  screen readers, `uitest` and agents could not read it. Its value is the
+  text without the markup.
 - `limoni serve <program>`: runs a program once per browser tab in a real
   pseudo-terminal and draws it with xterm.js — a demo or workshop without a
   terminal. Loopback by default, a random token on every request, the

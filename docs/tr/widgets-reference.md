@@ -75,7 +75,7 @@ f.RenderWidget(p, area)
 ---
 
 ### `Markdown`
-Başlıklar (`#`, `##`), madde işaretli listeler (`-`, `*`), yatay ayırıcılar (`---`), kalın (`**`), italik (`*`) ve satır içi kod (` ` `) destekleyen interaktif Markdown okuyucu. Fare tekerleği ve sürükleme ile kaydırma destekler.
+GitHub Markdown'ının terminalde gösterilebilen kısmını çizen interaktif okuyucu: başlıklar (`#`–`######`), kalın, italik, ~~üstü çizili~~ ve satır içi kod, bağlantılar (terminal destekliyorsa OSC 8), girintiyle iç içe geçen madde, numaralı ve görev listeleri, alıntılar, ayırıcılar, boru tabloları (hizalı, sığacak kadar daraltılır) ve dile göre renklendirilen kod blokları (Go, Python, JS/TS, Rust, C ailesi, shell, JSON, YAML). Kapanmamış bir blok — hâlâ akan bir yanıt — kod olarak çizilir. Semantik ağaç metni işaretlemesiz alır. Tekerlek ve sürükleme ile kaydırılır.
 
 ```go
 md := limoni.NewMarkdown(icerik).

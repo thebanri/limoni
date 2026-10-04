@@ -130,7 +130,7 @@ and the [methodology](docs/benchmark-methodology.md#the-4700-that-was-a-harness-
 | 🕶️ **3D** | A software rasteriser for OBJ/STL/PLY/GLB with Lambert and Gouraud shading, drawn in terminal cells |
 | 🖼️ **Images** | Kitty, Sixel, iTerm2 and half-block fallback |
 | 📊 **Charts** | Braille line charts, bar charts, pie charts, sparklines |
-| 📝 **Markdown** | GFM rendering with a scrollable reader |
+| 📝 **Markdown** | Headings, lists (nested, numbered, tasks), quotes, tables, links, and fenced code highlighted by language — including a block still streaming in |
 | ♿ **Accessibility** | A semantic tree, a screen-reader line mode, `NO_COLOR`, high contrast, reduced motion |
 | 🧬 **Unicode** | UAX #29 grapheme clusters (Unicode 17.0, all 766 conformance tests), so flags and emoji families take one cell |
 | 🔗 **Hyperlinks** | OSC 8 links, in markdown or any style — and where the terminal cannot show them, the address is printed instead |

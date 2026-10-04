@@ -75,7 +75,7 @@ f.RenderWidget(p, area)
 ---
 
 ### `Markdown`
-Interactive Markdown viewer supporting headers (`#`, `##`), bullet lists (`-`, `*`), horizontal rules (`---`), bold (`**`), italic (`*`), and inline code (`` ` ``). Features mouse wheel and drag scrolling.
+Interactive Markdown viewer for the parts of GitHub-flavoured Markdown a terminal can show: headings (`#` to `######`), bold, italic, ~~strikethrough~~ and inline code, links (OSC 8 where the terminal has it), bullet, numbered and task lists nested by indentation, quotes, rules, pipe tables (aligned, shrunk to fit), and fenced code blocks highlighted by language (Go, Python, JS/TS, Rust, C-family, shell, JSON, YAML). A block that has not been closed — a reply still streaming in — is drawn as code. The semantic tree gets the text without the markup. Scrolls with the wheel and by dragging.
 
 ```go
 md := limoni.NewMarkdown(markdownText).

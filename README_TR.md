@@ -135,7 +135,7 @@ hatanın nasıl yakalandığını anlatıyor.
 | 🕶️ **3D** | OBJ/STL/PLY/GLB için Lambert ve Gouraud gölgelendirmeli, terminal hücrelerine çizen yazılımsal rasterleştirici |
 | 🖼️ **Görseller** | Kitty, Sixel, iTerm2 ve yarım blok (half-block) yedeği |
 | 📊 **Grafikler** | Braille çizgi grafik, çubuk grafik, pasta grafik, sparkline |
-| 📝 **Markdown** | Kaydırılabilir okuyuculu GFM çizimi |
+| 📝 **Markdown** | Başlıklar, listeler (iç içe, numaralı, görev), alıntılar, tablolar, bağlantılar ve dile göre renklendirilen kod blokları — hâlâ akmakta olan bir blok dahil |
 | ♿ **Erişilebilirlik** | Semantik ağaç, ekran okuyucu satır modu, `NO_COLOR`, yüksek kontrast, azaltılmış hareket |
 | 🧬 **Unicode** | UAX #29 grapheme cluster'ları (Unicode 17.0, 766 uygunluk testinin tamamı geçiyor), böylece bayraklar ve aile emojileri tek hücre kaplar |
 | 🔗 **Köprüler** | OSC 8 bağlantıları, markdown içinde ya da herhangi bir stilde — terminal gösteremiyorsa adres metin olarak yazılır |
