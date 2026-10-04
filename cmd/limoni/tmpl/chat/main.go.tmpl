@@ -1,0 +1,186 @@
+// [[.Name]] is a chat interface built with Limoni: a transcript drawn as
+// Markdown, a reply that streams in a piece at a time, and a multi-line
+// input. It answers with a canned demo until you connect a model in reply.go.
+//
+//	Enter sends · Shift+Enter or Alt+Enter starts a new line
+//	Esc stops a reply (or quits) · PgUp/PgDn and the wheel scroll
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/widgets"
+)
+
+// message is one turn of the conversation.
+type message struct {
+	Role string // "user" or "assistant"
+	Text string
+}
+
+type model struct {
+	reply    Replier
+	messages []message
+
+	input      *widgets.TextAreaState
+	transcript *widgets.Markdown
+	offset     int
+	follow     bool // keep the newest text in view while a reply streams
+
+	stream <-chan string
+	cancel context.CancelFunc
+	status string
+}
+
+func newModel(reply Replier) *model {
+	m := &model{reply: reply, input: widgets.NewTextAreaState(), follow: true}
+	m.transcript = widgets.NewMarkdown("").WithID("transcript").WithScrollOffset(&m.offset)
+	m.status = "Ready."
+	m.render()
+	return m
+}
+
+// chunkMsg is a piece of the reply, or its end.
+type chunkMsg struct {
+	text string
+	done bool
+}
+
+// next waits for the next piece of the reply on stream.
+func next(stream <-chan string) limoni.Cmd {
+	return func(ctx context.Context) limoni.Msg {
+		select {
+		case text, ok := <-stream:
+			return chunkMsg{text: text, done: !ok}
+		case <-ctx.Done():
+			return chunkMsg{done: true}
+		}
+	}
+}
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	switch msg := msg.(type) {
+	case chunkMsg:
+		return m.receive(msg)
+	case limoni.ResizeMsg, limoni.MouseWheelMsg:
+		m.follow = false
+		return limoni.UpdateResult{Redraw: true}
+	case limoni.KeyPressMsg:
+		return m.key(msg.Key)
+	}
+	return limoni.UpdateResult{}
+}
+
+func (m *model) key(key limoni.KeyEvent) limoni.UpdateResult {
+	switch {
+	case key.Type == limoni.KeyEsc && m.stream != nil:
+		m.cancel()
+		m.status = "Stopped."
+	case key.Type == limoni.KeyEsc:
+		return limoni.UpdateResult{Quit: true}
+	case key.Type == limoni.KeyEnter && !key.Shift && !key.Alt && !key.Ctrl:
+		return m.send()
+	case key.Type == limoni.KeyPageUp:
+		m.offset, m.follow = max(m.offset-10, 0), false
+	case key.Type == limoni.KeyPageDown:
+		m.offset += 10 // Markdown clamps it to the end
+	default:
+		m.input.HandleKey(key) // Shift/Alt+Enter is a newline here
+	}
+	return limoni.UpdateResult{Redraw: true}
+}
+
+// send starts a reply to what is in the input.
+func (m *model) send() limoni.UpdateResult {
+	text := strings.TrimSpace(m.input.Value())
+	if text == "" || m.stream != nil {
+		return limoni.UpdateResult{}
+	}
+	m.input.SetValue("")
+	m.messages = append(m.messages, message{Role: "user", Text: text}, message{Role: "assistant"})
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	m.stream = m.reply(ctx, m.messages[:len(m.messages)-1])
+	m.follow = true
+	m.status = "Replying… Esc stops."
+	m.render()
+	return limoni.UpdateResult{Redraw: true, Commands: []limoni.Cmd{next(m.stream)}}
+}
+
+// receive adds a piece of the reply, and asks for the next one.
+func (m *model) receive(msg chunkMsg) limoni.UpdateResult {
+	if m.stream == nil {
+		return limoni.UpdateResult{}
+	}
+	if msg.done {
+		m.cancel()
+		m.stream, m.cancel = nil, nil
+		if m.status != "Stopped." {
+			m.status = "Ready."
+		}
+		m.render()
+		return limoni.UpdateResult{Redraw: true}
+	}
+	m.messages[len(m.messages)-1].Text += msg.text
+	m.render()
+	return limoni.UpdateResult{Redraw: true, Commands: []limoni.Cmd{next(m.stream)}}
+}
+
+// render rebuilds the transcript's Markdown from the conversation.
+func (m *model) render() {
+	var b strings.Builder
+	if len(m.messages) == 0 {
+		b.WriteString("Ask something. The demo answers with Markdown: connect a model in `reply.go`.")
+	}
+	for i, msg := range m.messages {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		if msg.Role == "user" {
+			b.WriteString("### You\n")
+		} else {
+			b.WriteString("### Assistant\n")
+		}
+		b.WriteString(msg.Text)
+	}
+	m.transcript.Content = b.String()
+	if m.follow {
+		m.offset = 1 << 30 // Markdown clamps it to the last screenful
+	}
+}
+
+func (m *model) View(f *limoni.Frame) {
+	area := f.Area()
+	inputRows := uint16(4)
+	if area.Height < inputRows+4 {
+		inputRows = 2
+	}
+	rows := limoni.SplitVertical(area, limoni.Fill(), limoni.Fixed(inputRows+2), limoni.Fixed(1))
+
+	f.RenderWidget(m.transcript, limoni.NewRect(rows[0].X+1, rows[0].Y, rows[0].Width-2, rows[0].Height))
+	f.RenderWidget(&limoni.Block{
+		Title:         " Message ",
+		Borders:       limoni.BorderAll,
+		BorderSymbols: limoni.SymbolsRounded,
+		BorderStyle:   limoni.Style{Fg: limoni.Hex("#FFCC00")},
+		Child: &widgets.TextArea{
+			ID: "message", State: m.input, Focused: true,
+			Placeholder: "Write a message — Enter sends, Shift+Enter for a new line",
+		},
+	}, rows[1])
+	f.RenderWidget(&limoni.Paragraph{ID: "status", Text: m.status + "  ·  PgUp/PgDn scroll  ·  Esc quits",
+		Style: limoni.Style{Modifier: limoni.ModifierDim}}, rows[2])
+}
+
+func main() {
+	if err := limoni.RunProgram(context.Background(), newModel(demoReply)); err != nil {
+		fmt.Fprintln(os.Stderr, "[[.Name]]:", err)
+		os.Exit(1)
+	}
+}

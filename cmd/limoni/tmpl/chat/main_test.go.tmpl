@@ -1,0 +1,45 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/thebanri/limoni/uitest"
+)
+
+// instant streams its reply with no pause, so the test does not wait.
+func instant(ctx context.Context, history []message) <-chan string {
+	return streamWords(ctx, "Hello, **"+history[len(history)-1].Text+"**. Ask me more.", 0)
+}
+
+// silent never answers until it is stopped.
+func silent(ctx context.Context, _ []message) <-chan string {
+	out := make(chan string)
+	go func() { <-ctx.Done(); close(out) }()
+	return out
+}
+
+// The app runs through its real message loop, without a terminal. The test
+// types as a user does and reads the transcript through the semantic tree,
+// where the Markdown is plain text.
+func TestAReplyStreamsIntoTheTranscript(t *testing.T) {
+	page := uitest.Program(t, 80, 24, newModel(instant))
+
+	page.Type("first line")
+	page.Press("shift+enter") // a new line, not a send
+	page.Type("second line")
+	page.Press("enter")
+	page.Expect(page.GetByID("transcript")).ToContainValue("first line\nsecond line")
+	page.Expect(page.GetByID("transcript")).ToContainValue("Hello, first line\nsecond line. Ask me more.")
+	page.Expect(page.GetByID("status")).ToContainValue("Ready.")
+}
+
+func TestEscStopsAReply(t *testing.T) {
+	page := uitest.Program(t, 80, 24, newModel(silent))
+
+	page.Type("are you there?")
+	page.Press("enter")
+	page.Expect(page.GetByID("status")).ToContainValue("Replying")
+	page.Press("esc")
+	page.Expect(page.GetByID("status")).ToContainValue("Stopped.")
+}

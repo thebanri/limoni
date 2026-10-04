@@ -31,6 +31,8 @@ var projectTemplates = []projectTemplate{
 		Readme: "An immediate-mode dashboard: `draw` is called for every event, and `sample` feeds it data from a goroutine, waking the app with `limoni.Wakeup`. Replace `sample` with your own source."},
 	{Name: "form", Summary: "a declarative form: text inputs, a checkbox, a button, validation",
 		Readme: "A form with two text inputs, a checkbox and a submit button, navigated with Tab. `submit` holds the validation."},
+	{Name: "chat", Summary: "a chat interface: a streamed Markdown reply, a multi-line input, Esc to stop",
+		Readme: "A chat interface: the transcript is Markdown, replies stream in a piece at a time, Shift+Enter starts a new line and Esc stops a reply. It answers with a demo until you connect a model: write a `Replier` in `reply.go` around your model's streaming API."},
 	{Name: "ssh", Summary: "serve an app over SSH, one limoni.App per connection",
 		Readme: "Serves an application over SSH: `go run .`, then `ssh -p 2222 localhost`. Each connection gets its own `limoni.App`; your application is in `session.go`. **It accepts anyone and makes a new host key each run** — add authentication and a persistent key before exposing it."},
 }

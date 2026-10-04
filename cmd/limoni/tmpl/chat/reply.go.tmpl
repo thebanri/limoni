@@ -1,0 +1,62 @@
+package main
+
+import (
+	"context"
+	"strings"
+	"time"
+)
+
+// Replier answers a conversation a piece at a time: it sends each piece of
+// the answer on the channel as it arrives and closes the channel when the
+// answer is complete. When ctx is cancelled (the user pressed Esc) it stops
+// and closes the channel.
+//
+// To connect a model, write a Replier around its streaming API: send
+// history, and forward each streamed piece of text to the channel. Keep
+// network calls inside the goroutine — the interface stays responsive while
+// the reply arrives — and pass it to newModel in main.
+type Replier func(ctx context.Context, history []message) <-chan string
+
+// demoReply answers every question with the same Markdown, streamed word by
+// word, so the interface can be tried without a model.
+func demoReply(ctx context.Context, history []message) <-chan string {
+	question := history[len(history)-1].Text
+	answer := "You asked: *" + question + "*\n\n" +
+		"This is the demo reply. Replace `demoReply` in `reply.go` with a client for your model. " +
+		"Replies are Markdown, so they can carry:\n\n" +
+		"1. **lists**, numbered or not\n" +
+		"2. `inline code` and [links](https://github.com/thebanri/limoni)\n" +
+		"3. code blocks, highlighted while they stream:\n\n" +
+		"```go\nfunc reply(ctx context.Context, history []message) <-chan string {\n" +
+		"\tout := make(chan string)\n\tgo func() {\n\t\tdefer close(out)\n\t\t// stream from your model here\n\t}()\n" +
+		"\treturn out\n}\n```\n\n" +
+		"| Key | Does |\n|---|---|\n| Enter | send |\n| Shift+Enter | new line |\n| Esc | stop the reply |"
+	return streamWords(ctx, answer, 25*time.Millisecond)
+}
+
+// streamWords sends text a word at a time, pausing between words.
+func streamWords(ctx context.Context, text string, pause time.Duration) <-chan string {
+	out := make(chan string)
+	go func() {
+		defer close(out)
+		for len(text) > 0 {
+			i := strings.IndexAny(text[1:], " \n")
+			piece := text
+			if i >= 0 {
+				piece = text[:i+1]
+			}
+			text = text[len(piece):]
+			select {
+			case out <- piece:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case <-time.After(pause):
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
+}

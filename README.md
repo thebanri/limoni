@@ -59,7 +59,7 @@ func main() {
 Or generate a project that runs straight away, with a test already written:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new myapp    # -template counter|dashboard|form|ssh
+go run github.com/thebanri/limoni/cmd/limoni@latest new myapp    # -template counter|dashboard|form|chat|ssh
 cd myapp && go mod tidy && go run .
 go test ./...                                                     # a uitest test comes with every template
 ```

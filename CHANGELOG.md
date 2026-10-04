@@ -9,6 +9,16 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Fixed
+- A `TextArea` dropped every space typed into it: terminals send the space
+  bar as `KeySpace`, which it did not handle. Tests did not see it because
+  `uitest`'s `Type` and the automation socket's `type_text` (MCP) sent a
+  space as a `KeyRune`, a path no terminal takes. Both now send what the
+  parser produces (`driver.KeyForRune`), which also found the same gap in
+  `cmd/limoni-mcp`'s test application.
+- The text cursor of `TextInput` and `TextArea` could not be seen over a
+  blank on a dark background: it was drawn black on white *and* in reverse
+  video, which the terminal swaps back to white on black. It is now reverse
+  video of the cell's own colours.
 - A single `*` with a space after it no longer starts italics in `Markdown`:
   "2 * 3 * 4" stayed "2 " and an italic " 3 ". Wrapped lines no longer start
   with a space.
@@ -40,6 +50,11 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- `limoni new -template chat`: a chat interface — the transcript is
+  Markdown, a reply streams in a piece at a time, Shift+Enter (or Alt+Enter)
+  starts a new line, Esc stops a reply, and `reply.go` holds the one
+  function to replace with a model's streaming API. It comes with `uitest`
+  tests, like every template.
 - `Markdown` reads what replies are written in: headings `###` to `######`,
   numbered lists, lists nested by indentation, task lists, quotes, pipe
   tables (aligned, shrunk to fit with an ellipsis), `~~strikethrough~~`, and

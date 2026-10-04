@@ -155,7 +155,7 @@ func TestScaffoldBuilds(t *testing.T) {
 
 func TestUnknownTemplateIsRefused(t *testing.T) {
 	err := scaffold(t.TempDir(), "x", "nope", false, &bytes.Buffer{})
-	if err == nil || !strings.Contains(err.Error(), "counter, dashboard, form, ssh") {
+	if err == nil || !strings.Contains(err.Error(), "counter, dashboard, form, chat, ssh") {
 		t.Fatalf("got %v", err)
 	}
 }

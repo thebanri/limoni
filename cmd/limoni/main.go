@@ -77,7 +77,7 @@ func usage(out io.Writer) {
 Commands:
   limoni init [module-path]  Create an application in the current directory
   limoni new <name>          Create directory <name> and write an application into it
-                             (-template counter|dashboard|form|ssh; each comes with a uitest test)
+                             (-template counter|dashboard|form|chat|ssh; each comes with a uitest test)
   limoni doctor              Ask the terminal what it supports; paste this in bug reports
   limoni serve <program>     Run <program> in the browser, one copy per tab (xterm.js)
   limoni version             Print version information
