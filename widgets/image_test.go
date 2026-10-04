@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	red   = color.RGBA{R: 255, A: 255}
-	green = color.RGBA{G: 255, A: 255}
-	blue  = color.RGBA{B: 255, A: 255}
-	white = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	red           = color.RGBA{R: 255, A: 255}
+	green         = color.RGBA{G: 255, A: 255}
+	blue          = color.RGBA{B: 255, A: 255}
+	white         = color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	transparentPx = color.RGBA{}
 )
 
