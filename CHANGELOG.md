@@ -8,6 +8,12 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Fixed
+- `Sparkline` and `BarChart` never drew `▁`. Sparkline's table of eighth
+  blocks began with a space, so a value an eighth of a cell high drew nothing
+  and the line had seven steps instead of eight; BarChart's table had a space
+  where `▁` belongs. Found by a pkg.go.dev example whose output looked wrong.
+
 ### Breaking
 - A `Program` no longer receives pointer movement as `MousePressMsg`. Any-motion
   tracking reports every move, and a move with no button held reached `Update`
@@ -27,6 +33,10 @@ a patch bump (`v0.x.y`) does not.
   (positive is left, the same rule as `DeltaY`). They used to arrive as a
   press of no button.
 - `limoni.MouseNone` is re-exported with the other buttons.
+- Runnable examples on pkg.go.dev: the package overview, `RunProgram`,
+  `Border`, `HStack`, `NewTable` and `MessageFromEvent` in the root package;
+  `Gauge`, `List`, `Tabs`, `Sparkline` and `TextInputState.HandleKey` in
+  `widgets`. Those that draw check their output through `testkit`.
 - The image protocol follows the capability handshake (#57). The environment
   cannot see through SSH, tmux or `su`, so a terminal guessed to have no image
   protocol is upgraded when its XTVERSION name has one (kitty, Ghostty,
