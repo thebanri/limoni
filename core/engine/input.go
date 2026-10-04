@@ -12,7 +12,9 @@ type KeyPressMsg struct{ Key driver.KeyEvent }
 // release reporting. The Linux backend currently emits presses only.
 type KeyReleaseMsg struct{ Key driver.KeyEvent }
 
-// MousePressMsg represents a mouse button press.
+// MousePressMsg represents a mouse button press: Button is MouseLeft,
+// MouseMiddle or MouseRight. Pointer movement arrives as MouseMotionMsg, never
+// as a press.
 type MousePressMsg struct {
 	Position cell.Point
 	Button   driver.MouseButton
@@ -24,10 +26,24 @@ type MouseReleaseMsg struct {
 	Button   driver.MouseButton
 }
 
-// MouseWheelMsg represents a normalized wheel delta. DeltaY is positive for
-// wheel up (away from the user) and negative for wheel down, so scrolling
-// content follows the wheel with ScrollBy(-DeltaY).
-type MouseWheelMsg struct{ DeltaX, DeltaY int }
+// MouseMotionMsg represents the pointer moving. Button is MouseNone when no
+// button is held (hover) and the held button while dragging. Terminals with
+// any-motion tracking report every move, so a model that only cares about
+// clicks can ignore this message.
+type MouseMotionMsg struct {
+	Position cell.Point
+	Button   driver.MouseButton
+}
+
+// MouseWheelMsg represents a normalized wheel delta at Position, the cell
+// under the pointer. DeltaY is positive for wheel up (away from the user) and
+// negative for wheel down, so scrolling content follows the wheel with
+// ScrollBy(-DeltaY). DeltaX follows the same rule for a horizontal wheel or
+// tilt: positive is left, so a horizontal offset follows with -DeltaX.
+type MouseWheelMsg struct {
+	DeltaX, DeltaY int
+	Position       cell.Point
+}
 
 // PasteMsg represents bracketed-paste text supplied by an input adapter.
 type PasteMsg struct{ Text string }
@@ -59,15 +75,22 @@ func MessageFromDriver(event driver.Event) Msg {
 		return PasteMsg{Text: event.Paste.Text}
 	case driver.EventMouse:
 		position := cell.Point{X: event.Mouse.X, Y: event.Mouse.Y}
-		switch event.Mouse.Button {
-		case driver.MouseScrollUp:
-			return MouseWheelMsg{DeltaY: 1}
-		case driver.MouseScrollDown:
-			return MouseWheelMsg{DeltaY: -1}
-		case driver.MouseRelease:
-			return MouseReleaseMsg{Position: position, Button: event.Mouse.Button}
+		switch button := event.Mouse.Button; {
+		case button == driver.MouseScrollUp:
+			return MouseWheelMsg{DeltaY: 1, Position: position}
+		case button == driver.MouseScrollDown:
+			return MouseWheelMsg{DeltaY: -1, Position: position}
+		case button == driver.MouseScrollLeft:
+			return MouseWheelMsg{DeltaX: 1, Position: position}
+		case button == driver.MouseScrollRight:
+			return MouseWheelMsg{DeltaX: -1, Position: position}
+		case button == driver.MouseRelease:
+			return MouseReleaseMsg{Position: position, Button: button}
+		case event.Mouse.Drag || button == driver.MouseNone:
+			// A move: hover reports MouseNone, a drag the held button.
+			return MouseMotionMsg{Position: position, Button: button}
 		default:
-			return MousePressMsg{Position: position, Button: event.Mouse.Button}
+			return MousePressMsg{Position: position, Button: button}
 		}
 	default:
 		return nil

@@ -67,6 +67,7 @@ type (
 	KeyReleaseMsg   = engine.KeyReleaseMsg
 	MousePressMsg   = engine.MousePressMsg
 	MouseReleaseMsg = engine.MouseReleaseMsg
+	MouseMotionMsg  = engine.MouseMotionMsg
 	MouseWheelMsg   = engine.MouseWheelMsg
 	PasteMsg        = engine.PasteMsg
 	ResizeMsg       = engine.ResizeMsg

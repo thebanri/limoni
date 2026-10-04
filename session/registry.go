@@ -120,6 +120,7 @@ func init() {
 		reflect.TypeFor[engine.KeyReleaseMsg](),
 		reflect.TypeFor[engine.MousePressMsg](),
 		reflect.TypeFor[engine.MouseReleaseMsg](),
+		reflect.TypeFor[engine.MouseMotionMsg](),
 		reflect.TypeFor[engine.MouseWheelMsg](),
 		reflect.TypeFor[engine.PasteMsg](),
 		reflect.TypeFor[engine.ResizeMsg](),

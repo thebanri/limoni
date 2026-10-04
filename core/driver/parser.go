@@ -538,6 +538,10 @@ func parseSGRMouse(raw []byte, cmd byte, consumed int) (Event, int) {
 			ev.Mouse.Button = MouseScrollUp
 		case 65:
 			ev.Mouse.Button = MouseScrollDown
+		case 66:
+			ev.Mouse.Button = MouseScrollLeft
+		case 67:
+			ev.Mouse.Button = MouseScrollRight
 		default:
 			ev.Mouse.Button = MouseNone
 		}

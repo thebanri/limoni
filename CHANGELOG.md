@@ -8,6 +8,26 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Breaking
+- A `Program` no longer receives pointer movement as `MousePressMsg`. Any-motion
+  tracking reports every move, and a move with no button held reached `Update`
+  as a press with `Button == MouseNone`, so a model that handled presses
+  without checking the button clicked on hover (#48). Moves, hover and drags
+  now arrive as the new `MouseMotionMsg{Position, Button}` (`Button` is the
+  held button while dragging, `MouseNone` otherwise); `MousePressMsg` carries
+  only real presses. A model that tracked drags through `MousePressMsg` should
+  handle `MouseMotionMsg` instead.
+
+### Added
+- `MouseWheelMsg.Position`: the cell under the pointer, so a model with two
+  scrollable panes can scroll the one under the wheel (#49). Unkeyed
+  `MouseWheelMsg{dx, dy}` literals need the field names now.
+- Horizontal wheel and tilt: SGR buttons 66 and 67 are `MouseScrollLeft` and
+  `MouseScrollRight`, and reach a `Program` as `MouseWheelMsg.DeltaX`
+  (positive is left, the same rule as `DeltaY`). They used to arrive as a
+  press of no button.
+- `limoni.MouseNone` is re-exported with the other buttons.
+
 ## [v0.9.5] — 2026-10-01
 
 ### Added

@@ -142,12 +142,15 @@ const (
 	ScrollbarHorizontal = widgets.ScrollbarHorizontal
 
 	// Mouse Buttons
-	MouseLeft       = driver.MouseLeft
-	MouseMiddle     = driver.MouseMiddle
-	MouseRight      = driver.MouseRight
-	MouseRelease    = driver.MouseRelease
-	MouseScrollUp   = driver.MouseScrollUp
-	MouseScrollDown = driver.MouseScrollDown
+	MouseNone        = driver.MouseNone
+	MouseLeft        = driver.MouseLeft
+	MouseMiddle      = driver.MouseMiddle
+	MouseRight       = driver.MouseRight
+	MouseRelease     = driver.MouseRelease
+	MouseScrollUp    = driver.MouseScrollUp
+	MouseScrollDown  = driver.MouseScrollDown
+	MouseScrollLeft  = driver.MouseScrollLeft
+	MouseScrollRight = driver.MouseScrollRight
 )
 
 var (

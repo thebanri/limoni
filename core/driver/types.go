@@ -85,6 +85,8 @@ const (
 	MouseRelease
 	MouseScrollUp
 	MouseScrollDown
+	MouseScrollLeft  // horizontal wheel or tilt, SGR button 66
+	MouseScrollRight // horizontal wheel or tilt, SGR button 67
 )
 
 // MouseEvent represents mouse movements, clicks, and coordinate positions.
