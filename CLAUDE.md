@@ -303,7 +303,9 @@ Bubble Tea v2 benchmark runner with a documented baseline.
    Terminals without the protocol (VTE, older Konsole) send `\r` for both;
    there Alt+Enter (`ESC \r`) is the newline that works. Going further
    (level 8) needs flag 4 and IME text, and breaks AltGr layouts if done
-   carelessly. Not yet used: the DA1 sixel bit.
+   carelessly. The DA1 sixel bit and the XTVERSION name upgrade a half-block
+   guess to Sixel or kitty graphics (#57): Konsole 26.08.1, which no
+   environment variable names, gets Sixel; kitty over SSH gets kitty.
    `WithKeyReleases` / `SetKeyReleases` push flags 3 instead (event types):
    presses arrive as before, repeats and releases as `CSI …;mods:2|3 u` or
    `CSI 1;mods:3 A`, parsed into `KeyEvent.Repeat`/`Release`. Opt-in only — to
