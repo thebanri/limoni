@@ -1,10 +1,12 @@
 package widgets
 
 import (
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
@@ -81,6 +83,21 @@ type TableState struct {
 	lastTableID    string
 	lastFocusFn    func(string)
 
+	// Column resizing and sorting: one handler per column, built once, and
+	// what they need from the last frame.
+	resizeHandlers []func(driver.MouseEvent)
+	resizeDrag     func(driver.MouseEvent)
+	resizeCol      int
+	resizeStartX   int
+	resizeStartW   int
+	lastCapture    func(func(driver.MouseEvent))
+	sortHandlers   []func()
+	lastRows       []TableRow
+
+	// The sorted column's title with its arrow, made once per change.
+	sortTitle, sortTitleFrom string
+	sortTitleDesc            bool
+
 	// rowNodes and cellNodes hold the visible rows' semantic nodes, written
 	// during Draw (the only place that knows which data row, after filtering
 	// and sorting, lands on which screen row) and reused every frame.
@@ -135,10 +152,11 @@ func (ts *TableState) handleScroll(ev driver.MouseEvent, rowCount, viewportHeigh
 }
 
 type tableDrawScratch struct {
-	widths   []uint16
-	owner    map[[2]int][2]int
-	cells    map[[2]int]TableCell
-	filtered []TableRow
+	constraints []TableConstraint // the even split used when none are given
+	widths      []uint16
+	owner       map[[2]int][2]int
+	cells       map[[2]int]TableCell
+	filtered    []TableRow
 }
 
 var tableDrawScratchPool = sync.Pool{
@@ -505,8 +523,8 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.Area.Width == 0 || ctx.Area.Height == 0 {
 		return
 	}
-	if len(t.Constraints) == 0 {
-		colCount := 0
+	colCount := len(t.Constraints)
+	if colCount == 0 {
 		if t.Header != nil && len(t.Header.Cells) > 0 {
 			colCount = len(t.Header.Cells)
 		} else if len(t.Rows) > 0 {
@@ -514,11 +532,6 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 		if colCount == 0 {
 			return
-		}
-		t.Constraints = make([]TableConstraint, colCount)
-		pct := 100 / colCount
-		for i := 0; i < colCount; i++ {
-			t.Constraints[i] = TableConstraint{Type: ConstraintPercentage, Value: pct}
 		}
 	}
 	// A table with State keeps its scratch buffers there. A sync.Pool is
@@ -533,6 +546,17 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	} else {
 		scratch = tableDrawScratchPool.Get().(*tableDrawScratch)
 		defer tableDrawScratchPool.Put(scratch)
+	}
+	if len(t.Constraints) == 0 {
+		// An even split, kept in the scratch so it is not rebuilt each frame.
+		if cap(scratch.constraints) < colCount {
+			scratch.constraints = make([]TableConstraint, colCount)
+		}
+		t.Constraints = scratch.constraints[:colCount]
+		pct := 100 / colCount
+		for i := range t.Constraints {
+			t.Constraints[i] = TableConstraint{Type: ConstraintPercentage, Value: pct}
+		}
 	}
 	if scratch.owner == nil {
 		scratch.owner = make(map[[2]int][2]int)
@@ -665,11 +689,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			cVal := t.Header.Cells[cellIdx]
 			cellIdx++
 			if t.State != nil && t.State.SortColumn == colIdx && cVal.ColSpan <= 1 {
-				indicator := " ▲"
-				if t.State.SortDescending {
-					indicator = " ▼"
-				}
-				cVal.Text += indicator
+				cVal.Text = t.State.sortedHeader(cVal.Text)
 			}
 
 			colSpan := cVal.ColSpan
@@ -966,9 +986,13 @@ func (t Table) registerRowsBlockHandler(ctx cell.Context, rowsArea cell.Rect, ro
 		ctx.RegisterMouse(rowsArea, t.State.rowsHandler)
 		return
 	}
+	// Copies, so the closure does not capture t: a Table is larger than a
+	// closure captures by value, so capturing it moved t to the heap on
+	// every call, State or not.
+	id, setFocus := t.ID, ctx.SetFocus
 	ctx.RegisterMouse(rowsArea, func(ev driver.MouseEvent) {
-		if ev.Button == driver.MouseLeft && t.ID != "" && ctx.SetFocus != nil {
-			ctx.SetFocus(t.ID)
+		if ev.Button == driver.MouseLeft {
+			setFocus(id)
 		}
 	})
 }
@@ -995,35 +1019,78 @@ func (t Table) registerResizeHandlers(ctx cell.Context, widths []uint16, colsCou
 
 		if sepX >= clipLeftSep && sepX < clipRightSep {
 			handleArea := cell.NewRect(sepX, ctx.Area.Y, 1, ctx.Area.Height)
-			colIdx := i
-
-			ctx.RegisterMouse(handleArea, func(ev driver.MouseEvent) {
-				if ev.Button == driver.MouseLeft && !ev.Drag {
-					startMouseX := int(ev.X)
-					startColW := int(t.State.ColumnWidths[colIdx])
-
-					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
-						if dragEv.Button == driver.MouseRelease {
-							return
-						}
-						dx := int(dragEv.X) - startMouseX
-						requestedNewW := startColW + dx
-						if requestedNewW < 2 {
-							requestedNewW = 2
-						}
-						delta := requestedNewW - int(t.State.ColumnWidths[colIdx])
-						t.State.ResizeColumn(colIdx, delta)
-					})
-				}
-			})
+			t.State.lastCapture = ctx.CaptureMouse
+			ctx.RegisterMouse(handleArea, t.State.resizeHandler(i))
 		}
 	}
 }
 
-func (t Table) registerSortHandlers(ctx cell.Context, widths []uint16, colsCount int) {
-	if !t.SortEnabled || t.Header == nil || ctx.RegisterClick == nil {
+// resizeHandler is the handler for the divider after column col, built once
+// per state, so registering it each frame does not allocate.
+func (ts *TableState) resizeHandler(col int) func(driver.MouseEvent) {
+	for len(ts.resizeHandlers) <= col {
+		c := len(ts.resizeHandlers)
+		ts.resizeHandlers = append(ts.resizeHandlers, func(ev driver.MouseEvent) { ts.startResize(c, ev) })
+	}
+	return ts.resizeHandlers[col]
+}
+
+func (ts *TableState) startResize(col int, ev driver.MouseEvent) {
+	if ev.Button != driver.MouseLeft || ev.Drag || ts.lastCapture == nil || col >= len(ts.ColumnWidths) {
 		return
 	}
+	ts.resizeCol, ts.resizeStartX, ts.resizeStartW = col, int(ev.X), int(ts.ColumnWidths[col])
+	if ts.resizeDrag == nil {
+		ts.resizeDrag = func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseRelease || ts.resizeCol >= len(ts.ColumnWidths) {
+				return
+			}
+			width := ts.resizeStartW + int(ev.X) - ts.resizeStartX
+			if width < 2 {
+				width = 2
+			}
+			ts.ResizeColumn(ts.resizeCol, width-int(ts.ColumnWidths[ts.resizeCol]))
+		}
+	}
+	ts.lastCapture(ts.resizeDrag)
+}
+
+// sortedHeader is title with the sort arrow after it, built when the title or
+// the direction changes rather than on every frame.
+func (ts *TableState) sortedHeader(title string) string {
+	if ts.sortTitle == "" || ts.sortTitleFrom != title || ts.sortTitleDesc != ts.SortDescending {
+		indicator := " ▲"
+		if ts.SortDescending {
+			indicator = " ▼"
+		}
+		ts.sortTitle, ts.sortTitleFrom, ts.sortTitleDesc = title+indicator, title, ts.SortDescending
+	}
+	return ts.sortTitle
+}
+
+// sortHandler is the click handler for column col's header, built once per
+// state; it sorts the rows the last frame drew.
+func (ts *TableState) sortHandler(col int) func() {
+	for len(ts.sortHandlers) <= col {
+		c := len(ts.sortHandlers)
+		ts.sortHandlers = append(ts.sortHandlers, func() {
+			if ts.SortColumn == c {
+				ts.SortDescending = !ts.SortDescending
+			} else {
+				ts.SortColumn = c
+				ts.SortDescending = false
+			}
+			sortTableRows(ts.lastRows, c, ts.SortDescending)
+		})
+	}
+	return ts.sortHandlers[col]
+}
+
+func (t Table) registerSortHandlers(ctx cell.Context, widths []uint16, colsCount int) {
+	if !t.SortEnabled || t.Header == nil || ctx.RegisterClick == nil || t.State == nil {
+		return
+	}
+	t.State.lastRows = t.Rows
 	for colIdx, width := range widths {
 		currX := t.columnX(ctx.Area, widths, colIdx)
 		clickWidth := width
@@ -1031,19 +1098,7 @@ func (t Table) registerSortHandlers(ctx cell.Context, widths []uint16, colsCount
 			clickWidth--
 		}
 		if clickWidth > 0 {
-			column := colIdx
-			ctx.RegisterClick(cell.NewRect(currX, ctx.Area.Y, clickWidth, 1), func() {
-				if t.State == nil {
-					return
-				}
-				if t.State.SortColumn == column {
-					t.State.SortDescending = !t.State.SortDescending
-				} else {
-					t.State.SortColumn = column
-					t.State.SortDescending = false
-				}
-				sortTableRows(t.Rows, column, t.State.SortDescending)
-			})
+			ctx.RegisterClick(cell.NewRect(currX, ctx.Area.Y, clickWidth, 1), t.State.sortHandler(colIdx))
 		}
 	}
 }
@@ -1052,12 +1107,13 @@ func (t Table) registerRowClickHandler(ctx cell.Context, rowArea cell.Rect, targ
 	if ctx.RegisterClick == nil {
 		return
 	}
+	state, id, setFocus := t.State, t.ID, ctx.SetFocus
 	ctx.RegisterClick(rowArea, func() {
-		if t.State != nil {
-			t.State.Select(targetIdx)
+		if state != nil {
+			state.Select(targetIdx)
 		}
-		if t.ID != "" && ctx.SetFocus != nil {
-			ctx.SetFocus(t.ID)
+		if id != "" && setFocus != nil {
+			setFocus(id)
 		}
 	})
 }
@@ -1250,21 +1306,29 @@ func drawTextClipped(buf *buffer.Buffer, startX, y uint16, s string, style cell.
 	return currX - startX
 }
 
+// sortTableRows sorts rows by column, stably. A sorted table is sorted again
+// every frame, so rows already in order are left alone after one pass, and
+// neither path allocates: sort.SliceStable built a reflection swapper and
+// strings.ToLower a copy of every compared cell, 20 allocations a frame for a
+// three-row table.
 func sortTableRows(rows []TableRow, column int, descending bool) {
-	sort.SliceStable(rows, func(i, j int) bool {
+	compare := func(a, b TableRow) int {
 		left, right := "", ""
-		if column >= 0 && column < len(rows[i].Cells) {
-			left = rows[i].Cells[column].Text
+		if column >= 0 && column < len(a.Cells) {
+			left = a.Cells[column].Text
 		}
-		if column >= 0 && column < len(rows[j].Cells) {
-			right = rows[j].Cells[column].Text
+		if column >= 0 && column < len(b.Cells) {
+			right = b.Cells[column].Text
 		}
-		comparison := compareTableValues(left, right)
 		if descending {
-			return comparison > 0
+			return compareTableValues(right, left)
 		}
-		return comparison < 0
-	})
+		return compareTableValues(left, right)
+	}
+	if slices.IsSortedFunc(rows, compare) {
+		return
+	}
+	slices.SortStableFunc(rows, compare)
 }
 
 func compareTableValues(left, right string) int {
@@ -1279,24 +1343,53 @@ func compareTableValues(left, right string) int {
 		}
 		return 0
 	}
-	leftLower, rightLower := strings.ToLower(strings.TrimSpace(left)), strings.ToLower(strings.TrimSpace(right))
-	if leftLower < rightLower {
-		return -1
-	}
-	if leftLower > rightLower {
-		return 1
-	}
-	return 0
+	return compareFold(strings.TrimSpace(left), strings.TrimSpace(right))
 }
 
+// compareFold orders a and b as their lower-case forms would order, without
+// making them.
+func compareFold(a, b string) int {
+	for a != "" && b != "" {
+		ra, na := utf8.DecodeRuneInString(a)
+		rb, nb := utf8.DecodeRuneInString(b)
+		if la, lb := unicode.ToLower(ra), unicode.ToLower(rb); la != lb {
+			if la < lb {
+				return -1
+			}
+			return 1
+		}
+		a, b = a[na:], b[nb:]
+	}
+	switch {
+	case a == b:
+		return 0
+	case a == "":
+		return -1
+	}
+	return 1
+}
+
+// numericTableValue reads the number a cell starts with ("42", "3.5 ms",
+// "80%"). Text with no digit is not offered to ParseFloat, whose error is an
+// allocation, unless it could be one of the words ParseFloat accepts.
 func numericTableValue(value string) (float64, bool) {
-	fields := strings.Fields(strings.TrimSpace(value))
-	if len(fields) == 0 {
+	value = strings.TrimSpace(value)
+	if end := strings.IndexFunc(value, unicode.IsSpace); end >= 0 {
+		value = value[:end]
+	}
+	number := strings.TrimSuffix(value, "%")
+	if number == "" || !strings.ContainsAny(number, "0123456789") && !isFloatWord(number) {
 		return 0, false
 	}
-	number := strings.TrimSuffix(fields[0], "%")
 	parsed, err := strconv.ParseFloat(number, 64)
 	return parsed, err == nil
+}
+
+// isFloatWord reports whether s is a spelling of infinity or NaN that
+// strconv.ParseFloat accepts.
+func isFloatWord(s string) bool {
+	s = strings.TrimLeft(s, "+-")
+	return strings.EqualFold(s, "inf") || strings.EqualFold(s, "infinity") || strings.EqualFold(s, "nan")
 }
 
 // SizeHint reports the table's flexible layout needs.

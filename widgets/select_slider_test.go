@@ -76,3 +76,55 @@ func TestSliderMouseMapsValue(t *testing.T) {
 		t.Fatalf("value = %d; want 100", state.Value)
 	}
 }
+
+// The handler is built once per state and reads the last frame's settings:
+// drag through the captured handler, the wheel, focus and OnChange all still
+// work, a range changed between frames is honoured, and a frame costs no
+// allocation.
+func TestSliderHandlersFollowTheLastFrame(t *testing.T) {
+	state := NewSliderState(0)
+	var changes []int
+	focused := ""
+	var captured func(driver.MouseEvent)
+	var handler func(driver.MouseEvent)
+	area := cell.NewRect(10, 0, 11, 1)
+	buf := buffer.NewBuffer(area)
+	ctx := cell.NewContext(area, cell.Style{})
+	ctx.RegisterMouse = func(_ cell.Rect, h func(driver.MouseEvent)) { handler = h }
+	ctx.SetFocus = func(id string) { focused = id }
+	ctx.CaptureMouse = func(h func(driver.MouseEvent)) { captured = h }
+
+	slider := Slider{ID: "volume", State: state, Min: 0, Max: 10, OnChange: func(v int) { changes = append(changes, v) }}
+	slider.Draw(ctx, buf)
+	handler(driver.MouseEvent{Button: driver.MouseLeft, X: 15})
+	if state.Value != 5 || focused != "volume" || captured == nil {
+		t.Fatalf("click: value %d, focused %q, captured %v", state.Value, focused, captured != nil)
+	}
+	captured(driver.MouseEvent{Button: driver.MouseLeft, Drag: true, X: 18})
+	if state.Value != 8 {
+		t.Errorf("drag to column 18 gave %d, want 8", state.Value)
+	}
+	captured(driver.MouseEvent{Button: driver.MouseRelease, X: 10})
+	if state.Value != 8 {
+		t.Errorf("the release moved the thumb to %d", state.Value)
+	}
+	handler(driver.MouseEvent{Button: driver.MouseScrollUp, X: 12})
+	if state.Value != 9 {
+		t.Errorf("wheel up gave %d, want 9", state.Value)
+	}
+
+	// The next frame halves the range: the same handler uses it.
+	slider.Max = 5
+	slider.Draw(ctx, buf)
+	handler(driver.MouseEvent{Button: driver.MouseLeft, X: 20})
+	if state.Value != 5 {
+		t.Errorf("after the range changed, the right end gave %d, want 5", state.Value)
+	}
+	if want := []int{5, 8, 9, 5}; len(changes) != len(want) {
+		t.Errorf("OnChange saw %v, want %v", changes, want)
+	}
+
+	if n := testing.AllocsPerRun(20, func() { slider.Draw(ctx, buf) }); n != 0 {
+		t.Errorf("a frame allocated %v times", n)
+	}
+}

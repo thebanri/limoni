@@ -1,7 +1,7 @@
 package widgets
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/thebanri/limoni/core/accessibility"
 	"github.com/thebanri/limoni/core/buffer"
@@ -9,9 +9,28 @@ import (
 	"github.com/thebanri/limoni/core/driver"
 )
 
-// SliderState stores the current value of a slider.
+// SliderState stores the current value of a slider. Keep one per slider
+// across frames: it also holds the mouse handler, built once, so drawing the
+// slider does not allocate.
 type SliderState struct {
 	Value int
+
+	// The last frame's geometry and settings, read by the mouse handlers.
+	x, width                    int
+	min, max                    int
+	id                          string
+	disableScroll, disableFocus bool
+	onChange                    func(int)
+	setFocus                    func(string)
+	capture                     func(func(driver.MouseEvent))
+	onMouse, onDrag             func(driver.MouseEvent)
+
+	// The semantic node's text, rebuilt only when what it says changes.
+	label              string
+	labelMin, labelMax int
+	value              string
+	valueOf            int
+	valueSet           bool
 }
 
 func NewSliderState(value int) *SliderState { return &SliderState{Value: value} }
@@ -118,64 +137,73 @@ func (s Slider) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 	if ctx.RegisterMouse != nil {
-		setValue := func(x uint16) {
-			relative := int(x) - int(ctx.Area.X)
-			if relative < 0 {
-				relative = 0
-			}
-			if relative >= width {
-				relative = width - 1
-			}
-			value := s.Min + relative*(s.Max-s.Min)/(width-1)
-			s.State.Set(value, s.Min, s.Max)
-			if s.OnChange != nil {
-				s.OnChange(s.State.Value)
+		st := s.State
+		st.x, st.width, st.min, st.max = int(ctx.Area.X), width, s.Min, s.Max
+		st.id, st.disableScroll, st.disableFocus = s.ID, s.DisableScroll, s.DisableFocus
+		st.onChange, st.setFocus, st.capture = s.OnChange, ctx.SetFocus, ctx.CaptureMouse
+		ctx.RegisterMouse(ctx.Area, st.handlers())
+	}
+}
+
+// handlers are built once per state and read the last frame's settings, so
+// registering them each frame does not allocate.
+func (s *SliderState) handlers() func(driver.MouseEvent) {
+	if s.onMouse == nil {
+		s.onDrag = func(ev driver.MouseEvent) {
+			if ev.Button != driver.MouseRelease && ev.Drag {
+				s.setFromColumn(ev.X)
 			}
 		}
-		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
-			if !s.DisableScroll {
-				if ev.Button == driver.MouseScrollUp {
-					s.State.Set(s.State.Value+1, s.Min, s.Max)
-					if s.OnChange != nil {
-						s.OnChange(s.State.Value)
-					}
-					if !s.DisableFocus && ctx.SetFocus != nil {
-						ctx.SetFocus(s.ID)
-					}
-					return
-				}
+		s.onMouse = func(ev driver.MouseEvent) {
+			if !s.disableScroll && (ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) {
+				step := 1
 				if ev.Button == driver.MouseScrollDown {
-					s.State.Set(s.State.Value-1, s.Min, s.Max)
-					if s.OnChange != nil {
-						s.OnChange(s.State.Value)
-					}
-					if !s.DisableFocus && ctx.SetFocus != nil {
-						ctx.SetFocus(s.ID)
-					}
-					return
+					step = -1
 				}
-			}
-			if ev.Button != driver.MouseLeft {
+				s.change(s.Value + step)
+				s.focus()
 				return
 			}
-			if !ev.Drag {
-				if !s.DisableFocus && ctx.SetFocus != nil {
-					ctx.SetFocus(s.ID)
-				}
-				setValue(ev.X)
-				if ctx.CaptureMouse != nil {
-					ctx.CaptureMouse(func(dragEv driver.MouseEvent) {
-						if dragEv.Button == driver.MouseRelease {
-							return
-						}
-						if dragEv.Drag {
-							setValue(dragEv.X)
-						}
-					})
-				}
+			if ev.Button != driver.MouseLeft || ev.Drag {
+				return
 			}
-		})
+			s.focus()
+			s.setFromColumn(ev.X)
+			if s.capture != nil {
+				s.capture(s.onDrag)
+			}
+		}
 	}
+	return s.onMouse
+}
+
+func (s *SliderState) focus() {
+	if !s.disableFocus && s.setFocus != nil {
+		s.setFocus(s.id)
+	}
+}
+
+func (s *SliderState) change(value int) {
+	s.Set(value, s.min, s.max)
+	if s.onChange != nil {
+		s.onChange(s.Value)
+	}
+}
+
+// setFromColumn moves the thumb to screen column x.
+func (s *SliderState) setFromColumn(x uint16) {
+	relative := int(x) - s.x
+	if relative < 0 {
+		relative = 0
+	}
+	if relative >= s.width {
+		relative = s.width - 1
+	}
+	if s.width <= 1 {
+		s.change(s.min)
+		return
+	}
+	s.change(s.min + relative*(s.max-s.min)/(s.width-1))
 }
 
 func (s Slider) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
@@ -186,14 +214,23 @@ func (s Slider) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	val := ""
-	if s.State != nil {
-		val = fmt.Sprintf("%d", s.State.Value)
+	label, val := "", ""
+	if st := s.State; st != nil {
+		if st.label == "" || st.labelMin != s.Min || st.labelMax != s.Max {
+			st.label = "Slider range " + strconv.Itoa(s.Min) + " to " + strconv.Itoa(s.Max)
+			st.labelMin, st.labelMax = s.Min, s.Max
+		}
+		if !st.valueSet || st.valueOf != st.Value {
+			st.value, st.valueOf, st.valueSet = strconv.Itoa(st.Value), st.Value, true
+		}
+		label, val = st.label, st.value
+	} else {
+		label = "Slider range " + strconv.Itoa(s.Min) + " to " + strconv.Itoa(s.Max)
 	}
 	return accessibility.AccessibilityNode{
 		ID:     s.ID,
 		Role:   accessibility.RoleSlider,
-		Label:  fmt.Sprintf("Slider range %d to %d", s.Min, s.Max),
+		Label:  label,
 		Value:  val,
 		State:  state,
 		Bounds: bounds,
