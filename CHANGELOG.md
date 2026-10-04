@@ -50,6 +50,13 @@ a patch bump (`v0.x.y`) does not.
   handle `MouseMotionMsg` instead.
 
 ### Added
+- Release binaries: `.goreleaser.yaml` and a workflow build zest, the
+  `limoni` CLI, globe, backdrop-shell, Castle Lemonstein and Lemon Drop for
+  Linux, macOS and Windows (amd64, arm64) on every tag, plus zest as .deb,
+  .rpm and Arch packages, attached to the release beside the hand-written
+  notes. A local snapshot built all 30 binaries and the packages. Homebrew
+  and the AUR are configured but commented out: they need a tap repository
+  and a key only the maintainer can create.
 - `limonivet` reports a `Block` given a title or border style but no
   `Borders`, which draws neither border nor title. That mistake hid the
   frames of the counter example and of every playground scene; CI now runs

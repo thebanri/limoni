@@ -1,0 +1,32 @@
+# Builds the applications made with Limoni (zest, the limoni CLI, globe,
+# backdrop-shell and the two games) for Linux, macOS and Windows when a
+# version is tagged, and attaches them — with checksums and zest's .deb,
+# .rpm and Arch packages — to the release. The release text is written by
+# hand and left as it is (.goreleaser.yaml: release.mode keep-existing).
+name: release binaries
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable # the apps' own modules may ask for newer than the library's floor
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

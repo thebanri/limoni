@@ -1,0 +1,146 @@
+# Release binaries for the applications built with Limoni, so they can be
+# installed without a Go toolchain and listed where terminal tools are found
+# (Terminal Trove, Homebrew, the AUR). The library itself needs none of this:
+# it is a Go module.
+#
+#   goreleaser check
+#   goreleaser release --snapshot --clean      # a local dry run into dist/
+#
+# .github/workflows/release.yml runs it when a v* tag is pushed. Release
+# notes stay hand-written: the binaries are added to the release, its text is
+# left alone.
+version: 2
+project_name: limoni
+
+env:
+  # The nested modules (apps/*) build against the Limoni they require, as an
+  # installer would, not against this checkout through go.work.
+  - GOWORK=off
+  - CGO_ENABLED=0
+
+builds:
+  - id: zest
+    main: ./cmd/zest
+    binary: zest
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: limoni
+    main: ./cmd/limoni
+    binary: limoni
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: globe
+    dir: apps/globe
+    main: .
+    binary: globe
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: backdrop-shell
+    dir: apps/backdrop-shell
+    main: .
+    binary: backdrop-shell
+    goos: [linux, darwin] # it runs the shell in a pseudo-terminal
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: castle-lemonstein
+    dir: apps/castle-lemonstein
+    main: .
+    binary: castle-lemonstein
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: lemondrop
+    dir: apps/lemondrop
+    main: .
+    binary: lemondrop
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+archives:
+  - id: zest
+    ids: [zest]
+    name_template: "zest_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, cmd/zest/README.md]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+  - id: limoni
+    ids: [limoni]
+    name_template: "limoni-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+  - id: globe
+    ids: [globe]
+    name_template: "globe_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+  - id: backdrop-shell
+    ids: [backdrop-shell]
+    name_template: "backdrop-shell_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, apps/backdrop-shell/README.md]
+  - id: castle-lemonstein
+    ids: [castle-lemonstein]
+    name_template: "castle-lemonstein_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+  - id: lemondrop
+    ids: [lemondrop]
+    name_template: "lemondrop_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true # CHANGELOG.md and the hand-written release notes say it
+
+release:
+  mode: keep-existing
+
+# Packages for Linux distributions: a .deb, .rpm and Arch package of zest,
+# attached to the release.
+nfpms:
+  - id: zest
+    ids: [zest]
+    package_name: zest
+    file_name_template: "zest_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: thebanri
+    homepage: https://github.com/thebanri/limoni/tree/main/cmd/zest
+    maintainer: thebanri
+    description: A log viewer for the terminal that follows files and pipes and filters a million lines without stalling.
+    license: Apache-2.0
+    formats: [deb, rpm, archlinux]
+
+# Homebrew and the AUR need a tap repository and a key that only the
+# maintainer can create, so they are left for when those exist:
+#
+# homebrew_casks:
+#   - name: zest
+#     ids: [zest]
+#     repository: { owner: thebanri, name: homebrew-tap, token: "{{ .Env.HOMEBREW_TAP_TOKEN }}" }
+#     homepage: https://github.com/thebanri/limoni/tree/main/cmd/zest
+#     description: Terminal log viewer built with Limoni
+#
+# aurs:
+#   - name: zest-bin
+#     ids: [zest]
+#     homepage: https://github.com/thebanri/limoni/tree/main/cmd/zest
+#     description: Terminal log viewer built with Limoni
+#     maintainers: ["thebanri"]
+#     license: Apache-2.0
+#     private_key: "{{ .Env.AUR_KEY }}"
+#     git_url: ssh://aur@aur.archlinux.org/zest-bin.git

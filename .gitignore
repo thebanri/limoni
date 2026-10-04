@@ -38,3 +38,6 @@ vendor/
 # Generated WebAssembly build output (produced by CI, published to Pages)
 examples/wasm/limoni.wasm
 site/
+
+# goreleaser output (goreleaser release --snapshot)
+/dist/
