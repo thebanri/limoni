@@ -22,6 +22,52 @@ type PopupState struct {
 	IsOpen bool
 	// Selected is the index of the item under the mouse (hover) or selected with the keyboard.
 	Selected int
+
+	// Handlers, built once, and the last frame's callbacks they call.
+	onButton     func()
+	onItem       []func()
+	onHover      []func(driver.MouseEvent)
+	lastHandlers []func()
+	id           string
+	setFocus     func(string)
+}
+
+func (ps *PopupState) focus() {
+	if ps.setFocus != nil {
+		ps.setFocus(ps.id)
+	}
+}
+
+// buttonHandler focuses the popup and opens or closes it. Built once.
+func (ps *PopupState) buttonHandler() func() {
+	if ps.onButton == nil {
+		ps.onButton = func() {
+			ps.focus()
+			ps.Toggle()
+		}
+	}
+	return ps.onButton
+}
+
+// itemHandlers returns item i's click (close, then run its Handler) and hover
+// (select it) handlers, built once per state and index.
+func (ps *PopupState) itemHandlers(i int) (func(), func(driver.MouseEvent)) {
+	for len(ps.onItem) <= i {
+		index := len(ps.onItem)
+		ps.onItem = append(ps.onItem, func() {
+			ps.focus()
+			ps.Close()
+			if index < len(ps.lastHandlers) && ps.lastHandlers[index] != nil {
+				ps.lastHandlers[index]()
+			}
+		})
+		ps.onHover = append(ps.onHover, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseNone {
+				ps.Selected = index
+			}
+		})
+	}
+	return ps.onItem[i], ps.onHover[i]
 }
 
 // NewPopupState returns a new PopupState.
@@ -126,14 +172,16 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Register the button's click area
 	if ctx.RegisterClick != nil {
 		btnArea := cell.NewRect(ctx.Area.X, ctx.Area.Y, ctx.Area.Width, 1)
-		ctx.RegisterClick(btnArea, func() {
-			if ctx.SetFocus != nil {
-				ctx.SetFocus(p.ID)
+		if p.State != nil {
+			p.State.id, p.State.setFocus = p.ID, ctx.SetFocus
+			p.State.lastHandlers = p.State.lastHandlers[:0]
+			for _, item := range p.Items {
+				p.State.lastHandlers = append(p.State.lastHandlers, item.Handler)
 			}
-			if p.State != nil {
-				p.State.Toggle()
-			}
-		})
+			ctx.RegisterClick(btnArea, p.State.buttonHandler())
+		} else if setFocus, id := ctx.SetFocus, p.ID; setFocus != nil {
+			ctx.RegisterClick(btnArea, func() { setFocus(id) })
+		}
 	}
 
 	// Register as focusable
@@ -203,6 +251,17 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		buf.SetCell(menuX+menuW-1, row, cell.Cell{Content: sym.Vertical, Style: borderStyle})
 	}
 
+	// Hover regions first: the region registered last wins a left click, and
+	// with hover registered after the click regions, a click on an item
+	// reached the hover handler, which ignores clicks, and the menu never
+	// ran the item.
+	for i := range p.Items {
+		if !p.Items[i].Disabled && ctx.RegisterMouse != nil {
+			_, hover := p.State.itemHandlers(i)
+			ctx.RegisterMouse(cell.NewRect(menuX, menuY+uint16(i)+1, menuW, 1), hover)
+		}
+	}
+
 	// Draw the menu items
 	for i, item := range p.Items {
 		itemY := menuY + uint16(i) + 1 // Border allowance
@@ -236,38 +295,11 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		// Register the click area
 		if ctx.RegisterClick != nil && !item.Disabled {
-			itemArea := cell.NewRect(menuX, itemY, menuW, 1)
-			handler := item.Handler
-			itemIndex := i
-			ctx.RegisterClick(itemArea, func() {
-				if ctx.SetFocus != nil {
-					ctx.SetFocus(p.ID)
-				}
-				if p.State != nil {
-					p.State.Close()
-				}
-				if handler != nil {
-					handler()
-				}
-				_ = itemIndex
-			})
+			click, _ := p.State.itemHandlers(i)
+			ctx.RegisterClick(cell.NewRect(menuX, itemY, menuW, 1), click)
 		}
 	}
 
-	// Register hover events: moving over the menu items updates the selection
-	for i := range p.Items {
-		if !p.Items[i].Disabled {
-			itemArea := cell.NewRect(menuX, menuY+uint16(i)+1, menuW, 1)
-			hoverIdx := i
-			if ctx.RegisterMouse != nil {
-				ctx.RegisterMouse(itemArea, func(ev driver.MouseEvent) {
-					if ev.Button == driver.MouseNone && p.State != nil {
-						p.State.Selected = hoverIdx
-					}
-				})
-			}
-		}
-	}
 }
 
 // SizeHint returns the popup button's height and default width.

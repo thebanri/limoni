@@ -12,6 +12,81 @@ type SelectState struct {
 	Selected int
 	Hovered  int
 	Open     bool
+
+	// Mouse handlers, built once, and the last frame's settings they read.
+	onField                     func(driver.MouseEvent)
+	onOption                    []func(driver.MouseEvent)
+	options                     []string
+	id                          string
+	disableScroll, disableFocus bool
+	onChange                    func(int, string)
+	setFocus                    func(string)
+}
+
+// remember records what the handlers need from this frame.
+func (st *SelectState) remember(s *Select, setFocus func(string)) {
+	st.options, st.id = s.Options, s.ID
+	st.disableScroll, st.disableFocus = s.DisableScroll, s.DisableFocus
+	st.onChange, st.setFocus = s.OnChange, setFocus
+}
+
+func (st *SelectState) changed() {
+	if st.onChange != nil && st.Selected < len(st.options) {
+		st.onChange(st.Selected, st.options[st.Selected])
+	}
+}
+
+func (st *SelectState) focus() {
+	if !st.disableFocus && st.setFocus != nil {
+		st.setFocus(st.id)
+	}
+}
+
+// fieldHandler opens and closes the list on a click and steps through the
+// options with the wheel. Built once per state.
+func (st *SelectState) fieldHandler() func(driver.MouseEvent) {
+	if st.onField == nil {
+		st.onField = func(ev driver.MouseEvent) {
+			n := len(st.options)
+			switch {
+			case ev.Button == driver.MouseLeft && !ev.Drag:
+				st.focus()
+				st.Open = !st.Open
+			case st.disableScroll || n == 0:
+			case ev.Button == driver.MouseScrollUp:
+				st.Selected = (st.Selected - 1 + n) % n
+				st.changed()
+				st.focus()
+			case ev.Button == driver.MouseScrollDown:
+				st.Selected = (st.Selected + 1) % n
+				st.changed()
+				st.focus()
+			}
+		}
+	}
+	return st.onField
+}
+
+// optionHandler hovers and picks option i of the open list. Built once per
+// state and option index.
+func (st *SelectState) optionHandler(i int) func(driver.MouseEvent) {
+	for len(st.onOption) <= i {
+		index := len(st.onOption)
+		st.onOption = append(st.onOption, func(ev driver.MouseEvent) {
+			if ev.Button == driver.MouseNone {
+				st.Hovered = index
+				return
+			}
+			if ev.Button == driver.MouseLeft && !ev.Drag && index < len(st.options) {
+				st.Selected, st.Hovered, st.Open = index, -1, false
+				st.changed()
+				if st.setFocus != nil {
+					st.setFocus(st.id)
+				}
+			}
+		})
+	}
+	return st.onOption[i]
 }
 
 func NewSelectState() *SelectState { return &SelectState{Selected: 0, Hovered: -1} }
@@ -98,44 +173,10 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		setClipped(buf, ctx.Area.X+1, ctx.Area.Y, label+indicator, fieldStyle, int(ctx.Area.Width)-2)
 	}
 
-	// Mouse click and wheel handler
+	// Mouse click and wheel handler, built once in the state.
 	if ctx.RegisterMouse != nil {
-		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
-			if ev.Button == driver.MouseLeft && !ev.Drag {
-				if !s.DisableFocus && ctx.SetFocus != nil {
-					ctx.SetFocus(s.ID)
-				}
-				s.State.Open = !s.State.Open
-				return
-			}
-			if !s.DisableScroll {
-				if ev.Button == driver.MouseScrollUp {
-					if s.State.Selected > 0 {
-						s.State.Selected--
-					} else {
-						s.State.Selected = len(s.Options) - 1
-					}
-					if s.OnChange != nil {
-						s.OnChange(s.State.Selected, s.Options[s.State.Selected])
-					}
-					if !s.DisableFocus && ctx.SetFocus != nil {
-						ctx.SetFocus(s.ID)
-					}
-				} else if ev.Button == driver.MouseScrollDown {
-					if s.State.Selected < len(s.Options)-1 {
-						s.State.Selected++
-					} else {
-						s.State.Selected = 0
-					}
-					if s.OnChange != nil {
-						s.OnChange(s.State.Selected, s.Options[s.State.Selected])
-					}
-					if !s.DisableFocus && ctx.SetFocus != nil {
-						ctx.SetFocus(s.ID)
-					}
-				}
-			}
-		})
+		s.State.remember(&s, ctx.SetFocus)
+		ctx.RegisterMouse(ctx.Area, s.State.fieldHandler())
 	}
 
 	if !s.State.Open || ctx.Area.Height < 2 {
@@ -193,24 +234,7 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		if ctx.RegisterMouse != nil {
-			index := i
-			ctx.RegisterMouse(cell.NewRect(ctx.Area.X, y, ctx.Area.Width, 1), func(ev driver.MouseEvent) {
-				if ev.Button == driver.MouseNone {
-					s.State.Hovered = index
-					return
-				}
-				if ev.Button == driver.MouseLeft && !ev.Drag {
-					s.State.Selected = index
-					s.State.Hovered = -1
-					s.State.Open = false
-					if s.OnChange != nil {
-						s.OnChange(index, s.Options[index])
-					}
-					if ctx.SetFocus != nil {
-						ctx.SetFocus(s.ID)
-					}
-				}
-			})
+			ctx.RegisterMouse(cell.NewRect(ctx.Area.X, y, ctx.Area.Width, 1), s.State.optionHandler(i))
 		}
 	}
 }

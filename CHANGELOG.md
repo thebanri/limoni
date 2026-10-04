@@ -9,6 +9,10 @@ a patch bump (`v0.x.y`) does not.
 ## [Unreleased]
 
 ### Fixed
+- A click on a `Popup` menu item did nothing: the item's hover region was
+  registered after its click region, and the region registered last takes a
+  left click, so the hover handler got it and ignored it. The menu never ran
+  an item's handler from the mouse.
 - `Sparkline` and `BarChart` never drew `▁`. Sparkline's table of eighth
   blocks began with a space, so a value an eighth of a cell high drew nothing
   and the line had seven steps instead of eight; BarChart's table had a space

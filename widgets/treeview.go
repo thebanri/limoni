@@ -28,6 +28,53 @@ type TreeViewState struct {
 
 	// nodes holds the visible items' semantic nodes, reused every frame.
 	nodes []accessibility.AccessibilityNode
+
+	// The mouse handler, built once, and the last frame it reads: the
+	// flattened items, where they were drawn, and how far they scroll.
+	onMouse                 func(driver.MouseEvent)
+	lastFlat                []flatTreeNode
+	lastTop                 uint16
+	lastRows, lastMaxOffset int
+	lastID                  string
+	lastSetFocus            func(string)
+}
+
+// mouseHandler scrolls with the wheel and selects (and opens or closes) the
+// item under a left click. It is built once per state, so registering it each
+// frame does not allocate; it reads the last frame's layout.
+func (s *TreeViewState) mouseHandler() func(driver.MouseEvent) {
+	if s.onMouse == nil {
+		s.onMouse = func(ev driver.MouseEvent) {
+			switch ev.Button {
+			case driver.MouseScrollUp:
+				if s.Offset--; s.Offset < 0 {
+					s.Offset = 0
+				}
+			case driver.MouseScrollDown:
+				if s.Offset++; s.Offset > s.lastMaxOffset {
+					s.Offset = s.lastMaxOffset
+				}
+			case driver.MouseLeft:
+				if ev.Drag || ev.Y < s.lastTop {
+					return
+				}
+				row := int(ev.Y - s.lastTop)
+				i := s.Offset + row
+				if row >= s.lastRows || i >= len(s.lastFlat) {
+					return
+				}
+				node := s.lastFlat[i].node
+				s.Select(node.ID)
+				if len(node.Children) > 0 {
+					s.Toggle(node.ID, node.Expanded)
+				}
+				if s.lastID != "" && s.lastSetFocus != nil {
+					s.lastSetFocus(s.lastID)
+				}
+			}
+		}
+	}
+	return s.onMouse
 }
 
 type flatTreeNode struct {
@@ -366,22 +413,13 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		state.Offset = maxOffset
 	}
 
-	// Mouse scroll registration
-	if ctx.RegisterMouse != nil && t.State != nil {
+	// One handler for the wheel and for clicks on rows, built once.
+	mouse := ctx.RegisterMouse != nil && t.State != nil
+	if mouse {
 		st := t.State
-		ctx.RegisterMouse(ctx.Area, func(ev driver.MouseEvent) {
-			if ev.Button == driver.MouseScrollUp {
-				st.Offset--
-				if st.Offset < 0 {
-					st.Offset = 0
-				}
-			} else if ev.Button == driver.MouseScrollDown {
-				st.Offset++
-				if st.Offset > maxOffset {
-					st.Offset = maxOffset
-				}
-			}
-		})
+		st.lastFlat, st.lastTop, st.lastRows, st.lastMaxOffset = flat, area.Y, visibleHeight, maxOffset
+		st.lastID, st.lastSetFocus = t.ID, ctx.SetFocus
+		ctx.RegisterMouse(ctx.Area, st.mouseHandler())
 	}
 
 	indent := t.IndentWidth
@@ -474,8 +512,8 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// Draw Node Label
 		buf.SetString(cursorX, currY, item.node.Label, rowStyle)
 
-		// Register click region for interactive toggles and selection
-		if ctx.RegisterClick != nil && t.State != nil {
+		// Without mouse regions, each row registers its own click.
+		if !mouse && ctx.RegisterClick != nil && t.State != nil {
 			targetID := item.node.ID
 			st := t.State
 			hasChildren := len(item.node.Children) > 0
