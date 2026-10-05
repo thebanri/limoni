@@ -251,6 +251,8 @@ lemondrop
 Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemondrop); sesi ve dünya skor
 tablosu da var.
 
+<p align="center"><img src="assets/pikap.gif" alt="pikap demo plağını çalıyor: iğne plağın ortasına konuyor, plak ileri geri sürüklenip scratch yapılıyor, sonra ASCII ile çiziliyor" /></p>
+
 [**pikap**](apps/pikap) yarım bloklarla (istersen ASCII ile) çizilmiş bir pikap. Bilgisayarda o an ne çalıyorsa onu izler
 (Spotify, bir tarayıcı sekmesi, mpv, MPRIS konuşan her şey): kapak plağın üstünde döner, kol şarkı
 ilerledikçe plağın üstünde ilerler. Plağı ya da kolu sürükleyerek şarkıyı ileri geri alabilirsin.

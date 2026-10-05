@@ -267,6 +267,8 @@ lemondrop
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop), with sound and a
 world leaderboard.
 
+<p align="center"><img src="assets/pikap.gif" alt="pikap playing its demo record: the needle is put down half-way in, the record is dragged back and forth to scratch, then it is drawn in ASCII" /></p>
+
 [**pikap**](apps/pikap) is a record player drawn in half blocks (or ASCII). It follows whatever the computer is playing
 (Spotify, a browser tab, mpv, anything on MPRIS): the cover turns on the record and the tonearm moves
 across it. Dragging the record or the arm moves the song back and forth. Given files, it plays them

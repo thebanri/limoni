@@ -1,5 +1,7 @@
 # pikap
 
+<p align="center"><img src="../../assets/pikap.gif" alt="pikap playing its demo record: the needle is put down half-way in, the record is dragged back and forth to scratch, then it is drawn in ASCII" /></p>
+
 A record player in the terminal, drawn in half blocks, two pixels to a cell,
 or in ASCII if you prefer. ("Pikap" is Turkish for a record player.)
 
