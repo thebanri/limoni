@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.12.0] — 2026-10-05
+
 ### Breaking
 - A `Program` delivers each command's result to `Update` as soon as the
   command returns. Results used to be held back into the order the commands
@@ -834,7 +836,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.12.0...HEAD
+[v0.12.0]: https://github.com/thebanri/limoni/compare/v0.11.1...v0.12.0
 [v0.11.1]: https://github.com/thebanri/limoni/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/thebanri/limoni/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/thebanri/limoni/compare/v0.9.5...v0.10.0
