@@ -108,6 +108,47 @@ func TestDraggingTheArmMovesTheNeedle(t *testing.T) {
 	}
 }
 
+// TestThePressOnTheArmIsTheArms: the arm lies over the record, and a press
+// on it never takes the record — not beside the tube on a small deck, and
+// not while the song cannot be moved (Firefox drops a video's length).
+func TestThePressOnTheArmIsTheArms(t *testing.T) {
+	f := newFake()
+	u := newUI(f)
+	b := buffer.NewBuffer(cell.Rect{Width: 60, Height: 20})
+	settle(u, b)
+	if !u.haveDeck {
+		t.Fatal("no deck drawn at 60×20")
+	}
+	dx, dy := math.Cos(u.armA), math.Sin(u.armA)
+	for _, side := range []float64{-1, 1} {
+		// A cell to the side of the tube, over the record.
+		uu := pivotU + dx*armLen*0.75 - dy*side*1/u.dv.R
+		vv := pivotV + dy*armLen*0.75 + dx*side*1/u.dv.R
+		if math.Hypot(uu, vv) > 0.95 {
+			t.Fatalf("the test point %.2f,%.2f is not over the record", uu, vv)
+		}
+		x, y := cellAt(u.dv, uu, vv)
+		press(u, x, y)
+		if !u.armDrag || f.grabbed {
+			t.Fatalf("a press a cell from the arm (%d,%d) took the arm %v, the record %v", x, y, u.armDrag, f.grabbed)
+		}
+		release(u, x, y)
+	}
+
+	f.np.length = 0
+	settle(u, b)
+	dx, dy = math.Cos(u.armA), math.Sin(u.armA)
+	if math.Hypot(pivotU+dx*armLen*0.75, pivotV+dy*armLen*0.75) > 0.95 {
+		t.Skip("with no length the arm is off the record")
+	}
+	x, y := cellAt(u.dv, pivotU+dx*armLen*0.75, pivotV+dy*armLen*0.75)
+	press(u, x, y)
+	if f.grabbed {
+		t.Fatal("with no length, a press on the arm took the record")
+	}
+	release(u, x, y)
+}
+
 func TestProgressBarAndButtons(t *testing.T) {
 	u, f, _ := setup(t)
 	bar := u.bar

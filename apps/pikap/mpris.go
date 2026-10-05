@@ -49,6 +49,10 @@ type mprisPlayer struct {
 	loop     string    // None, Track, Playlist
 	seenPlay time.Time // when it was last seen playing
 	key      string    // names the cover, for the interface to notice a new one
+	// The player stopped saying where it is in a track it had a length
+	// for: the length is the one it last gave, and the clock keeps the
+	// position.
+	noPos bool
 }
 
 type mprisCmd struct {
@@ -175,8 +179,16 @@ func (s *mprisSource) refresh() {
 			continue
 		}
 		for _, o := range old {
-			if o.bus == n {
-				p.seenPlay = o.seenPlay
+			if o.bus != n {
+				continue
+			}
+			p.seenPlay = o.seenPlay
+			// Firefox on YouTube drops a video's length and puts its
+			// position at 0 about a second after a seek, and leaves them so
+			// while it plays on. A length that vanishes from the same track
+			// is not the track turning into a stream.
+			if p.length == 0 && o.length > 0 && p.sameTrack(&o) {
+				p.length, p.noPos = o.length, true
 			}
 		}
 		if p.status == "Playing" {
@@ -265,6 +277,12 @@ func (s *mprisSource) query(bus string) (mprisPlayer, bool) {
 	return p, true
 }
 
+// sameTrack is whether p and o name the same track of one player.
+func (p *mprisPlayer) sameTrack(o *mprisPlayer) bool {
+	return p.bus == o.bus && p.trackID == o.trackID && p.title == o.title &&
+		p.artist == o.artist && p.album == o.album
+}
+
 func asInt64(v any) (int64, bool) {
 	switch n := v.(type) {
 	case int64:
@@ -311,6 +329,8 @@ func (s *mprisSource) update(np *nowPlaying) {
 			// or the needle would twitch at every look.
 			if now.Before(s.holdUntil) || s.grabbed {
 				pos = s.base
+			} else if p.noPos {
+				pos = s.predicted(now, p)
 			} else if p.status == "Playing" && abs(s.predicted(now, p)-pos) < 0.35 {
 				pos = s.predicted(now, p)
 			}

@@ -220,6 +220,36 @@ func TestMPRISFollowsAndSteers(t *testing.T) {
 	})
 }
 
+// TestMPRISKeepsTheLengthFirefoxDrops plays out what Firefox does on
+// YouTube a second after a seek: the video's length leaves the metadata and
+// the position reads 0, while the video plays on from where it was put.
+func TestMPRISKeepsTheLengthFirefoxDrops(t *testing.T) {
+	addr := privateBus(t)
+	f := serveFake(t, addr, "Firefox", "A video", "Playing", 61e6)
+	s := newMPRISOn(connect(t, addr))
+	defer s.close()
+	waitFor(t, s, "the video", func(np nowPlaying) bool { return np.length == 180 })
+
+	s.seek(100)
+	waitFor(t, s, "SetPosition", func(nowPlaying) bool { return f.called("SetPosition") })
+	// prop stores a map into the one it has, so a key cannot be taken
+	// out; a length of 0 reads the same to pikap as none.
+	f.props.SetMust("org.mpris.MediaPlayer2.Player", "Metadata", map[string]dbus.Variant{
+		"mpris:length": dbus.MakeVariant(int64(0)),
+	})
+	f.props.SetMust("org.mpris.MediaPlayer2.Player", "Position", int64(0))
+	// Past the hold after a seek, and past a few looks at the player.
+	time.Sleep(1500 * time.Millisecond)
+	var np nowPlaying
+	s.update(&np)
+	if np.length != 180 {
+		t.Fatalf("the length went from 180 to %.0f", np.length)
+	}
+	if np.pos < 100.5 || np.pos > 103 {
+		t.Fatalf("position %.2f, want a little past 100, where the video was put", np.pos)
+	}
+}
+
 func TestMPRISPrefersThePlayingOne(t *testing.T) {
 	addr := privateBus(t)
 	serveFake(t, addr, "Firefox", "A video", "Paused", 0)

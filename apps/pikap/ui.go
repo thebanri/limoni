@@ -894,9 +894,15 @@ func (u *ui) mouse(m limoni.MouseEvent) {
 	if u.haveDeck {
 		uu, vv := u.dv.toUnits(fx, fy)
 		nu, nv := pivotU+math.Cos(u.armA)*armLen, pivotV+math.Sin(u.armA)*armLen
-		if d, _ := segDist(uu, vv, pivotU, pivotV, nu, nv); d < 0.12 && u.np.canSeek && u.np.length > 0 {
-			u.armDrag = true
-			u.armDragR = max(grooveIn(u.disc), min(grooveOut, math.Hypot(uu, vv)))
+		// The arm lies over the record, so a press on it is the arm's, even
+		// when the song cannot be moved: it used to fall through and take
+		// the record. On a small deck the arm is under a cell wide, and a
+		// press is taken a cell and a half either side of it.
+		if d, _ := segDist(uu, vv, pivotU, pivotV, nu, nv); d < max(0.12, 1.5/u.dv.R) {
+			if u.np.canSeek && u.np.length > 0 {
+				u.armDrag = true
+				u.armDragR = max(grooveIn(u.disc), min(grooveOut, math.Hypot(uu, vv)))
+			}
 			return
 		}
 		if math.Hypot(uu, vv) <= 1.02 {
