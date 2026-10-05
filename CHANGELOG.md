@@ -19,6 +19,16 @@ a patch bump (`v0.x.y`) does not.
   the old loop.
 
 ### Fixed
+- Sixel pictures of more than 256 colours keep the picture's colours, and
+  encode about seven times faster. The palette was the first 256 colours met
+  from the top, so the rest of the picture was matched against the colours
+  of its first rows (a blue half came out red), and each other colour was
+  searched for through the whole palette: most of a 31 ms encode of a
+  220×220 record. The palette is now the 256 most common colours at five bits
+  a channel, other colours are looked up once for each five-bit colour, and a
+  4×4 ordered dither, fixed to the pixels, breaks up the bands: 4.6–5.3 ms,
+  and 14 allocations instead of 36,000. A picture of at most 256 colours is
+  encoded exactly, as before.
 - A click from `uitest` or the automation socket (and so `limoni-mcp`) is a
   press and then a release, as a terminal sends it. It was a press alone, so a
   model that acts on the release — a slider, a drag — never finished one under

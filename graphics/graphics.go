@@ -10,6 +10,8 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -401,6 +403,15 @@ func EncodeIterm2(img image.Image, cols, rows uint16, cellW, cellH uint16, trans
 }
 
 // EncodeSixel encodes the image in the Sixel Graphics format.
+//
+// A picture of at most 256 colours keeps them exactly. One with more — any
+// photograph, anything drawn with soft edges — gets the 256 most common
+// colours at five bits a channel, and every other colour the nearest of
+// them, looked up once for each of the 32768 five-bit colours it falls in.
+// It used to search the palette for every distinct colour, which on a
+// record with soft edges was most of a 30 ms encode; and the palette was the
+// first 256 colours met from the top, which left the rest of the picture
+// to be matched against the colours of its first rows.
 func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
@@ -409,30 +420,35 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 	targetH := int(rows) * int(cellH)
 
 	resized := ResizeImageContain(img, targetW, targetH, transparent)
-	pal := buildPalette(resized, 256)
-	if len(pal) == 0 {
-		pal = color.Palette{color.RGBA{0, 0, 0, 255}}
-	}
-
-	colorToIndex := make(map[color.RGBA]int, len(pal))
-	for idx, col := range pal {
-		colorToIndex[color.RGBAModel.Convert(col).(color.RGBA)] = idx
-	}
+	q := quantPool.Get().(*sixelQuant)
+	defer quantPool.Put(q)
+	q.build(resized, transparent)
+	pal := q.pal
 
 	var buf bytes.Buffer
+	buf.Grow(64 << 10)
+	num := make([]byte, 0, 16)
+	writeInt := func(n int) {
+		num = strconv.AppendInt(num[:0], int64(n), 10)
+		buf.Write(num)
+	}
 	// Sixel initialization sequence
 	buf.WriteString("\x1bPq\"1;1;")
 
 	for idx, col := range pal {
-		r, g, b, _ := col.RGBA()
-		pctR := int(r * 100 / 65535)
-		pctG := int(g * 100 / 65535)
-		pctB := int(b * 100 / 65535)
-		buf.WriteString(fmt.Sprintf("#%d;2;%d;%d;%d", idx, pctR, pctG, pctB))
+		buf.WriteByte('#')
+		writeInt(idx)
+		buf.WriteString(";2;")
+		writeInt(int(col.R) * 100 / 255)
+		buf.WriteByte(';')
+		writeInt(int(col.G) * 100 / 255)
+		buf.WriteByte(';')
+		writeInt(int(col.B) * 100 / 255)
 	}
 
 	width := resized.Bounds().Dx()
 	height := resized.Bounds().Dy()
+	minX, minY := resized.Bounds().Min.X, resized.Bounds().Min.Y
 
 	bandIndices := make([][6]int16, width)
 	colorsInBand := make([]bool, len(pal))
@@ -447,25 +463,21 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 		for x := 0; x < width; x++ {
 			for dy := 0; dy < 6; dy++ {
 				y := bandY + dy
-				if y < height {
-					r, g, b, a := rgbaAt(resized, x, y)
-					if transparent && a < 32768 {
-						bandIndices[x][dy] = -1 // Transparent pixel
-					} else {
-						c := color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
-						// A colour the palette had no room for maps to its
-						// nearest entry, remembered so each is searched once.
-						colIdx, ok := colorToIndex[c]
-						if !ok {
-							colIdx = pal.Index(c)
-							colorToIndex[c] = colIdx
-						}
-						bandIndices[x][dy] = int16(colIdx)
-						colorsInBand[colIdx] = true
-					}
-				} else {
+				if y >= height {
 					bandIndices[x][dy] = -1
+					continue
 				}
+				c, a := q.at(resized, minX+x, minY+y)
+				if transparent && a < 128 {
+					bandIndices[x][dy] = -1 // Transparent pixel
+					continue
+				}
+				if q.many {
+					c = dither(c, x, y)
+				}
+				colIdx := q.index(c)
+				bandIndices[x][dy] = colIdx
+				colorsInBand[colIdx] = true
 			}
 		}
 
@@ -473,45 +485,39 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 			if !colorsInBand[colorIdx] {
 				continue
 			}
-
-			buf.WriteString(fmt.Sprintf("#%d", colorIdx))
+			buf.WriteByte('#')
+			writeInt(colorIdx)
 
 			targetIdx := int16(colorIdx)
 			repeatCount := 0
-			var lastChar byte = 0
+			var lastChar byte
 
 			flushRepeat := func() {
-				if repeatCount > 0 {
-					if repeatCount > 3 {
-						buf.WriteString(fmt.Sprintf("!%d%c", repeatCount, lastChar))
-					} else {
-						for k := 0; k < repeatCount; k++ {
-							buf.WriteByte(lastChar)
-						}
+				if repeatCount > 3 {
+					buf.WriteByte('!')
+					writeInt(repeatCount)
+					buf.WriteByte(lastChar)
+				} else {
+					for k := 0; k < repeatCount; k++ {
+						buf.WriteByte(lastChar)
 					}
-					repeatCount = 0
 				}
+				repeatCount = 0
 			}
 
 			for x := 0; x < width; x++ {
-				var mask byte = 0
+				var mask byte
 				for dy := 0; dy < 6; dy++ {
 					if bandIndices[x][dy] == targetIdx {
 						mask |= 1 << dy
 					}
 				}
-
 				char := mask + 63
-				if repeatCount == 0 {
-					lastChar = char
-					repeatCount = 1
-				} else if char == lastChar {
-					repeatCount++
-				} else {
+				if repeatCount > 0 && char != lastChar {
 					flushRepeat()
-					lastChar = char
-					repeatCount = 1
 				}
+				lastChar = char
+				repeatCount++
 			}
 			flushRepeat()
 
@@ -525,6 +531,150 @@ func EncodeSixel(img image.Image, cols, rows uint16, cellW, cellH uint16, transp
 	// Sixel exit sequence
 	buf.WriteString("\x1b\\")
 	return buf.String()
+}
+
+// sixelQuant is a sixel picture's palette and the way from a colour to
+// its entry. Its tables are kept between pictures (quantPool): an animated
+// picture is encoded many times a second.
+type sixelQuant struct {
+	pal    []color.RGBA
+	exact  map[color.RGBA]int16 // the picture's own colours, when there are at most 256
+	counts [1 << 15]int32       // how many pixels fall in each five-bit colour
+	sums   [1 << 15][3]int64    // and the sum of their channels
+	table  [1 << 15]int16       // a five-bit colour's entry; -1 until looked up
+	used   []int32              // the five-bit colours seen, to clear after
+	ready  bool                 // table has been set to -1
+	many   bool                 // more colours than the palette holds: dithered
+}
+
+// bayer4 is a 4×4 ordered-dither matrix.
+var bayer4 = [4][4]int{{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}}
+
+// dither nudges c by up to half a five-bit step, by its place in a 4×4
+// pattern, so the edge between two palette colours is a fine mix rather
+// than a band. The pattern is fixed to the pixels, so an animated picture
+// does not shimmer.
+func dither(c color.RGBA, x, y int) color.RGBA {
+	d := (bayer4[y&3][x&3]*2 - 15) / 4 // −3 … +3
+	nudge := func(v uint8) uint8 { return uint8(max(0, min(255, int(v)+d))) }
+	return color.RGBA{nudge(c.R), nudge(c.G), nudge(c.B), c.A}
+}
+
+var quantPool = sync.Pool{New: func() any {
+	return &sixelQuant{exact: make(map[color.RGBA]int16, 257)}
+}}
+
+func key15(c color.RGBA) int32 {
+	return int32(c.R>>3)<<10 | int32(c.G>>3)<<5 | int32(c.B>>3)
+}
+
+// at is the pixel at x, y, opaque-ish colour and alpha.
+func (q *sixelQuant) at(img image.Image, x, y int) (color.RGBA, uint8) {
+	if m, ok := img.(*image.RGBA); ok {
+		i := m.PixOffset(x, y)
+		p := m.Pix[i : i+4 : i+4]
+		return color.RGBA{p[0], p[1], p[2], p[3]}, p[3]
+	}
+	r, g, b, a := rgbaAt(img, x, y)
+	return color.RGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), uint8(a >> 8)}, uint8(a >> 8)
+}
+
+// build chooses the palette for img.
+func (q *sixelQuant) build(img image.Image, transparent bool) {
+	for _, k := range q.used {
+		q.counts[k], q.sums[k], q.table[k] = 0, [3]int64{}, -1
+	}
+	q.used = q.used[:0]
+	clear(q.exact)
+	q.pal = q.pal[:0]
+	if !q.ready {
+		for i := range q.table {
+			q.table[i] = -1
+		}
+		q.ready = true
+	}
+	b := img.Bounds()
+	many := false
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c, a := q.at(img, x, y)
+			if transparent && a < 128 {
+				continue
+			}
+			if !many {
+				if _, ok := q.exact[c]; !ok {
+					if len(q.pal) == 256 {
+						many = true
+					} else {
+						q.exact[c] = int16(len(q.pal))
+						q.pal = append(q.pal, c)
+					}
+				}
+			}
+			k := key15(c)
+			if q.counts[k] == 0 {
+				q.used = append(q.used, k)
+			}
+			q.counts[k]++
+			q.sums[k][0] += int64(c.R)
+			q.sums[k][1] += int64(c.G)
+			q.sums[k][2] += int64(c.B)
+		}
+	}
+	q.many = many
+	if !many {
+		if len(q.pal) == 0 {
+			q.pal = append(q.pal, color.RGBA{A: 255})
+		}
+		return
+	}
+	// The 256 most common five-bit colours, each the average of its pixels.
+	clear(q.exact)
+	byCount := append([]int32(nil), q.used...)
+	sort.Slice(byCount, func(i, j int) bool {
+		if q.counts[byCount[i]] != q.counts[byCount[j]] {
+			return q.counts[byCount[i]] > q.counts[byCount[j]]
+		}
+		return byCount[i] < byCount[j]
+	})
+	q.pal = q.pal[:0]
+	for _, k := range byCount[:min(256, len(byCount))] {
+		n := int64(q.counts[k])
+		q.table[k] = int16(len(q.pal))
+		q.pal = append(q.pal, color.RGBA{uint8(q.sums[k][0] / n), uint8(q.sums[k][1] / n), uint8(q.sums[k][2] / n), 255})
+	}
+}
+
+// index is the palette entry for c.
+func (q *sixelQuant) index(c color.RGBA) int16 {
+	if len(q.exact) > 0 {
+		if i, ok := q.exact[c]; ok {
+			return i
+		}
+	}
+	k := key15(c)
+	if i := q.table[k]; i >= 0 {
+		return i
+	}
+	// The nearest entry to this five-bit colour's average, looked up once.
+	var ar, ag, ab int64
+	if n := int64(q.counts[k]); n > 0 {
+		ar, ag, ab = q.sums[k][0]/n, q.sums[k][1]/n, q.sums[k][2]/n
+	} else {
+		ar, ag, ab = int64(c.R), int64(c.G), int64(c.B)
+	}
+	best, bestD := int16(0), int64(1<<62)
+	for i, p := range q.pal {
+		dr, dg, db := ar-int64(p.R), ag-int64(p.G), ab-int64(p.B)
+		if d := dr*dr + dg*dg + db*db; d < bestD {
+			best, bestD = int16(i), d
+		}
+	}
+	if q.counts[k] == 0 {
+		q.used = append(q.used, k) // so build clears it
+	}
+	q.table[k] = best
+	return best
 }
 
 // ImageCacheKey serves as a unique key for the image escape sequence cache.

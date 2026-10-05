@@ -3,6 +3,8 @@ package graphics
 import (
 	"image"
 	"image/color"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -169,12 +171,21 @@ func TestEncodeSixelMapsColoursPastThePaletteToTheNearest(t *testing.T) {
 	if len(bands) < 2 {
 		t.Fatalf("expected two sixel bands, got %q", out)
 	}
+	// The entry the second band draws with must be near white, whatever
+	// its number: the palette is the picture's most common colours.
 	second := bands[1]
-	if !strings.Contains(second, "#255") {
-		t.Errorf("near-white band does not use the white entry #255: %q", second)
+	used := regexp.MustCompile(`^#(\d+)`).FindStringSubmatch(second)
+	if used == nil {
+		t.Fatalf("second band selects no colour: %q", second)
 	}
-	if strings.Contains(second, "#0!") || strings.Contains(second, "#0~") {
-		t.Errorf("near-white band fell back to entry 0: %q", second)
+	def := regexp.MustCompile(`#` + used[1] + `;2;(\d+);(\d+);(\d+)`).FindStringSubmatch(out)
+	if def == nil {
+		t.Fatalf("entry #%s is not defined", used[1])
+	}
+	for _, v := range def[1:] {
+		if n, _ := strconv.Atoi(v); n < 90 {
+			t.Errorf("near-white band drawn with #%s = %v%%, not near white", used[1], def[1:])
+		}
 	}
 }
 
@@ -314,5 +325,63 @@ func TestImagePlacementsKeepTheCursor(t *testing.T) {
 	}
 	if seq := EncodeIterm2(img, 2, 2, 8, 16, true); !strings.Contains(seq, "doNotMoveCursor=1") {
 		t.Errorf("iTerm2 placement without doNotMoveCursor=1: %.80q", seq)
+	}
+}
+
+// gradientHalves is red shades over its top half and blue below: more
+// colours than a palette holds, the blue all below the first rows.
+func gradientHalves() *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, 300, 24))
+	for y := 0; y < 24; y++ {
+		for x := 0; x < 300; x++ {
+			c := color.RGBA{R: uint8(100 + x*155/300), G: uint8(x % 7), A: 255}
+			if y >= 12 {
+				c = color.RGBA{B: uint8(100 + x*155/300), G: uint8(x % 5), A: 255}
+			}
+			img.SetRGBA(x, y, c)
+		}
+	}
+	return img
+}
+
+// A picture of more colours than the palette holds is drawn in the colours
+// of the whole picture. The palette was the first 256 colours met from the
+// top, so the blue half here came out in the red of the first rows.
+func TestEncodeSixelKeepsTheColoursOfTheWholePicture(t *testing.T) {
+	out := EncodeSixel(gradientHalves(), 30, 2, 10, 12, false)
+	defs := map[string][3]int{}
+	for _, m := range regexp.MustCompile(`#(\d+);2;(\d+);(\d+);(\d+)`).FindAllStringSubmatch(out, -1) {
+		r, _ := strconv.Atoi(m[2])
+		g, _ := strconv.Atoi(m[3])
+		b, _ := strconv.Atoi(m[4])
+		defs[m[1]] = [3]int{r, g, b}
+	}
+	bands := strings.Split(out, "-")
+	if len(bands) < 4 {
+		t.Fatalf("expected four bands, got %d", len(bands))
+	}
+	// Bands 2 and 3 are the blue half (6 rows a band, 24 rows).
+	for _, band := range bands[2:4] {
+		for _, m := range regexp.MustCompile(`#(\d+)[^;\d]`).FindAllStringSubmatch(band, -1) {
+			c := defs[m[1]]
+			if c[0] > c[2] {
+				t.Fatalf("the blue half is drawn with #%s = %v%%, a red", m[1], c)
+			}
+		}
+	}
+}
+
+// A photograph-like picture: thousands of colours, where most of the
+// encoding time used to go.
+func BenchmarkEncodeSixelPhoto(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 220, 220))
+	for y := 0; y < 220; y++ {
+		for x := 0; x < 220; x++ {
+			img.SetRGBA(x, y, color.RGBA{uint8(x), uint8(y), uint8((x * y) >> 6), 255})
+		}
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = EncodeSixel(img, 22, 11, 9, 19, false)
 	}
 }
