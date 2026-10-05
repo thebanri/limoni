@@ -99,6 +99,20 @@ func checkEscHandling(t *testing.T, b *Backend, write func(string)) {
 		t.Fatalf("ESC [ then, later, A gave %+v, want the up arrow", ev)
 	}
 
+	// A paste longer than one read arrives in pieces, its end marker split
+	// too. Until the marker comes the loop waits; it does not type the text.
+	write("\x1b[200~paste ")
+	noEvent(t, b, 4*escTimeout, "half a paste was reported")
+	write("in pieces\x1b[20")
+	noEvent(t, b, 4*escTimeout, "a paste without its whole end marker was reported")
+	write("1~x")
+	if ev := nextEvent(t, b); ev.Type != EventPaste || ev.Paste.Text != "paste in pieces" {
+		t.Fatalf("a paste in three reads gave %+v", ev)
+	}
+	if ev := nextEvent(t, b); ev.Type != EventKey || ev.Key.Ch != 'x' {
+		t.Fatalf("the key after the paste gave %+v", ev)
+	}
+
 	// Ordinary keys come through in order.
 	write("hi")
 	for _, want := range "hi" {

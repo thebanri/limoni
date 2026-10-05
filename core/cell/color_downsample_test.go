@@ -50,6 +50,15 @@ func TestRGBToANSI16PicksTheNearestOfTheSixteen(t *testing.T) {
 		{255, 255, 255, 15},
 		{200, 200, 200, 7}, // white, which is 192,192,192
 		{10, 10, 200, 12},  // bright blue
+		// Near greys go by luminance, not distance, which made dark theme
+		// surfaces blue.
+		{49, 50, 68, 8},
+		{54, 58, 79, 8},
+		{40, 44, 52, 0},
+		{128, 128, 128, 8},
+		{192, 192, 192, 7},
+		{235, 235, 240, 15},
+		{60, 60, 110, 4}, // a real blue still is one
 	}
 	for _, c := range cases {
 		if got := RGBToANSI16(c.r, c.g, c.b); got != c.want {

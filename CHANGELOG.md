@@ -8,6 +8,20 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Fixed
+- A paste longer than one read stays a paste. `ParseEvent` dropped the
+  start marker of a paste whose end had not arrived yet, and the pasted text
+  came through as key presses — shortcuts included. It now waits for the
+  end marker, as `ParseBracketedPaste` did. Both event loops are tested with
+  a paste in three reads and its end marker split.
+- On Windows, Ctrl+Z no longer ends all input. Go reads the console as text
+  and returns a Ctrl+Z at the start of a read as `io.EOF`; the console
+  reader took that for the end and stopped, leaving the application running
+  with no keyboard or mouse.
+- In 16 colours, greys and near greys map to black, dark grey, light grey or
+  white by luminance. By distance alone the slate surfaces of dark themes
+  (49,50,68) came out blue.
+
 ## [v0.11.0] — 2026-10-05
 
 ### Added

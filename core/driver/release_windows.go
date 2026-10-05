@@ -5,6 +5,7 @@ package driver
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -179,6 +180,13 @@ func (r *consoleReader) chunks(size int, done <-chan struct{}) <-chan []byte {
 				case <-done:
 					return
 				}
+			}
+			// Go reads a console as text: Ctrl+Z at the start of a read comes
+			// back as io.EOF, the 0x1A itself dropped. A console has no end,
+			// so reading goes on. Returning here ended all keyboard and mouse
+			// input while the application ran on.
+			if errors.Is(err, io.EOF) {
+				continue
 			}
 			if err != nil {
 				return

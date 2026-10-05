@@ -393,8 +393,23 @@ var ansi16Colors = []struct {
 	{255, 255, 255, 15}, // Bright White
 }
 
-// RGBToANSI16 maps an RGB color to the closest 16-color ANSI index.
+// RGBToANSI16 maps an RGB color to the closest 16-color ANSI index. A grey,
+// or a colour close to one, maps to black, dark grey, light grey or white by
+// its luminance: by distance alone the slate surfaces of dark themes, such
+// as 49,50,68, came out blue.
 func RGBToANSI16(r, g, b uint8) uint8 {
+	if int(max(r, g, b))-int(min(r, g, b)) <= 32 {
+		switch lum := (int(r)*299 + int(g)*587 + int(b)*114) / 1000; {
+		case lum < 45:
+			return 0
+		case lum < 155:
+			return 8
+		case lum < 220:
+			return 7
+		default:
+			return 15
+		}
+	}
 	minDist := int64(1 << 30)
 	var bestAnsi uint8
 	for _, c := range ansi16Colors {

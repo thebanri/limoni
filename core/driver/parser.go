@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"bytes"
 	"strings"
 	"unicode/utf8"
 )
@@ -10,6 +11,13 @@ import (
 // If the buffer holds an incomplete ANSI sequence it consumes 0 bytes, and the caller should wait for more data.
 func ParseEvent(buf []byte) (Event, int) {
 	if len(buf) == 0 {
+		return Event{}, 0
+	}
+	// A bracketed paste whose end has not arrived yet: a long paste comes in
+	// several reads. Parsed now, its start marker would be dropped as an
+	// unknown sequence and the pasted text taken for key presses, which
+	// typed shortcuts into an application.
+	if bytes.HasPrefix(buf, pasteStart) {
 		return Event{}, 0
 	}
 
