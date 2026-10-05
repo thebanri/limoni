@@ -267,6 +267,17 @@ lemondrop
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemondrop), with sound and a
 world leaderboard.
 
+[**pikap**](apps/pikap) is a record player drawn in half blocks (or ASCII). It follows whatever the computer is playing
+(Spotify, a browser tab, mpv, anything on MPRIS): the cover turns on the record and the tonearm moves
+across it. Dragging the record or the arm moves the song back and forth. Given files, it plays them
+itself, and then pausing slows the music down with the platter and dragging the record scratches.
+
+```bash
+go install github.com/thebanri/limoni/apps/pikap@latest
+pikap            # follow what is playing
+pikap ~/Music    # or play files
+```
+
 ---
 
 ## Two ways to write an app

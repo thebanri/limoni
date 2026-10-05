@@ -246,6 +246,28 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemondrop" build -o /dev/null .
           echo "ok   lemondrop builds against this checkout as well as against the release"
 
+      # pikap, the record player. Its MPRIS tests start a dbus-daemon of their
+      # own (and skip without one), so they never touch a session bus; the
+      # macOS and Windows builds take the path without MPRIS.
+      - name: apps/pikap
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/pikap vet ./...
+          go -C apps/pikap test -race ./...
+          test -z "$(gofmt -l apps/pikap)" || { gofmt -l apps/pikap; exit 1; }
+          GOOS=darwin go -C apps/pikap build -o /dev/null .
+          GOOS=windows go -C apps/pikap build -o /dev/null .
+
+          work=$(mktemp -d)
+          cp -r apps/pikap "$work/pikap"
+          go -C "$work/pikap" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/pikap" mod tidy
+          go -C "$work/pikap" build ./...
+          go -C "$work/pikap" test ./...
+          echo "ok   pikap builds against this checkout as well as against the release"
+
       # backdrop-shell, the user's shell in front of a backdrop scene. Besides
       # the usual checks, its installer runs for real in a throwaway HOME:
       # enable must hook the shells, and uninstall must leave every start-up
@@ -305,7 +327,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe apps/castle-lemonstein apps/lemondrop apps/scoreboard assets tools/limonivet; do
+          for dir in apps/globe apps/castle-lemonstein apps/lemondrop apps/pikap apps/scoreboard assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"

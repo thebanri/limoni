@@ -251,6 +251,18 @@ lemondrop
 Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemondrop); sesi ve dünya skor
 tablosu da var.
 
+[**pikap**](apps/pikap) yarım bloklarla (istersen ASCII ile) çizilmiş bir pikap. Bilgisayarda o an ne çalıyorsa onu izler
+(Spotify, bir tarayıcı sekmesi, mpv, MPRIS konuşan her şey): kapak plağın üstünde döner, kol şarkı
+ilerledikçe plağın üstünde ilerler. Plağı ya da kolu sürükleyerek şarkıyı ileri geri alabilirsin.
+Dosya verilirse onları kendisi çalar; o zaman durdurunca müzik plakla birlikte yavaşlar, plağı
+sürüklemek scratch yapar.
+
+```bash
+go install github.com/thebanri/limoni/apps/pikap@latest
+pikap            # çalanı izle
+pikap ~/Music    # ya da dosyaları çal
+```
+
 ---
 
 ## Uygulama yazmanın iki yolu
