@@ -104,3 +104,20 @@ func TestKittyPicturesAreSentAgainAfterAFullRedraw(t *testing.T) {
 		t.Fatalf("after a full redraw the picture was sent %d times, want 1", strings.Count(out, "a=t,"))
 	}
 }
+
+// A part of a picture smaller than its cells is cut from the picture as
+// kitty was sent it, which KittyCanvas left at its own size: the source
+// rectangle is in those pixels, not in the cells'.
+func TestKittyClipsASmallPictureInItsOwnPixels(t *testing.T) {
+	full := picture(50, 40)                          // laid out in 10×4 cells of 10×20: 100×80
+	part := full.SubImage(image.Rect(0, 20, 50, 40)) // its lower half
+	clip := &graphics.Clip{Image: part, Full: full, Cols: 10, Rows: 4, Top: 2, Bottom: 4}
+	var k kittyImages
+	out := string(k.place(nil, []ImageRegion{{Area: cell.NewRect(0, 0, 10, 2), Img: clip}}, 10, 20))
+	if !strings.Contains(out, ",s=50,v=40") {
+		t.Fatalf("the picture was not sent at its own size: %.120q", out)
+	}
+	if !strings.Contains(out, ",x=0,y=20,w=50,h=20") {
+		t.Fatalf("the lower half is not cut in the picture's pixels: %q", out[strings.Index(out, "a=p"):])
+	}
+}

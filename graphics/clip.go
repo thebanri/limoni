@@ -1,11 +1,8 @@
 package graphics
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 	"image"
-	"image/png"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -61,22 +58,18 @@ var generation atomic.Uint64
 // Generation is the number of ForgetImage calls so far.
 func Generation() uint64 { return generation.Load() }
 
-// EncodeKittyTransmit sends img to kitty under id, scaled into cols×rows
-// cells, without showing it: AppendKittyPlace shows it, as often and as
+// EncodeKittyTransmit sends img to kitty under id, fitted to cols×rows
+// cells at the size KittyCanvas gives, without showing it: AppendKittyPlace shows it, as often and as
 // partly as needed, without sending it again.
 func EncodeKittyTransmit(img image.Image, cols, rows uint16, cellW, cellH uint16, id uint32, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
 	}
-	targetW := int(cols) * int(cellW)
-	targetH := int(rows) * int(cellH)
-	resized := ResizeImageContain(img, targetW, targetH, transparent)
-	var pngBuf bytes.Buffer
-	if err := png.Encode(&pngBuf, resized); err != nil {
+	b64Data, w, h := kittyPNG(img, cols, rows, cellW, cellH, transparent)
+	if b64Data == "" {
 		return ""
 	}
-	b64Data := base64.StdEncoding.EncodeToString(pngBuf.Bytes())
-	return chunkKittyPayload(fmt.Sprintf("q=2,f=100,a=t,t=d,i=%d,s=%d,v=%d", id, targetW, targetH), b64Data)
+	return chunkKittyPayload(fmt.Sprintf("q=2,f=100,a=t,t=d,i=%d,s=%d,v=%d", id, w, h), b64Data)
 }
 
 // AppendKittyPlace appends a placement of picture id at the cursor, over

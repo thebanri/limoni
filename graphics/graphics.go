@@ -358,26 +358,63 @@ func chunkKittyPayload(controlKeys string, b64Data string) string {
 	return buf.String()
 }
 
+// KittyCanvas is the size, in pixels, of the picture kitty is sent for img
+// shown over cols×rows cells. It is the cells' size in pixels, unless img is
+// smaller than that: then it is the cells' shape at img's own resolution,
+// and kitty scales the picture up to the cells itself. Scaling it up here
+// only made the PNG larger and slower to encode, and the picture no sharper.
+func KittyCanvas(img image.Image, cols, rows, cellW, cellH uint16) (w, h int) {
+	w, h = int(cols)*int(cellW), int(rows)*int(cellH)
+	if img == nil || w == 0 || h == 0 {
+		return w, h
+	}
+	if _, ok := img.(*image.Uniform); ok {
+		return w, h
+	}
+	b := img.Bounds()
+	if b.Dx() <= 0 || b.Dy() <= 0 || b.Dx() > w || b.Dy() > h {
+		return w, h
+	}
+	// The larger of the two ratios, so img fits whole at its own size.
+	if b.Dx()*h >= b.Dy()*w {
+		return b.Dx(), max(1, (h*b.Dx()+w-1)/w)
+	}
+	return max(1, (w*b.Dy()+h-1)/h), b.Dy()
+}
+
+// kittyEncoder favours speed: a moving picture is sent many times a second,
+// and BestSpeed encodes one in about half the time for a few more bytes.
+var kittyEncoder = png.Encoder{CompressionLevel: png.BestSpeed}
+
+// kittyPNG is img as kitty is sent it — fitted to KittyCanvas, as PNG, in
+// base64 — and the picture's size. It is "" when img cannot be encoded.
+func kittyPNG(img image.Image, cols, rows, cellW, cellH uint16, transparent bool) (string, int, int) {
+	w, h := KittyCanvas(img, cols, rows, cellW, cellH)
+	fitted := img
+	if b := img.Bounds(); b.Dx() != w || b.Dy() != h {
+		fitted = ResizeImageContain(img, w, h, transparent)
+	}
+	var pngBuf bytes.Buffer
+	if err := kittyEncoder.Encode(&pngBuf, fitted); err != nil {
+		return "", 0, 0
+	}
+	return base64.StdEncoding.EncodeToString(pngBuf.Bytes()), w, h
+}
+
 // EncodeKitty encodes the image in the Kitty Graphics Protocol format.
 func EncodeKitty(img image.Image, cols, rows uint16, cellW, cellH uint16, imageID uint32, zIndex int, transparent bool) string {
 	if img == nil || cols == 0 || rows == 0 || cellW == 0 || cellH == 0 {
 		return ""
 	}
-	targetW := int(cols) * int(cellW)
-	targetH := int(rows) * int(cellH)
-
-	resized := ResizeImageContain(img, targetW, targetH, transparent)
-	var pngBuf bytes.Buffer
-	if err := png.Encode(&pngBuf, resized); err != nil {
+	b64Data, w, h := kittyPNG(img, cols, rows, cellW, cellH, transparent)
+	if b64Data == "" {
 		return ""
 	}
-	pngBytes := pngBuf.Bytes()
-	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
 	// C=1 keeps the cursor where it is. Without it kitty moves the cursor
 	// below the picture, and a picture that reaches the last row scrolls the
 	// whole screen up a line — under a diff that does not know it moved.
-	controlKeys := fmt.Sprintf("q=2,f=100,a=T,t=d,C=1,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, targetW, targetH, cols, rows, zIndex)
+	controlKeys := fmt.Sprintf("q=2,f=100,a=T,t=d,C=1,i=%d,s=%d,v=%d,c=%d,r=%d,z=%d", imageID, w, h, cols, rows, zIndex)
 	return chunkKittyPayload(controlKeys, b64Data)
 }
 

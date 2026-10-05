@@ -35,6 +35,15 @@ a patch bump (`v0.x.y`) does not.
   test or under an agent, and a model that counts every mouse event as a click
   passed tests a real terminal would fail.
 
+### Changed
+- A kitty picture smaller than its cells is sent at its own resolution, in
+  the cells' shape, and kitty scales it; it used to be scaled up first, which
+  made the PNG larger and slower to encode for no sharper picture
+  (`graphics.KittyCanvas` gives the size). Kitty PNGs are also compressed at
+  `BestSpeed`, as a moving picture is sent many times a second: a 240-pixel
+  record in 24×12 cells encodes in 1.2 ms instead of 2.6, a little larger on
+  the wire. A `Clip` of such a picture is cut in the picture's own pixels.
+
 ## [v0.11.1] — 2026-10-05
 
 ### Fixed

@@ -55,7 +55,10 @@ func (k *kittyImages) place(dst []byte, regions []ImageRegion, cellW, cellH uint
 		x, y, w, h := 0, 0, 0, 0
 		if c, ok := reg.Img.(*graphics.Clip); ok && c.Rows > 0 && c.Bottom > c.Top {
 			full, cols, rows = c.Full, uint16(c.Cols), uint16(c.Rows)
-			w, y, h = c.Cols*int(cellW), c.Top*int(cellH), (c.Bottom-c.Top)*int(cellH)
+			// The source rectangle is in the pixels of the picture sent,
+			// which KittyCanvas may have made smaller than the cells.
+			fw, fh := graphics.KittyCanvas(full, cols, rows, cellW, cellH)
+			w, y, h = fw, c.Top*fh/c.Rows, (c.Bottom-c.Top)*fh/c.Rows
 		}
 		key := kittyKey{full, cols, rows, cellW, cellH, reg.Transparent}
 		e := k.ids[key]
