@@ -43,6 +43,9 @@ a patch bump (`v0.x.y`) does not.
   `BestSpeed`, as a moving picture is sent many times a second: a 240-pixel
   record in 24×12 cells encodes in 1.2 ms instead of 2.6, a little larger on
   the wire. A `Clip` of such a picture is cut in the picture's own pixels.
+- `ResizeImageContain` copies a picture that already fits instead of
+  resampling it to its own size: letterboxing a 240-pixel record into
+  240×252 for kitty went from 2.3 ms to 1.5.
 
 ## [v0.11.1] — 2026-10-05
 

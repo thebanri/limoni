@@ -307,9 +307,14 @@ func ResizeImageContain(img image.Image, w, h int, transparent bool) image.Image
 		background = img.At(bounds.Min.X, bounds.Min.Y)
 	}
 	draw.Draw(dst, dst.Bounds(), &image.Uniform{C: background}, image.Point{}, draw.Src)
-	resized := ResizeImage(img, fitW, fitH)
+	// A picture that already fits is copied as it is, not resampled to its
+	// own size.
+	resized, from := img, bounds.Min
+	if fitW != srcW || fitH != srcH {
+		resized, from = ResizeImage(img, fitW, fitH), image.Point{}
+	}
 	offset := image.Pt((w-fitW)/2, (h-fitH)/2)
-	draw.Draw(dst, image.Rectangle{Min: offset, Max: offset.Add(image.Pt(fitW, fitH))}, resized, image.Point{}, draw.Over)
+	draw.Draw(dst, image.Rectangle{Min: offset, Max: offset.Add(image.Pt(fitW, fitH))}, resized, from, draw.Over)
 	return dst
 }
 

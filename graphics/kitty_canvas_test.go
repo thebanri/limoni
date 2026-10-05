@@ -82,3 +82,38 @@ func BenchmarkEncodeKittyRecord(b *testing.B) {
 		_ = EncodeKitty(img, 24, 12, 10, 20, 1, 0, false)
 	}
 }
+
+// A picture a few pixels narrower than its cells' shape is letterboxed, not
+// resampled to its own size first.
+func BenchmarkEncodeKittyLetterboxed(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 240, 240))
+	for y := 0; y < 240; y++ {
+		for x := 0; x < 240; x++ {
+			i := img.PixOffset(x, y)
+			img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = uint8(x), uint8(y), uint8(x^y), 255
+		}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = EncodeKitty(img, 24, 12, 10, 21, 1, 0, false)
+	}
+}
+
+// Letterboxing a picture that fits keeps its pixels where they were.
+func TestResizeImageContainKeepsAPictureThatFits(t *testing.T) {
+	src := image.NewRGBA(image.Rect(5, 5, 9, 9)) // not at the origin
+	for i := 0; i < len(src.Pix); i += 4 {
+		src.Pix[i], src.Pix[i+3] = uint8(i), 255
+	}
+	dst := ResizeImageContain(src, 4, 6, true).(*image.RGBA)
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			if got, want := dst.RGBAAt(x, y+1), src.RGBAAt(5+x, 5+y); got != want {
+				t.Fatalf("(%d,%d): %v, want %v", x, y, got, want)
+			}
+		}
+	}
+	if a := dst.RGBAAt(0, 0).A; a != 0 {
+		t.Errorf("letterbox alpha %d, want clear", a)
+	}
+}
