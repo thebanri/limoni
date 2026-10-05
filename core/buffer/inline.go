@@ -99,7 +99,7 @@ func DiffInline(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 			} else {
 				out = cell.AppendContent(out, c.Content)
 				if cell.IsCluster(c.Content) && !opts.ClusterWidths {
-					out = appendClusterResync(out, c.Content, x, width)
+					out = appendLegacyCluster(out, c.Content, x, width)
 				}
 			}
 		}

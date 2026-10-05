@@ -92,7 +92,8 @@ func TestDiffEmitsWholeClusters(t *testing.T) {
 	front, back := NewBuffer(area), NewBuffer(area)
 	front.SetString(0, 3, flagTR+" "+eAcute+" "+family, cell.Style{})
 
-	out, err := DiffWithOptions(front, back, nil, DiffOptions{EraseChar: true, RepeatChar: true})
+	// A terminal that measures clusters is sent every one whole.
+	out, err := DiffWithOptions(front, back, nil, DiffOptions{EraseChar: true, RepeatChar: true, ClusterWidths: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +101,23 @@ func TestDiffEmitsWholeClusters(t *testing.T) {
 		if n := bytes.Count(out, []byte(cluster)); n != 1 {
 			t.Errorf("%q emitted %d times, want once: %q", cluster, n, out)
 		}
+	}
+	// One that draws code points one by one is sent the flag and the
+	// accent whole, and the joined family as its first person: whole, it
+	// would draw three pictures over six columns (TestJoinedEmojiDoNotSpill).
+	front2 := NewBuffer(area)
+	front2.SetString(0, 3, flagTR+" "+eAcute+" "+family, cell.Style{})
+	out, err = DiffWithOptions(front2, NewBuffer(area), nil, DiffOptions{EraseChar: true, RepeatChar: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cluster := range []string{flagTR, eAcute} {
+		if n := bytes.Count(out, []byte(cluster)); n != 1 {
+			t.Errorf("%q emitted %d times, want once: %q", cluster, n, out)
+		}
+	}
+	if bytes.Contains(out, []byte(family)) || !bytes.Contains(out, []byte("\U0001F468")) {
+		t.Errorf("the family on a legacy terminal: %q", out)
 	}
 	for i := range front.Content {
 		if front.Content[i] != back.Content[i] {
@@ -378,4 +396,99 @@ func clusterScreen(t *testing.T, out []byte) map[byte]int {
 		}
 	}
 	return landed
+}
+
+// legacyPaint replays out on a terminal that draws code points one by one,
+// over a screen of blanks, and returns what each column of row 0 shows: a
+// rune, or 0 for the right half of a wide one.
+func legacyPaint(out []byte, width int) []rune {
+	screen := make([]rune, width)
+	for i := range screen {
+		screen[i] = ' '
+	}
+	w := func(r rune) int {
+		switch {
+		case r == 0x200D || r == 0xFE0F || r == 0x0301:
+			return 0
+		case r >= 0x1F000:
+			return 2
+		}
+		return 1
+	}
+	col := 0
+	s := string(out)
+	for i := 0; i < len(s); {
+		switch {
+		case s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[':
+			j := i + 2
+			for j < len(s) && (s[j] < 0x40 || s[j] > 0x7E) {
+				j++
+			}
+			params, final := s[i+2:j], s[j]
+			switch final {
+			case 'H':
+				col = 0
+				if k := strings.IndexByte(params, ';'); k >= 0 {
+					col = atoi(params[k+1:]) - 1
+				}
+			case 'G':
+				col = atoi(params) - 1
+			}
+			i = j + 1
+		case s[i] == '\r' || s[i] == '\n':
+			if s[i] == '\r' {
+				col = 0
+			}
+			i++
+		default:
+			r, size := utf8.DecodeRuneInString(s[i:])
+			if n := w(r); n > 0 && col < width {
+				screen[col] = r
+				if n == 2 && col+1 < width {
+					screen[col+1] = 0
+				}
+				col += n
+			}
+			i += size
+		}
+	}
+	return screen
+}
+
+// On a terminal that draws code points one by one, an emoji with a skin
+// tone is two pictures, four columns where the buffer gave it two: the
+// tone's square spilled over the cells after it, and stayed there while
+// they did not change. Found after a playlist's 💪🏼 in Alacritty 0.17. The
+// diff now sends such a terminal the emoji alone.
+func TestJoinedEmojiDoNotSpill(t *testing.T) {
+	const flexed = "\U0001F4AA\U0001F3FC" // flexed biceps, medium-light skin tone
+	area := cell.NewRect(0, 0, 12, 1)
+	for _, path := range []struct {
+		name string
+		diff func(front, back *Buffer) ([]byte, error)
+	}{
+		{"sparse", func(f, b *Buffer) ([]byte, error) { return diffSparse(f, b, nil, DiffOptions{}) }},
+		{"stream", func(f, b *Buffer) ([]byte, error) { return diffFullStream(f, b, nil, DiffOptions{}) }},
+		{"inline", func(f, b *Buffer) ([]byte, error) { return DiffInline(f, b, nil, DiffOptions{}) }},
+	} {
+		t.Run(path.name, func(t *testing.T) {
+			for _, text := range []string{flexed, family} {
+				front := NewBuffer(area)
+				front.SetString(0, 0, "A"+text, cell.Style{})
+				out, err := path.diff(front, NewBuffer(area))
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := legacyPaint(out, 12)
+				if got[1] != 0x1F4AA && got[1] != 0x1F468 {
+					t.Errorf("%q: column 1 shows %q", text, got[1])
+				}
+				for c := 3; c < 12; c++ {
+					if got[c] != ' ' {
+						t.Errorf("%q spilled into column %d: %q", text, c, got[c])
+					}
+				}
+			}
+		})
+	}
 }

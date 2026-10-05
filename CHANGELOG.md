@@ -43,6 +43,15 @@ a patch bump (`v0.x.y`) does not.
   `BestSpeed`, as a moving picture is sent many times a second: a 240-pixel
   record in 24×12 cells encodes in 1.2 ms instead of 2.6, a little larger on
   the wire. A `Clip` of such a picture is cut in the picture's own pixels.
+- An emoji joined from several code points — a skin tone, a ZWJ family —
+  no longer leaves a square behind on a terminal that draws code points one
+  by one (Alacritty 0.17). It drew the tone as a second picture, four columns
+  where the buffer gave two; the re-anchored cursor kept the row in place,
+  but the square stayed over cells the diff did not rewrite. Such a terminal
+  is now sent the emoji's first code point, padded to the cluster's width
+  (`cell.ClusterFallback`, `cell.AppendDegraded`); flags, keycaps, accents
+  and VS16 go as they are. Terminals that measure clusters are unaffected,
+  and the diff's speed is unchanged.
 - `ResizeImageContain` copies a picture that already fits instead of
   resampling it to its own size: letterboxing a 240-pixel record into
   240×252 for kitty went from 2.3 ms to 1.5.

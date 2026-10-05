@@ -34,6 +34,10 @@ type clusterTable struct {
 	byText map[string]rune
 	text   []string
 	width  []uint8
+	// alone is, for each cluster, the code point to draw in its place on
+	// a terminal that draws code points one by one, or 0 when the cluster
+	// is safe there as it is (ClusterFallback).
+	alone []rune
 }
 
 var clusters = clusterTable{byText: make(map[string]rune)}
@@ -94,7 +98,66 @@ func ClusterContent(cluster string, width int) rune {
 	clusters.byText[text] = handle
 	clusters.text = append(clusters.text, text)
 	clusters.width = append(clusters.width, uint8(width))
+	clusters.alone = append(clusters.alone, fallbackFor(text, width))
 	return handle
+}
+
+// fallbackFor is what ClusterFallback answers for a cluster of width
+// columns: its first code point when a terminal that adds up code points
+// would draw the joined emoji wider than that, 0 when it would not.
+//
+// Only joined emoji are replaced — a ZWJ sequence or a skin tone — which
+// such a terminal draws as several pictures side by side. A flag, a keycap,
+// an accent or VS16 is drawn as it is: they are either measured alike or
+// drawn narrower, which the diff's re-anchoring covers.
+func fallbackFor(text string, width int) rune {
+	sum, joined := 0, false
+	for _, r := range text {
+		sum += grapheme.RuneWidth(r)
+		joined = joined || r == 0x200D || (r >= 0x1F3FB && r <= 0x1F3FF)
+	}
+	if !joined || sum <= width {
+		return 0
+	}
+	first, _ := utf8.DecodeRuneInString(text)
+	return first
+}
+
+// ClusterFallback is the code point to draw for cluster r on a terminal
+// that draws a cluster code point by one rather than as one character, or 0
+// when it draws the cluster in its width all the same.
+//
+// Such a terminal draws an emoji with a skin tone as the emoji and a
+// coloured square, four columns where the buffer gave two: the square
+// spills over the next cells, and stays there when they do not change.
+// Found as a square after a playlist's 💪🏼 in Alacritty 0.16.
+// The first code point keeps the picture, without the tone or the joined
+// family; the diff pads it with blanks to the cluster's width.
+func ClusterFallback(r rune) rune {
+	if !IsCluster(r) {
+		return 0
+	}
+	clusters.mu.RLock()
+	defer clusters.mu.RUnlock()
+	if i := int(r - RuneClusterBase); i < len(clusters.alone) {
+		return clusters.alone[i]
+	}
+	return 0
+}
+
+// AppendDegraded appends cluster r as a terminal without grapheme clusters
+// should be sent it: its fallback code point padded with blanks to its
+// width, or the cluster itself when it needs none.
+func AppendDegraded(out []byte, r rune) []byte {
+	fb := ClusterFallback(r)
+	if fb == 0 {
+		return AppendContent(out, r)
+	}
+	out = utf8.AppendRune(out, fb)
+	for pad := RuneWidth(r) - grapheme.RuneWidth(fb); pad > 0; pad-- {
+		out = append(out, ' ')
+	}
+	return out
 }
 
 // ClusterText returns the text a Content value stands for.

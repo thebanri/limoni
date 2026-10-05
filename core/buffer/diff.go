@@ -330,6 +330,9 @@ func diffSparse(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, erro
 				out = append(out, ' ')
 			} else {
 				out = cell.AppendContent(out, frontCell.Content)
+				if cell.IsCluster(frontCell.Content) && !opts.ClusterWidths {
+					out = redoLegacyCluster(out, frontCell.Content)
+				}
 				w = cell.RuneWidth(frontCell.Content)
 				if w <= 0 {
 					w = 1
@@ -504,7 +507,7 @@ func diffFullStream(front, back *Buffer, out []byte, opts DiffOptions) ([]byte, 
 			} else {
 				out = cell.AppendContent(out, frontCell.Content)
 				if cell.IsCluster(frontCell.Content) && !opts.ClusterWidths {
-					out = appendClusterResync(out, frontCell.Content, x, width)
+					out = appendLegacyCluster(out, frontCell.Content, x, width)
 				}
 			}
 		}
@@ -548,6 +551,23 @@ func AppendCursor(out []byte, x, y uint16) []byte {
 // every later cell on the row would land shifted. CHA names the column
 // outright, which confines the disagreement to the cluster itself. It costs a
 // few bytes per cluster and nothing for text without them.
+// redoLegacyCluster replaces cluster r, just appended to out whole, with
+// what a terminal that draws code points one by one should be sent
+// (cell.AppendDegraded). Out of line, so the per-cell path is unchanged
+// for every cell that is not a cluster.
+func redoLegacyCluster(out []byte, r rune) []byte {
+	if cell.ClusterFallback(r) == 0 {
+		return out
+	}
+	return cell.AppendDegraded(out[:len(out)-len(cell.ClusterText(r))], r)
+}
+
+// appendLegacyCluster is redoLegacyCluster, then the cursor re-anchored
+// after the cluster.
+func appendLegacyCluster(out []byte, r rune, x, width uint16) []byte {
+	return appendClusterResync(redoLegacyCluster(out, r), r, x, width)
+}
+
 func appendClusterResync(out []byte, content rune, x, width uint16) []byte {
 	next := x + uint16(cell.RuneWidth(content))
 	if next >= width {
