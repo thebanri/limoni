@@ -8,6 +8,8 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+## [v0.11.1] — 2026-10-05
+
 ### Fixed
 - A paste longer than one read stays a paste. `ParseEvent` dropped the
   start marker of a paste whose end had not arrived yet, and the pasted text
@@ -784,7 +786,8 @@ a patch bump (`v0.x.y`) does not.
 ## v0.1.0 – v0.1.8
 See the [GitHub releases](https://github.com/thebanri/limoni/releases).
 
-[Unreleased]: https://github.com/thebanri/limoni/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/thebanri/limoni/compare/v0.11.1...HEAD
+[v0.11.1]: https://github.com/thebanri/limoni/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/thebanri/limoni/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/thebanri/limoni/compare/v0.9.5...v0.10.0
 [v0.9.5]: https://github.com/thebanri/limoni/compare/v0.9.4...v0.9.5
