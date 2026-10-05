@@ -70,6 +70,14 @@ builds:
     goarch: [amd64, arm64]
     flags: [-trimpath]
     ldflags: [-s -w]
+  - id: pikap
+    dir: apps/pikap
+    main: .
+    binary: pikap
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
 
 archives:
   - id: zest
@@ -100,6 +108,11 @@ archives:
     ids: [lemondrop]
     name_template: "lemondrop_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files: [LICENSE]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+  - id: pikap
+    ids: [pikap]
+    name_template: "pikap_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, apps/pikap/README.md]
     format_overrides: [{ goos: windows, formats: [zip] }]
 
 checksum:

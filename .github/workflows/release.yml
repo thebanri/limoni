@@ -1,5 +1,5 @@
 # Builds the applications made with Limoni (zest, the limoni CLI, globe,
-# backdrop-shell and the two games) for Linux, macOS and Windows when a
+# backdrop-shell, the two games and pikap) for Linux, macOS and Windows when a
 # version is tagged, and attaches them — with checksums and zest's .deb,
 # .rpm and Arch packages — to the release. The release text is written by
 # hand and left as it is (.goreleaser.yaml: release.mode keep-existing).

@@ -14,6 +14,11 @@ pikap -ascii          # ASCII characters instead of half blocks
 pikap -vinyl          # a black record with the cover on its label
 ```
 
+Or download it ready to run, for Linux, macOS or Windows, from the
+`pikap_…` files of a [release](https://github.com/thebanri/limoni/releases).
+Playing files needs ffmpeg on the computer; following another player
+needs nothing.
+
 ## Following another player
 
 With no files, pikap follows the media playing on the computer through

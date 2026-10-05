@@ -1,0 +1,70 @@
+# Builds one application of apps/ for Linux, macOS and Windows when it is
+# tagged on its own (apps/pikap/v0.1.0), and attaches the archives and their
+# checksums to that tag's release. The library's own tags (v*) are handled by
+# release.yml and goreleaser, which cannot read a tag with a path in front.
+#
+# The release is created as not "latest", so the repository's latest release
+# stays the library's. Its text is written by hand: if a release for the tag
+# already exists, only the files are added.
+name: app release binaries
+
+on:
+  push:
+    tags: ["apps/*/v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: build and attach
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOWORK: "off" # build against the Limoni the app requires, as an installer would
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          app="${tag#apps/}"; app="${app%%/*}"
+          version="${tag##*/}"
+          dir="apps/$app"
+          test -f "$dir/go.mod"
+
+          targets="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64"
+          # backdrop-shell runs the shell in a pseudo-terminal, which Windows lacks.
+          if [ "$app" = backdrop-shell ]; then
+            targets="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64"
+          fi
+
+          dist="$RUNNER_TEMP/dist"
+          mkdir -p "$dist"
+          for t in $targets; do
+            os="${t%/*}"; arch="${t#*/}"
+            name="${app}_${version#v}_${os}_${arch}"
+            stage="$RUNNER_TEMP/$name"
+            mkdir -p "$stage"
+            exe="$app"; [ "$os" = windows ] && exe="$app.exe"
+            GOOS="$os" GOARCH="$arch" go -C "$dir" build -trimpath -ldflags "-s -w" -o "$stage/$exe" .
+            cp LICENSE "$stage/"
+            [ -f "$dir/README.md" ] && cp "$dir/README.md" "$stage/"
+            if [ "$os" = windows ]; then
+              (cd "$stage" && zip -q "$dist/$name.zip" *)
+            else
+              (cd "$stage" && tar -czf "$dist/$name.tar.gz" *)
+            fi
+          done
+          (cd "$dist" && sha256sum ./* | sed 's| \./| |' > checksums.txt)
+
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --latest=false \
+              --title "$app $version" \
+              --notes "See [$dir](https://github.com/$GITHUB_REPOSITORY/tree/$tag/$dir)."
+          fi
+          gh release upload "$tag" "$dist"/* --clobber
