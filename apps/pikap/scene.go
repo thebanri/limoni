@@ -127,15 +127,12 @@ type scene struct {
 	shellX     float64 // the headshell's direction
 	shellY     float64
 	armBox     [4]float64 // u0, v0, u1, v1: nothing of the arm lies outside
-	// The headshell is a few pixels: drawn point by point like the tube it
-	// would be speckled, so it is one colour, the opposite of what is
-	// around it, and changes side only past a margin, or it would flicker
-	// as the record turns under it.
-	shellBody rgb
-	shellDark bool
-	shellInit bool
-	aa        float64
-	p         sceneParams
+	// The arm's colour, set with the cover: the opposite of the record's
+	// average, and a rim on the other side of light, so it is one colour
+	// that stays put while the record turns.
+	armBody, armRim rgb
+	aa              float64
+	p               sceneParams
 }
 
 // prepare resamples the cover for a record of radius R cells.
@@ -148,6 +145,30 @@ func (s *scene) prepare(a *art, R int, style discStyle) {
 	s.tex = resample(s.tex, a, s.texN)
 	s.lblN = max(8, min(artSize, int(4*float64(R)*0.36*1.3)))
 	s.label = resample(s.label, a, s.lblN)
+	avg := vinylCol
+	if style == pictureDisc {
+		avg = discAverage(a)
+	}
+	s.armBody = opposite(avg)
+	s.armRim = opposite(s.armBody)
+}
+
+// discAverage is the average colour of the part of a cover the record
+// shows: the circle inside it.
+func discAverage(a *art) rgb {
+	var sum rgb
+	var n float64
+	const h = artSize / 2.0
+	for y := range artSize {
+		for x := range artSize {
+			dx, dy := float64(x)+0.5-h, float64(y)+0.5-h
+			if dx*dx+dy*dy <= h*h {
+				sum = sum.add(a.px[y*artSize+x])
+				n++
+			}
+		}
+	}
+	return sum.scale(1 / n)
 }
 
 func resample(dst []rgb, a *art, n int) []rgb {
@@ -234,21 +255,16 @@ func (s *scene) begin(p sceneParams, R float64) {
 		min(nx, wx, pivotU) - pad, min(ny, wy, pivotV) - pad,
 		max(nx, wx, pivotU) + pad, max(ny, wy, pivotV) + pad,
 	}
-	s.shadeShell(nx-s.armDX*0.1, ny-s.armDY*0.1)
 }
 
-// opposite is the colour across from c, for the arm to be seen on
-// whatever is under it: the hue turned round (the sRGB negative) and the
-// lightness taken to the far end, very dark over anything light and very
-// light over anything dark. A plain negative of a mid grey is the same
-// grey; this never is.
-func opposite(c rgb) rgb { return oppositeAs(c, perceived(c) >= 0.5) }
-
-// oppositeAs is opposite with the side given: dark, or light.
-func oppositeAs(c rgb, dark bool) rgb {
+// opposite is the colour across from c: the hue turned round (the sRGB
+// negative) and the lightness taken to the far end, very dark from
+// anything light and very light from anything dark. A plain negative of a
+// mid grey is the same grey; this never is.
+func opposite(c rgb) rgb {
 	o := rgb{negLUT[to8(c.r)], negLUT[to8(c.g)], negLUT[to8(c.b)]}
 	const darkL, lightL = 0.0137, 0.71 // 0.12 and 0.86 perceived
-	if dark {
+	if perceived(c) >= 0.5 {
 		if l := o.lum(); l > darkL {
 			o = o.scale(darkL / l)
 		}
@@ -265,30 +281,6 @@ var negLUT = func() (t [256]float64) {
 	}
 	return
 }()
-
-// shadeShell picks the headshell's colour from the record around (cu, cv).
-func (s *scene) shadeShell(cu, cv float64) {
-	var sum rgb
-	for _, o := range [...][2]float64{{0, 0}, {0.06, 0}, {-0.06, 0}, {0, 0.06}, {0, -0.06}} {
-		u, v := cu+o[0], cv+o[1]
-		c := lin(0x16161a) // off the record, the panel: dark
-		if r := math.Sqrt(u*u + v*v); r < 1 {
-			c = s.disc(u, v, r)
-		}
-		sum = sum.add(c)
-	}
-	avg := sum.scale(1.0 / 5)
-	switch l := perceived(avg); {
-	case !s.shellInit:
-		s.shellDark = l >= 0.5
-	case l > 0.56:
-		s.shellDark = true
-	case l < 0.44:
-		s.shellDark = false
-	}
-	s.shellInit = true
-	s.shellBody = oppositeAs(avg, s.shellDark)
-}
 
 // at is the picture at (u, v) over the background bg, and how much of it
 // is something solid — the record or the arm — rather than the panel.
@@ -390,10 +382,6 @@ func (s *scene) arm(u, v float64, c rgb, solid float64) (rgb, float64) {
 	if b := &s.armBox; u < b[0] || v < b[1] || u > b[2] || v > b[3] {
 		return c, solid
 	}
-	// The tube and the headshell are the opposite of what is under them,
-	// point by point, so they stand out from any cover — and from both
-	// sides at once where the arm lies along the record's edge.
-	under := c
 	dx, dy := s.armDX, s.armDY
 	lift := s.p.lifted
 	L := armLen
@@ -419,8 +407,7 @@ func (s *scene) arm(u, v float64, c rgb, solid float64) (rgb, float64) {
 	// Tube: brighter along its middle, as a cylinder is, with a rim on
 	// the other side of light around it.
 	if d, _ := segDist(u, v, pivotU, pivotV, nx-dx*0.17, ny-dy*0.17); d < 0.08 {
-		body := opposite(under)
-		rim := opposite(body)
+		body, rim := s.armBody, s.armRim
 		w := s.p.tube + 1.2*s.aa
 		if rc := s.cover(d - w); rc > 0 {
 			c = c.mix(rim, rc*0.55)
@@ -433,8 +420,7 @@ func (s *scene) arm(u, v float64, c rgb, solid float64) (rgb, float64) {
 	// like it.
 	hx, hy := s.shellX, s.shellY
 	if d, _ := segDist(u, v, nx-dx*0.2, ny-dy*0.2, nx-hx*0.01, ny-hy*0.01); d < 0.12 {
-		shell := s.shellBody
-		rim := oppositeAs(shell, !s.shellDark)
+		shell, rim := s.armBody, s.armRim
 		if rc := s.cover(d - 0.05 - 1.2*s.aa); rc > 0 {
 			c = c.mix(rim, rc*0.55)
 		}
