@@ -40,20 +40,46 @@ func (m *testModel) messages() []Msg {
 	return result
 }
 
-func TestProgramDeterministicCommandOrdering(t *testing.T) {
-	model := &testModel{quitOn: "third"}
+// A command that waits does not hold back the ones after it: results reach
+// Update as their commands finish. They used to be delivered in the order the
+// commands started, so a timer or a slow request kept every later result —
+// an animation frame, a key's answer — waiting behind it.
+func TestProgramDeliversResultsAsTheyFinish(t *testing.T) {
+	release := make(chan struct{})
+	model := &testModel{quitOn: "slow"}
 	model.init = []Cmd{
-		func(context.Context) Msg { return "first" },
-		func(context.Context) Msg { return "second" },
-		func(context.Context) Msg { return "third" },
+		func(ctx context.Context) Msg {
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+			return "slow"
+		},
+		func(context.Context) Msg { return "fast" },
 	}
 	program := New(WithModel(model))
-	if err := program.Run(context.Background()); err != nil {
-		t.Fatalf("Run returned error: %v", err)
+	done := make(chan error, 1)
+	go func() { done <- program.Run(context.Background()) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := model.messages(); len(got) > 0 {
+			if got[0] != "fast" {
+				t.Fatalf("first message %v, want the fast command's", got[0])
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			program.Stop()
+			t.Fatal("the fast command's result waited behind the slow one")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	got := model.messages()
-	if len(got) != 3 || got[0] != "first" || got[1] != "second" || got[2] != "third" {
-		t.Fatalf("messages = %v, want ordered command results", got)
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := model.messages(); len(got) != 2 || got[1] != "slow" {
+		t.Fatalf("messages = %v, want fast then slow", got)
 	}
 }
 
@@ -94,14 +120,23 @@ func TestProgramCommandCancellation(t *testing.T) {
 
 func TestProgramPanicRecoveryAndRedrawCoalescing(t *testing.T) {
 	var panicValue any
+	reported := make(chan struct{})
 	model := &testModel{
 		quitOn: "quit",
 		init: []Cmd{
 			func(context.Context) Msg { panic("command panic") },
-			func(context.Context) Msg { return "quit" },
+			// Results arrive as commands finish: quit only once the panic
+			// has been reported, or Run could end before it is.
+			func(ctx context.Context) Msg {
+				select {
+				case <-reported:
+				case <-ctx.Done():
+				}
+				return "quit"
+			},
 		},
 	}
-	program := New(WithModel(model), WithPanicHandler(func(value any) { panicValue = value }))
+	program := New(WithModel(model), WithPanicHandler(func(value any) { panicValue = value; close(reported) }))
 	program.RequestRedraw()
 	program.RequestRedraw()
 	select {

@@ -287,7 +287,7 @@ pikap ~/Music    # or play files
 | **Entry point** | `limoni.Run(func(f, ev) bool)` | `limoni.RunProgram(ctx, model)` |
 | **State lives in** | your closure | a `limoni.Model` with `Init` / `Update` / `View` |
 | **Best for** | dashboards, 3D, games, animation | forms, wizards, CRUD tools, async work |
-| **Runtime gives you** | a redraw on every event | commands, cancellation, deterministic ordering, panic recovery, session recording |
+| **Runtime gives you** | a redraw on every event | commands, cancellation, panic recovery, session recording |
 
 Both use the same renderer and widgets and are available from the root package.
 [`examples/counter`](examples/counter) is a complete declarative app in under 80 lines.

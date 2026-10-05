@@ -157,7 +157,7 @@ Emojis (`🔴`, `🚀`, `☕`) and fullwidth characters take up 2 terminal colum
 
 ## 7. Engine Safety & Deterministic Command Dispatch
 
-- **Deterministic Ordering**: `Cmd` commands execute asynchronously across worker goroutines, but their results are buffered and delivered to `Update` in strict dispatch sequence order.
+- **Results as they finish**: `Cmd` commands run asynchronously on worker goroutines, and each result is delivered to `Update` when its command returns, so a slow command never delays a fast one. Results were once held back into the order the commands started; a one-second timer then delayed every animation frame behind it.
 - **Strict Cancellation Precedence**: When context cancellation (`ctx.Done()`) or shutdown occurs, pending command results and queued messages are immediately discarded, preventing state mutation after termination.
 - **Panic Isolation**: Panics in user commands or models are intercepted via `WithPanicHandler`, keeping the host application resilient.
 

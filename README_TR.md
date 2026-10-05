@@ -272,7 +272,7 @@ pikap ~/Music    # ya da dosyaları çal
 | **Giriş noktası** | `limoni.Run(func(f, ev) bool)` | `limoni.RunProgram(ctx, model)` |
 | **Durum nerede** | senin closure'ında | `Init` / `Update` / `View` içeren bir `limoni.Model`'de |
 | **Uygun olduğu işler** | dashboard, 3D, oyun, animasyon | form, sihirbaz, CRUD aracı, asenkron işler |
-| **Çalışma zamanı ne sağlar** | her olayda yeniden çizim | komutlar, iptal, deterministik sıralama, panic kurtarma, oturum kaydı |
+| **Çalışma zamanı ne sağlar** | her olayda yeniden çizim | komutlar, iptal, panic kurtarma, oturum kaydı |
 
 İkisi de aynı render motorunu ve widget'ları kullanır ve kök paketten erişilebilir.
 [`examples/counter`](examples/counter), 80 satırın altında eksiksiz bir bildirimsel

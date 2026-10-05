@@ -119,7 +119,7 @@ Provides a predictable, functional state management loop:
 ```
 
 ### Safety & Concurrency Guarantees
-- **Deterministic Command Ordering**: Commands are executed concurrently on worker goroutines, but their results are buffered and delivered to `Update` in strict dispatch sequence order.
+- **Results as they finish**: Commands run concurrently on worker goroutines, and each result reaches `Update` as soon as its command returns. A command that waits — a timer, a request, a stream — holds back nothing started after it. When one result must follow another, return the second command from the `Update` that handles the first.
 - **Strict Cancellation Precedence**: When context cancellation (`ctx.Done()`) or program shutdown occurs, pending command results and queued messages are immediately discarded, preventing race conditions or late mutations after exit.
 - **Safe Panic Recovery**: `WithPanicHandler` catches panics in user commands or models, preventing process termination and allowing telemetry logging.
 

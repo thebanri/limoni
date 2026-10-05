@@ -8,6 +8,23 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Breaking
+- A `Program` delivers each command's result to `Update` as soon as the
+  command returns. Results used to be held back into the order the commands
+  started, so a command that waits — a timer, a request, a stream — delayed
+  every result after it: a poll's one-second wait held a 30 fps animation to a
+  few frames a second (found building plakci, a Spotify client). A model that
+  needs one result after another returns the second command from the `Update`
+  that handles the first. `TestProgramDeliversResultsAsTheyFinish` fails on
+  the old loop.
+
+### Fixed
+- A click from `uitest` or the automation socket (and so `limoni-mcp`) is a
+  press and then a release, as a terminal sends it. It was a press alone, so a
+  model that acts on the release — a slider, a drag — never finished one under
+  test or under an agent, and a model that counts every mouse event as a click
+  passed tests a real terminal would fail.
+
 ## [v0.11.1] — 2026-10-05
 
 ### Fixed

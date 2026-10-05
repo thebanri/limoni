@@ -197,17 +197,20 @@ func TestClickTargetsNodeCentre(t *testing.T) {
 		t.Fatalf("Click: %v", err)
 	}
 
+	// A press and a release, as a terminal reports a click.
 	events := rec.snapshot()
-	if len(events) != 1 {
-		t.Fatalf("injected %d events, want 1", len(events))
+	if len(events) != 2 {
+		t.Fatalf("injected %d events, want a press and a release", len(events))
 	}
-	ev := events[0]
-	if ev.Type != driver.EventMouse || ev.Mouse.Button != driver.MouseLeft {
-		t.Fatalf("injected %+v, want a left mouse click", ev)
-	}
-	// Submit is at 10,4 sized 8x3, so the centre is 14,5.
-	if ev.Mouse.X != 14 || ev.Mouse.Y != 5 {
-		t.Errorf("clicked %d,%d, want 14,5", ev.Mouse.X, ev.Mouse.Y)
+	for i, want := range []driver.MouseButton{driver.MouseLeft, driver.MouseRelease} {
+		ev := events[i]
+		if ev.Type != driver.EventMouse || ev.Mouse.Button != want {
+			t.Fatalf("event %d is %+v, want button %v", i, ev, want)
+		}
+		// Submit is at 10,4 sized 8x3, so the centre is 14,5.
+		if ev.Mouse.X != 14 || ev.Mouse.Y != 5 {
+			t.Errorf("event %d at %d,%d, want 14,5", i, ev.Mouse.X, ev.Mouse.Y)
+		}
 	}
 }
 

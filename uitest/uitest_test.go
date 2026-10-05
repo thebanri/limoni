@@ -216,7 +216,7 @@ func TestConnectDrivesARunningApplicationOverItsSocket(t *testing.T) {
 	clicks := 0
 	var publish func()
 	inject := func(ev driver.Event) {
-		if ev.Type == driver.EventMouse {
+		if ev.Type == driver.EventMouse && ev.Mouse.Button == driver.MouseLeft {
 			go func() {
 				time.Sleep(20 * time.Millisecond) // the next frame
 				mu.Lock()

@@ -14,22 +14,34 @@ type countingModel struct {
 	seen    []limoni.Msg
 	quitOn  limoni.Msg
 	initCmd []limoni.Cmd
+	seenOne chan struct{} // closed on the first message, when not nil
 }
 
 func (m *countingModel) Init() []limoni.Cmd { return m.initCmd }
 
 func (m *countingModel) Update(msg limoni.Msg) limoni.UpdateResult {
 	m.seen = append(m.seen, msg)
+	if m.seenOne != nil && len(m.seen) == 1 {
+		close(m.seenOne)
+	}
 	return limoni.UpdateResult{Redraw: true, Quit: m.quitOn != nil && msg == m.quitOn}
 }
 
 func (m *countingModel) View(*limoni.Frame) {}
 
 func TestNewProgramRunsModelThroughRootAliases(t *testing.T) {
-	model := &countingModel{quitOn: "done"}
+	model := &countingModel{quitOn: "done", seenOne: make(chan struct{})}
+	// Results reach Update as their commands finish, so "done" waits for
+	// "first" to have arrived.
 	model.initCmd = []limoni.Cmd{
 		func(context.Context) limoni.Msg { return "first" },
-		func(context.Context) limoni.Msg { return "done" },
+		func(ctx context.Context) limoni.Msg {
+			select {
+			case <-model.seenOne:
+			case <-ctx.Done():
+			}
+			return "done"
+		},
 	}
 
 	program := limoni.NewProgram(model)

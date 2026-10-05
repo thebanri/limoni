@@ -288,15 +288,16 @@ func (s *Server) handle(req Request) Response {
 		if node.Bounds.Width == 0 || node.Bounds.Height == 0 {
 			return Response{Err: fmt.Sprintf("automation: %s has empty bounds and cannot be clicked", req.Selector)}
 		}
-		// Centre of the node, which is inside it for any non-empty rect.
-		state.Injector(driver.Event{
-			Type: driver.EventMouse,
-			Mouse: driver.MouseEvent{
-				Button: driver.MouseLeft,
-				X:      node.Bounds.X + node.Bounds.Width/2,
-				Y:      node.Bounds.Y + node.Bounds.Height/2,
-			},
-		})
+		// Centre of the node, which is inside it for any non-empty rect: a
+		// press and then a release, as a terminal sends a click.
+		at := driver.MouseEvent{
+			Button: driver.MouseLeft,
+			X:      node.Bounds.X + node.Bounds.Width/2,
+			Y:      node.Bounds.Y + node.Bounds.Height/2,
+		}
+		state.Injector(driver.Event{Type: driver.EventMouse, Mouse: at})
+		at.Button = driver.MouseRelease
+		state.Injector(driver.Event{Type: driver.EventMouse, Mouse: at})
 		return Response{OK: true, Nodes: []accessibility.AccessibilityNode{node}}
 
 	case OpKey:

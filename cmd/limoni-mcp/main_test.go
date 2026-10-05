@@ -135,9 +135,10 @@ func (a *fakeApp) loop(stop chan struct{}) {
 				a.name += string(ev.Key.Ch)
 			case ev.Type == driver.EventKey && ev.Key.Type == driver.KeySpace && a.focus == "name":
 				a.name += " " // a terminal's space bar, which type_text now sends as one
-			case ev.Type == driver.EventMouse && ev.Mouse.Y == 18:
+			// A click arrives as a press and a release; it acts on the press.
+			case ev.Type == driver.EventMouse && ev.Mouse.Button == driver.MouseLeft && ev.Mouse.Y == 18:
 				a.agree = !a.agree
-			case ev.Type == driver.EventMouse && ev.Mouse.X >= 40 && ev.Mouse.Y == 0:
+			case ev.Type == driver.EventMouse && ev.Mouse.Button == driver.MouseLeft && ev.Mouse.X >= 40 && ev.Mouse.Y == 0:
 				a.tasks = append(a.tasks, a.name)
 				a.name = ""
 			}
@@ -391,8 +392,9 @@ func TestAnAgentCanFillAFormAndSeeTheResult(t *testing.T) {
 
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if got := len(app.events); got != len("ship it")+1 {
-		t.Errorf("application received %d events, want %d", got, len("ship it")+1)
+	// The text a key at a time, and the click as a press and a release.
+	if got := len(app.events); got != len("ship it")+2 {
+		t.Errorf("application received %d events, want %d", got, len("ship it")+2)
 	}
 }
 
@@ -680,7 +682,12 @@ func TestClickWithEnsureIsIdempotent(t *testing.T) {
 		t.Errorf("second ensure-click clicked again:\n%s", second)
 	}
 	app.mu.Lock()
-	agree, clicks := app.agree, len(app.events)
+	agree, clicks := app.agree, 0
+	for _, ev := range app.events {
+		if ev.Type == driver.EventMouse && ev.Mouse.Button == driver.MouseLeft {
+			clicks++
+		}
+	}
 	app.mu.Unlock()
 	if !agree || clicks != 1 {
 		t.Fatalf("agree=%v after %d clicks, want checked after 1", agree, clicks)

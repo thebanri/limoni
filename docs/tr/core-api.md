@@ -119,7 +119,7 @@ Terminal yaşam döngüsünü, çift tamponlamayı, kare üretimini ve girdi yö
 ```
 
 ### Güvenlik ve Eşzamanlılık Garantileri
-- **Deterministik Komut Sıralaması**: Komutlar arkaplan goroutine'lerinde eşzamanlı çalışır, ancak sonuçları `Update` fonksiyonuna geliş sırasına göre deterministik iletilir.
+- **Biten sonuç hemen gelir**: Komutlar arka plan goroutine'lerinde eşzamanlı çalışır ve her sonuç, komutu biter bitmez `Update`'e ulaşır. Bekleyen bir komut (zamanlayıcı, istek, akış) kendisinden sonra başlayanları bekletmez. Bir sonucun diğerinden sonra gelmesi gerekiyorsa ikinci komutu, birincisini işleyen `Update` döndürsün.
 - **Katı İptal Önceliği**: Context iptal edildiğinde (`ctx.Done()`) veya program kapandığında, bekleyen tüm komut sonuçları ve kuyruktaki mesajlar derhal temizlenir; çıkıştan sonra bellek yarışmaları ve geç mutasyonlar engellenir.
 - **Güvenli Panik Yakalama**: `WithPanicHandler` ile kullanıcı kodundaki panikler yakalanır, uygulamanın çökmesi engellenir ve telemetri günlüğü tutulabilir.
 

@@ -154,7 +154,7 @@ Emojiler (`🔴`, `🚀`, `☕`) ve tam genişlikli karakterler terminalde 2 sü
 
 ## 7. Motor güvenliği ve belirlenimci komut dağıtımı
 
-- **Belirlenimci sıralama:** `Cmd` komutları worker goroutine'lerinde eşzamansız çalışır; ancak sonuçları tamponlanır ve `Update` fonksiyonuna kesin dağıtım sırasıyla iletilir.
+- **Biten sonuç hemen gelir:** `Cmd` komutları worker goroutine'lerinde eşzamansız çalışır ve her sonuç, komutu bitince `Update`'e iletilir; yavaş bir komut hızlı olanı geciktirmez. Sonuçlar eskiden komutların başladığı sıraya göre bekletiliyordu; bir saniyelik bir zamanlayıcı arkasındaki her animasyon karesini geciktiriyordu.
 - **İptal önceliği:** Bağlam (`ctx.Done()`) iptal edildiğinde veya kapatma başladığında bekleyen komut sonuçları ve kuyruktaki iletiler hemen atılır. Böylece sonlandırma sonrasında durum değişikliği yapılmaz.
 - **Panic yalıtımı:** Kullanıcı komutlarındaki veya modellerindeki panic durumları `WithPanicHandler` ile yakalanır; ana uygulamanın çalışmaya devam etmesi sağlanır.
 

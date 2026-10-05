@@ -177,9 +177,12 @@ func (a *runApp) click(node accessibility.AccessibilityNode, _ automation.Select
 	if !a.running {
 		return errExited
 	}
-	ev := driver.Event{Type: driver.EventMouse, Mouse: centre(node)}
-	a.term.Mouse(ev.Mouse)
-	a.frame(&ev)
+	// A press and a release, as a terminal sends them.
+	for _, m := range clickEvents(node) {
+		ev := driver.Event{Type: driver.EventMouse, Mouse: m}
+		a.term.Mouse(ev.Mouse)
+		a.frame(&ev)
+	}
 	return nil
 }
 
@@ -293,7 +296,12 @@ func (a *programApp) send(ev driver.Event) error {
 }
 
 func (a *programApp) click(node accessibility.AccessibilityNode, _ automation.Selector) error {
-	return a.send(driver.Event{Type: driver.EventMouse, Mouse: centre(node)})
+	for _, m := range clickEvents(node) {
+		if err := a.send(driver.Event{Type: driver.EventMouse, Mouse: m}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *programApp) key(key driver.KeyEvent, _ string) error {
@@ -350,6 +358,16 @@ func (a *remoteApp) key(key driver.KeyEvent, name string) error {
 func (a *remoteApp) typeText(text string) error { return a.client.Type(text) }
 
 func (a *remoteApp) screen() (string, error) { return a.client.Screen() }
+
+// clickEvents is a click at the centre of node as a terminal reports one: the
+// press, then the release. A click that was only a press left a model that
+// acts on the release — a slider, a drag — never finishing it.
+func clickEvents(node accessibility.AccessibilityNode) [2]driver.MouseEvent {
+	press := centre(node)
+	release := press
+	release.Button = driver.MouseRelease
+	return [2]driver.MouseEvent{press, release}
+}
 
 func centre(node accessibility.AccessibilityNode) driver.MouseEvent {
 	return driver.MouseEvent{

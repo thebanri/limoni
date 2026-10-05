@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/thebanri/limoni/core/driver"
@@ -253,8 +252,10 @@ var idleFrame = time.Second / 30
 
 func WithAltScreen() Option { return func(opts *programOptions) { opts.altScreen = true } }
 
+// commandResult is what a command returned, or the panic it raised. Results
+// reach Update as their commands finish: a command that waits — a timer, a
+// request, a stream — does not hold back one that started after it.
 type commandResult struct {
-	sequence uint64
 	message  Msg
 	panicked any
 }
@@ -283,7 +284,6 @@ type Program struct {
 	// lets a frame be attributed to an exact point in the message stream.
 	step uint64
 
-	sequence atomic.Uint64
 	workers  sync.WaitGroup
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -403,8 +403,6 @@ func (p *Program) Run(ctx context.Context) error {
 	}
 	p.RequestRedraw()
 
-	pending := make(map[uint64]commandResult)
-	var nextSequence uint64
 	for {
 		if err := ctx.Err(); err != nil {
 			p.Stop()
@@ -452,24 +450,15 @@ func (p *Program) Run(ctx context.Context) error {
 				return nil
 			default:
 			}
-			pending[result.sequence] = result
-			for {
-				ready, ok := pending[nextSequence]
-				if !ok {
-					break
-				}
-				delete(pending, nextSequence)
-				nextSequence++
-				if ready.panicked != nil {
-					p.reportPanic(ready.panicked)
-					continue
-				}
-				if ready.message != nil && p.update(ctx, ready.message) {
-					cancel()
-					p.Stop()
-					p.workers.Wait()
-					return nil
-				}
+			if result.panicked != nil {
+				p.reportPanic(result.panicked)
+				continue
+			}
+			if result.message != nil && p.update(ctx, result.message) {
+				cancel()
+				p.Stop()
+				p.workers.Wait()
+				return nil
 			}
 		}
 	}
@@ -531,11 +520,10 @@ func (p *Program) schedule(parent context.Context, command Cmd) {
 	if command == nil {
 		return
 	}
-	sequence := p.sequence.Add(1) - 1
 	p.workers.Add(1)
 	go func() {
 		defer p.workers.Done()
-		result := commandResult{sequence: sequence}
+		var result commandResult
 		commandCtx, cancel := context.WithCancel(parent)
 		defer cancel()
 		func() {
