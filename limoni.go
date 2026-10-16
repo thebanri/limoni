@@ -136,6 +136,19 @@ const (
 	KeyEnd       = driver.KeyEnd
 	KeyPageUp    = driver.KeyPageUp
 	KeyPageDown  = driver.KeyPageDown
+	KeyInsert    = driver.KeyInsert
+	KeyF1        = driver.KeyF1
+	KeyF2        = driver.KeyF2
+	KeyF3        = driver.KeyF3
+	KeyF4        = driver.KeyF4
+	KeyF5        = driver.KeyF5
+	KeyF6        = driver.KeyF6
+	KeyF7        = driver.KeyF7
+	KeyF8        = driver.KeyF8
+	KeyF9        = driver.KeyF9
+	KeyF10       = driver.KeyF10
+	KeyF11       = driver.KeyF11
+	KeyF12       = driver.KeyF12
 
 	// Scrollbar Orientation
 	ScrollbarVertical   = widgets.ScrollbarVertical
