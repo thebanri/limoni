@@ -267,6 +267,27 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemonsnake" build -o /dev/null .
           echo "ok   lemonsnake builds against this checkout as well as against the release"
 
+      # Mark & Sweep, the same way: a frame allocates nothing, with the
+      # most broken build filling its pools too.
+      - name: apps/marksweep
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/marksweep vet ./...
+          go -C apps/marksweep test ./...
+          test -z "$(gofmt -l apps/marksweep)" || { gofmt -l apps/marksweep; exit 1; }
+
+          work=$(mktemp -d)
+          cp -r apps/marksweep "$work/marksweep"
+          go -C "$work/marksweep" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/marksweep" mod tidy
+          go -C "$work/marksweep" build ./...
+          go -C "$work/marksweep" test ./...
+          GOOS=js GOARCH=wasm go -C "$work/marksweep" vet ./...
+          GOOS=js GOARCH=wasm go -C "$work/marksweep" build -o /dev/null .
+          echo "ok   marksweep builds against this checkout as well as against the release"
+
       # pikap, the record player. Its MPRIS tests start a dbus-daemon of their
       # own (and skip without one), so they never touch a session bus; the
       # macOS and Windows builds take the path without MPRIS.

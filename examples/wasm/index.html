@@ -37,6 +37,7 @@
     }
     /* Each app brings its own colours; the layout stays the same. */
     body.app-lemonsnake { --accent: #9be15d; --accent-2: #ffd84a; --accent-ink: #0c1a06; }
+    body.app-marksweep { --accent: #ff5fd2; --accent-2: #5ad1ff; --accent-ink: #1a0414; }
     body.app-lemondrop { --accent: #ffd84a; --accent-2: #ea5a5a; }
     body.app-playground { --accent: #ffd84a; --accent-2: #5ee3c0; }
     body.castle {
@@ -349,7 +350,8 @@
     <a class="brand" href="./"><img src="img/logo.svg" alt="" width="28" height="28"><span class="word">Limoni</span></a>
     <div class="nav">
       <a href="./" data-app="playground">Playground</a>
-      <a href="?app=lemonsnake" data-app="lemonsnake">🐍 Lemon Snake <span class="new">NEW</span></a>
+      <a href="?app=marksweep" data-app="marksweep">🧹 Mark &amp; Sweep <span class="new">NEW</span></a>
+      <a href="?app=lemonsnake" data-app="lemonsnake">🐍 Lemon Snake</a>
       <a href="?app=lemondrop" data-app="lemondrop">🧱 Lemon Drop</a>
       <a href="?app=castle-lemonstein" data-app="castle-lemonstein">🏰 Castle Lemonstein</a>
     </div>
@@ -413,6 +415,14 @@
     <section class="more" aria-label="More to try">
       <h2 id="more-title">Games built with Limoni</h2>
       <div class="cards">
+        <a class="card" href="?app=marksweep" data-app="marksweep" style="--card: #ff5fd2">
+          <img src="img/marksweep.png" alt="Mark &amp; Sweep: a Bubble Tea cup and a tview modal coming down a corridor of terminal windows" loading="lazy">
+          <div class="body">
+            <h3>🧹 Mark &amp; Sweep</h3>
+            <p>You are the garbage collector. Bubble Tea, Ratatui, tview and Ink have come for the heap. Augment cards, broken combos.</p>
+            <span class="go">Play →</span>
+          </div>
+        </a>
         <a class="card" href="?app=lemonsnake" data-app="lemonsnake" style="--card: #9be15d">
           <img src="img/lemonsnake.png" alt="Lemon Snake: a green snake, a glowing lemon and a purple monster" loading="lazy">
           <div class="body">
@@ -460,9 +470,9 @@
   </footer>
 
   <script>
-    // Four modules share this page: the playground, and three games,
-    // ?app=castle-lemonstein, ?app=lemondrop and ?app=lemonsnake, each from
-    // its directory under apps/. They are separate builds because each game
+    // Five modules share this page: the playground, and four games,
+    // ?app=marksweep, ?app=castle-lemonstein, ?app=lemondrop and
+    // ?app=lemonsnake, each from its directory under apps/. They are separate builds because each game
     // is a module of its own and ships to nobody who imports Limoni.
     const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     // The shared leaderboard: apps/scoreboard, deployed on Vercel over a
@@ -565,6 +575,33 @@
         boardPath: '/snake/scores',
         scoreboard,
         describe: (run) => `level ${run.level}, ${run.lemons} lemons, ${clock(run.secs)}`,
+      },
+      marksweep: {
+        wasm: 'marksweep.wasm',
+        title: 'Mark & Sweep — a first-person roguelite drawn in characters',
+        heading: 'Mark & Sweep',
+        text: 'You are the garbage collector. The frameworks have come for the heap.',
+        emblem: '🧹',
+        posterTitle: 'Mark & Sweep',
+        posterText: 'A first-person roguelite in a terminal made of terminals. Bubble Tea, Ratatui, ' +
+          'tview, Ink and ncurses come for the heap, each drawn the way its own apps look. ' +
+          'Take an augment card every level, stack them into something broken, and outlast the ' +
+          'pressure — after ten minutes, nothing does for long. Your records stay in this browser. ' +
+          '<strong>Turn your sound on.</strong>',
+        button: '▶&nbsp;&nbsp;Start collecting',
+        keys: '<span>mouse look &amp; aim</span>' +
+          '<span>click sweep</span>' +
+          '<span><kbd>R</kbd> or right click collect</span>' +
+          '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>' +
+          '<span><kbd>Space</kbd> dash</span>' +
+          '<span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cards</span>' +
+          '<span><kbd>Esc</kbd> pause</span>',
+        running: 'Mark & Sweep running — click the terminal to capture the mouse, Esc to let it go',
+        fullscreenRows: 44,
+        windowRows: 38,
+        audio: true,
+        keyReleases: true,
+        pointerLock: true,
       },
     };
     const params = new URLSearchParams(location.search);
@@ -762,6 +799,45 @@
         held.forEach(send);
         held.clear();
       });
+    }
+
+    // A first-person game turns with the mouse's movement, not its place: the
+    // page locks the pointer to the terminal while a run is on and passes the
+    // movement and buttons to Go (apps/marksweep/input_js.go). Go says when it
+    // wants the lock (__marksweep_wantLock) and asks for it right after the
+    // click or key that started the run, while the browser still counts that
+    // as the player's gesture; a click on the terminal asks again.
+    if (app.pointerLock) {
+      const el = document.getElementById('terminal');
+      const locked = () => document.pointerLockElement === el;
+      const send = (...args) => { if (window.__marksweep_pointer) { window.__marksweep_pointer(...args); } };
+      window.__marksweep_requestLock = () => {
+        try {
+          const p = el.requestPointerLock();
+          if (p && p.catch) { p.catch(() => {}); }
+        } catch (err) { /* refused: a click asks again */ }
+      };
+      document.addEventListener('pointerlockchange', () => send('lock', locked()));
+      document.addEventListener('mousemove', (ev) => {
+        if (locked()) { send('move', ev.movementX, ev.movementY); }
+      });
+      // Capturing, before xterm.js: a locked pointer's clicks are the game's,
+      // and the click that takes the lock is not a shot.
+      el.addEventListener('mousedown', (ev) => {
+        if (locked()) {
+          send('button', ev.button, true);
+        } else if (window.__marksweep_wantLock) {
+          window.__marksweep_requestLock();
+        } else {
+          return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+      }, true);
+      document.addEventListener('mouseup', (ev) => {
+        if (locked()) { send('button', ev.button, false); ev.stopPropagation(); }
+      }, true);
+      el.addEventListener('contextmenu', (ev) => ev.preventDefault());
     }
 
     const statusText = document.getElementById('status-text');

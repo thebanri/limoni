@@ -281,6 +281,25 @@ lemonsnake
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemonsnake), with its sound and the
 world leaderboard.
 
+<p align="center"><img src="assets/marksweep.png" alt="Mark &amp; Sweep: a tview modal, a Bubble Tea cup, Ferris, an ncurses box and a progress bar coming down a corridor of terminal windows" width="100%" /></p>
+
+[**Mark & Sweep**](apps/marksweep) is a first-person roguelite in a terminal made of terminals: the walls
+are a shell, a log viewer, some Go and htop. You are the garbage collector, and Bubble Tea, Ratatui, tview,
+Ink and ncurses have come for the heap, each drawn the way its own apps look: pink rounded boxes and
+spinners, Ferris, double-lined modals that split into their buttons, `</>` that splits in two. Aim with
+the mouse, collect (reload) by hand, and take an augment card every level. Past an augment's last rank it
+overclocks, and shots that split, bounce, explode and arc multiply each other into something broken.
+After ten minutes the pressure builds (armour, insulation, speed), and no build holds it for long. There is
+no leaderboard: records stay on the machine, or in the browser.
+
+```bash
+go install github.com/thebanri/limoni/apps/marksweep@latest
+marksweep
+```
+
+Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep), where the pointer is locked
+for mouse look. A frame allocates nothing, the most broken build's full pools included.
+
 <p align="center"><img src="assets/pikap.gif" alt="pikap playing its demo record: the needle is put down half-way in, the record is dragged back and forth to scratch, then it is drawn in ASCII" /></p>
 
 [**pikap**](apps/pikap) is a record player drawn in half blocks (or ASCII). It follows whatever the computer is playing
