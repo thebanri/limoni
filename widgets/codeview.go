@@ -604,12 +604,12 @@ func (cv CodeView) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 
 // AccessibilityNode is a read-only text area; its value is the cursor line
 // or, without a cursor, the first line shown.
-func (cv CodeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (cv CodeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	node := accessibility.AccessibilityNode{ID: cv.ID, Role: accessibility.RoleGeneric, Label: "Code", State: state, Bounds: bounds}
+	node := accessibility.Node{ID: cv.ID, Role: accessibility.RoleGeneric, Label: "Code", State: state, Bounds: bounds}
 	if s := cv.State; s != nil && len(s.lines) > 0 {
 		if s.language != nil {
 			node.Label = s.language.Name + " code"

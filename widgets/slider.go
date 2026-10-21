@@ -213,7 +213,7 @@ func (s *SliderState) setFromColumn(x uint16) {
 func (s Slider) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
 
 // AccessibilityNode returns the semantic node description for Slider.
-func (s Slider) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (s Slider) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -231,7 +231,7 @@ func (s Slider) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.
 	} else {
 		label = "Slider range " + strconv.Itoa(s.Min) + " to " + strconv.Itoa(s.Max)
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     s.ID,
 		Role:   accessibility.RoleSlider,
 		Label:  label,

@@ -41,13 +41,14 @@ func MeasureMeasurable(widget Measurable, maxArea cell.Rect) Measure {
 	return widget.Measure(maxArea).Normalize(maxArea)
 }
 
-// LegacyMeasurable adapts the existing SizeHint contract without importing widgets.
-type LegacyMeasurable interface {
+// SizeHinter is the widget sizing contract (widgets.Widget.SizeHint), named
+// here so layout need not import widgets.
+type SizeHinter interface {
 	SizeHint(maxArea cell.Rect) (width, height uint16)
 }
 
-// MeasureWidget converts a legacy SizeHint widget into a normalized Measure.
-func MeasureWidget(widget LegacyMeasurable, maxArea cell.Rect) Measure {
+// MeasureWidget converts a SizeHint widget into a normalized Measure.
+func MeasureWidget(widget SizeHinter, maxArea cell.Rect) Measure {
 	if widget == nil {
 		return Measure{}
 	}
@@ -59,14 +60,14 @@ func MeasureWidget(widget LegacyMeasurable, maxArea cell.Rect) Measure {
 	}
 }
 
-// MeasureAny accepts either the explicit Measurable contract or the legacy
+// MeasureAny accepts either the explicit Measurable contract or the
 // SizeHint contract. It is useful at framework boundaries where widgets may
 // be incrementally migrated to measure/arrange.
 func MeasureAny(widget any, maxArea cell.Rect) Measure {
 	switch measured := widget.(type) {
 	case Measurable:
 		return MeasureMeasurable(measured, maxArea)
-	case LegacyMeasurable:
+	case SizeHinter:
 		return MeasureWidget(measured, maxArea).Normalize(maxArea)
 	default:
 		return Measure{}

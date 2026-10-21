@@ -26,7 +26,7 @@ const maxSocketPathLen = 103
 // Snapshot is what one frame published to the server: the semantic tree plus
 // the rendered grid and focus, captured after a draw.
 type Snapshot struct {
-	Tree     []accessibility.AccessibilityNode
+	Tree     []accessibility.Node
 	Screen   string
 	Focused  string
 	Width    uint16
@@ -298,7 +298,7 @@ func (s *Server) handle(req Request) Response {
 		state.Injector(driver.Event{Type: driver.EventMouse, Mouse: at})
 		at.Button = driver.MouseRelease
 		state.Injector(driver.Event{Type: driver.EventMouse, Mouse: at})
-		return Response{OK: true, Nodes: []accessibility.AccessibilityNode{node}}
+		return Response{OK: true, Nodes: []accessibility.Node{node}}
 
 	case OpKey:
 		if err := s.checkInput(state); err != nil {

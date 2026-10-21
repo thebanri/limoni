@@ -277,7 +277,7 @@ func (c Calendar) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode reports the selected date, as YYYY-MM-DD.
-func (c Calendar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (c Calendar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -286,7 +286,7 @@ func (c Calendar) AccessibilityNode(bounds cell.Rect, focused bool) accessibilit
 	if c.State != nil && !c.State.Selected.IsZero() {
 		value = c.State.Selected.Format(time.DateOnly)
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     c.ID,
 		Role:   accessibility.RoleTable,
 		Label:  "Calendar",

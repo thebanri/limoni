@@ -273,12 +273,12 @@ func (a TextArea) Measure(maxArea cell.Rect) layout.Measure {
 }
 
 // AccessibilityNode returns the semantic node description for TextArea.
-func (a TextArea) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (a TextArea) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     a.ID,
 		Role:   accessibility.RoleInput,
 		Label:  "Text Area",

@@ -9,8 +9,8 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-func sensitiveTree() []accessibility.AccessibilityNode {
-	return []accessibility.AccessibilityNode{
+func sensitiveTree() []accessibility.Node {
+	return []accessibility.Node{
 		// A careless widget author: marked sensitive, but still filled Value in.
 		// The gateway must clear it anyway.
 		{ID: "password", Role: accessibility.RoleInput, Label: "Password", Value: "hunter2",
@@ -18,7 +18,7 @@ func sensitiveTree() []accessibility.AccessibilityNode {
 		{ID: "email", Role: accessibility.RoleInput, Label: "Email", Value: "a@b.c",
 			Bounds: cell.NewRect(0, 1, 20, 1)},
 		{ID: "form", Role: accessibility.RoleDialog, Label: "Login",
-			Children: []accessibility.AccessibilityNode{
+			Children: []accessibility.Node{
 				{ID: "nested-secret", Role: accessibility.RoleInput, Value: "nested-hunter2",
 					State: accessibility.StateSensitive},
 			}},

@@ -11,7 +11,7 @@ tree breaks all four.
 
 ```
 widget (accessibility.Provider)
-  → Frame.RegisterAccessibility          f.Accessibility, valid for THIS frame only
+  → Frame.RegisterAccessibility          f.accessibility (unexported), valid for THIS frame only
   → Frame.AccessibilityTree()            deep copy — the only safe way to keep it
   → gateway publish (limoni_debug only)  automation.Snapshot{Tree, Screen, Focused, Injector}
   → automation server                    redacts, resolves selectors, injects input
@@ -39,7 +39,7 @@ widget (accessibility.Provider)
 
 ## Traps already paid for
 
-- **`f.Accessibility` aliases reused buffers.** `List` writes its row nodes into
+- **The frame's node slice (`f.accessibility`, unexported) aliases reused buffers.** `List` writes its row nodes into
   a buffer owned by `ListState` to stay allocation-free, so the slice is only
   valid until the next draw. `Frame.AccessibilityTree` deep-copies; anything
   keeping a tree (gateway, session recording, testkit, tests) must go through it.

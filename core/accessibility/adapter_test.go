@@ -13,7 +13,7 @@ func TestLineModeAdapterAnnounceAndWrite(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	nodes := []AccessibilityNode{
+	nodes := []Node{
 		{ID: "btn", Role: RoleButton, Label: "Click"},
 	}
 	mode := Mode{ScreenReader: true}

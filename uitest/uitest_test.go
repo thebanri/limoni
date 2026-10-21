@@ -235,7 +235,7 @@ func TestConnectDrivesARunningApplicationOverItsSocket(t *testing.T) {
 		n := clicks
 		mu.Unlock()
 		server.Publish(automation.Snapshot{
-			Tree: []accessibility.AccessibilityNode{
+			Tree: []accessibility.Node{
 				{ID: "go", Role: accessibility.RoleButton, Label: "Go", Bounds: cell.NewRect(0, 0, 4, 1)},
 				{ID: "clicks", Label: fmt.Sprintf("clicked %d", n), Bounds: cell.NewRect(0, 1, 10, 1)},
 			},

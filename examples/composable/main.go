@@ -191,12 +191,12 @@ func main() {
 						limoni.Fg(limoni.Hex("#00FFAA")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.AlignComponent(limoni.Label("AlignTopLeft"), limoni.HAlignLeft, limoni.AlignTop),
+						limoni.AlignComponent(limoni.Label("AlignTopLeft"), limoni.AlignLeft, limoni.AlignTop),
 						widgets.SymbolsDouble,
 						limoni.Fg(limoni.Hex("#FFCC00")),
 					)),
 					limoni.Flex(1, limoni.Border(
-						limoni.AlignComponent(limoni.Label("AlignBottomRight"), limoni.HAlignRight, limoni.AlignBottom),
+						limoni.AlignComponent(limoni.Label("AlignBottomRight"), limoni.AlignRight, limoni.AlignBottom),
 						widgets.SymbolsThick,
 						limoni.Fg(limoni.Hex("#FF77AA")),
 					)),
@@ -546,7 +546,7 @@ func main() {
 			modalLayer,
 		)
 
-		f.RenderComponent(rootView, f.Area())
+		f.RenderWidget(rootView, f.Area())
 		return true
 	})
 

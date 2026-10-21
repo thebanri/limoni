@@ -73,7 +73,7 @@ func (cb Checkbox) SizeHint(maxArea cell.Rect) (width, height uint16) {
 }
 
 // AccessibilityNode returns the semantic node description for Checkbox.
-func (cb Checkbox) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (cb Checkbox) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -85,7 +85,7 @@ func (cb Checkbox) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 	if cb.Checked != nil && *cb.Checked {
 		val = "true"
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     cb.ID,
 		Role:   accessibility.RoleCheckbox,
 		Label:  cb.Label,

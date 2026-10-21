@@ -110,8 +110,8 @@ func (p *Page) acted(format string, args ...any) {
 type app interface {
 	// tree returns the semantic tree of the latest frame, first rendering a
 	// new frame if the application has one pending.
-	tree() ([]accessibility.AccessibilityNode, error)
-	click(node accessibility.AccessibilityNode, sel automation.Selector) error
+	tree() ([]accessibility.Node, error)
+	click(node accessibility.Node, sel automation.Selector) error
 	key(ev driver.KeyEvent, name string) error
 	typeText(text string) error
 	screen() (string, error)
@@ -176,7 +176,7 @@ func (a *runApp) frame(ev *driver.Event) {
 	})
 }
 
-func (a *runApp) tree() ([]accessibility.AccessibilityNode, error) {
+func (a *runApp) tree() ([]accessibility.Node, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.running {
@@ -186,7 +186,7 @@ func (a *runApp) tree() ([]accessibility.AccessibilityNode, error) {
 	return a.term.AccessibilityTree(), nil
 }
 
-func (a *runApp) click(node accessibility.AccessibilityNode, _ automation.Selector) error {
+func (a *runApp) click(node accessibility.Node, _ automation.Selector) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.running {
@@ -297,7 +297,7 @@ func (a *programApp) checkRunning() error {
 	}
 }
 
-func (a *programApp) tree() ([]accessibility.AccessibilityNode, error) {
+func (a *programApp) tree() ([]accessibility.Node, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := a.checkRunning(); err != nil {
@@ -316,7 +316,7 @@ func (a *programApp) send(ev driver.Event) error {
 	return a.program.SendDriver(a.ctx, ev)
 }
 
-func (a *programApp) click(node accessibility.AccessibilityNode, _ automation.Selector) error {
+func (a *programApp) click(node accessibility.Node, _ automation.Selector) error {
 	for _, m := range clickEvents(node) {
 		if err := a.send(driver.Event{Type: driver.EventMouse, Mouse: m}); err != nil {
 			return err
@@ -369,11 +369,11 @@ type remoteApp struct {
 	client *automation.Client
 }
 
-func (a *remoteApp) tree() ([]accessibility.AccessibilityNode, error) { return a.client.Tree() }
+func (a *remoteApp) tree() ([]accessibility.Node, error) { return a.client.Tree() }
 
 // click sends the selector rather than the resolved node's coordinates, so the
 // application resolves it against the frame it is actually showing.
-func (a *remoteApp) click(_ accessibility.AccessibilityNode, sel automation.Selector) error {
+func (a *remoteApp) click(_ accessibility.Node, sel automation.Selector) error {
 	return a.client.Click(sel)
 }
 
@@ -389,14 +389,14 @@ func (a *remoteApp) screen() (string, error) { return a.client.Screen() }
 // clickEvents is a click at the centre of node as a terminal reports one: the
 // press, then the release. A click that was only a press left a model that
 // acts on the release — a slider, a drag — never finishing it.
-func clickEvents(node accessibility.AccessibilityNode) [2]driver.MouseEvent {
+func clickEvents(node accessibility.Node) [2]driver.MouseEvent {
 	press := centre(node)
 	release := press
 	release.Button = driver.MouseRelease
 	return [2]driver.MouseEvent{press, release}
 }
 
-func centre(node accessibility.AccessibilityNode) driver.MouseEvent {
+func centre(node accessibility.Node) driver.MouseEvent {
 	return driver.MouseEvent{
 		Button: driver.MouseLeft,
 		X:      node.Bounds.X + node.Bounds.Width/2,
@@ -405,7 +405,7 @@ func centre(node accessibility.AccessibilityNode) driver.MouseEvent {
 }
 
 // Tree returns the semantic tree of the current frame.
-func (p *Page) Tree() []accessibility.AccessibilityNode {
+func (p *Page) Tree() []accessibility.Node {
 	p.t.Helper()
 	nodes, err := p.app.tree()
 	if err != nil {

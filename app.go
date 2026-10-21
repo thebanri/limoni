@@ -380,7 +380,7 @@ func runLoop(ctx context.Context, term *Terminal, appFn func(f *Frame, ev *Event
 	}
 
 	var answered <-chan struct{}
-	if b := term.Backend(); b != nil {
+	if b := term.Driver(); b != nil {
 		answered = b.ProbeAnswered()
 	}
 

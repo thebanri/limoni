@@ -18,7 +18,7 @@ import (
 // the synchronised update protocol (?2026) and routing mouse events to the right targets.
 type Terminal struct {
 	// driver is the layer that handles low-level TTY raw mode and I/O.
-	driver *driver.Driver
+	driver *driver.Backend
 
 	// cast records the frames as asciicast while it is set (RecordCast,
 	// LIMONI_CAST); nil otherwise, which costs the draw path one check.
@@ -221,12 +221,7 @@ func (t *Terminal) Close() error {
 }
 
 // Driver returns the underlying driver instance.
-func (t *Terminal) Driver() *driver.Driver {
-	return t.driver
-}
-
-// Backend returns the underlying driver instance (backward compatibility alias).
-func (t *Terminal) Backend() *driver.Driver {
+func (t *Terminal) Driver() *driver.Backend {
 	return t.driver
 }
 
@@ -500,7 +495,7 @@ func (t *Terminal) present(t0 time.Time) error {
 	// skip the synchronised update, the image pass and the diff altogether.
 	sizeChanged := t.front.Area.Width != t.back.Area.Width || t.front.Area.Height != t.back.Area.Height
 	if !sizeChanged && !t.front.IsDirty && !t.transitionActive && !t.debugMode &&
-		len(t.frame.ImageRegions) == 0 && t.lastImageCount == 0 {
+		len(t.frame.imageRegions) == 0 && t.lastImageCount == 0 {
 		t.lastFrameDuration = time.Since(t0)
 		t.copyWidgetStats()
 		return nil
@@ -603,7 +598,7 @@ func (t *Terminal) present(t0 time.Time) error {
 					if proto == graphics.ProtocolKitty && zIndex == 0 {
 						zIndex = -1
 					}
-					escSeq := graphics.GetCachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, zIndex, reg.Transparent)
+					escSeq := graphics.CachedEscapeSequence(reg.Img, reg.Area.Width, reg.Area.Height, cellW, cellH, proto, zIndex, reg.Transparent)
 					if escSeq != "" {
 						t.writeBuf = buffer.AppendCursor(t.writeBuf, reg.Area.X, reg.Area.Y)
 						t.writeBuf = append(t.writeBuf, escSeq...)
@@ -667,13 +662,13 @@ func (t *Terminal) present(t0 time.Time) error {
 
 // copyWidgetStats copies the frame profiling statistics into a reused slice.
 func (t *Terminal) copyWidgetStats() {
-	if cap(t.lastWidgetStats) >= len(t.frame.WidgetStats) {
-		t.lastWidgetStats = t.lastWidgetStats[:len(t.frame.WidgetStats)]
-		copy(t.lastWidgetStats, t.frame.WidgetStats)
+	if cap(t.lastWidgetStats) >= len(t.frame.widgetStats) {
+		t.lastWidgetStats = t.lastWidgetStats[:len(t.frame.widgetStats)]
+		copy(t.lastWidgetStats, t.frame.widgetStats)
 		return
 	}
-	t.lastWidgetStats = make([]WidgetStat, len(t.frame.WidgetStats))
-	copy(t.lastWidgetStats, t.frame.WidgetStats)
+	t.lastWidgetStats = make([]WidgetStat, len(t.frame.widgetStats))
+	copy(t.lastWidgetStats, t.frame.widgetStats)
 }
 
 // repaintOver marks for the diff the cells in the pictures' areas that are
@@ -726,7 +721,7 @@ func (t *Terminal) clippedImageRegions() []ImageRegion {
 	if t == nil || t.frame == nil {
 		return nil
 	}
-	return t.frame.ImageRegions
+	return t.frame.imageRegions
 }
 
 // LastImageRegions returns a copy of image regions registered during the last frame.
@@ -841,33 +836,7 @@ func (t *Terminal) RouteMouseEvent(ev driver.MouseEvent) bool {
 		}
 	}
 
-	// 2. Backwards compatibility: ActiveModal (may have been set with the old RegisterModal API)
-	if t.frame.ActiveModal != nil {
-		modal := t.frame.ActiveModal
-		if modal.Area.Contains(ev.X, ev.Y) {
-			// Inside the modal: search only the regions with the modal's ID
-			for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
-				reg := t.frame.ClickRegions[i]
-				if reg.LayerID == modal.ID && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
-					reg.Fire(ev, t.frame)
-					if t.frame.mouseCaptureRequest != nil {
-						t.mouseCaptureHandler = t.frame.mouseCaptureRequest
-						t.frame.mouseCaptureRequest = nil
-					}
-					return true
-				}
-			}
-			return true // Inside the modal but on empty space: swallow the event
-		} else {
-			// Click outside the modal (on left button presses only)
-			if ev.Button == driver.MouseLeft && !ev.Drag && modal.ClickOutside != nil {
-				modal.ClickOutside()
-			}
-			return true
-		}
-	}
-
-	// 3. The normal (layerless) click routing loop
+	// 2. The normal (layerless) click routing loop
 	for i := len(t.frame.ClickRegions) - 1; i >= 0; i-- {
 		reg := t.frame.ClickRegions[i]
 		if reg.LayerID == "" && reg.Area.Contains(ev.X, ev.Y) && (reg.MouseOnly && (ev.Button == driver.MouseNone || ev.Button == driver.MouseScrollUp || ev.Button == driver.MouseScrollDown) || ev.Button == driver.MouseLeft) {
@@ -929,7 +898,7 @@ func (t *Terminal) drawDebugOverlay() {
 		Modifier: cell.ModifierBold,
 	}
 
-	for regionIndex, reg := range t.frame.DebugRegions {
+	for regionIndex, reg := range t.frame.debugRegions {
 		area := reg.Area
 		if area.Width == 0 || area.Height == 0 {
 			continue
@@ -937,13 +906,13 @@ func (t *Terminal) drawDebugOverlay() {
 
 		// Horizontal dashed lines
 		for col := area.X; col < area.X+area.Width; col++ {
-			if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+			if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 				if c := t.front.Get(col, area.Y); c != nil {
 					c.Content = '╌'
 					c.Style = borderStyle
 				}
 			}
-			if !isObscured(col, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+			if !isObscured(col, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 				if c := t.front.Get(col, area.Y+area.Height-1); c != nil {
 					c.Content = '╌'
 					c.Style = borderStyle
@@ -952,13 +921,13 @@ func (t *Terminal) drawDebugOverlay() {
 		}
 		// Vertical dashed lines
 		for row := area.Y; row < area.Y+area.Height; row++ {
-			if !isObscured(area.X, row, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+			if !isObscured(area.X, row, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 				if c := t.front.Get(area.X, row); c != nil {
 					c.Content = '╎'
 					c.Style = borderStyle
 				}
 			}
-			if !isObscured(area.X+area.Width-1, row, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+			if !isObscured(area.X+area.Width-1, row, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 				if c := t.front.Get(area.X+area.Width-1, row); c != nil {
 					c.Content = '╎'
 					c.Style = borderStyle
@@ -967,25 +936,25 @@ func (t *Terminal) drawDebugOverlay() {
 		}
 
 		// Join the corners
-		if !isObscured(area.X, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X, area.Y, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 			if c := t.front.Get(area.X, area.Y); c != nil {
 				c.Content = '┌'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X+area.Width-1, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X+area.Width-1, area.Y, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 			if c := t.front.Get(area.X+area.Width-1, area.Y); c != nil {
 				c.Content = '┐'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 			if c := t.front.Get(area.X, area.Y+area.Height-1); c != nil {
 				c.Content = '└'
 				c.Style = borderStyle
 			}
 		}
-		if !isObscured(area.X+area.Width-1, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+		if !isObscured(area.X+area.Width-1, area.Y+area.Height-1, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 			if c := t.front.Get(area.X+area.Width-1, area.Y+area.Height-1); c != nil {
 				c.Content = '┘'
 				c.Style = borderStyle
@@ -1001,7 +970,7 @@ func (t *Terminal) drawDebugOverlay() {
 		for idx, r := range label {
 			col := area.X + 1 + uint16(idx)
 			if col < area.X+area.Width-1 {
-				if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.DebugRegions) {
+				if !isObscured(col, area.Y, reg.ZIndex, regionIndex, t.frame.debugRegions) {
 					if c := t.front.Get(col, area.Y); c != nil {
 						c.Content = r
 						c.Style = textStyle
@@ -1034,9 +1003,6 @@ func (t *Terminal) layersHash() string {
 	res := ""
 	for _, l := range t.frame.Layers {
 		res += fmt.Sprintf("%s:%d,%d,%d,%d;", l.ID, l.Area.X, l.Area.Y, l.Area.Width, l.Area.Height)
-	}
-	if t.frame.ActiveModal != nil {
-		res += fmt.Sprintf("modal:%s:%d,%d,%d,%d;", t.frame.ActiveModal.ID, t.frame.ActiveModal.Area.X, t.frame.ActiveModal.Area.Y, t.frame.ActiveModal.Area.Width, t.frame.ActiveModal.Area.Height)
 	}
 	return res
 }

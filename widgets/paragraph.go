@@ -326,12 +326,12 @@ func splitWords(s string) []string {
 //
 // Static text is invisible to a screen reader unless something announces it,
 // which is why a plain paragraph carries a node at all.
-func (p *Paragraph) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (p *Paragraph) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     p.ID,
 		Role:   accessibility.RoleGeneric,
 		Label:  "Text",

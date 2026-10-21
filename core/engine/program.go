@@ -388,11 +388,6 @@ func (p *Program) SendDriver(ctx context.Context, event driver.Event) error {
 	return p.Send(ctx, message)
 }
 
-// SendBackend is a backward-compatible alias for SendDriver.
-func (p *Program) SendBackend(ctx context.Context, event driver.Event) error {
-	return p.SendDriver(ctx, event)
-}
-
 // RequestRedraw asks the host renderer for a frame. Multiple requests before
 // the host consumes one notification collapse into a single notification.
 func (p *Program) RequestRedraw() {

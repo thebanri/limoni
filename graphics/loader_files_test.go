@@ -161,23 +161,23 @@ func TestNewDuck(t *testing.T) {
 func TestEscapeSequenceCache(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})
-	kitty := GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false)
-	if kitty == "" || kitty != GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false) {
+	kitty := CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false)
+	if kitty == "" || kitty != CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false) {
 		t.Fatalf("kitty sequence not cached: %q", kitty)
 	}
-	if sixel := GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolSixel, 0, false); sixel == kitty || !strings.HasPrefix(sixel, "\x1bP") {
+	if sixel := CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolSixel, 0, false); sixel == kitty || !strings.HasPrefix(sixel, "\x1bP") {
 		t.Errorf("sixel sequence %q", sixel)
 	}
-	if iterm := GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolIterm2, 0, false); !strings.Contains(iterm, "1337;File=") {
+	if iterm := CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolIterm2, 0, false); !strings.Contains(iterm, "1337;File=") {
 		t.Errorf("iTerm2 sequence %q", iterm)
 	}
 
 	img.Set(1, 1, color.RGBA{G: 255, A: 255})
-	if stale := GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false); stale != kitty {
+	if stale := CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false); stale != kitty {
 		t.Errorf("the cache did not answer for an image changed in place (that is what ForgetImage is for)")
 	}
 	ForgetImage(img)
-	if fresh := GetCachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false); fresh == kitty {
+	if fresh := CachedEscapeSequence(img, 2, 1, 2, 4, ProtocolKitty, 0, false); fresh == kitty {
 		t.Errorf("after ForgetImage the old picture was sent again")
 	}
 }
@@ -186,19 +186,19 @@ func TestEscapeSequenceCache(t *testing.T) {
 func TestGetImageIDOfOtherImageTypes(t *testing.T) {
 	a := image.NewGray(image.Rect(0, 0, 3, 3))
 	b := image.NewGray(image.Rect(0, 0, 3, 3))
-	if GetImageID(a) != GetImageID(b) {
+	if ImageID(a) != ImageID(b) {
 		t.Error("equal gray images hash differently")
 	}
 	b.SetGray(1, 1, color.Gray{Y: 200})
-	if GetImageID(a) == GetImageID(b) {
+	if ImageID(a) == ImageID(b) {
 		t.Error("different gray images hash the same")
 	}
-	if GetImageID(nil) != 0 {
+	if ImageID(nil) != 0 {
 		t.Error("nil image has an ID")
 	}
 	n := image.NewNRGBA(image.Rect(0, 0, 2, 2))
 	n.Set(0, 0, color.NRGBA{B: 9, A: 255})
-	if GetImageID(n) == GetImageID(image.NewNRGBA(image.Rect(0, 0, 2, 2))) {
+	if ImageID(n) == ImageID(image.NewNRGBA(image.Rect(0, 0, 2, 2))) {
 		t.Error("different NRGBA images hash the same")
 	}
 }

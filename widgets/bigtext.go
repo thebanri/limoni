@@ -165,10 +165,10 @@ func (b BigText) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode reads the text itself, not the blocks it is drawn with.
-func (b BigText) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (b BigText) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	return accessibility.AccessibilityNode{ID: b.ID, Role: accessibility.RoleGeneric, Label: b.Text, Value: b.Text, State: state, Bounds: bounds}
+	return accessibility.Node{ID: b.ID, Role: accessibility.RoleGeneric, Label: b.Text, Value: b.Text, State: state, Bounds: bounds}
 }

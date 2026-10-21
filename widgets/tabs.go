@@ -58,7 +58,7 @@ type Tabs struct {
 
 // TabsState holds what Tabs reuses between frames.
 type TabsState struct {
-	nodes []accessibility.AccessibilityNode
+	nodes []accessibility.Node
 }
 
 // divider resolves the configured separator.
@@ -177,7 +177,7 @@ func (t Tabs) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if i == t.Selected {
 				st = accessibility.StateSelected
 			}
-			t.State.nodes = append(t.State.nodes, accessibility.AccessibilityNode{
+			t.State.nodes = append(t.State.nodes, accessibility.Node{
 				Role: accessibility.RoleTab, Label: title, State: st,
 				Bounds:   cell.Rect{X: x, Y: area.Y, Width: w, Height: 1},
 				Position: i + 1, SetSize: len(t.Titles),
@@ -215,7 +215,7 @@ func (t Tabs) SizeHint(maxArea cell.Rect) (width, height uint16) {
 }
 
 // AccessibilityNode returns the semantic node description for Tabs.
-func (t Tabs) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (t Tabs) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -228,11 +228,11 @@ func (t Tabs) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Ac
 		position = t.Selected + 1
 	}
 
-	var tabs []accessibility.AccessibilityNode
+	var tabs []accessibility.Node
 	if t.State != nil {
 		tabs = t.State.nodes
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       t.ID,
 		Role:     accessibility.RoleTabList,
 		Children: tabs,

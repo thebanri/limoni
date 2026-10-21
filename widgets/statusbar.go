@@ -181,8 +181,8 @@ func (s StatusBar) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea
 
 // AccessibilityNode describes the bar: with an ID, its items as text, "key
 // text" each, groups separated by the separator.
-func (s StatusBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
-	node := accessibility.AccessibilityNode{ID: s.ID, Role: accessibility.RoleGeneric, Label: "Status bar", Bounds: bounds}
+func (s StatusBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
+	node := accessibility.Node{ID: s.ID, Role: accessibility.RoleGeneric, Label: "Status bar", Bounds: bounds}
 	if focused {
 		node.State |= accessibility.StateFocused
 	}

@@ -77,10 +77,10 @@ func drawReference(t *terminal.Terminal, f *terminal.Frame, state *AppState, the
 	_ = mainColor
 }
 
-func referenceAccessibilityTree(state *AppState, area cell.Rect) accessibility.AccessibilityNode {
-	return accessibility.AccessibilityNode{
+func referenceAccessibilityTree(state *AppState, area cell.Rect) accessibility.Node {
+	return accessibility.Node{
 		ID: "reference", Role: accessibility.RoleDialog, Label: "Limoni developer reference and diagnostics tools", Bounds: area,
-		Children: []accessibility.AccessibilityNode{
+		Children: []accessibility.Node{
 			{ID: "subtab-runtime", Role: accessibility.RoleGeneric, Label: "Runtime CMD-MSG", Value: fmt.Sprintf("%d messages", state.ReferenceRuntimeMessages), Bounds: area},
 		},
 	}

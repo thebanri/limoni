@@ -14,7 +14,7 @@ import (
 func render(t *testing.T, w, h uint16, c Component) []string {
 	t.Helper()
 	term := testkit.NewTerminal(w, h)
-	term.Draw(func(f *Frame) { f.RenderComponent(c, f.Area()) })
+	term.Draw(func(f *Frame) { f.RenderWidget(c, f.Area()) })
 	return strings.Split(strings.TrimRight(term.Snapshot(), "\n"), "\n")
 }
 
@@ -112,7 +112,7 @@ func TestConstrainAndTheSingleAxisLimits(t *testing.T) {
 }
 
 func TestPlaceAligns(t *testing.T) {
-	rows := render(t, 21, 5, Place(21, 5, HAlignCenter, AlignMiddle, Label("x")))
+	rows := render(t, 21, 5, Place(21, 5, AlignCenter, AlignMiddle, Label("x")))
 	x, y, ok := find(rows, "x")
 	if !ok {
 		t.Fatal("nothing drawn")
@@ -121,7 +121,7 @@ func TestPlaceAligns(t *testing.T) {
 		t.Errorf("centred label at (%d,%d), want (10,2)", x, y)
 	}
 
-	rows = render(t, 21, 5, Place(21, 5, HAlignRight, AlignBottom, Label("x")))
+	rows = render(t, 21, 5, Place(21, 5, AlignRight, AlignBottom, Label("x")))
 	if x, y, _ = find(rows, "x"); x != 20 || y != 4 {
 		t.Errorf("bottom-right label at (%d,%d), want (20,4)", x, y)
 	}

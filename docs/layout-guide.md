@@ -205,5 +205,5 @@ view := limoni.VStack(
 )
 
 // Render directly into the frame area:
-f.RenderComponent(view, f.Area())
+f.RenderWidget(view, f.Area())
 ```

@@ -96,6 +96,3 @@ func MessageFromDriver(event driver.Event) Msg {
 		return nil
 	}
 }
-
-// MessageFromBackend is a backward-compatible alias for MessageFromDriver.
-var MessageFromBackend = MessageFromDriver

@@ -25,8 +25,8 @@ func TestGetImageID(t *testing.T) {
 	img1 := createTestImage()
 	img2 := createTestImage()
 
-	id1 := GetImageID(img1)
-	id2 := GetImageID(img2)
+	id1 := ImageID(img1)
+	id2 := ImageID(img2)
 
 	if id1 != id2 {
 		t.Errorf("Expected identical images to have same ID, got %d and %d", id1, id2)
@@ -34,7 +34,7 @@ func TestGetImageID(t *testing.T) {
 
 	// Change the image.
 	img3 := image.NewRGBA(image.Rect(0, 0, 2, 2))
-	id3 := GetImageID(img3)
+	id3 := ImageID(img3)
 
 	if id1 == id3 {
 		t.Errorf("Expected different images to have different IDs, got both as %d", id1)
@@ -284,7 +284,7 @@ func BenchmarkGetImageID_1080p(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GetImageID(img)
+		_ = ImageID(img)
 	}
 }
 

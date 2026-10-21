@@ -13,11 +13,11 @@ package accessibility
 // mark secret.
 //
 // The input tree is not modified. It belongs to the frame that produced it.
-func Redact(nodes []AccessibilityNode, exposeInputValues bool) []AccessibilityNode {
+func Redact(nodes []Node, exposeInputValues bool) []Node {
 	if nodes == nil {
 		return nil
 	}
-	out := make([]AccessibilityNode, len(nodes))
+	out := make([]Node, len(nodes))
 	for i, node := range nodes {
 		if node.State&StateSensitive != 0 {
 			node.Value = ""

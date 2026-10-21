@@ -27,7 +27,7 @@ type TreeViewState struct {
 	cacheValid  bool
 
 	// nodes holds the visible items' semantic nodes, reused every frame.
-	nodes []accessibility.AccessibilityNode
+	nodes []accessibility.Node
 
 	// The mouse handler, built once, and the last frame it reads: the
 	// flattened items, where they were drawn, and how far they scroll.
@@ -450,7 +450,7 @@ func (t TreeView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if len(item.node.Children) > 0 && state.IsExpanded(item.node.ID, item.node.Expanded) {
 			nodeState |= accessibility.StateExpanded
 		}
-		state.nodes = append(state.nodes, accessibility.AccessibilityNode{
+		state.nodes = append(state.nodes, accessibility.Node{
 			ID: item.node.ID, Role: accessibility.RoleTreeItem, Label: item.node.Label, State: nodeState,
 			Bounds:   cell.Rect{X: area.X, Y: currY, Width: area.Width, Height: 1},
 			Position: rowIdx + 1, SetSize: len(flat),
@@ -558,7 +558,7 @@ func (t TreeView) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode returns semantic accessibility tree information.
-func (t TreeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (t TreeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	st := accessibility.NodeState(0)
 	if focused {
 		st |= accessibility.StateFocused
@@ -567,11 +567,11 @@ func (t TreeView) AccessibilityNode(bounds cell.Rect, focused bool) accessibilit
 	if t.State != nil {
 		selID = t.State.SelectedID
 	}
-	var items []accessibility.AccessibilityNode
+	var items []accessibility.Node
 	if t.State != nil {
 		items = t.State.nodes
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       t.ID,
 		Role:     accessibility.RoleTree,
 		Label:    "Tree View",

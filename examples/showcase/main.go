@@ -1277,11 +1277,11 @@ func drawApp(t *terminal.Terminal, b *driver.Backend, state *AppState, fps float
 		accessibilityFrame = f
 		demoTheme := themeForSelection(state.ThemeSelected)
 		f.SetTheme(demoTheme)
-		f.RegisterAccessibility(accessibility.AccessibilityNode{
+		f.RegisterAccessibility(accessibility.Node{
 			ID: "limoni-demo", Role: accessibility.RoleDialog,
 			Label: "Limoni TUI demo", Value: state.ActiveTab,
 			Bounds: f.Buffer.Area,
-			Children: []accessibility.AccessibilityNode{{
+			Children: []accessibility.Node{{
 				ID: "active-tab", Role: accessibility.RoleGeneric,
 				Label: "Aktif sekme", Value: state.ActiveTab,
 				Bounds: f.Buffer.Area,

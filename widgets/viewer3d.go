@@ -808,7 +808,7 @@ func (v *Viewer3D) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode describes the viewer as an image named after its model.
-func (v *Viewer3D) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (v *Viewer3D) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -817,5 +817,5 @@ func (v *Viewer3D) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 	if label == "" {
 		label = "3D model"
 	}
-	return accessibility.AccessibilityNode{ID: v.ID, Role: accessibility.RoleImage, Label: label, State: state, Bounds: bounds}
+	return accessibility.Node{ID: v.ID, Role: accessibility.RoleImage, Label: label, State: state, Bounds: bounds}
 }

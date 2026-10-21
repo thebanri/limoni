@@ -267,8 +267,8 @@ func TextFromRichText(text string, baseStyle cell.Style, theme Theme) Text {
 
 // AccessibilityNode describes the text: with an ID, the text of its spans,
 // one line per row of the source.
-func (t Text) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
-	node := accessibility.AccessibilityNode{ID: t.ID, Role: accessibility.RoleGeneric, Label: "Text", Bounds: bounds}
+func (t Text) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
+	node := accessibility.Node{ID: t.ID, Role: accessibility.RoleGeneric, Label: "Text", Bounds: bounds}
 	if focused {
 		node.State |= accessibility.StateFocused
 	}

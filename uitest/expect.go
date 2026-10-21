@@ -35,7 +35,7 @@ func (a Assertion) Not() Assertion {
 // when it matches none.
 func (a Assertion) ToBeVisible() {
 	a.locator.page.t.Helper()
-	a.run("be visible", func(matches []accessibility.AccessibilityNode) (bool, string) {
+	a.run("be visible", func(matches []accessibility.Node) (bool, string) {
 		return len(matches) > 0, fmt.Sprintf("%d match(es)", len(matches))
 	})
 }
@@ -43,7 +43,7 @@ func (a Assertion) ToBeVisible() {
 // ToHaveCount passes when the locator matches exactly n widgets.
 func (a Assertion) ToHaveCount(n int) {
 	a.locator.page.t.Helper()
-	a.run(fmt.Sprintf("have %d match(es)", n), func(matches []accessibility.AccessibilityNode) (bool, string) {
+	a.run(fmt.Sprintf("have %d match(es)", n), func(matches []accessibility.Node) (bool, string) {
 		return len(matches) == n, fmt.Sprintf("%d match(es)", len(matches))
 	})
 }
@@ -51,7 +51,7 @@ func (a Assertion) ToHaveCount(n int) {
 // ToHaveValue passes when the one matching widget's value is exactly value.
 func (a Assertion) ToHaveValue(value string) {
 	a.locator.page.t.Helper()
-	a.one(fmt.Sprintf("have value %q", value), func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one(fmt.Sprintf("have value %q", value), func(n accessibility.Node) (bool, string) {
 		return n.Value == value, fmt.Sprintf("value %q", n.Value)
 	})
 }
@@ -59,7 +59,7 @@ func (a Assertion) ToHaveValue(value string) {
 // ToHaveLabel passes when the one matching widget's label is exactly label.
 func (a Assertion) ToHaveLabel(label string) {
 	a.locator.page.t.Helper()
-	a.one(fmt.Sprintf("have label %q", label), func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one(fmt.Sprintf("have label %q", label), func(n accessibility.Node) (bool, string) {
 		return n.Label == label, fmt.Sprintf("label %q", n.Label)
 	})
 }
@@ -67,7 +67,7 @@ func (a Assertion) ToHaveLabel(label string) {
 // ToContainLabel passes when the one matching widget's label contains text.
 func (a Assertion) ToContainLabel(text string) {
 	a.locator.page.t.Helper()
-	a.one(fmt.Sprintf("have a label containing %q", text), func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one(fmt.Sprintf("have a label containing %q", text), func(n accessibility.Node) (bool, string) {
 		return strings.Contains(n.Label, text), fmt.Sprintf("label %q", n.Label)
 	})
 }
@@ -77,7 +77,7 @@ func (a Assertion) ToContainLabel(text string) {
 // without spelling out all of it.
 func (a Assertion) ToContainValue(text string) {
 	a.locator.page.t.Helper()
-	a.one(fmt.Sprintf("have a value containing %q", text), func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one(fmt.Sprintf("have a value containing %q", text), func(n accessibility.Node) (bool, string) {
 		return strings.Contains(n.Value, text), fmt.Sprintf("value %q", n.Value)
 	})
 }
@@ -122,7 +122,7 @@ func (a Assertion) ToHaveStyle(want cell.Style) {
 	if !ok {
 		page.t.Fatalf("uitest: %s: styles can only be checked in process (Run or Program); the automation socket sends text", a.locator)
 	}
-	a.one("have style "+describeStyle(want), func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one("have style "+describeStyle(want), func(n accessibility.Node) (bool, string) {
 		cells := 0
 		for y := n.Bounds.Y; y < n.Bounds.Y+n.Bounds.Height; y++ {
 			for x := n.Bounds.X; x < n.Bounds.X+n.Bounds.Width; x++ {
@@ -176,7 +176,7 @@ func describeColor(c cell.Color) string {
 
 func (a Assertion) state(what string, flag accessibility.NodeState) {
 	a.locator.page.t.Helper()
-	a.one(what, func(n accessibility.AccessibilityNode) (bool, string) {
+	a.one(what, func(n accessibility.Node) (bool, string) {
 		states := n.State.StateNames()
 		if len(states) == 0 {
 			return n.State&flag != 0, "no states"
@@ -188,9 +188,9 @@ func (a Assertion) state(what string, flag accessibility.NodeState) {
 // one runs a check that needs exactly one matching widget. An ambiguous or
 // missing match is a failure either way, negated or not: "the button is not
 // focused" says nothing true when there is no such button.
-func (a Assertion) one(what string, check func(accessibility.AccessibilityNode) (bool, string)) {
+func (a Assertion) one(what string, check func(accessibility.Node) (bool, string)) {
 	a.locator.page.t.Helper()
-	a.check(what, func(tree []accessibility.AccessibilityNode) (bool, string, error) {
+	a.check(what, func(tree []accessibility.Node) (bool, string, error) {
 		node, err := a.locator.one(tree)
 		if err != nil {
 			return false, "", err
@@ -200,9 +200,9 @@ func (a Assertion) one(what string, check func(accessibility.AccessibilityNode) 
 	})
 }
 
-func (a Assertion) run(what string, check func([]accessibility.AccessibilityNode) (bool, string)) {
+func (a Assertion) run(what string, check func([]accessibility.Node) (bool, string)) {
 	a.locator.page.t.Helper()
-	a.check(what, func(tree []accessibility.AccessibilityNode) (bool, string, error) {
+	a.check(what, func(tree []accessibility.Node) (bool, string, error) {
 		matches, err := a.locator.resolve(tree)
 		if err != nil {
 			return false, "", err
@@ -212,14 +212,14 @@ func (a Assertion) run(what string, check func([]accessibility.AccessibilityNode
 	})
 }
 
-func (a Assertion) check(what string, check func([]accessibility.AccessibilityNode) (bool, string, error)) {
+func (a Assertion) check(what string, check func([]accessibility.Node) (bool, string, error)) {
 	page := a.locator.page
 	page.t.Helper()
 	expectation := "to " + what
 	if a.negate {
 		expectation = "not to " + what
 	}
-	_, err := page.eventually(func(tree []accessibility.AccessibilityNode) error {
+	_, err := page.eventually(func(tree []accessibility.Node) error {
 		ok, got, err := check(tree)
 		if err != nil {
 			return err

@@ -135,7 +135,7 @@ func (g Gauge) Draw(ctx cell.Context, buf *buffer.Buffer) {
 func (g Gauge) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
 
 // AccessibilityNode reports the gauge as a progress indicator.
-func (g Gauge) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (g Gauge) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	return progressNode(g.ID, "Gauge", g.Label, g.ratio(), bounds, focused)
 }
 
@@ -220,11 +220,11 @@ func (g LineGauge) Draw(ctx cell.Context, buf *buffer.Buffer) {
 func (g LineGauge) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
 
 // AccessibilityNode reports the gauge as a progress indicator.
-func (g LineGauge) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (g LineGauge) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	return progressNode(g.ID, "LineGauge", g.Label, Gauge{Ratio: g.Ratio}.ratio(), bounds, focused)
 }
 
-func progressNode(id, kind, label string, ratio float64, bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func progressNode(id, kind, label string, ratio float64, bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -232,7 +232,7 @@ func progressNode(id, kind, label string, ratio float64, bounds cell.Rect, focus
 	if label == "" {
 		label = kind
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     id,
 		Role:   accessibility.RoleProgress,
 		Label:  label,

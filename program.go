@@ -149,7 +149,7 @@ func RunProgram(ctx context.Context, model Model, opts ...ProgramOption) error {
 		return err
 	}
 	defer term.Close()
-	return NewProgram(model, opts...).RunTerminal(ctx, term, term.Backend())
+	return NewProgram(model, opts...).RunTerminal(ctx, term, term.Driver())
 }
 
 // MessageFromEvent converts a driver event into the corresponding runtime Msg.

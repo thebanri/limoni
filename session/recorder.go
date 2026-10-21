@@ -128,7 +128,7 @@ func (r *Recorder) Message(step uint64, msg engine.Msg) {
 }
 
 // Frame implements engine.Observer.
-func (r *Recorder) Frame(step uint64, tree []accessibility.AccessibilityNode) {
+func (r *Recorder) Frame(step uint64, tree []accessibility.Node) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -276,7 +276,7 @@ func (r *Recorder) fail(err error) {
 	}
 }
 
-func focusedSensitive(nodes []accessibility.AccessibilityNode) bool {
+func focusedSensitive(nodes []accessibility.Node) bool {
 	for _, node := range nodes {
 		if node.State&accessibility.StateFocused != 0 && node.State&accessibility.StateSensitive != 0 {
 			return true

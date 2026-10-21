@@ -74,7 +74,7 @@ func (b Button) Measure(maxArea cell.Rect) layout.Measure {
 }
 
 // AccessibilityNode describes the button as a button with its label.
-func (b Button) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (b Button) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -82,7 +82,7 @@ func (b Button) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.
 	if b.Disabled {
 		state |= accessibility.StateDisabled
 	}
-	return accessibility.AccessibilityNode{ID: b.ID, Role: accessibility.RoleButton, Label: b.Label, State: state, Bounds: bounds}
+	return accessibility.Node{ID: b.ID, Role: accessibility.RoleButton, Label: b.Label, State: state, Bounds: bounds}
 }
 
 // focusMark is what a focused widget is drawn with when it sets no focused

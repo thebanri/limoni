@@ -73,7 +73,7 @@ func TestAccessibilityNodeReportsFocus(t *testing.T) {
 func TestLineModeRendersPosition(t *testing.T) {
 	node := Tabs{ID: "nav", Titles: []string{"one", "two", "three"}, Selected: 1}.
 		AccessibilityNode(cell.NewRect(0, 0, 10, 1), false)
-	line := accessibility.Mode{ScreenReader: true}.LineMode([]accessibility.AccessibilityNode{node})
+	line := accessibility.Mode{ScreenReader: true}.LineMode([]accessibility.Node{node})
 	if !strings.Contains(line, "position=2/3") {
 		t.Errorf("line mode did not render position: %s", line)
 	}
@@ -122,7 +122,7 @@ func TestSecretTextInputNeverDrawsOrExposesItsValue(t *testing.T) {
 	if node.State&accessibility.StateSensitive == 0 {
 		t.Error("secret field not marked StateSensitive")
 	}
-	line := accessibility.Mode{ScreenReader: true}.LineMode([]accessibility.AccessibilityNode{node})
+	line := accessibility.Mode{ScreenReader: true}.LineMode([]accessibility.Node{node})
 	if strings.Contains(line, "hunter2") || !strings.Contains(line, "sensitive") {
 		t.Errorf("screen reader line = %q", line)
 	}

@@ -16,7 +16,7 @@ func TestProgramBackendMessageInjection(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- program.Run(ctx) }()
-	if err := program.Send(ctx, MessageFromBackend(driver.Event{Type: driver.EventKey, Key: driver.KeyEvent{Type: driver.KeyEsc}})); err != nil {
+	if err := program.Send(ctx, MessageFromDriver(driver.Event{Type: driver.EventKey, Key: driver.KeyEvent{Type: driver.KeyEsc}})); err != nil {
 		t.Fatalf("Send returned error: %v", err)
 	}
 	if err := <-done; err != nil {

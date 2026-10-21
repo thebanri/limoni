@@ -234,7 +234,7 @@ func (p SplitPane) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 
 // AccessibilityNode describes the divider, which is what a keyboard user
 // moves: a slider whose value is the first pane's share.
-func (p SplitPane) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (p SplitPane) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -243,7 +243,7 @@ func (p SplitPane) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 	if p.State != nil {
 		ratio = p.State.ratio()
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     p.ID,
 		Role:   accessibility.RoleSlider,
 		Label:  "Split",

@@ -26,7 +26,6 @@ type (
 	Context         = cell.Context
 	Cell            = cell.Cell
 	Buffer          = buffer.Buffer
-	Driver          = driver.Driver
 	Backend         = driver.Backend
 	Event           = driver.Event
 	EventType       = driver.EventType
@@ -35,7 +34,6 @@ type (
 	KeyType         = driver.KeyType
 	MouseButton     = driver.MouseButton
 	MouseMode       = driver.MouseMode
-	Layout          = layout.FlexLayout
 	FlexLayout      = layout.FlexLayout
 	Constraint      = layout.Constraint
 	Direction       = layout.Direction

@@ -103,8 +103,8 @@ func DetectProtocol() Protocol {
 	return ProtocolHalfBlock
 }
 
-// GetImageID generates a unique 32-bit ID from image pixels using the FNV-1a hash algorithm.
-func GetImageID(img image.Image) uint32 {
+// ImageID generates a unique 32-bit ID from image pixels using the FNV-1a hash algorithm.
+func ImageID(img image.Image) uint32 {
 	if img == nil {
 		return 0
 	}
@@ -864,7 +864,7 @@ func ForgetImage(img image.Image) {
 
 // GetCachedEscapeSequence returns the cached escape sequence of the image or generates a new one.
 
-func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
+func CachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH uint16, proto Protocol, zIndex int, transparent bool) string {
 	key := ImageCacheKey{
 		Img:         img,
 		Cols:        cols,
@@ -891,7 +891,7 @@ func GetCachedEscapeSequence(img image.Image, cols, rows uint16, cellW, cellH ui
 	var seq string
 	switch proto {
 	case ProtocolKitty:
-		imageID := GetImageID(img)
+		imageID := ImageID(img)
 		seq = EncodeKitty(img, cols, rows, cellW, cellH, imageID, zIndex, transparent)
 	case ProtocolIterm2:
 		seq = EncodeIterm2(img, cols, rows, cellW, cellH, transparent)

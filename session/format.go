@@ -103,7 +103,7 @@ type record struct {
 	Opaque bool `json:"opaque,omitempty"`
 
 	// Frame records.
-	Tree []accessibility.AccessibilityNode `json:"tree,omitempty"`
+	Tree []accessibility.Node `json:"tree,omitempty"`
 
 	// Panic records.
 	Value string `json:"value,omitempty"`

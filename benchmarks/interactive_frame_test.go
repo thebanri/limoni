@@ -110,7 +110,7 @@ func TestNestedWidgetsAreDescribedAndStayAllocationFree(t *testing.T) {
 	checked := false
 	box := &widgets.Checkbox{ID: "nested", Checked: &checked, Label: "Nested"}
 	block := &widgets.Block{Title: "outer", Borders: widgets.BorderAll, Child: box}
-	var tree []accessibility.AccessibilityNode
+	var tree []accessibility.Node
 	draw := func(f *terminal.Frame) {
 		f.RenderWidget(block, cell.NewRect(0, 0, 30, 5))
 		if tree == nil {

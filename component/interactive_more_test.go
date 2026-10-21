@@ -17,7 +17,7 @@ func TestOnClickThroughAFrame(t *testing.T) {
 	var got []driver.MouseEvent
 	button := component.OnClick(component.Text("press"), func(ev driver.MouseEvent) { got = append(got, ev) })
 	term := testkit.NewTerminal(20, 3)
-	draw := func(f *terminal.Frame) { f.RenderComponent(button, cell.NewRect(2, 1, 10, 1)) }
+	draw := func(f *terminal.Frame) { f.RenderWidget(button, cell.NewRect(2, 1, 10, 1)) }
 	term.Draw(draw)
 	if !strings.Contains(term.Snapshot(), "press") {
 		t.Fatalf("the child was not drawn:\n%s", term.Snapshot())
@@ -59,9 +59,9 @@ func TestKeyAndEventHandlersDispatch(t *testing.T) {
 func TestDividersAndEdgeBorders(t *testing.T) {
 	term := testkit.NewTerminal(6, 4)
 	term.Draw(func(f *terminal.Frame) {
-		f.RenderComponent(component.TopBorder(component.Text("x"), '=', cell.Style{}), cell.NewRect(0, 0, 6, 2))
-		f.RenderComponent(component.HStack(component.Text("ab"), component.VDividerCustom('!'), component.Text("cd")), cell.NewRect(0, 2, 6, 1))
-		f.RenderComponent(component.DividerCustom('~'), cell.NewRect(0, 3, 6, 1))
+		f.RenderWidget(component.TopBorder(component.Text("x"), '=', cell.Style{}), cell.NewRect(0, 0, 6, 2))
+		f.RenderWidget(component.HStack(component.Text("ab"), component.VDividerCustom('!'), component.Text("cd")), cell.NewRect(0, 2, 6, 1))
+		f.RenderWidget(component.DividerCustom('~'), cell.NewRect(0, 3, 6, 1))
 	})
 	rows := strings.Split(term.Snapshot(), "\n")
 	if rows[0] != "======" || !strings.HasPrefix(rows[1], "x") {

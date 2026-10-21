@@ -80,7 +80,7 @@ func TestComposableSnapshot(t *testing.T) {
 	)
 
 	term.Draw(func(f *limoni.Frame) {
-		f.RenderComponent(view, f.Area())
+		f.RenderWidget(view, f.Area())
 	})
 
 	fmt.Println("\n=== VISUAL SNAPSHOT OUTPUT (84x24) ===")

@@ -20,7 +20,7 @@ type Observer interface {
 	// Message reports the message about to be passed to Update, as step N.
 	Message(step uint64, msg Msg)
 	// Frame reports the semantic tree a View produced after step N messages.
-	Frame(step uint64, tree []accessibility.AccessibilityNode)
+	Frame(step uint64, tree []accessibility.Node)
 	// Panic reports that Update or Init panicked while handling step N.
 	Panic(step uint64, value any)
 }

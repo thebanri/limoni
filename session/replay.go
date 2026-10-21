@@ -179,7 +179,7 @@ func ReplayBytes(data []byte, newModel func() engine.Model, opts ReplayOptions) 
 
 		case kindFrame:
 			report.Frames++
-			var got []accessibility.AccessibilityNode
+			var got []accessibility.Node
 			replayPanic(rec.Step, func() {
 				buf.Clear()
 				frame.Reset()

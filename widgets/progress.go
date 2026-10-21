@@ -86,7 +86,7 @@ func (p ProgressBar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 func (p ProgressBar) SizeHint(maxArea cell.Rect) (uint16, uint16) { return maxArea.Width, 1 }
 
 // AccessibilityNode returns the semantic node description for ProgressBar.
-func (p ProgressBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (p ProgressBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -102,7 +102,7 @@ func (p ProgressBar) AccessibilityNode(bounds cell.Rect, focused bool) accessibi
 		}
 	}
 	val := fmt.Sprintf("%d%%", int(ratio*100))
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     p.ID,
 		Role:   accessibility.RoleProgress,
 		Label:  "ProgressBar",

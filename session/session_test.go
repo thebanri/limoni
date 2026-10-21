@@ -356,7 +356,7 @@ func TestRecordTextStillProtectsTheSecretField(t *testing.T) {
 
 	// The recorder is driven directly here, to control frame timing exactly.
 	frame := func(focusedID string) {
-		rec.Frame(0, []accessibility.AccessibilityNode{
+		rec.Frame(0, []accessibility.Node{
 			{ID: "user", Role: accessibility.RoleInput, State: stateIf(focusedID == "user")},
 			{ID: "password", Role: accessibility.RoleInput, State: accessibility.StateSensitive | stateIf(focusedID == "password")},
 		})

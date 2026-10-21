@@ -512,7 +512,7 @@ func (ti TextInput) Measure(maxArea cell.Rect) layout.Measure {
 }
 
 // AccessibilityNode returns the semantic node description for TextInput.
-func (ti TextInput) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (ti TextInput) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -523,7 +523,7 @@ func (ti TextInput) AccessibilityNode(bounds cell.Rect, focused bool) accessibil
 	} else if ti.State != nil {
 		val = ti.State.str()
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     ti.ID,
 		Role:   accessibility.RoleInput,
 		Label:  ti.Placeholder,

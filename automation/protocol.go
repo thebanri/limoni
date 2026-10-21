@@ -116,7 +116,7 @@ func (s Selector) IsEmpty() bool {
 }
 
 // Matches reports whether a single node satisfies the selector.
-func (s Selector) Matches(node accessibility.AccessibilityNode) bool {
+func (s Selector) Matches(node accessibility.Node) bool {
 	if s.ID != "" && node.ID != s.ID {
 		return false
 	}
@@ -157,10 +157,10 @@ func (s Selector) String() string {
 
 // Resolve walks the tree depth-first and returns every node the selector
 // matches, in render order.
-func Resolve(nodes []accessibility.AccessibilityNode, sel Selector) []accessibility.AccessibilityNode {
-	var found []accessibility.AccessibilityNode
-	var walk func([]accessibility.AccessibilityNode)
-	walk = func(list []accessibility.AccessibilityNode) {
+func Resolve(nodes []accessibility.Node, sel Selector) []accessibility.Node {
+	var found []accessibility.Node
+	var walk func([]accessibility.Node)
+	walk = func(list []accessibility.Node) {
 		for _, node := range list {
 			if sel.Matches(node) {
 				found = append(found, node)
@@ -177,14 +177,14 @@ func Resolve(nodes []accessibility.AccessibilityNode, sel Selector) []accessibil
 // An ambiguous selector is an error unless Nth says which match is meant.
 // Silently taking the first would make a test pass for the wrong reason the
 // moment a second matching widget appears.
-func ResolveOne(nodes []accessibility.AccessibilityNode, sel Selector) (accessibility.AccessibilityNode, error) {
+func ResolveOne(nodes []accessibility.Node, sel Selector) (accessibility.Node, error) {
 	matches := Resolve(nodes, sel)
 	if len(matches) == 0 {
-		return accessibility.AccessibilityNode{}, fmt.Errorf("automation: no node matches %s", sel)
+		return accessibility.Node{}, fmt.Errorf("automation: no node matches %s", sel)
 	}
 	if sel.Nth == nil {
 		if len(matches) > 1 {
-			return accessibility.AccessibilityNode{}, fmt.Errorf(
+			return accessibility.Node{}, fmt.Errorf(
 				"automation: %s matches %d nodes; set nth to choose one", sel, len(matches))
 		}
 		return matches[0], nil
@@ -194,7 +194,7 @@ func ResolveOne(nodes []accessibility.AccessibilityNode, sel Selector) (accessib
 		index += len(matches)
 	}
 	if index < 0 || index >= len(matches) {
-		return accessibility.AccessibilityNode{}, fmt.Errorf(
+		return accessibility.Node{}, fmt.Errorf(
 			"automation: nth=%d out of range, %s matches %d nodes", *sel.Nth, sel, len(matches))
 	}
 	return matches[index], nil
@@ -232,7 +232,7 @@ type Response struct {
 	ExposeScreen      bool `json:"expose_screen,omitempty"`
 	ExposeInputValues bool `json:"expose_input_values,omitempty"`
 
-	Nodes    []accessibility.AccessibilityNode `json:"nodes,omitempty"`
-	Snapshot string                            `json:"snapshot,omitempty"`
-	Focused  string                            `json:"focused,omitempty"`
+	Nodes    []accessibility.Node `json:"nodes,omitempty"`
+	Snapshot string               `json:"snapshot,omitempty"`
+	Focused  string               `json:"focused,omitempty"`
 }

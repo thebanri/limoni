@@ -228,7 +228,7 @@ func renderComposableUI(f *limoni.Frame, sidebarList, mainTable limoni.Widget) {
     )
 
     // Kare alanına doğrudan render et:
-    f.RenderComponent(view, f.Area())
+    f.RenderWidget(view, f.Area())
 }
 ```
 

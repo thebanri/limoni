@@ -193,7 +193,7 @@ func (a Autocomplete) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 
 // AccessibilityNode is the input, marked expanded while suggestions show,
 // with the highlighted suggestion as its value when there is one.
-func (a Autocomplete) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (a Autocomplete) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -208,7 +208,7 @@ func (a Autocomplete) AccessibilityNode(bounds cell.Rect, focused bool) accessib
 			position, size = s.Selected+1, len(s.matches)
 		}
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       a.ID,
 		Role:     accessibility.RoleInput,
 		Label:    a.Placeholder,

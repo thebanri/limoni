@@ -52,7 +52,7 @@ func (r Role) String() string {
 // WriteLineMode writes the semantic tree directly to an output sink and adds
 // a trailing newline when nodes are present. It is suitable for a pipe,
 // screen-reader bridge, or log stream.
-func (m Mode) WriteLineMode(w io.Writer, nodes []AccessibilityNode) error {
+func (m Mode) WriteLineMode(w io.Writer, nodes []Node) error {
 	if w == nil {
 		return fmt.Errorf("accessibility: nil line-mode writer")
 	}
@@ -95,7 +95,7 @@ func (s NodeState) StateNames() []string {
 // Each line contains the node role and label, followed by optional value,
 // description, state, and bounds fields. Child nodes are indented by two
 // spaces to preserve hierarchy while remaining easy to consume line by line.
-func (m Mode) LineMode(nodes []AccessibilityNode) string {
+func (m Mode) LineMode(nodes []Node) string {
 	var b strings.Builder
 	for i, node := range nodes {
 		if i > 0 {
@@ -106,7 +106,7 @@ func (m Mode) LineMode(nodes []AccessibilityNode) string {
 	return b.String()
 }
 
-func writeLineNode(b *strings.Builder, node AccessibilityNode, depth int, mode Mode) {
+func writeLineNode(b *strings.Builder, node Node, depth int, mode Mode) {
 	if depth > 0 {
 		b.WriteString(strings.Repeat("  ", depth))
 	}

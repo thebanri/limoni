@@ -133,7 +133,7 @@ func TestTransitionStateResetsCleanly(t *testing.T) {
 
 func TestTerminalAccessors(t *testing.T) {
 	term, _ := memTerm(t, 30, 8)
-	if term.Driver() == nil || term.Backend() == nil {
+	if term.Driver() == nil {
 		t.Error("the terminal should expose the backend it was built on")
 	}
 	if term.Events() == nil {

@@ -76,7 +76,7 @@ func (c *Client) Hello() (version int, width, height uint16, err error) {
 }
 
 // Tree returns the semantic tree of the most recent frame.
-func (c *Client) Tree() ([]accessibility.AccessibilityNode, error) {
+func (c *Client) Tree() ([]accessibility.Node, error) {
 	resp, err := c.Do(Request{Op: OpTree})
 	return resp.Nodes, err
 }
@@ -94,7 +94,7 @@ func (c *Client) Focused() (string, error) {
 }
 
 // Find returns every node matching the selector.
-func (c *Client) Find(sel Selector) ([]accessibility.AccessibilityNode, error) {
+func (c *Client) Find(sel Selector) ([]accessibility.Node, error) {
 	resp, err := c.Do(Request{Op: OpFind, Selector: sel})
 	return resp.Nodes, err
 }
@@ -124,7 +124,7 @@ func (c *Client) Type(text string) error {
 // A frame is rendered in response to input, so a command's effect is not
 // visible the instant the command returns. Polling a selector is the honest
 // way to wait for it; sleeping a fixed duration is what makes TUI tests flaky.
-func (c *Client) WaitFor(sel Selector, timeout time.Duration) (accessibility.AccessibilityNode, error) {
+func (c *Client) WaitFor(sel Selector, timeout time.Duration) (accessibility.Node, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for {
@@ -136,10 +136,10 @@ func (c *Client) WaitFor(sel Selector, timeout time.Duration) (accessibility.Acc
 		}
 		if time.Now().After(deadline) {
 			if lastErr != nil {
-				return accessibility.AccessibilityNode{}, fmt.Errorf(
+				return accessibility.Node{}, fmt.Errorf(
 					"automation: timed out after %s waiting for %s: %w", timeout, sel, lastErr)
 			}
-			return accessibility.AccessibilityNode{}, fmt.Errorf(
+			return accessibility.Node{}, fmt.Errorf(
 				"automation: timed out after %s waiting for %s", timeout, sel)
 		}
 		time.Sleep(5 * time.Millisecond)

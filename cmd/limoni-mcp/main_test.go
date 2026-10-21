@@ -77,14 +77,14 @@ func (a *fakeApp) publishLocked() {
 		}
 		return 0
 	}
-	items := make([]accessibility.AccessibilityNode, 0, len(a.tasks))
+	items := make([]accessibility.Node, 0, len(a.tasks))
 	for i, task := range a.tasks {
-		items = append(items, accessibility.AccessibilityNode{
+		items = append(items, accessibility.Node{
 			ID: fmt.Sprintf("task-%d", i), Role: accessibility.RoleListItem, Label: task,
 			Bounds: cell.NewRect(0, uint16(2+i), 30, 1),
 		})
 	}
-	tree := []accessibility.AccessibilityNode{
+	tree := []accessibility.Node{
 		{ID: "name", Role: accessibility.RoleInput, Label: "Task name", Value: a.name, State: focused("name"), Bounds: cell.NewRect(0, 0, 30, 1)},
 		{ID: "tasks", Role: accessibility.RoleList, Label: "Tasks", SetSize: len(a.tasks), Position: 1, Bounds: cell.NewRect(0, 2, 30, 10), Children: items},
 		{ID: "add", Role: accessibility.RoleButton, Label: "Add", Bounds: cell.NewRect(40, 0, 7, 1)},
@@ -96,9 +96,9 @@ func (a *fakeApp) publishLocked() {
 	if a.agree {
 		agreeState = accessibility.StateChecked
 	}
-	tree = append(tree, accessibility.AccessibilityNode{ID: "agree", Role: accessibility.RoleCheckbox, Label: "Agree", State: agreeState, Bounds: cell.NewRect(0, 18, 10, 1)})
+	tree = append(tree, accessibility.Node{ID: "agree", Role: accessibility.RoleCheckbox, Label: "Agree", State: agreeState, Bounds: cell.NewRect(0, 18, 10, 1)})
 	if a.delayed {
-		tree = append(tree, accessibility.AccessibilityNode{ID: "sync", Role: accessibility.RoleProgress, Label: "Sync done", Bounds: cell.NewRect(0, 16, 20, 1)})
+		tree = append(tree, accessibility.Node{ID: "sync", Role: accessibility.RoleProgress, Label: "Sync done", Bounds: cell.NewRect(0, 16, 20, 1)})
 	}
 	a.server.Publish(automation.Snapshot{
 		Tree: tree, Screen: "screen text", Focused: a.focus, Width: 80, Height: 24,

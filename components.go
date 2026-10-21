@@ -26,15 +26,12 @@ type ZStackLayout = component.ZStackLayout
 // InteractiveComponent represents a composable element capable of handling input and mouse events.
 type InteractiveComponent = component.InteractiveComponent
 
-// Composable alignment aliases
+// Composable alignment aliases. Horizontal alignment uses AlignLeft,
+// AlignCenter and AlignRight, the same constants as widgets.
 type HAlign = component.HAlign
 type VAlign = component.VAlign
 
 const (
-	HAlignLeft   = component.AlignLeft
-	HAlignCenter = component.AlignCenter
-	HAlignRight  = component.AlignRight
-
 	AlignTop    = component.AlignTop
 	AlignMiddle = component.AlignMiddle
 	AlignBottom = component.AlignBottom

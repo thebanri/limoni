@@ -43,7 +43,14 @@ const (
 	StateSensitive
 )
 
-type AccessibilityNode struct {
+// AccessibilityNode is Node's old name.
+//
+// Deprecated: use Node. It stays for one release, so an application pinned
+// to an older Limoni (apps/globe) builds against this one too; it goes
+// before v1.0.
+type AccessibilityNode = Node
+
+type Node struct {
 	ID          string
 	Role        Role
 	Label       string
@@ -51,7 +58,7 @@ type AccessibilityNode struct {
 	Value       string
 	State       NodeState
 	Bounds      cell.Rect
-	Children    []AccessibilityNode
+	Children    []Node
 
 	// Position is the 1-based index of this node within a set, and SetSize the
 	// size of that set — the pair a screen reader turns into "3 of 20". They
@@ -68,12 +75,12 @@ type AccessibilityNode struct {
 // Provider is an optional widget capability for automatic semantic node
 // registration during rendering.
 type Provider interface {
-	AccessibilityNode(bounds cell.Rect, focused bool) AccessibilityNode
+	AccessibilityNode(bounds cell.Rect, focused bool) Node
 }
 
-func (n *AccessibilityNode) AddChild(child AccessibilityNode) { n.Children = append(n.Children, child) }
+func (n *Node) AddChild(child Node) { n.Children = append(n.Children, child) }
 
-func (n AccessibilityNode) Find(id string) *AccessibilityNode {
+func (n Node) Find(id string) *Node {
 	if n.ID == id {
 		return &n
 	}

@@ -24,7 +24,7 @@ func Example() {
 		if ev != nil && ev.Type == limoni.EventKey && ev.Key.Type == limoni.KeyEsc {
 			return false
 		}
-		f.RenderComponent(limoni.Center(limoni.Label("Hello from Limoni (Esc quits)")), f.Area())
+		f.RenderWidget(limoni.Center(limoni.Label("Hello from Limoni (Esc quits)")), f.Area())
 		return true
 	})
 }
@@ -51,7 +51,7 @@ func (c *counter) Update(msg limoni.Msg) limoni.UpdateResult {
 }
 
 func (c *counter) View(f *limoni.Frame) {
-	f.RenderComponent(limoni.Label(fmt.Sprintf("count: %d  (+ adds, Esc quits)", c.n)), f.Area())
+	f.RenderWidget(limoni.Label(fmt.Sprintf("count: %d  (+ adds, Esc quits)", c.n)), f.Area())
 }
 
 // RunProgram drives a Model on the real terminal until Update returns Quit
@@ -67,7 +67,7 @@ func ExampleRunProgram() {
 func ExampleBorder() {
 	term := testkit.NewTerminal(24, 5)
 	term.Draw(func(f *limoni.Frame) {
-		f.RenderComponent(limoni.Border(
+		f.RenderWidget(limoni.Border(
 			limoni.Center(limoni.Label("Hello, Limoni")),
 			limoni.SymbolsRounded,
 			limoni.NewStyle(),
@@ -87,7 +87,7 @@ func ExampleBorder() {
 func ExampleHStack() {
 	term := testkit.NewTerminal(30, 3)
 	term.Draw(func(f *limoni.Frame) {
-		f.RenderComponent(limoni.HStack(
+		f.RenderWidget(limoni.HStack(
 			limoni.Flex(1, limoni.Border(limoni.Label("left"), limoni.SymbolsSingle, limoni.NewStyle())),
 			limoni.Flex(2, limoni.Border(limoni.Label("right: weight 2"), limoni.SymbolsSingle, limoni.NewStyle())),
 		), f.Area())

@@ -17,7 +17,7 @@ type ListState struct {
 
 	// rows is reused for the visible rows' semantic nodes on every frame, so
 	// exposing them allocates only while the list grows taller.
-	rows []accessibility.AccessibilityNode
+	rows []accessibility.Node
 }
 
 // NewListState returns a new ListState. By default nothing is selected.
@@ -471,7 +471,7 @@ func (l List) Measure(maxArea cell.Rect) layout.Measure {
 // its height. A list without State has no scroll position to report rows
 // against and stays flat. Consumers that keep a tree past the frame must copy
 // it; Frame.AccessibilityTree does.
-func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -500,7 +500,7 @@ func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Ac
 		label = "List"
 	}
 
-	var rows []accessibility.AccessibilityNode
+	var rows []accessibility.Node
 	if l.State != nil && bounds.Width > 0 {
 		rowWidth := bounds.Width
 		// Draw takes the scrollbar column from the text area; the rows do too.
@@ -517,7 +517,7 @@ func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Ac
 			if index == selected {
 				rowState = accessibility.StateSelected
 			}
-			rows = append(rows, accessibility.AccessibilityNode{
+			rows = append(rows, accessibility.Node{
 				Role:     accessibility.RoleListItem,
 				Label:    l.itemAt(index),
 				State:    rowState,
@@ -529,7 +529,7 @@ func (l List) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Ac
 		l.State.rows = rows
 	}
 
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       l.ID,
 		Role:     accessibility.RoleList,
 		Label:    label,

@@ -69,7 +69,7 @@ func (rb RadioButton) SizeHint(maxArea cell.Rect) (width, height uint16) {
 }
 
 // AccessibilityNode returns the semantic node description for RadioButton.
-func (rb RadioButton) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (rb RadioButton) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -82,7 +82,7 @@ func (rb RadioButton) AccessibilityNode(bounds cell.Rect, focused bool) accessib
 	if isSelected {
 		val = "true"
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     rb.ID,
 		Role:   accessibility.RoleRadioButton,
 		Label:  rb.Label,

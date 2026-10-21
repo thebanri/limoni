@@ -242,7 +242,7 @@ func (t *Terminal) HoveredRegionID() string {
 }
 
 // AccessibilityTree returns semantic nodes from the last frame.
-func (t *Terminal) AccessibilityTree() []accessibility.AccessibilityNode {
+func (t *Terminal) AccessibilityTree() []accessibility.Node {
 	if t == nil || t.frame == nil {
 		return nil
 	}

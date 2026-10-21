@@ -505,7 +505,7 @@ func (cp ColorPicker) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode returns the semantic accessibility node for ColorPicker.
-func (cp ColorPicker) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (cp ColorPicker) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	st := accessibility.NodeState(0)
 	if focused {
 		st |= accessibility.StateFocused
@@ -515,7 +515,7 @@ func (cp ColorPicker) AccessibilityNode(bounds cell.Rect, focused bool) accessib
 		cp.State.texts()
 		val = cp.State.hexText
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     cp.ID,
 		Role:   accessibility.RoleInput,
 		Label:  "KDE-style Graphical Color Picker",

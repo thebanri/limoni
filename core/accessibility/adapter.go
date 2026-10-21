@@ -12,13 +12,13 @@ import (
 // accessibility protocol integration without coupling core/accessibility to
 // a platform API.
 type ScreenReaderAdapter interface {
-	WriteTree(io.Writer, Mode, []AccessibilityNode) error
+	WriteTree(io.Writer, Mode, []Node) error
 	Announce(text string) error
 }
 
 type LineModeAdapter struct{}
 
-func (LineModeAdapter) WriteTree(w io.Writer, mode Mode, nodes []AccessibilityNode) error {
+func (LineModeAdapter) WriteTree(w io.Writer, mode Mode, nodes []Node) error {
 	return mode.WriteLineMode(w, nodes)
 }
 

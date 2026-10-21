@@ -352,7 +352,7 @@ func newTools(a *app) []tool {
 	}
 }
 
-func (a *app) afterAction(ctx context.Context, what string, nodes []accessibility.AccessibilityNode, changed bool, err error) (string, error) {
+func (a *app) afterAction(ctx context.Context, what string, nodes []accessibility.Node, changed bool, err error) (string, error) {
 	if errors.Is(err, errAppGone) {
 		return what + "; the application then closed its automation socket — it has most likely exited.", nil
 	}
@@ -374,7 +374,7 @@ func (a *app) afterAction(ctx context.Context, what string, nodes []accessibilit
 	return fmt.Sprintf("%s; %s.\n\n%s", what, note, outline(nodes)), nil
 }
 
-func focusedSensitive(nodes []accessibility.AccessibilityNode) bool {
+func focusedSensitive(nodes []accessibility.Node) bool {
 	for _, n := range nodes {
 		if n.State&accessibility.StateFocused != 0 && n.State&accessibility.StateSensitive != 0 {
 			return true
@@ -386,14 +386,14 @@ func focusedSensitive(nodes []accessibility.AccessibilityNode) bool {
 	return false
 }
 
-func outline(nodes []accessibility.AccessibilityNode) string {
+func outline(nodes []accessibility.Node) string {
 	if len(nodes) == 0 {
 		return "(the application has not rendered any semantic nodes)"
 	}
 	return accessibility.Mode{}.LineMode(nodes)
 }
 
-func describe(node accessibility.AccessibilityNode) string {
+func describe(node accessibility.Node) string {
 	var b strings.Builder
 	b.WriteString(node.Role.String())
 	if node.ID != "" {
@@ -428,7 +428,7 @@ type jsonRect struct {
 	Height uint16 `json:"height"`
 }
 
-func toJSONNodes(nodes []accessibility.AccessibilityNode) []jsonNode {
+func toJSONNodes(nodes []accessibility.Node) []jsonNode {
 	out := make([]jsonNode, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, jsonNode{
@@ -441,7 +441,7 @@ func toJSONNodes(nodes []accessibility.AccessibilityNode) []jsonNode {
 	return out
 }
 
-func treeJSON(nodes []accessibility.AccessibilityNode) (string, error) {
+func treeJSON(nodes []accessibility.Node) (string, error) {
 	data, err := json.MarshalIndent(toJSONNodes(nodes), "", "  ")
 	return string(data), err
 }

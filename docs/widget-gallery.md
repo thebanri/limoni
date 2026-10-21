@@ -173,7 +173,7 @@ CommandPalette, Komut Paleti overlay widget'ıdır.
 | `Style` | `cell.Style` |  |
 | `InputStyle` | `cell.Style` |  |
 | `ItemStyle` | `cell.Style` |  |
-| `SelStyle` | `cell.Style` |  |
+| `SelectedStyle` | `cell.Style` |  |
 | `DetailStyle` | `cell.Style` |  |
 
 ## DevTools

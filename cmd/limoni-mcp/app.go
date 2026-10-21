@@ -124,7 +124,7 @@ func (a *app) close() {
 	a.dropLocked()
 }
 
-func (a *app) tree(ctx context.Context) ([]accessibility.AccessibilityNode, error) {
+func (a *app) tree(ctx context.Context) ([]accessibility.Node, error) {
 	resp, err := a.do(ctx, automation.Request{Op: automation.OpTree}, true)
 	return resp.Nodes, err
 }
@@ -139,7 +139,7 @@ func (a *app) tree(ctx context.Context) ([]accessibility.AccessibilityNode, erro
 // So this waits for the tree to change and then stay still for a quiet period,
 // or for the settle time to pass. If nothing changed at all it says so,
 // because "no visible effect" is itself information.
-func (a *app) act(ctx context.Context, req automation.Request) (automation.Response, []accessibility.AccessibilityNode, bool, error) {
+func (a *app) act(ctx context.Context, req automation.Request) (automation.Response, []accessibility.Node, bool, error) {
 	before, err := a.tree(ctx)
 	if err != nil {
 		return automation.Response{}, nil, false, err
@@ -189,7 +189,7 @@ func (a *app) act(ctx context.Context, req automation.Request) (automation.Respo
 
 // waitFor polls until the selector matches, the timeout passes, or the call is
 // cancelled.
-func (a *app) waitFor(ctx context.Context, sel automation.Selector, timeout time.Duration) ([]accessibility.AccessibilityNode, error) {
+func (a *app) waitFor(ctx context.Context, sel automation.Selector, timeout time.Duration) ([]accessibility.Node, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		resp, err := a.do(ctx, automation.Request{Op: automation.OpFind, Selector: sel}, true)

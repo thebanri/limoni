@@ -244,7 +244,7 @@ func (s Select) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode returns the semantic node description for Select.
-func (s Select) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (s Select) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -263,7 +263,7 @@ func (s Select) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.
 		position = selected + 1
 	}
 
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       s.ID,
 		Role:     accessibility.RoleList,
 		Label:    "Select",

@@ -36,6 +36,6 @@ type Policy struct {
 }
 
 // redactTree applies the shared redaction rule with this policy's setting.
-func (p Policy) redactTree(nodes []accessibility.AccessibilityNode) []accessibility.AccessibilityNode {
+func (p Policy) redactTree(nodes []accessibility.Node) []accessibility.Node {
 	return accessibility.Redact(nodes, p.ExposeInputValues)
 }

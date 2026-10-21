@@ -79,7 +79,7 @@ type LogViewState struct {
 	height    int // rows drawn last frame, for paging
 	followOff int // the Offset Follow set last frame; a different one means the wheel moved it
 	lastSel   int // Selected as of last frame; a different one means a click selected a line
-	nodes     []accessibility.AccessibilityNode
+	nodes     []accessibility.Node
 }
 
 // NewLogViewState returns a state that follows new lines and selects nothing.
@@ -330,7 +330,7 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			if selected {
 				st = accessibility.StateSelected
 			}
-			lv.State.nodes = append(lv.State.nodes, accessibility.AccessibilityNode{
+			lv.State.nodes = append(lv.State.nodes, accessibility.Node{
 				Role: accessibility.RoleListItem, Label: line, State: st,
 				Bounds:   cell.Rect{X: area.X, Y: y, Width: area.Width, Height: 1},
 				Position: i + 1, SetSize: total,
@@ -428,7 +428,7 @@ func (lv *LogView) Measure(maxArea cell.Rect) layout.Measure {
 // AccessibilityNode describes the view as a list whose children are the lines
 // on screen, so a screen reader or an agent can read the visible log and
 // select a line by its text. The value is the selected line.
-func (lv *LogView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (lv *LogView) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -442,7 +442,7 @@ func (lv *LogView) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 		total = lv.Source.Len()
 	}
 	value, position := "", 0
-	var rows []accessibility.AccessibilityNode
+	var rows []accessibility.Node
 	if lv.State != nil {
 		rows = lv.State.nodes
 		if sel := lv.State.Selected; sel >= 0 && sel < total {
@@ -454,7 +454,7 @@ func (lv *LogView) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 			state |= accessibility.StateBusy // live: new lines keep arriving
 		}
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID: lv.ID, Role: accessibility.RoleList, Label: label, Value: value, State: state,
 		Bounds: bounds, Position: position, SetSize: total, Children: rows,
 	}

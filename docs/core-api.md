@@ -170,6 +170,6 @@ view := limoni.VStack(
     limoni.FixedSize(0, 1, limoni.Label("Status: Ready")),
 )
 
-f.RenderComponent(view, f.Area())
+f.RenderWidget(view, f.Area())
 ```
 

@@ -23,13 +23,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"time"
 
 	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/terminal"
 	"github.com/thebanri/limoni/graphics"
 )
 
@@ -97,14 +98,11 @@ func main() {
 		}
 		u.render(f.Buffer)
 		if u.pixImg != nil {
-			f.ImageRegions = append(f.ImageRegions, terminal.ImageRegion{
-				Area: cell.Rect{X: uint16(u.dv.x0), Y: uint16(u.dv.y0), Width: uint16(u.dv.w), Height: uint16(u.dv.h)},
-				Img:  u.pixImg,
-				// In kitty, under the cells with a background of their own (the
-				// help card's): at -1 the card's text was over the picture,
-				// its background under it.
-				ZIndex: math.MinInt32/2 - 1,
-			})
+			// In kitty, under the cells with a background of their own (the
+			// help card's): at -1 the card's text was over the picture, its
+			// background under it.
+			u.pic.img, u.pic.z = u.pixImg, math.MinInt32/2-1
+			f.RenderWidget(&u.pic, cell.Rect{X: uint16(u.dv.x0), Y: uint16(u.dv.y0), Width: uint16(u.dv.w), Height: uint16(u.dv.h)})
 		}
 		return !u.quit
 	})
@@ -146,3 +144,20 @@ func openSource(args []string, demo, mute bool) (source, error) {
 	}
 	return newLocal(tracks, out, note), nil
 }
+
+// picture places the deck's pixels the way widgets place theirs, through
+// the draw context, which takes the z-index as given. It works the same
+// against the Limoni pikap pins and against one where the frame's image
+// list is private. The ui keeps one, so a frame allocates nothing.
+type picture struct {
+	img image.Image
+	z   int
+}
+
+func (p *picture) Draw(ctx cell.Context, _ *buffer.Buffer) {
+	if ctx.RegisterImage != nil && p.img != nil {
+		ctx.RegisterImage(ctx.Area, p.img, p.z, false)
+	}
+}
+
+func (*picture) SizeHint(cell.Rect) (uint16, uint16) { return 0, 0 }

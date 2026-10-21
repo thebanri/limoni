@@ -155,7 +155,7 @@ func TestTerminalSemanticRegionMouseDispatch(t *testing.T) {
 func TestTerminalAccessibilityAssertionAndKeySequence(t *testing.T) {
 	testTerm := NewTerminal(10, 2)
 	testTerm.Draw(func(frame *terminal.Frame) {
-		frame.RegisterAccessibility(accessibility.AccessibilityNode{ID: "save", Role: accessibility.RoleButton, Label: "Save", Bounds: cell.NewRect(0, 0, 4, 1)})
+		frame.RegisterAccessibility(accessibility.Node{ID: "save", Role: accessibility.RoleButton, Label: "Save", Bounds: cell.NewRect(0, 0, 4, 1)})
 	})
 	if err := testTerm.AssertAccessibilityContains(accessibility.Mode{ScreenReader: true}, "button#save"); err != nil {
 		t.Fatal(err)
@@ -303,7 +303,7 @@ func TestListRowsInTheTreeAreClickableAndStable(t *testing.T) {
 	draw("apple", "banana", "cherry")
 
 	first := term.AccessibilityTree()
-	var target accessibility.AccessibilityNode
+	var target accessibility.Node
 	for _, row := range first[0].Children {
 		if row.Label == "cherry" {
 			target = row

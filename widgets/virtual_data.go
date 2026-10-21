@@ -528,7 +528,7 @@ func (s *VirtualDataState) Refresh(ctx context.Context, source VirtualDataSource
 	return nil
 }
 
-func (s *VirtualDataState) GetCachedRowText(row Row, offset, sticky int) string {
+func (s *VirtualDataState) CachedRowText(row Row, offset, sticky int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.rowTextCache == nil {

@@ -88,7 +88,7 @@ func TestSixelPictureGoesOutAfterTheCells(t *testing.T) {
 				}
 			}
 			f.Buffer.SetString(3, 2, "hi", cell.Style{})
-			f.ImageRegions = append(f.ImageRegions, terminal.ImageRegion{Area: area, Img: pic})
+			f.RegisterImageRegion(terminal.ImageRegion{Area: area, Img: pic})
 		}); err != nil {
 			t.Fatal(err)
 		}

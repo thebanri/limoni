@@ -79,7 +79,7 @@ func (l Locator) String() string {
 
 // resolve returns every match in the current frame. With Nth set it returns
 // the chosen match alone.
-func (l Locator) resolve(tree []accessibility.AccessibilityNode) ([]accessibility.AccessibilityNode, error) {
+func (l Locator) resolve(tree []accessibility.Node) ([]accessibility.Node, error) {
 	scope := tree
 	if l.parent != nil {
 		parents, err := l.parent.resolve(tree)
@@ -109,18 +109,18 @@ func (l Locator) resolve(tree []accessibility.AccessibilityNode) ([]accessibilit
 	return matches[index : index+1], nil
 }
 
-func (l Locator) one(tree []accessibility.AccessibilityNode) (accessibility.AccessibilityNode, error) {
+func (l Locator) one(tree []accessibility.Node) (accessibility.Node, error) {
 	matches, err := l.resolve(tree)
 	if err != nil {
-		return accessibility.AccessibilityNode{}, err
+		return accessibility.Node{}, err
 	}
 	switch len(matches) {
 	case 1:
 		return matches[0], nil
 	case 0:
-		return accessibility.AccessibilityNode{}, fmt.Errorf("nothing matches %s", l)
+		return accessibility.Node{}, fmt.Errorf("nothing matches %s", l)
 	default:
-		return accessibility.AccessibilityNode{}, fmt.Errorf("%s matches %d widgets; narrow it, or use Nth to choose one", l, len(matches))
+		return accessibility.Node{}, fmt.Errorf("%s matches %d widgets; narrow it, or use Nth to choose one", l, len(matches))
 	}
 }
 
@@ -131,14 +131,14 @@ func withoutNth(sel automation.Selector) automation.Selector {
 
 // wait resolves the locator to exactly one widget, retrying until it does or
 // the page's timeout passes.
-func (l Locator) wait() (accessibility.AccessibilityNode, error) {
+func (l Locator) wait() (accessibility.Node, error) {
 	var lastErr error
-	var lastTree []accessibility.AccessibilityNode
+	var lastTree []accessibility.Node
 	deadline := time.Now().Add(l.page.timeout)
 	for {
 		tree, err := l.page.app.tree()
 		if errors.Is(err, errExited) {
-			return accessibility.AccessibilityNode{}, err
+			return accessibility.Node{}, err
 		}
 		if err == nil {
 			lastTree = tree
@@ -151,7 +151,7 @@ func (l Locator) wait() (accessibility.AccessibilityNode, error) {
 			lastErr = err
 		}
 		if !time.Now().Before(deadline) {
-			return accessibility.AccessibilityNode{}, fmt.Errorf("%v after %s%s", lastErr, l.page.timeout, treeDump(lastTree))
+			return accessibility.Node{}, fmt.Errorf("%v after %s%s", lastErr, l.page.timeout, treeDump(lastTree))
 		}
 		time.Sleep(pollInterval)
 	}
@@ -217,7 +217,7 @@ func (l Locator) ensure(verb string, flag accessibility.NodeState, want bool) {
 	if err := l.page.app.click(node, l.selectorFor(node)); err != nil {
 		l.page.t.Fatalf("uitest: %s %s: %v", verb, l, err)
 	}
-	_, err = l.page.eventually(func(tree []accessibility.AccessibilityNode) error {
+	_, err = l.page.eventually(func(tree []accessibility.Node) error {
 		now, err := l.one(tree)
 		if err != nil {
 			return err
@@ -236,7 +236,7 @@ func (l Locator) ensure(verb string, flag accessibility.NodeState, want bool) {
 // selectorFor is the selector a remote application resolves a click with. A
 // locator scoped with Within has no single-selector equivalent, so it is
 // pinned to what it resolved to here.
-func (l Locator) selectorFor(node accessibility.AccessibilityNode) automation.Selector {
+func (l Locator) selectorFor(node accessibility.Node) automation.Selector {
 	if l.parent == nil {
 		return l.sel
 	}
@@ -286,7 +286,7 @@ func (l Locator) focus(action string) {
 	l.Click()
 	// The click has to have moved focus before keys are sent, or they land
 	// wherever focus was.
-	if _, err := l.page.eventually(func(tree []accessibility.AccessibilityNode) error {
+	if _, err := l.page.eventually(func(tree []accessibility.Node) error {
 		node, err := l.one(tree)
 		if err != nil {
 			return err
@@ -314,7 +314,7 @@ func (l Locator) Count() int {
 
 // Node waits for the locator to match one widget and returns its node, for
 // checks the assertions do not cover.
-func (l Locator) Node() accessibility.AccessibilityNode {
+func (l Locator) Node() accessibility.Node {
 	l.page.t.Helper()
 	node, err := l.wait()
 	if err != nil {
@@ -325,9 +325,9 @@ func (l Locator) Node() accessibility.AccessibilityNode {
 
 // eventually retries check against fresh frames until it passes or the
 // page's timeout runs out, returning the last tree it saw.
-func (p *Page) eventually(check func([]accessibility.AccessibilityNode) error) ([]accessibility.AccessibilityNode, error) {
+func (p *Page) eventually(check func([]accessibility.Node) error) ([]accessibility.Node, error) {
 	var lastErr error
-	var lastTree []accessibility.AccessibilityNode
+	var lastTree []accessibility.Node
 	deadline := time.Now().Add(p.timeout)
 	for {
 		tree, err := p.app.tree()
@@ -349,7 +349,7 @@ func (p *Page) eventually(check func([]accessibility.AccessibilityNode) error) (
 	}
 }
 
-func treeDump(tree []accessibility.AccessibilityNode) string {
+func treeDump(tree []accessibility.Node) string {
 	if len(tree) == 0 {
 		return "\n(the frame has no semantic nodes)"
 	}

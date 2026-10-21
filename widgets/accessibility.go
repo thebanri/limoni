@@ -16,12 +16,12 @@ type Accessible struct {
 	State       accessibility.NodeState
 }
 
-func (a Accessible) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (a Accessible) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := a.State
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	return accessibility.AccessibilityNode{ID: a.ID, Role: a.Role, Label: a.Label, Description: a.Description, Value: a.Value, State: state, Bounds: bounds}
+	return accessibility.Node{ID: a.ID, Role: a.Role, Label: a.Label, Description: a.Description, Value: a.Value, State: state, Bounds: bounds}
 }
 
 // WantsFocus reports whether a widget built on Accessible takes part in Tab

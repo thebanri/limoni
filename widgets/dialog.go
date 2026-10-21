@@ -635,12 +635,12 @@ func (di Dialog) SizeHint(maxArea cell.Rect) (width, height uint16) {
 }
 
 // AccessibilityNode returns the semantic node description for Dialog.
-func (d Dialog) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (d Dialog) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:          d.ID,
 		Role:        accessibility.RoleDialog,
 		Label:       d.Title,

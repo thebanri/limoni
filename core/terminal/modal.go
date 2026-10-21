@@ -2,13 +2,6 @@ package terminal
 
 import "github.com/thebanri/limoni/core/cell"
 
-// Modal holds the modal window that sits on top in layered rendering and filters events.
-type Modal struct {
-	ID           string
-	Area         cell.Rect
-	ClickOutside func()
-}
-
 // LayerType is the kind of a layer.
 type LayerType uint8
 

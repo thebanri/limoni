@@ -101,8 +101,8 @@ type TableState struct {
 	// rowNodes and cellNodes hold the visible rows' semantic nodes, written
 	// during Draw (the only place that knows which data row, after filtering
 	// and sorting, lands on which screen row) and reused every frame.
-	rowNodes  []accessibility.AccessibilityNode
-	cellNodes []accessibility.AccessibilityNode
+	rowNodes  []accessibility.Node
+	cellNodes []accessibility.Node
 
 	scratch *tableDrawScratch // Draw's working buffers, kept across frames
 }
@@ -875,7 +875,7 @@ func (t Table) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		// Sized before the loop: rows keep sub-slices of cellNodes, which a
 		// later append must not move.
 		if need := visibleRows * len(widths); cap(t.State.cellNodes) < need {
-			t.State.cellNodes = make([]accessibility.AccessibilityNode, 0, need)
+			t.State.cellNodes = make([]accessibility.Node, 0, need)
 		}
 		t.State.cellNodes = t.State.cellNodes[:0]
 	}
@@ -1519,7 +1519,7 @@ func (ts *TableState) appendRowNode(t Table, area cell.Rect, row TableRow, y uin
 		if c < len(row.Cells) {
 			text = row.Cells[c].Text
 		}
-		ts.cellNodes = append(ts.cellNodes, accessibility.AccessibilityNode{
+		ts.cellNodes = append(ts.cellNodes, accessibility.Node{
 			Role:   accessibility.RoleCell,
 			Label:  text,
 			Bounds: cell.Rect{X: t.columnX(area, widths, c), Y: y, Width: widths[c], Height: 1},
@@ -1533,7 +1533,7 @@ func (ts *TableState) appendRowNode(t Table, area cell.Rect, row TableRow, y uin
 	if selected {
 		state = accessibility.StateSelected
 	}
-	ts.rowNodes = append(ts.rowNodes, accessibility.AccessibilityNode{
+	ts.rowNodes = append(ts.rowNodes, accessibility.Node{
 		Role:     accessibility.RoleRow,
 		Label:    label,
 		State:    state,
@@ -1551,7 +1551,7 @@ func (ts *TableState) appendRowNode(t Table, area cell.Rect, row TableRow, y uin
 // child per column. A table of a million rows exposes the ones on screen.
 // The rows come from the last Draw, which knows how filtering and sorting
 // placed them; a Table without State stays flat.
-func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	state := accessibility.NodeState(0)
 	if focused {
 		state |= accessibility.StateFocused
@@ -1577,7 +1577,7 @@ func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.A
 		position = selected + 1
 	}
 
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:       t.ID,
 		Role:     accessibility.RoleTable,
 		Label:    "Table",
@@ -1590,7 +1590,7 @@ func (t Table) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.A
 	}
 }
 
-func (t Table) rowNodes() []accessibility.AccessibilityNode {
+func (t Table) rowNodes() []accessibility.Node {
 	if t.State == nil {
 		return nil
 	}

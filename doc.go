@@ -14,7 +14,7 @@
 //		if ev != nil && ev.Type == limoni.EventKey && ev.Key.Type == limoni.KeyEsc {
 //			return false // quit
 //		}
-//		f.RenderComponent(limoni.Border(
+//		f.RenderWidget(limoni.Border(
 //			limoni.Center(limoni.Label("Hello from Limoni", limoni.Bold())),
 //			limoni.SymbolsRounded,
 //			limoni.Fg(limoni.Hex("#FFCC00")),

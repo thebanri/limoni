@@ -4,7 +4,7 @@ import "fmt"
 
 // ValidateTree checks structural invariants required by screen-reader and
 // inspector consumers: IDs must be unique and interactive nodes need labels.
-func ValidateTree(nodes []AccessibilityNode) error {
+func ValidateTree(nodes []Node) error {
 	seen := make(map[string]struct{})
 	for _, node := range nodes {
 		if err := validateNode(node, seen); err != nil {
@@ -14,7 +14,7 @@ func ValidateTree(nodes []AccessibilityNode) error {
 	return nil
 }
 
-func validateNode(node AccessibilityNode, seen map[string]struct{}) error {
+func validateNode(node Node, seen map[string]struct{}) error {
 	if node.ID != "" {
 		if _, exists := seen[node.ID]; exists {
 			return fmt.Errorf("accessibility: duplicate node ID %q", node.ID)

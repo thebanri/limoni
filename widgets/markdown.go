@@ -956,7 +956,7 @@ func (m *Markdown) SizeHint(maxArea cell.Rect) (width, height uint16) {
 
 // AccessibilityNode describes the text as a screen reader or an agent reads
 // it: the words without the markup.
-func (m *Markdown) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (m *Markdown) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
@@ -965,7 +965,7 @@ func (m *Markdown) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 	if m.lastContent != m.Content || m.cachedLines == nil {
 		value = m.Content // not drawn yet
 	}
-	return accessibility.AccessibilityNode{
+	return accessibility.Node{
 		ID:     m.ID,
 		Role:   accessibility.RoleGeneric,
 		Label:  "Markdown",

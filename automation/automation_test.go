@@ -32,8 +32,8 @@ func (r *recorder) snapshot() []driver.Event {
 	return append([]driver.Event(nil), r.events...)
 }
 
-func sampleTree() []accessibility.AccessibilityNode {
-	return []accessibility.AccessibilityNode{
+func sampleTree() []accessibility.Node {
+	return []accessibility.Node{
 		{
 			ID:     "submit",
 			Role:   accessibility.RoleButton,
@@ -48,7 +48,7 @@ func sampleTree() []accessibility.AccessibilityNode {
 			Position: 2,
 			SetSize:  3,
 			Bounds:   cell.NewRect(0, 0, 20, 10),
-			Children: []accessibility.AccessibilityNode{
+			Children: []accessibility.Node{
 				{ID: "row-1", Role: accessibility.RoleListItem, Label: "alpha", Bounds: cell.NewRect(0, 0, 20, 1)},
 				{ID: "row-2", Role: accessibility.RoleListItem, Label: "beta", Bounds: cell.NewRect(0, 1, 20, 1)},
 			},

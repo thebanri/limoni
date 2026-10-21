@@ -46,7 +46,7 @@ func main() {
 		if ev != nil && ev.Type == limoni.EventKey && ev.Key.Type == limoni.KeyEsc {
 			return false // çıkış
 		}
-		f.RenderComponent(limoni.Border(
+		f.RenderWidget(limoni.Border(
 			limoni.Center(limoni.Label("Limoni'den merhaba 🍋  (Esc ile çık)", limoni.Bold())),
 			limoni.SymbolsRounded,
 			limoni.Fg(limoni.Hex("#FFCC00")),

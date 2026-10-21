@@ -31,6 +31,6 @@ func BenchmarkViewer3DPixelsKitty(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		v.RotY = float64(i)
 		v.Draw(ctx, buf)
-		_ = graphics.GetCachedEscapeSequence(last, area.Width, area.Height, 8, 16, graphics.ProtocolKitty, -1, true)
+		_ = graphics.CachedEscapeSequence(last, area.Width, area.Height, 8, 16, graphics.ProtocolKitty, -1, true)
 	}
 }

@@ -408,12 +408,12 @@ func (fp FilePicker) SizeHint(maxArea cell.Rect) (uint16, uint16) {
 }
 
 // AccessibilityNode is a list whose value is the selected entry.
-func (fp FilePicker) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.AccessibilityNode {
+func (fp FilePicker) AccessibilityNode(bounds cell.Rect, focused bool) accessibility.Node {
 	var state accessibility.NodeState
 	if focused {
 		state |= accessibility.StateFocused
 	}
-	node := accessibility.AccessibilityNode{ID: fp.ID, Role: accessibility.RoleList, Label: "Files", State: state, Bounds: bounds}
+	node := accessibility.Node{ID: fp.ID, Role: accessibility.RoleList, Label: "Files", State: state, Bounds: bounds}
 	if s := fp.State; s != nil {
 		node.Label = s.Dir
 		if e, ok := s.SelectedEntry(); ok {

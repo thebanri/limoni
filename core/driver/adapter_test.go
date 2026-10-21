@@ -19,17 +19,17 @@ func TestMemoryPTYAdapterLifecycleAndResize(t *testing.T) {
 }
 
 func TestPlatformCapabilityMatrix(t *testing.T) {
-	linuxCaps := GetPlatformCapabilities("linux")
+	linuxCaps := PlatformCapabilities("linux")
 	if !linuxCaps.HasRawMode || !linuxCaps.HasIoctlResize || linuxCaps.OS != "linux" {
 		t.Errorf("linux capabilities = %+v", linuxCaps)
 	}
 
-	windowsCaps := GetPlatformCapabilities("windows")
+	windowsCaps := PlatformCapabilities("windows")
 	if !windowsCaps.HasRawMode || windowsCaps.HasIoctlResize || windowsCaps.OS != "windows" {
 		t.Errorf("windows capabilities = %+v", windowsCaps)
 	}
 
-	unknownCaps := GetPlatformCapabilities("unknown")
+	unknownCaps := PlatformCapabilities("unknown")
 	if unknownCaps.HasRawMode || unknownCaps.HasIoctlResize {
 		t.Errorf("unknown capabilities = %+v", unknownCaps)
 	}

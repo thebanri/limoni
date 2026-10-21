@@ -31,6 +31,7 @@ type ui struct {
 	cellW, cellH int
 	pix          pixelDeck
 	pixImg       *image.RGBA
+	pic          picture // places pixImg each frame
 
 	local *localSource // set when pikap plays files itself
 

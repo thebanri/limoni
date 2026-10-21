@@ -158,7 +158,7 @@ func TestLimoniComposableLego(t *testing.T) {
 		Flex(1, adaptedTable),
 		Center(Label("Centered Footer")),
 		AlignComponent(Label("Right aligned"), AlignRight, AlignMiddle),
-		AlignComponent(Label("HAlignRight test"), HAlignRight, AlignBottom),
+		AlignComponent(Label("AlignRight test"), AlignRight, AlignBottom),
 	).WithGap(0)
 
 	props := stack.LayoutInfo(NewRect(0, 0, 80, 24))

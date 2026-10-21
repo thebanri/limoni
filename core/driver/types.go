@@ -1,9 +1,5 @@
 package driver
 
-// Driver represents the low-level terminal I/O, raw mode controller, and event loop.
-// Backend is retained as an alias for backward compatibility.
-type Driver = Backend
-
 // EventType represents the category of a terminal event.
 type EventType uint8
 
@@ -185,8 +181,8 @@ type PlatformCapabilityMatrix struct {
 	HasIoctlResize bool
 }
 
-// GetPlatformCapabilities returns capabilities based on operating system.
-func GetPlatformCapabilities(goos string) PlatformCapabilityMatrix {
+// PlatformCapabilities returns capabilities based on operating system.
+func PlatformCapabilities(goos string) PlatformCapabilityMatrix {
 	switch goos {
 	case "linux", "darwin", "freebsd", "openbsd", "netbsd":
 		return PlatformCapabilityMatrix{
