@@ -602,6 +602,7 @@ func (g *game) damage(i int, dmg float64, crit bool) bool {
 	dmg = math.Max(dmg-e.armor, dmg*0.05)
 	e.hp -= dmg
 	e.flash = 1
+	g.hitT = 0.12
 	if dmg > g.bigHit {
 		g.bigHit = dmg
 	}
@@ -621,6 +622,7 @@ func (g *game) kill(i int) {
 	kd := &kinds[e.k]
 	e.alive = false
 	g.kills++
+	g.hitT, g.killT = 0.2, 0.2
 	g.burst(e)
 	g.dropBytes(e.pos, 1.5*kd.xp*(1+boolf(e.elite)*2))
 	g.soundFrom(sfxPop, e.pos, 0.6)

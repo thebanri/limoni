@@ -247,3 +247,33 @@ func panel(frames []*art, bg uint32) []*art {
 	}
 	return frames
 }
+
+// ── half blocks ──────────────────────────────────────────────────────────
+
+func fromColor(c cell.Color) rgb {
+	r, g, b := c.RGB()
+	return rgb{float32(r) / 255, float32(g) / 255, float32(b) / 255}
+}
+
+// halves is the colour of a cell's upper and lower half, as drawn: a half
+// block's two colours, or a character's background for both.
+func halves(p *cell.Cell) (top, bot rgb) {
+	switch p.Content {
+	case '▀':
+		return fromColor(p.Style.Fg), fromColor(p.Style.Bg)
+	case '▄':
+		return fromColor(p.Style.Bg), fromColor(p.Style.Fg)
+	}
+	bg := fromColor(p.Style.Bg)
+	return bg, bg
+}
+
+// setHalves draws a cell as two pixels, one above the other.
+func setHalves(p *cell.Cell, top, bot rgb) {
+	t, b := top.color(), bot.color()
+	if t == b {
+		p.Content, p.Style = ' ', cell.Style{Fg: t, Bg: b}
+		return
+	}
+	p.Content, p.Style = '▀', cell.Style{Fg: t, Bg: b}
+}

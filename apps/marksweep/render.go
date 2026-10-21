@@ -7,10 +7,11 @@ import (
 	"github.com/thebanri/limoni/core/buffer"
 )
 
-// The picture is a raycaster drawn in characters: a column of cells per
-// ray, a wall's texture sampled glyph by glyph, near walls readable and far
-// ones shaded with a ramp, and every sprite is art scaled by picking the
-// nearest character. A frame allocates nothing; its scratch is sized once.
+// The picture is a raycaster in half-block pixels, two to a cell: a column
+// per ray, walls textured with terminal windows, a polished floor and a
+// ceiling. The enemies are art in characters over it, scaled by picking the
+// nearest character, and the gun is drawn by viewmodel.go over them. A
+// frame allocates nothing; its scratch is sized once.
 
 const maxCols = 512
 
@@ -19,8 +20,6 @@ const (
 	wallH = 1.6
 	eye   = 0.5
 )
-
-var ramp = []rune(" .:-=+*#%@")
 
 // view is one frame's camera.
 type view struct {
@@ -73,8 +72,8 @@ func (g *game) render(b *buffer.Buffer) {
 	if w > maxCols {
 		w = maxCols
 	}
-	hud := 3
-	v := view{c: c, w: w, top: 1, h: h - hud}
+	// The picture takes the whole window; the HUD floats over it.
+	v := view{c: c, w: w, h: h}
 	g.viewW, g.viewH = w, v.h
 	ang := g.ang
 	if g.phase == phTitle {
@@ -95,7 +94,7 @@ func (g *game) render(b *buffer.Buffer) {
 		v.dim = 0.3
 	}
 	if g.reloadT > 0 && g.st.reload > 0 {
-		v.grey = float32(0.75 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
+		v.grey = float32(0.55 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
 	}
 	pos := g.pos
 	if g.phase == phTitle {
@@ -138,107 +137,143 @@ func stretches(r rune) (horizontal, vertical bool) {
 
 func fog(d float64) float32 { return float32(1 / (1 + d*d*0.018)) }
 
+var fogCol = hex(0x05070e)
+
+// fogged is c seen through d world units of the room's haze.
+func fogged(c rgb, d float64) rgb { return fogCol.mix(c, fog(d)) }
+
+// column is what one ray of the picture hit.
+type column struct {
+	h        hit
+	tex      *wallTex
+	u        float64
+	top, bot float64 // the wall's rows, as fractions
+	lineH    float64
+	level    int // the mip level its texture is read from
+	rx, ry   float64
+	pulse    rgb // a spawn window's glow
+}
+
 func (g *game) drawWorld(v *view, pos vec) {
 	c := v.c
+	prevAlong, prevTile, prevSide := 0.0, byte(0), -1
 	for x := 0; x < v.w; x++ {
 		camX := 2*(float64(x)+0.5)/float64(v.w) - 1
-		rx, ry := v.dirX+v.plX*camX, v.dirY+v.plY*camX
-		h := cast(pos.x, pos.y, rx, ry)
+		var col column
+		col.rx, col.ry = v.dirX+v.plX*camX, v.dirY+v.plY*camX
+		h := cast(pos.x, pos.y, col.rx, col.ry)
 		if h.dist < 0.05 {
 			h.dist = 0.05
 		}
+		col.h = h
 		sc.zbuf[x] = h.dist
 		unit := v.f * 0.5 / h.dist // rows a world unit takes at this distance
-		lineH := unit * wallH
-		bot := v.horizon + unit*eye
-		top := bot - lineH
+		col.lineH = unit * wallH
+		col.bot = v.horizon + unit*eye
+		col.top = col.bot - col.lineH
 		tex := wallTexture(h.tile)
-		u := h.along/texSpan - math.Floor(h.along/texSpan)
+		col.tex = tex
+		u := h.along/tex.span - math.Floor(h.along/tex.span)
 		// Text on a wall reads left to right from where it is seen.
-		if h.side == 0 && rx < 0 || h.side == 1 && ry > 0 {
+		if h.side == 0 && col.rx < 0 || h.side == 1 && col.ry > 0 {
 			u = 1 - u
 		}
-		tx := int(u * texW)
-		if tx >= texW {
-			tx = texW - 1
+		col.u = u
+		// How many texels fall on a pixel, across and down: past one, read
+		// a smaller level so the far walls are averaged instead of noise.
+		across := h.dist / v.f
+		if h.tile == prevTile && h.side == prevSide {
+			across = math.Max(math.Abs(h.along-prevAlong), across)
 		}
-		// A character wider than a column is drawn once, in its first
-		// column: near text reads spaced out instead of doubled.
-		repeatX := x > 0 && sc.wallTx[x-1] == tx && sc.wallID[x-1] == h.tile && math.Abs(sc.zbuf[x-1]-h.dist) < 0.5
-		sc.wallTx[x], sc.wallID[x] = tx, h.tile
-		shade := fog(h.dist) * v.dim
-		if h.side == 1 {
-			shade *= 0.82
+		prevAlong, prevTile, prevSide = h.along, h.tile, h.side
+		tpp := math.Max(across*float64(tex.w)/tex.span, float64(tex.h)/(2*col.lineH))
+		if tpp > 1.05 { // text only where a letter's pixels are pixels
+			col.level, tpp = 1, tpp/2
+			for tpp > 1.4 && col.level < nMip-1 {
+				tpp /= 2
+				col.level++
+			}
 		}
-		bg := tex.bg
 		if h.tile == 'P' {
-			bg = bg.mix(hex(0x5a0b3a), float32(0.5+0.5*math.Sin(g.clock*4)))
+			col.pulse = hex(0x5a0b3a).mul(float32(0.25 + 0.25*math.Sin(g.clock*4)))
 		}
-		near := lineH >= texH*0.7
-		prevTy := -1
 		for y := v.top; y < v.top+v.h; y++ {
-			fy := float64(y) + 0.5
-			switch {
-			case fy < top:
-				g.ceiling(v, x, y, fy)
-			case fy < bot:
-				vv := (fy - top) / lineH
-				ty := int(vv * texH)
-				if ty >= texH {
-					ty = texH - 1
-				}
-				r := tex.glyph[ty][tx]
-				fg := tex.col[ty][tx]
-				repeatY := ty == prevTy
-				prevTy = ty
-				if near {
-					sh, sv := stretches(r)
-					if repeatX && !sh || repeatY && !sv {
-						r = ' '
-					}
-				} else {
-					// Far away, letters would alias into noise: shade by
-					// how much ink the texture has there instead.
-					k := tex.ink[ty][tx]
-					if ty == 0 || ty == texH-1 {
-						r = '─'
-					} else {
-						r = ramp[int(k*float32(len(ramp)-1)*0.7)]
-					}
-				}
-				c.set(x, y, r, style(fg.mul(shade).grey(v.grey), bg.mul(shade*0.9).grey(v.grey)))
-			default:
-				g.floor(v, x, y, fy, rx, ry, pos)
+			top := g.pixel(v, &col, float64(y)+0.25, pos)
+			bot := g.pixel(v, &col, float64(y)+0.75, pos)
+			if p := c.at(x, y); p != nil {
+				setHalves(p, top.mul(v.dim).grey(v.grey), bot.mul(v.dim).grey(v.grey))
 			}
 		}
 	}
 }
 
-func (g *game) ceiling(v *view, x, y int, fy float64) {
-	d := (v.horizon - fy) / float64(v.h) * 2 // 1 at the top, 0 at the horizon
-	col := hex(0x0b0e18).mix(hex(0x03040a), float32(d)).mul(v.dim)
-	v.c.set(x, y, ' ', style(col, col.grey(v.grey)))
+// pixel is the colour at row fy of a column: ceiling, wall or floor.
+func (g *game) pixel(v *view, col *column, fy float64, pos vec) rgb {
+	switch {
+	case fy < col.top:
+		return g.ceilingAt(v, fy, col.rx, col.ry, pos)
+	case fy < col.bot:
+		return g.wallAt(col, (fy-col.top)/col.lineH)
+	}
+	c := g.floorAt(v, fy, col.rx, col.ry, pos)
+	// The floor is polished: it shows the wall standing on it, fading
+	// with the distance from its foot.
+	if m := 2*col.bot - fy; m > col.top {
+		k := float32(1-(fy-col.bot)/col.lineH) * 0.16
+		w := col.tex.at(col.u, (m-col.top)/col.lineH, min(col.level+2, nMip-1))
+		c = c.add(fogged(w, col.h.dist).mul(k))
+	}
+	return c
 }
 
-func (g *game) floor(v *view, x, y int, fy, rx, ry float64, pos vec) {
-	o := fy - v.horizon
-	if o < 0.5 {
-		o = 0.5
+func (g *game) wallAt(col *column, vv float64) rgb {
+	t := col.tex
+	if t.scroll1 > t.scroll0 {
+		py := vv * float64(t.h)
+		if s0, s1 := float64(t.scroll0), float64(t.scroll1); py >= s0 && py < s1 {
+			py = s0 + math.Mod(py-s0+g.clock*9, s1-s0)
+			vv = py / float64(t.h)
+		}
 	}
+	c := t.at(col.u, vv, col.level).add(col.pulse)
+	if col.h.side == 1 {
+		c = c.mul(0.8)
+	}
+	return fogged(c, col.h.dist)
+}
+
+func (g *game) ceilingAt(v *view, fy, rx, ry float64, pos vec) rgb {
+	o := math.Max(v.horizon-fy, 0.25)
+	d := v.f * 0.5 * (wallH - eye) / o
+	wx, wy := pos.x+rx*d, pos.y+ry*d
+	// Cable trays every second tile, and a light panel every fourth.
+	ex := math.Abs(wx/2 - math.Round(wx/2))
+	ey := math.Abs(wy/2 - math.Round(wy/2))
+	lw := 0.012 + d*0.004
+	k := math.Max(0, 1-math.Min(ex, ey)/lw) / (1 + d*0.2)
+	c := hex(0x07090f).mix(hex(0x111727), float32(k))
+	ix, iy := int(math.Floor(wx)), int(math.Floor(wy))
+	if ix%4 == 2 && iy%4 == 2 {
+		fx, fyy := wx-float64(ix), wy-float64(iy)
+		if fx > 0.2 && fx < 0.8 && fyy > 0.2 && fyy < 0.8 {
+			c = hex(0x2a3654)
+		}
+	}
+	return fogged(c, d)
+}
+
+func (g *game) floorAt(v *view, fy, rx, ry float64, pos vec) rgb {
+	o := math.Max(fy-v.horizon, 0.25)
 	d := v.f * 0.25 / o
 	wx, wy := pos.x+rx*d, pos.y+ry*d
-	fx, fyy := wx-math.Floor(wx), wy-math.Floor(wy)
-	shade := fog(d) * v.dim
-	bg := hex(0x0a0d18).mul(0.5 + 0.5*shade)
-	r := ' '
-	fg := hex(0x26345a).mul(shade)
-	// Only the corners of the floor's tiles, so the grid reads as depth
-	// rather than as noise.
-	edge := 0.06 + 0.01*d
-	if d < 12 && (fx < edge || fx > 1-edge) && (fyy < edge || fyy > 1-edge) {
-		r = '·'
-	}
-	v.c.set(x, y, r, style(fg.grey(v.grey), bg.grey(v.grey)))
+	ex := math.Abs(wx - math.Round(wx))
+	ey := math.Abs(wy - math.Round(wy))
+	// The seams between tiles, thinning into the distance before they
+	// would shimmer.
+	lw := 0.02 + d*0.008
+	k := math.Max(0, 1-math.Min(ex, ey)/lw) / (1 + d*0.18)
+	c := hex(0x0a0d18).mix(hex(0x24365e), float32(k))
+	return fogged(c, d)
 }
 
 // ── sprites ──────────────────────────────────────────────────────────────
@@ -549,111 +584,84 @@ func (g *game) drawByte(v *view, pos vec, o *orb) {
 
 // ── the player's side ────────────────────────────────────────────────────
 
-var gunArt = newArt([]string{
-	"    ▗▄▄▄▄▄▄▄▄▄▄▄▖    ",
-	"   ▐█▀▀▀▀▀▀▀▀▀▀▀█▌   ",
-	"  ▗▟█           █▙▖  ",
-	" ▐██▙▄▄▄▄▄▄▄▄▄▄▄▟██▌ ",
-	"▐████▀▀▀▀▀▀▀▀▀▀▀████▌",
-}, []string{
-	"    hhhhhhhhhhhhh    ",
-	"   bbhhhhhhhhhhhbb   ",
-	"  bbb           bbb  ",
-	" bbbbbbbbbbbbbbbbbbb ",
-	"bbbbbbbbbbbbbbbbbbbbb",
-}, map[byte]uint32{'b': 0x2a3146, 'h': 0x6b7ba0})
-
-// drawGun draws the sweeper at the bottom, with the heap on its back panel:
-// rounds left, or the collector at work.
-func (g *game) drawGun(v *view) {
-	if v.h < 14 {
-		return
-	}
-	gw, gh := gunArt.w, gunArt.h
-	x0 := v.w/2 - gw/2 + int(math.Sin(g.bob*0.5)*1.5)
-	y0 := v.top + v.h - gh + int(g.recoil*1.5)
-	if g.reloadT > 0 {
-		y0 += int(2 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
-	}
-	bottom := v.top + v.h
-	for y := 0; y < gh; y++ {
-		for x := 0; x < gw; x++ {
-			k := y*gunArt.w + x
-			r := gunArt.glyph[k]
-			if r == ' ' || y0+y >= bottom {
-				continue
-			}
-			if p := v.c.at(x0+x, y0+y); p != nil {
-				p.Content = r
-				p.Style.Fg = gunArt.col[k].grey(v.grey).color()
-			}
-		}
-	}
-	// The panel: the rounds left, in the colour of how many.
-	py := y0 + 2
-	if py < bottom {
-		panel := style(hudCyan, hex(0x061018))
-		v.c.fill(x0+5, py, gw-10, 1, ' ', panel)
-		switch {
-		case g.reloadT > 0:
-			v.c.text(x0+gw/2-1, py, "GC", style(hudDim, hex(0x061018)))
-		case g.ammo == 0:
-			v.c.text(x0+gw/2-2, py, "FULL", style(hudBad, hex(0x061018)))
-		default:
-			col := hudCyan
-			if g.ammo*4 <= g.st.mag {
-				col = hudWarn
-			}
-			v.c.number(x0+gw/2-digits(g.ammo)/2, py, g.ammo, style(col, hex(0x061018)))
-		}
-	}
-	if g.recoil > 0.6 {
-		fx, fy := v.w/2, y0-1
-		for _, d := range [5][3]int{{0, 0, '✸'}, {-1, 0, '─'}, {1, 0, '─'}, {0, -1, '│'}, {0, 1, '│'}} {
-			if p := v.c.at(fx+d[0], fy+d[1]); p != nil {
-				p.Content = rune(d[2])
-				p.Style.Fg = hex(0xfff3b0).color()
-			}
-		}
-	}
-}
-
+// crosshair is the cell the shots go through: the mouse, kept inside the
+// picture, or the middle when the browser has the pointer.
 func (g *game) crosshair() (int, int) {
-	if g.locked || !g.mouseIn {
-		return g.viewW / 2, 1 + g.viewH/2
+	if g.locked || !g.mouseIn || g.viewW <= 0 {
+		return g.viewW / 2, g.viewH / 2
 	}
-	return g.mouseX, g.mouseY
+	return min(max(g.mouseX, 0), g.viewW-1), min(max(g.mouseY, 0), g.viewH-1)
 }
 
+// drawCrosshair draws the crosshair, opened up by the kick, with a marker
+// when a shot lands and arrows when the mouse is turning the view.
 func (g *game) drawCrosshair(v *view) {
 	x, y := g.crosshair()
-	col := hex(0xffffff)
-	if g.reloadT > 0 {
-		v.c.fg(x-1, y, "GC", hex(0x8fe9ff))
+	if g.reloadT > 0 && g.st.reload > 0 {
+		// The collector at work: a little bar under the crosshair.
+		frac := 1 - g.reloadT/g.st.reload
+		v.c.fg(x-1, y, "GC", hudCyan)
+		for i := 0; i < 5; i++ {
+			col := hudDim
+			if float64(i) < frac*5 {
+				col = hudCyan
+			}
+			v.c.fg(x-2+i, y+1, "▀", col)
+		}
 		return
 	}
+	col := hex(0xffffff)
 	if g.ammo == 0 {
-		col = hex(0xff5a5a)
+		col = hudBad
 	}
-	v.c.fg(x, y, "┼", col)
-	v.c.fg(x-2, y, "─", col.mul(0.7))
-	v.c.fg(x+2, y, "─", col.mul(0.7))
+	gap := 1 + int(math.Max(0, g.recoil)*1.6)
+	v.c.fg(x, y, "·", col)
+	v.c.fg(x-gap-1, y, "─", col.mul(0.85))
+	v.c.fg(x+gap+1, y, "─", col.mul(0.85))
+	if g.hitT > 0 {
+		hc := hex(0xffffff)
+		if g.killT > 0 {
+			hc = hudBad
+		}
+		v.c.fg(x-1, y-1, "╲", hc)
+		v.c.fg(x+1, y-1, "╱", hc)
+		v.c.fg(x-1, y+1, "╱", hc)
+		v.c.fg(x+1, y+1, "╲", hc)
+	}
+	if !g.locked && g.mouseIn {
+		if t := steer(g.mouseX, g.viewW); t < 0 {
+			v.c.fg(x-gap-3, y, "«", hudWarn.mul(float32(0.5-0.5*t)))
+		} else if t > 0 {
+			v.c.fg(x+gap+3, y, "»", hudWarn.mul(float32(0.5+0.5*t)))
+		}
+	}
+	if g.ammo == 0 && int(g.clock*3)%2 == 0 {
+		v.c.fg(x-5, y+2, "R: COLLECT", hudBad)
+	}
 }
 
+// drawHurt reddens the edges of the picture, fading inwards.
 func (g *game) drawHurt(v *view) {
 	if g.hurtFX <= 0 {
 		return
 	}
-	k := float32(g.hurtFX) * 0.45
-	red := hex(0x8a0010)
-	edge := func(x, y int) {
-		if p := v.c.at(x, y); p != nil {
-			p.Style.Bg = red.mul(k).color()
-		}
-	}
+	k := float32(g.hurtFX) * 0.6
+	red := hex(0xa00018)
+	n := max(2, v.w/24)
 	for y := v.top; y < v.top+v.h; y++ {
-		edge(0, y)
-		edge(v.w-1, y)
+		for i := 0; i < n; i++ {
+			a := k * float32(n-i) / float32(n)
+			for _, x := range [2]int{i, v.w - 1 - i} {
+				if p := v.c.at(x, y); p != nil {
+					top, bot := halves(p)
+					if p.Content == '▀' || p.Content == ' ' {
+						setHalves(p, top.mix(red, a), bot.mix(red, a))
+					} else {
+						p.Style.Bg = bot.mix(red, a).color()
+					}
+				}
+			}
+		}
 	}
 }
 

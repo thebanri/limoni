@@ -1,5 +1,5 @@
-// Mark & Sweep: a first-person roguelite in the terminal, drawn in
-// characters.
+// Mark & Sweep: a first-person roguelite in the terminal, the room and the
+// gun in half-block pixels, the enemies in characters.
 //
 //	go run .            # play
 //	go run . -fps 60    # smoother, where the terminal keeps up
@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/buffer"
+	"github.com/thebanri/limoni/core/cell"
 )
 
 func main() {
@@ -80,6 +82,9 @@ func main() {
 			g.event(ev)
 		}
 		g.render(f.Buffer)
+		if g.phase == phPlay {
+			f.RenderWidget(crosshairPointer{}, f.Buffer.Area)
+		}
 		ptr.want(g.phase == phPlay)
 		return !g.quit
 	})
@@ -92,6 +97,19 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// crosshairPointer asks for the crosshair pointer over the picture in the
+// terminals that can change it (kitty, foot, Ghostty), so the arrow does not
+// cover what is being aimed at.
+type crosshairPointer struct{}
+
+func (crosshairPointer) Draw(ctx cell.Context, _ *buffer.Buffer) {
+	if ctx.RegisterClickAction != nil {
+		ctx.RegisterClickAction(ctx.Area, cell.ClickAction{Pointer: "crosshair"})
+	}
+}
+
+func (crosshairPointer) SizeHint(cell.Rect) (uint16, uint16) { return 0, 0 }
 
 func (g *game) event(ev *limoni.Event) {
 	switch ev.Type {

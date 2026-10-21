@@ -91,7 +91,7 @@ func TestDumpFrame(t *testing.T) {
 	}
 	shots["poster"] = func() *game {
 		g := playing()
-		g.pos, g.ang = vec{16, 28.2}, -math.Pi/2
+		g.pos, g.ang = vec{16.12, 28.2}, -math.Pi/2
 		g.level, g.kills, g.runTime = 12, 412, 312
 		g.bossNext = 99 // no boss on the poster
 		for _, a := range []augID{augREP, augREP, augFork, augPanic, augHotPath, augHotPath, augScroll} {
@@ -118,15 +118,37 @@ func TestDumpFrame(t *testing.T) {
 			g.shoot(g.pos.add(vec{0, -1.2 - float64(i)*0.9}), a, 10, 0, shotPlayer)
 		}
 		g.shoot(vec{15.2, 23.4}, math.Pi/2, 5, 0, shotBar)
-		g.recoil = 0.9
+		g.recoil = 0.62
+		g.mouseIn, g.mouseX, g.mouseY, g.viewW, g.viewH = true, 64, 21, 124, 40
 		g.msgT = 0
 		return g
 	}
+	gun := func(mx, my int, reload float64) func() *game {
+		return func() *game {
+			g := playing()
+			g.pos, g.ang = vec{16, 20}, -math.Pi/2
+			g.mouseIn, g.mouseX, g.mouseY = true, mx, my
+			g.viewW, g.viewH = 140, 44
+			g.ammo = 9
+			if reload > 0 {
+				g.reloadT = g.st.reload * (1 - reload)
+			}
+			return g
+		}
+	}
+	shots["gun"] = gun(70, 22, 0)
+	shots["gun-left"] = gun(20, 12, 0)
+	shots["gun-right"] = gun(125, 30, 0)
+	shots["gun-reload"] = gun(70, 22, 0.2)
+	shots["gunbig"] = gun(100, 28, 0)
 	for name, make := range shots {
 		g := make()
 		w, h := uint16(140), uint16(44)
 		if name == "poster" {
-			w, h = 106, 34 // bigger characters: it is shown small, on a card
+			w, h = 124, 40 // bigger characters: it is shown small, on a card
+		}
+		if name == "gunbig" {
+			w, h = 200, 56
 		}
 		b := buffer.NewBuffer(cell.Rect{Width: w, Height: h})
 		g.render(b)

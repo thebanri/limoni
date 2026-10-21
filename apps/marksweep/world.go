@@ -122,20 +122,37 @@ func cast(px, py, dx, dy float64) hit {
 
 // ── wall textures ────────────────────────────────────────────────────────
 
-const texW, texH = 36, 12
-
-// texSpan is how many world units one window spans along a wall.
-const texSpan = 3.0
+// A wall's texture is a terminal window drawn in pixels, with its text in
+// the 3×5 font. Pixels are square on screen: a cell is a column wide and
+// two pixels tall, drawn as a half block.
+const (
+	winW, winH = 128, 52
+	nMip       = 5 // each half the size of the last, so far walls are averaged, not aliased
+)
 
 type wallTex struct {
-	glyph [texH][texW]rune
-	col   [texH][texW]rgb
-	ink   [texH][texW]float32 // how much of the cell the glyph covers
-	bg    rgb
-	edge  rgb
+	w, h   int
+	span   float64 // world units one window spans along a wall
+	mip    [nMip][]rgb
+	mw, mh [nMip]int
+	// Rows that scroll upwards with time: the data streaming into a spawn
+	// window. Both zero for none.
+	scroll0, scroll1 int
 }
 
-var wallTextures = map[byte]*wallTex{}
+// at is the texel at (u, v), both 0…1, from mip level l. Level 0 has the
+// text; the smaller levels are made from the same window with each
+// character a bar of its colour, the way an editor's minimap reads code,
+// because letters averaged down are grey noise.
+func (t *wallTex) at(u, v float64, l int) rgb {
+	w, h := t.mw[l], t.mh[l]
+	x, y := int(u*float64(w)), int(v*float64(h))
+	x = min(max(x, 0), w-1)
+	y = min(max(y, 0), h-1)
+	return t.mip[l][y*w+x]
+}
+
+var wallTextures [256]*wallTex
 
 func wallTexture(t byte) *wallTex {
 	if w := wallTextures[t]; w != nil {
@@ -144,113 +161,211 @@ func wallTexture(t byte) *wallTex {
 	return wallTextures['z']
 }
 
-func init() {
-	wallTextures['z'] = makeWindow("zsh", 0x0b1020, 0x6d7ba8, 0xc8d0e8, []string{
-		"$ go build ./...",
+// windows are the walls' textures: a shell, a log viewer, some Go, htop.
+var windows = []struct {
+	tile           byte
+	title          string
+	bg, edge, text uint32
+	lines          []string
+}{
+	{'z', "zsh", 0x0b1020, 0x6d7ba8, 0xc8d0e8, []string{
 		"$ go test ./...",
-		"ok   limoni          0.412s",
-		"ok   limoni/widgets  1.207s",
+		"ok  limoni          0.412s",
+		"ok  limoni/widgets  1.207s",
 		"$ ./marksweep --heap 64M",
 		"marking... 4242 objects",
-		"sweeping... 0 B/op",
-		"$ █",
-	})
-	wallTextures['l'] = makeWindow("zest: app.log", 0x0d0f14, 0x7d6b45, 0xb8b0a0, []string{
-		"12:01:07 INFO  frame 0 B/op",
-		"12:01:07 WARN  bubble tea nearby",
-		"12:01:08 ERROR heap pressure high",
-		"12:01:08 INFO  sweeping...",
-		"12:01:09 WARN  crab in sector 4",
-		"12:01:09 ERROR modal won't close",
-		"12:01:10 INFO  freed 4.2 MB",
-		"12:01:11 WARN  </> detected",
-	})
-	wallTextures['c'] = makeWindow("gc.go", 0x10121a, 0x6a5a8a, 0xb9c4d6, []string{
+		"sweeping... 0 B/op  $ █",
+	}},
+	{'l', "zest: app.log", 0x0d0f14, 0x7d6b45, 0xb8b0a0, []string{
+		"12:01 INFO  frame 0 B/op",
+		"12:01 WARN  bubble tea near",
+		"12:02 ERROR heap pressure",
+		"12:02 WARN  crab in sector 4",
+		"12:03 ERROR modal won't close",
+		"12:03 INFO  freed 4.2 MB",
+	}},
+	{'c', "gc.go", 0x10121a, 0x6a5a8a, 0xb9c4d6, []string{
 		"func (g *gc) sweep() {",
-		"    for _, o := range g.heap {",
-		"        if !o.marked {",
-		"            free(o)",
-		"        }",
+		"  for _, o := range g.heap {",
+		"    if !o.marked {",
+		"      free(o)",
 		"    }",
-		"    return // 0 allocs",
-		"}",
-	})
-	wallTextures['h'] = makeWindow("htop", 0x07120c, 0x3f8a52, 0xa8e0b0, []string{
-		"CPU [||||||||||||     62.1%]",
-		"MEM [|||||||||||||||| 88.4%]",
+		"  } // 0 allocs",
+	}},
+	{'h', "htop", 0x07120c, 0x3f8a52, 0xa8e0b0, []string{
+		"CPU [||||||||||||    62%]",
+		"MEM [||||||||||||||| 88%]",
 		"PID  USER   COMMAND",
 		"1337 charm  bubbletea",
 		"4242 ferris ratatui",
 		"6060 rivo   tview",
-		"7070 vadim  ink",
-		"  1  root   ncurses",
-	})
-	wallTextures['P'] = makeWindow("spawn", 0x1c0716, 0xff4fa0, 0xffd0e8, []string{
-		"$ go get charm.land/bubbletea",
-		"$ cargo add ratatui",
-		"$ npm i ink",
-		"$ go get rivo/tview",
-		"",
-		"  ▓▓▓▓▓▓ INCOMING ▓▓▓▓▓▓",
-		"",
-		"$ █",
-	})
+	}},
+}
+
+func init() {
+	for _, w := range windows {
+		wallTextures[w.tile] = makeWindow(w.title, w.bg, w.edge, w.text, w.lines)
+	}
+	wallTextures['P'] = makeSpawn()
+}
+
+// window is a texture being drawn, before its mip levels are made.
+type window struct {
+	t    *wallTex
+	pix  []rgb
+	bars []rgb // the window with its text as bars, for the smaller levels
+}
+
+func (w window) set(x, y int, c rgb) {
+	if x >= 0 && y >= 0 && x < w.t.w && y < w.t.h {
+		w.pix[y*w.t.w+x] = c
+		w.bars[y*w.t.w+x] = c
+	}
+}
+
+// text draws s in the 3×5 font from (x, y), each character in its own
+// colour, and returns the column after it.
+func (w window) text(x, y int, s string, col func(i int) rgb) int {
+	i := 0
+	for _, r := range s {
+		c := col(i)
+		for gy := 0; gy < fontH; gy++ {
+			for gx := 0; gx < fontW+1; gx++ {
+				k := (y+gy)*w.t.w + x + gx
+				if x+gx >= w.t.w || y+gy >= w.t.h {
+					continue
+				}
+				if gx < fontW && fontPixel(r, gx, gy) {
+					w.pix[k] = c
+				}
+				if r != ' ' && gy >= 1 && gy <= 3 {
+					w.bars[k] = c.mul(0.8)
+				}
+			}
+		}
+		x += fontW + 1
+		i++
+	}
+	return x
+}
+
+// frame draws a window's border, rounded, and its title bar with the three
+// buttons every desktop puts there.
+func (w window) frame(title string, bg, edge rgb) {
+	tw, th := w.t.w, w.t.h
+	for i := range w.pix {
+		w.pix[i], w.bars[i] = bg, bg
+	}
+	bar := bg.mix(edge, 0.28)
+	for y := 1; y < 9; y++ {
+		for x := 1; x < tw-1; x++ {
+			w.set(x, y, bar)
+		}
+	}
+	for x := 1; x < tw-1; x++ {
+		w.set(x, 0, edge)
+		w.set(x, th-1, edge)
+		w.set(x, 9, edge.mul(0.6))
+	}
+	for y := 1; y < th-1; y++ {
+		w.set(0, y, edge)
+		w.set(tw-1, y, edge)
+	}
+	// The corners stay dark: the window is rounded.
+	dark := bg.mul(0.4)
+	for _, c := range [4][2]int{{0, 0}, {tw - 1, 0}, {0, th - 1}, {tw - 1, th - 1}} {
+		w.set(c[0], c[1], dark)
+	}
+	if tw >= 48 {
+		for i, c := range [3]uint32{0xff5f57, 0xfebc2e, 0x28c840} {
+			for dy := 0; dy < 2; dy++ {
+				for dx := 0; dx < 2; dx++ {
+					w.set(4+i*4+dx, 4+dy, hex(c))
+				}
+			}
+		}
+	}
+	tc := hex(0xffffff).mix(edge, 0.25)
+	tx := (tw - width(title)*(fontW+1)) / 2
+	w.text(tx, 2, title, func(int) rgb { return tc })
+}
+
+func newWindow(w, h int, span float64) window {
+	t := &wallTex{w: w, h: h, span: span}
+	return window{t: t, pix: make([]rgb, w*h), bars: make([]rgb, w*h)}
+}
+
+// done makes the mip levels, each pixel the average of four.
+func (w window) done() *wallTex {
+	t := w.t
+	t.mip[0], t.mw[0], t.mh[0] = w.pix, t.w, t.h
+	for l := 1; l < nMip; l++ {
+		pw, ph := t.mw[l-1], t.mh[l-1]
+		from := t.mip[l-1]
+		if l == 1 {
+			from = w.bars
+		}
+		nw, nh := max(1, (pw+1)/2), max(1, (ph+1)/2)
+		m := make([]rgb, nw*nh)
+		for y := 0; y < nh; y++ {
+			for x := 0; x < nw; x++ {
+				var s rgb
+				for d := 0; d < 4; d++ {
+					sx, sy := min(2*x+d%2, pw-1), min(2*y+d/2, ph-1)
+					s = s.add(from[sy*pw+sx])
+				}
+				m[y*nw+x] = s.mul(0.25)
+			}
+		}
+		t.mip[l], t.mw[l], t.mh[l] = m, nw, nh
+	}
+	return t
 }
 
 // makeWindow draws a terminal window with a title bar and lines of text,
 // coloured the way a terminal would colour them.
 func makeWindow(title string, bg, edge, text uint32, lines []string) *wallTex {
-	t := &wallTex{bg: hex(bg), edge: hex(edge)}
-	for y := 0; y < texH; y++ {
-		for x := 0; x < texW; x++ {
-			t.glyph[y][x] = ' '
-			t.col[y][x] = hex(text)
-		}
-	}
-	put := func(x, y int, r rune, c rgb) {
-		t.glyph[y][x], t.col[y][x] = r, c
-	}
-	for x := 1; x < texW-1; x++ {
-		put(x, 0, '─', t.edge)
-		put(x, texH-1, '─', t.edge)
-	}
-	for y := 1; y < texH-1; y++ {
-		put(0, y, '│', t.edge)
-		put(texW-1, y, '│', t.edge)
-	}
-	put(0, 0, '╭', t.edge)
-	put(texW-1, 0, '╮', t.edge)
-	put(0, texH-1, '╰', t.edge)
-	put(texW-1, texH-1, '╯', t.edge)
-	x := 2
-	for _, r := range " " + title + " " {
-		put(x, 0, r, hex(0xffffff).mix(t.edge, 0.3))
-		x++
-	}
+	w := newWindow(winW, winH, 4)
+	w.frame(title, hex(bg), hex(edge))
 	for i, line := range lines {
-		y := i + 2
-		if y >= texH-1 {
+		y := 13 + i*6
+		if y+fontH >= winH-1 {
 			break
 		}
-		x := 2
-		for _, r := range line {
-			if x >= texW-2 {
-				break
+		w.text(4, y, line, func(k int) rgb { return lineColour(line, k, hex(text)) })
+	}
+	return w.done()
+}
+
+// makeSpawn draws a spawn window: a narrow one, a world unit wide, where
+// ones and zeroes stream in.
+func makeSpawn() *wallTex {
+	w := newWindow(32, winH, 1)
+	edge := hex(0xff4fa0)
+	w.frame("GET", hex(0x1c0716), edge)
+	for y := 11; y < winH-2; y++ {
+		for x := 2; x < 30; x++ {
+			w.set(x, y, hex(0x1c0716).mix(hex(0x5a0b3a), float32(y-11)/float32(winH-13)))
+		}
+	}
+	for row := 0; row < 6; row++ {
+		for col := 0; col < 6; col++ {
+			r := '0'
+			if hash2(row, col) > 0.5 {
+				r = '1'
 			}
-			put(x, y, r, lineColour(line, x-2, hex(text)))
-			x++
+			k := 0.35 + 0.65*hash2(col, row+9)
+			c := edge.mix(hex(0xffd0e8), 0.3).mul(k)
+			w.text(3+col*5, 12+row*7, string(r), func(int) rgb { return c })
 		}
 	}
-	for y := 0; y < texH; y++ {
-		for x := 0; x < texW; x++ {
-			t.ink[y][x] = ink(t.glyph[y][x])
-		}
-	}
-	return t
+	w.t.scroll0, w.t.scroll1 = 11, winH-2
+	return w.done()
 }
 
 // lineColour picks a colour for the character at column i of a line, the
-// way a shell, a log viewer or an editor would. It runs once, at start-up.
+// way a shell, a log viewer, an editor or htop would. It runs once, at
+// start-up.
 func lineColour(line string, i int, text rgb) rgb {
 	words := [...]struct {
 		w string
@@ -258,9 +373,20 @@ func lineColour(line string, i int, text rgb) rgb {
 	}{
 		{"ERROR", 0xff5a5a}, {"WARN", 0xffc94a}, {"INFO", 0x5ad1ff}, {"ok ", 0x6ee07a},
 		{"func", 0xd58aff}, {"for", 0xd58aff}, {"range", 0xd58aff}, {"if", 0xd58aff},
-		{"return", 0xd58aff}, {"INCOMING", 0xff4fa0}, {"0 B/op", 0x6ee07a}, {"0 allocs", 0x6ee07a},
+		{"return", 0xd58aff}, {"0 B/op", 0x6ee07a}, {"0 allocs", 0x6ee07a},
+		{"PID  USER   COMMAND", 0x0b2a14},
 	}
 	r := []rune(line)
+	if i < len(r) && r[i] == '|' && strings.Contains(line, "[") {
+		// An htop meter: green, then yellow, then red.
+		switch {
+		case i < 12:
+			return hex(0x6ee07a)
+		case i < 17:
+			return hex(0xffc94a)
+		}
+		return hex(0xff5a5a)
+	}
 	for _, w := range words {
 		ww := []rune(w.w)
 		for s := 0; s+len(ww) <= len(r); s++ {
@@ -276,22 +402,4 @@ func lineColour(line string, i int, text rgb) rgb {
 		return hex(0x6a7590)
 	}
 	return text
-}
-
-// ink is how much of its cell a glyph covers, for drawing a far wall as
-// shading rather than unreadable letters.
-func ink(r rune) float32 {
-	switch {
-	case r == ' ':
-		return 0
-	case r == '█' || r == '▓':
-		return 1
-	case r == '─' || r == '│' || r == '╭' || r == '╮' || r == '╰' || r == '╯':
-		return 0.45
-	case r == '.' || r == ',' || r == '\'' || r == ':':
-		return 0.15
-	case r >= 'A' && r <= 'Z' || r >= '0' && r <= '9':
-		return 0.6
-	}
-	return 0.5
 }

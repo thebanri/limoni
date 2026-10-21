@@ -18,127 +18,233 @@ var (
 	hudBad  = hex(0xff5a5a)
 )
 
-func (g *game) drawHUD(c canvas, v *view) {
-	st := style(hudText, hudBg)
-	dim := style(hudDim, hudBg)
-	// Top row: the level and the bytes to the next one.
-	c.fill(0, 0, c.w, 1, ' ', st)
-	if g.phase == phTitle {
-		c.fill(0, c.h-2, c.w, 2, ' ', st)
-		return
-	}
-	x := c.text(1, 0, "LV ", dim)
-	x = c.number(x, 0, g.level, style(hudCyan, hudBg))
-	x++
-	barW := c.w - x - 14
-	if barW > 4 && g.phase != phTitle {
-		frac := g.xp / need(g.level)
-		g.bar(c, x, 0, barW, frac, hudGood, hex(0x1a2a1e))
-		x += barW + 1
-	}
-	if g.phase != phTitle {
-		x = c.clock(x+1, 0, int(g.runTime), st)
-	}
+// The HUD floats over the picture in its corners, on panels that darken
+// what is under them rather than hide it: the level and the build top left,
+// the sweep count and the pressure top right, health bottom left and the
+// heap bottom right, their numbers big in the walls' pixel font.
 
-	// Bottom rows.
-	y := c.h - 2
-	c.fill(0, y, c.w, 2, ' ', st)
-	if g.phase == phTitle {
-		return
-	}
-	x = c.text(1, y, "HP ", dim)
-	hpCol := hudGood
-	if g.hp < g.st.maxHP*0.3 {
-		hpCol = hudBad
-	}
-	g.bar(c, x, y, 16, g.hp/g.st.maxHP, hpCol, hex(0x2a1418))
-	x += 17
-	x = c.number(x, y, int(math.Ceil(g.hp)), st)
-	c.set(x, y, '/', dim)
-	x = c.number(x+1, y, int(g.st.maxHP), dim)
-
-	x += 3
-	x = c.text(x, y, "HEAP ", dim)
-	switch {
-	case g.reloadT > 0:
-		frac := 1 - g.reloadT/g.st.reload
-		x = c.text(x, y, "GC PAUSE ", style(hudCyan, hudBg))
-		g.bar(c, x, y, 10, frac, hudCyan, hex(0x10202a))
-		x += 11
-	default:
-		pips := g.st.mag
-		if pips > 20 {
-			pips = 20
-		}
-		on := int(math.Ceil(float64(g.ammo) / float64(g.st.mag) * float64(pips)))
-		for i := 0; i < pips; i++ {
-			r, col := '▮', hudWarn
-			if i >= on {
-				r, col = '▯', hudDim
+// shadePanel darkens the cells of a rectangle.
+func shadePanel(c canvas, x0, y0, w, h int) {
+	tint := hex(0x060812)
+	for y := y0; y < y0+h; y++ {
+		for x := x0; x < x0+w; x++ {
+			p := c.at(x, y)
+			if p == nil {
+				continue
 			}
-			c.set(x, y, r, style(col, hudBg))
-			x++
-		}
-		x++
-		x = c.number(x, y, g.ammo, st)
-		if g.ammo == 0 && int(g.clock*3)%2 == 0 {
-			x = c.text(x+1, y, " R: COLLECT", style(hudBad, hudBg))
+			top, bot := halves(p)
+			if p.Content == '▀' || p.Content == ' ' {
+				setHalves(p, top.mix(tint, 0.72), bot.mix(tint, 0.72))
+				continue
+			}
+			p.Style.Fg = fromColor(p.Style.Fg).mix(tint, 0.6).color()
+			p.Style.Bg = bot.mix(tint, 0.72).color()
 		}
 	}
+}
 
-	x += 3
-	x = c.text(x, y, "SWEPT ", dim)
-	x = c.number(x, y, g.kills, st)
-	x += 3
-	x = c.text(x, y, "PRESSURE ", dim)
-	p := g.pressure()
-	if p <= 1 {
-		left := 600 - int(g.runTime)
-		if left < 0 {
-			left = 0
+// px sets one pixel of the half-block picture: column x, half row py.
+func (c canvas) px(x, py int, col rgb) {
+	p := c.at(x, py/2)
+	if p == nil {
+		return
+	}
+	top, bot := halves(p)
+	if py%2 == 0 {
+		top = col
+	} else {
+		bot = col
+	}
+	setHalves(p, top, bot)
+}
+
+// big writes s in the 3×5 font, s pixels a font pixel, from column x and
+// half row py, and returns the column after it.
+func (c canvas) big(x, py int, s string, scale int, col rgb) int {
+	for _, r := range s {
+		x = c.bigRune(x, py, r, scale, col)
+	}
+	return x
+}
+
+// bigNumber writes n with big, from the left digit, without strconv.
+func (c canvas) bigNumber(x, py, n, scale int, col rgb) int {
+	d := digits(n)
+	var buf [12]byte
+	for i := d - 1; i >= 0; i-- {
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	for i := 0; i < d; i++ {
+		x = c.bigRune(x, py, rune(buf[i]), scale, col)
+	}
+	return x
+}
+
+func (c canvas) bigRune(x, py int, r rune, scale int, col rgb) int {
+	for gy := 0; gy < fontH*scale; gy++ {
+		for gx := 0; gx < fontW*scale; gx++ {
+			if fontPixel(r, gx/scale, gy/scale) {
+				c.px(x+gx, py+gy, col)
+			}
 		}
-		x = c.text(x, y, "builds in ", dim)
-		c.clock(x, y, left, st)
+	}
+	return x + (fontW+1)*scale
+}
+
+// fgNumber writes n keeping the backgrounds under it.
+func (c canvas) fgNumber(x, y, n int, col rgb) int {
+	d := digits(n)
+	cc := col.color()
+	for i := d - 1; i >= 0; i-- {
+		if p := c.at(x+i, y); p != nil {
+			p.Content, p.Style.Fg = rune('0'+n%10), cc
+		}
+		n /= 10
+	}
+	return x + d
+}
+
+func (c canvas) fgClock(x, y, secs int, col rgb) int {
+	x = c.fgNumber(x, y, secs/60, col)
+	x = c.fg(x, y, ":", col)
+	x = c.fgNumber(x, y, secs%60/10, col)
+	return c.fgNumber(x, y, secs%10, col)
+}
+
+func (g *game) drawHUD(c canvas, v *view) {
+	if g.phase == phTitle || c.w < 24 || c.h < 8 {
+		return
+	}
+	w, h := c.w, c.h
+	scale := 1
+	if h >= 60 && w >= 150 {
+		scale = 2
+	}
+
+	// Top left: the level, the bytes to the next one, the time.
+	barW := min(28, max(6, w/6))
+	pw := 4 + digits(g.level) + 1 + barW + 2 + 5
+	shadePanel(c, 0, 0, pw, 1)
+	x := c.fg(1, 0, "LV ", hudDim)
+	x = c.fgNumber(x, 0, g.level, hudCyan) + 1
+	g.bar(c, x, 0, barW, g.xp/need(g.level), hudGood, hex(0x14261a))
+	x += barW + 1
+	c.fgClock(x, 0, int(g.runTime), hudText)
+
+	// Under it, the build: one augment a row.
+	y := 1
+	rows := max(0, h/2-3)
+	for a := augID(0); a < nAug; a++ {
+		if g.rank[a] == 0 {
+			continue
+		}
+		if y > rows {
+			shadePanel(c, 0, y, 7, 1)
+			c.fg(1, y, "+ more", hudDim)
+			break
+		}
+		name := augs[a].name
+		n := width(name) + 2 + digits(g.rank[a])
+		if g.over[a] > 0 {
+			n += 1 + digits(g.over[a])
+		}
+		shadePanel(c, 0, y, n+1, 1)
+		x := c.fg(1, y, name, hex(rarityCol[augs[a].rar]))
+		x = c.fgNumber(x+1, y, g.rank[a], hudText)
+		if g.over[a] > 0 {
+			x = c.fg(x, y, "+", hudWarn)
+			c.fgNumber(x, y, g.over[a], hudWarn)
+		}
+		y++
+	}
+
+	// Top right: what has been swept, and the pressure.
+	p := g.pressure()
+	rw := 6 + digits(g.kills) + 3 + 9 + 9
+	rx := w - rw
+	shadePanel(c, rx, 0, rw, 1)
+	x = c.fg(rx+1, 0, "SWEPT ", hudDim)
+	x = c.fgNumber(x, 0, g.kills, hudText) + 3
+	x = c.fg(x, 0, "PRESSURE ", hudDim)
+	if p <= 1 {
+		x = c.fg(x, 0, "in ", hudDim)
+		c.fgClock(x, 0, max(0, 600-int(g.runTime)), hudText)
 	} else {
 		col := hudWarn
 		if p > 4 {
 			col = hudBad
 		}
-		x = c.text(x, y, "x", style(col, hudBg))
-		x = c.number(x, y, int(p), style(col, hudBg))
-		c.set(x, y, '.', style(col, hudBg))
-		c.number(x+1, y, int(p*10)%10, style(col, hudBg))
+		x = c.fg(x, 0, "x", col)
+		x = c.fgNumber(x, 0, int(p), col)
+		x = c.fg(x, 0, ".", col)
+		c.fgNumber(x, 0, int(p*10)%10, col)
 	}
 
-	// Second row: the build, or a message.
-	y++
-	if g.msgT > 0 {
-		c.text(1, y, g.message, style(hudPink, hudBg))
-		return
-	}
-	x = 1
-	any := false
-	for a := augID(0); a < nAug; a++ {
-		if g.rank[a] == 0 {
-			continue
-		}
-		any = true
-		if x+width(augs[a].name)+5 > c.w {
-			break
-		}
-		x = c.text(x, y, augs[a].name, style(hex(rarityCol[augs[a].rar]), hudBg))
-		x = c.number(x+1, y, g.rank[a], st)
-		if g.over[a] > 0 {
-			x = c.text(x, y, "+", style(hudWarn, hudBg))
-			x = c.number(x, y, g.over[a], style(hudWarn, hudBg))
-		}
-		x += 2
-	}
-	if !any {
-		c.text(1, y, "WASD move · mouse aim · click sweep · R collect · Space dash · Esc pause", dim)
-	}
 	if g.bossLive {
 		g.drawBossBar(c)
+	}
+	if g.msgT > 0 {
+		mw := width(g.message) + 4
+		shadePanel(c, (w-mw)/2, h/4, mw, 1)
+		c.fg((w-mw)/2+2, h/4, g.message, hudPink)
+	}
+
+	// Bottom left: health, its number big.
+	numRows := (fontH*scale + 2) / 2
+	ph := numRows + 1
+	py := h - ph
+	hpCol := hudGood
+	if g.hp < g.st.maxHP*0.3 {
+		hpCol = hudBad
+	}
+	hpW := 3 + 4*scale*digits(int(math.Ceil(g.st.maxHP))) + 2 + 1 + digits(int(g.st.maxHP)) + 1
+	shadePanel(c, 0, py, hpW, ph)
+	x = c.bigNumber(2, 2*py+1, int(math.Ceil(g.hp)), scale, hpCol)
+	c.fg(x+1, py, "HP", hudDim)
+	x = c.fg(x+1, py+numRows-1, "/", hudDim)
+	c.fgNumber(x, py+numRows-1, int(g.st.maxHP), hudDim)
+	g.bar(c, 1, h-1, hpW-2, g.hp/g.st.maxHP, hpCol, hex(0x2a1418))
+
+	// Bottom right: the heap.
+	amW := max(min(g.st.mag, 24)+2, 3+4*scale*max(2, digits(g.st.mag))+2+5+1)
+	ax := w - amW
+	shadePanel(c, ax, py, amW, ph)
+	if g.reloadT > 0 && g.st.reload > 0 {
+		x = c.big(ax+2, 2*py+1, "GC", scale, hudCyan)
+		c.fg(x+1, py, "HEAP", hudDim)
+		c.fg(x+1, py+numRows-1, "pause", hudDim)
+		g.bar(c, ax+1, h-1, amW-2, 1-g.reloadT/g.st.reload, hudCyan, hex(0x10202a))
+		return
+	}
+	col := hudText
+	switch {
+	case g.ammo == 0:
+		col = hudBad
+	case g.ammo*4 <= g.st.mag:
+		col = hudWarn
+	}
+	x = c.bigNumber(ax+2, 2*py+1, g.ammo, scale, col)
+	c.fg(x+1, py, "HEAP", hudDim)
+	x = c.fg(x+1, py+numRows-1, "/", hudDim)
+	c.fgNumber(x, py+numRows-1, g.st.mag, hudDim)
+	pips := min(g.st.mag, amW-2)
+	on := int(math.Ceil(float64(g.ammo) / float64(g.st.mag) * float64(pips)))
+	for i := 0; i < pips; i++ {
+		r, pc := "▮", hudWarn
+		if i >= on {
+			r, pc = "▯", hudDim
+		}
+		c.fg(ax+1+i, h-1, r, pc)
+	}
+
+	// The keys, for the first seconds of a first run.
+	if g.runTime < 12 && g.best.runs == 0 {
+		hint := "WASD move · mouse aim · click sweep · R collect · Space dash · Esc pause"
+		if hw := width(hint) + 2; hw < w-hpW-amW-2 {
+			shadePanel(c, (w-hw)/2, h-1, hw, 1)
+			c.fg((w-hw)/2+1, h-1, hint, hudDim)
+		}
 	}
 }
 
@@ -175,9 +281,9 @@ func (g *game) drawBossBar(c canvas) {
 		w := c.w / 2
 		x0 := (c.w - w) / 2
 		col := hex(kinds[e.k].accent)
-		c.fill(x0-1, 1, w+2, 1, ' ', style(col, hudBg))
-		c.text(x0, 1, name, style(col, hudBg))
-		g.bar(c, x0+width(name)+1, 1, w-width(name)-1, e.hp/e.max, col, hex(0x1d1020))
+		shadePanel(c, x0-1, 2, w+2, 1)
+		c.fg(x0, 2, name, col)
+		g.bar(c, x0+width(name)+1, 2, w-width(name)-1, e.hp/e.max, col, hex(0x1d1020))
 		return
 	}
 }

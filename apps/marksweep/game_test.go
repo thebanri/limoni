@@ -24,20 +24,7 @@ func TestEveryGlyphIsOneColumn(t *testing.T) {
 			}
 		}
 	}
-	for _, r := range gunArt.glyph {
-		check("gun", r)
-	}
-	for tile, tex := range wallTextures {
-		for y := range tex.glyph {
-			for _, r := range tex.glyph[y] {
-				check("wall "+string(tile), r)
-			}
-		}
-	}
-	for _, r := range ramp {
-		check("ramp", r)
-	}
-	for _, r := range "•∙*▮o●◆01·~✸─│┼◀▶▀▮▯○●◉▏▎▍▌▋▊▉█" {
+	for _, r := range "•∙*▮o●◆01·~─│◀▶▀▄▮▯○●◉▏▎▍▌▋▊▉█╲╱«»" {
 		check("hud", r)
 	}
 }
@@ -296,16 +283,124 @@ func TestEveryWindowSizeDraws(t *testing.T) {
 	}
 }
 
-func TestEdgeTurn(t *testing.T) {
+// The view turns with the mouse off the middle, harder towards the edges,
+// and fully before the last columns, so the mouse never has to leave the
+// window.
+func TestSteer(t *testing.T) {
 	const w = 120
-	if edgeTurn(w/2, w) != 0 {
-		t.Fatal("the middle turns")
+	if steer(w/2, w) != 0 || steer(w/4+1, w) != 0 || steer(w-w/4-2, w) != 0 {
+		t.Fatal("the middle half turns")
 	}
-	if edgeTurn(0, w) > -0.9 || edgeTurn(w-1, w) < 0.9 {
-		t.Fatalf("the edges turn %.2f and %.2f, want close to -1 and 1", edgeTurn(0, w), edgeTurn(w-1, w))
+	if steer(w/20, w) != -1 || steer(w-1-w/20, w) != 1 {
+		t.Fatalf("the outer tenth turns %.2f and %.2f, want -1 and 1", steer(w/20, w), steer(w-1-w/20, w))
 	}
-	if edgeTurn(w/6+1, w) != 0 || edgeTurn(w-w/6-2, w) != 0 {
-		t.Fatal("outside the outer sixth the view turns")
+	last := 0.0
+	for x := w / 2; x < w; x++ {
+		s := steer(x, w)
+		if s < last {
+			t.Fatalf("turning slows towards the edge at column %d", x)
+		}
+		if math.Abs(steer(w-1-x, w)+s) > 1e-9 {
+			t.Fatalf("left and right differ at column %d", x)
+		}
+		last = s
+	}
+}
+
+// The crosshair stays in the picture wherever the terminal says the mouse
+// is.
+func TestTheCrosshairStaysInThePicture(t *testing.T) {
+	g := playing()
+	g.viewW, g.viewH, g.mouseIn = 120, 40, true
+	for _, m := range [][2]int{{-5, 20}, {200, 20}, {60, -3}, {60, 90}} {
+		g.mouseX, g.mouseY = m[0], m[1]
+		x, y := g.crosshair()
+		if x < 0 || x >= 120 || y < 0 || y >= 40 {
+			t.Errorf("mouse at %v: crosshair at %d,%d, outside 120×40", m, x, y)
+		}
+	}
+}
+
+// The gun points through the crosshair: its muzzle follows the mouse.
+func TestTheGunFollowsTheMouse(t *testing.T) {
+	muzzle := func(mx, my int) (float64, float64) {
+		g := playing()
+		g.viewW, g.viewH, g.mouseIn = 140, 44, true
+		g.mouseX, g.mouseY = mx, my
+		v := view{w: 140, h: 44, horizon: 22, f: 107}
+		p := g.gunPose(&v, 70, 44, 105)
+		x, y, _ := p.screen(muzzleTip, 70, 44, 105)
+		return x, y
+	}
+	lx, _ := muzzle(10, 22)
+	rx, _ := muzzle(130, 22)
+	_, uy := muzzle(70, 3)
+	_, dy := muzzle(70, 40)
+	if lx >= rx-10 {
+		t.Errorf("muzzle at %.0f with the mouse left and %.0f with it right", lx, rx)
+	}
+	if uy >= dy-5 {
+		t.Errorf("muzzle at %.0f with the mouse up and %.0f with it down", uy, dy)
+	}
+	// And the barrel's line on the screen runs through the crosshair.
+	for _, m := range [][2]int{{10, 22}, {70, 22}, {130, 5}, {40, 40}} {
+		g := playing()
+		g.viewW, g.viewH, g.mouseIn = 140, 44, true
+		g.mouseX, g.mouseY = m[0], m[1]
+		v := view{w: 140, h: 44, horizon: 22, f: 107}
+		p := g.gunPose(&v, 70, 44, 105)
+		ax, ay, _ := p.screen(v3{0, 0.004, 0.1}, 70, 44, 105)
+		bx, by, _ := p.screen(muzzleTip, 70, 44, 105)
+		cx, cy := float64(m[0])+0.5, float64(2*m[1]+1)
+		// The crosshair's distance from the line through a and b.
+		d := math.Abs((bx-ax)*(cy-ay)-(by-ay)*(cx-ax)) / math.Hypot(bx-ax, by-ay)
+		if d > 1 {
+			t.Errorf("mouse at %v: the barrel misses the crosshair by %.1f pixels", m, d)
+		}
+	}
+}
+
+// The gun is drawn into a layer kept between frames: a frame must show
+// nothing of the one before it — a tracer once stayed on the wall.
+func TestTheGunLeavesNothingBehind(t *testing.T) {
+	for my := 2; my < 40; my += 3 {
+		scene := func(recoil float64) *game {
+			g := playing()
+			g.mouseIn, g.mouseX, g.mouseY, g.recoil = true, 60, my, recoil
+			return g
+		}
+		want := buffer.NewBuffer(cell.Rect{Width: 140, Height: 44})
+		scene(0).render(want)
+		got := buffer.NewBuffer(cell.Rect{Width: 140, Height: 44})
+		scene(0.95).render(got)
+		scene(0).render(got)
+		for i := range want.Content {
+			if got.Content[i] != want.Content[i] {
+				t.Fatalf("mouse row %d: cell %d,%d differs after a frame with a shot in it", my, i%140, i/140)
+			}
+		}
+	}
+}
+
+// Every character on the walls has a glyph in the pixel font.
+func TestWallTextIsInTheFont(t *testing.T) {
+	for _, w := range windows {
+		for _, line := range append([]string{w.title}, w.lines...) {
+			for _, r := range line {
+				if r == ' ' {
+					continue
+				}
+				on := false
+				for y := 0; y < fontH; y++ {
+					for x := 0; x < fontW; x++ {
+						on = on || fontPixel(r, x, y)
+					}
+				}
+				if !on {
+					t.Errorf("%s: %q has no glyph", w.title, r)
+				}
+			}
+		}
 	}
 }
 

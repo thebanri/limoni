@@ -91,6 +91,11 @@ type game struct {
 	fireCD  float64
 	recoil  float64
 	dryT    float64 // "the heap is full" hint
+	swayX   float64 // the gun lagging behind the aim, sideways and up
+	swayY   float64
+	prevAim float64
+	hitT    float64 // a shot landed: the crosshair's marker
+	killT   float64 // ... and killed
 
 	// input
 	held    [nAct]bool
@@ -294,10 +299,17 @@ func (g *game) stepPlayer(dt float64) {
 		turn += 2.6
 	}
 	if !g.locked && g.mouseIn && g.viewW > 0 {
-		turn += edgeTurn(g.mouseX, g.viewW) * 2.8
+		turn += steer(g.mouseX, g.viewW) * 3.4
 	}
 	g.ang += turn * dt
 	g.ang = math.Remainder(g.ang, 2*math.Pi)
+	// The gun lags behind the aim and springs back.
+	a := g.aim()
+	da := math.Remainder(a-g.prevAim, 2*math.Pi)
+	g.prevAim = a
+	k := math.Min(1, dt*10)
+	g.swayX += (math.Max(-0.25, math.Min(0.25, -da*2.5)) - g.swayX) * k
+	g.swayY += (-g.swayY) * k
 
 	f := dir(g.ang)
 	r := dir(g.ang + math.Pi/2)
@@ -326,18 +338,23 @@ func (g *game) stepPlayer(dt float64) {
 	slide(&g.pos, m.x*speed*dt, m.y*speed*dt, playerR)
 }
 
-// edgeTurn is how hard the view turns with the mouse at column x of w:
-// nothing in the middle, up to ±1 in the outer sixth on each side.
-func edgeTurn(x, w int) float64 {
-	zone := float64(w) / 6
-	fx := float64(x) + 0.5
-	switch {
-	case fx < zone:
-		return -(1 - fx/zone)
-	case fx > float64(w)-zone:
-		return (fx - (float64(w) - zone)) / zone
+// steer is how hard the view turns with the mouse at column x of w: not at
+// all in the middle half, then harder towards the edges, and all the way over
+// the outer fifteenth — so turning never needs the mouse outside the window,
+// where a terminal stops reporting it.
+func steer(x, w int) float64 {
+	n := 2*(float64(x)+0.5)/float64(w) - 1
+	const dead, full = 0.5, 0.85
+	a := math.Abs(n)
+	if a <= dead {
+		return 0
 	}
-	return 0
+	t := math.Min(1, (a-dead)/(full-dead))
+	t = t * t * (3 - 2*t)
+	if n < 0 {
+		return -t
+	}
+	return t
 }
 
 func (g *game) dash() {
@@ -386,6 +403,8 @@ func (g *game) stepWeapon(dt float64) {
 	if g.recoil > 0 {
 		g.recoil -= dt * 6
 	}
+	g.hitT -= dt
+	g.killT -= dt
 	if g.dryT > 0 {
 		g.dryT -= dt
 	}
@@ -425,6 +444,7 @@ func (g *game) fire() {
 		g.ammo--
 	}
 	g.recoil = 1
+	g.swayY += 0.05
 	n := g.st.multishot
 	a := g.aim()
 	spread := 0.035 + 0.01*float64(n)

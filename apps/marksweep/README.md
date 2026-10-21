@@ -17,7 +17,7 @@ Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep).
 
 | | |
 | :--- | :--- |
-| mouse | aim. In a terminal the crosshair follows the mouse, and near the edges the view turns. In the browser the pointer is locked and moves the view, as in any first-person game |
+| mouse | aim; the gun points wherever the crosshair is. In a terminal the crosshair follows the mouse, and off the middle half the view turns, faster towards the edges, so the mouse never has to leave the window. In the browser the pointer is locked and moves the view, as in any first-person game |
 | left button | sweep (hold to keep firing). `F` does the same from the keyboard |
 | `R` or right button | collect. The heap (magazine) never refills on its own |
 | `W` `A` `S` `D` | move. `←` `→` or `Q` `E` turn |
@@ -87,16 +87,28 @@ There is no leaderboard.
 
 ## How it is drawn
 
-It is a raycaster drawn in characters, one ray a column. A wall's texture is a terminal window: text
-sampled glyph by glyph. A glyph wider than a column is drawn once, so near text reads spaced out instead
-of doubled. Far walls are shaded with a ramp of characters, because letters would alias into noise there.
-Sprites are art made of characters, scaled by picking the nearest one: lines and blocks stretch, letters
-stay one character, so a near Bubble Tea box grows and its face stays readable. Boxed enemies are filled
-with a panel colour so they read against the walls.
+The room is a raycaster in half-block pixels, two to a cell, one ray a column. A wall's texture is a
+terminal window drawn in a 3×5 pixel font; it is mip-mapped, and the smaller levels draw each character as
+a bar of its colour, the way an editor's minimap shows code, because letters averaged down are grey noise.
+So text reads up close and far walls stay clean lines. The floor is polished and shows the walls standing
+on it; the floor's seams and the ceiling's trays thin out before they would shimmer.
 
-A frame allocates nothing: the pools and the renderer's scratch are sized once. The tests hold it to that
-on every screen, and with the most broken build's pools full (`BenchmarkFullPools`: about 3 ms a frame,
-868 shots, 200 enemies).
+The enemies are drawn in characters over that, art scaled by picking the nearest character: lines and
+blocks stretch, letters stay one character, so a near Bubble Tea box grows and its face stays readable.
+Boxed enemies are filled with a panel colour so they read against the walls.
+
+The gun has a small 3D engine of its own (`viewmodel.go`): a mesh of boxes, hulls and prisms built once,
+posed every frame, lit, rasterised with a depth buffer into half-block pixels and outlined. Its barrel
+points at a point on the ray through the crosshair, so on the screen its line meets the crosshair wherever
+the mouse is. It sways behind the aim, kicks on a shot, and on a reload rolls over while the heap (the
+canister of glowing bytes under it, as full as the magazine) drops out and a fresh one comes up. The
+muzzle flash and the tracer are light added to what is behind them.
+
+The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font.
+
+A frame allocates nothing: the pools, the gun's pixels and the renderer's scratch are sized once. The
+tests hold it to that on every screen, and with the most broken build's pools full (`BenchmarkFullPools`:
+about 0.9 ms a frame, 878 shots, 200 enemies).
 
 ```bash
 go test ./...                                  # rules, allocations, every window size
