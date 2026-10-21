@@ -21,6 +21,10 @@ type Buffer struct {
 	// clean indicates whether all cells are in the default (space + zero style) state.
 	// This flag lets Clear() avoid scanning the entire cell array during empty frame passes.
 	clean bool
+
+	// clip limits writes to a rectangle while clipOn is set (SetClip, Frame.BeginArea).
+	clip   cell.Rect
+	clipOn bool
 }
 
 // NewBuffer creates a new Buffer with the specified dimensions.
@@ -68,6 +72,7 @@ func (b *Buffer) Invalidate() {
 // re-slices without allocating new heap memory.
 func (b *Buffer) Resize(area cell.Rect) {
 	b.Area = area
+	b.clipOn = false
 	needed := int(area.Width) * int(area.Height)
 	if cap(b.Content) >= needed {
 		b.Content = b.Content[:needed]
@@ -79,12 +84,49 @@ func (b *Buffer) Resize(area cell.Rect) {
 	b.Clear()
 }
 
+// SetClip limits every write (SetCell, SetString, Get…) to r, cut to the
+// buffer, until ClearClip. Reads through CellAt are not limited. A wide
+// character that would cross the clip's right edge is not drawn, as at the
+// buffer's own edge.
+func (b *Buffer) SetClip(r cell.Rect) {
+	b.clip = r.Intersection(cell.Rect{Width: b.Area.Width, Height: b.Area.Height})
+	b.clipOn = true
+}
+
+// ClearClip lets writes reach the whole buffer again.
+func (b *Buffer) ClearClip() { b.clipOn = false }
+
+// Clip returns the rectangle writes are limited to: the whole buffer when no
+// clip is set.
+func (b *Buffer) Clip() cell.Rect {
+	if b.clipOn {
+		return b.clip
+	}
+	return cell.Rect{Width: b.Area.Width, Height: b.Area.Height}
+}
+
+// writable reports whether a write may touch (x, y).
+func (b *Buffer) writable(x, y uint16) bool {
+	if x >= b.Area.Width || y >= b.Area.Height {
+		return false
+	}
+	return !b.clipOn || b.clip.Contains(x, y)
+}
+
+// right returns the column writes stop at.
+func (b *Buffer) right() uint16 {
+	if b.clipOn {
+		return b.clip.X + b.clip.Width
+	}
+	return b.Area.Width
+}
+
 // Get returns a direct mutable pointer to the cell at the specified coordinates.
 // Calling Get marks the buffer as dirty and non-clean, ensuring subsequent diff passes
 // do not skip mutations performed through the returned pointer.
-// Returns nil if coordinates are out of bounds.
+// Returns nil if coordinates are out of bounds or outside the clip.
 func (b *Buffer) Get(x, y uint16) *cell.Cell {
-	if x >= b.Area.Width || y >= b.Area.Height {
+	if !b.writable(x, y) {
 		return nil
 	}
 	b.clean = false
@@ -164,7 +206,7 @@ func (b *Buffer) setContinuation(x, y uint16, style cell.Style) {
 // SetCell writes a cell at the specified coordinate.
 // If the style's background is ColorDefault (unstyled), it preserves the cell's existing background color.
 func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
-	if x >= b.Area.Width || y >= b.Area.Height {
+	if !b.writable(x, y) {
 		return
 	}
 	if c.Content == cell.RuneContinuation {
@@ -176,7 +218,7 @@ func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 	if w == 0 {
 		return
 	}
-	if w == 2 && x+1 >= b.Area.Width {
+	if w == 2 && x+1 >= b.right() {
 		return
 	}
 
@@ -207,7 +249,7 @@ func (b *Buffer) SetCell(x, y uint16, c cell.Cell) {
 
 // SetCellDirect writes a cell at the specified coordinate without style merging (exact overwrite).
 func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
-	if x >= b.Area.Width || y >= b.Area.Height {
+	if !b.writable(x, y) {
 		return
 	}
 	if c.Content == cell.RuneContinuation {
@@ -218,7 +260,7 @@ func (b *Buffer) SetCellDirect(x, y uint16, c cell.Cell) {
 	if w == 0 {
 		return
 	}
-	if w == 2 && x+1 >= b.Area.Width {
+	if w == 2 && x+1 >= b.right() {
 		return
 	}
 
@@ -249,10 +291,14 @@ func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWid
 	if y >= b.Area.Height || x >= b.Area.Width || maxWidth == 0 {
 		return 0
 	}
+	clip := b.Clip()
+	if y < clip.Y || y >= clip.Y+clip.Height {
+		return 0
+	}
 
 	limitX := x + maxWidth
-	if limitX > b.Area.Width {
-		limitX = b.Area.Width
+	if right := clip.X + clip.Width; limitX > right {
+		limitX = right
 	}
 
 	currX := x
@@ -284,6 +330,10 @@ func (b *Buffer) SetStringWithin(x, y uint16, s string, style cell.Style, maxWid
 		}
 		if currX+uint16(w) > limitX {
 			break // Prevent clipping overflow beyond maxWidth
+		}
+		if currX < clip.X {
+			currX += uint16(w) // left of the clip: counted, not drawn
+			continue
 		}
 
 		b.clearOrphanWideAround(currX, y, w)

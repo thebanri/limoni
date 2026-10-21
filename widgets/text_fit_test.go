@@ -14,7 +14,7 @@ func screenText(buf *buffer.Buffer) string {
 	var sb strings.Builder
 	for y := uint16(0); y < buf.Area.Height; y++ {
 		for x := uint16(0); x < buf.Area.Width; x++ {
-			if c := buf.Get(x, y); c.Content != cell.RuneContinuation {
+			if c := buf.CellAt(x, y); c.Content != cell.RuneContinuation {
 				sb.WriteString(cell.ClusterText(c.Content))
 			}
 		}
@@ -42,6 +42,22 @@ func TestTableCutsCellsAtClusters(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in\n%s", want, got)
 		}
+	}
+}
+
+// Table writes its cells into the buffer directly; it must still stop at the
+// buffer's clip (Frame.BeginArea), or a table in one pane draws over the next.
+func TestTableStopsAtTheBuffersClip(t *testing.T) {
+	table := Table{
+		Rows:        []TableRow{NewRow("abcdefgh")},
+		Constraints: []TableConstraint{{Type: ConstraintFixed, Value: 10}},
+		State:       NewTableState(),
+	}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 10, 1))
+	buf.SetClip(cell.NewRect(0, 0, 4, 1))
+	table.Draw(cell.Context{Area: buf.Area}, buf)
+	if got := strings.TrimRight(screenText(buf), " \n"); got != "abcd" {
+		t.Fatalf("table in a 4-column clip drew %q, want \"abcd\"", got)
 	}
 }
 

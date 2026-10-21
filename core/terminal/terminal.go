@@ -465,6 +465,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	if fn != nil {
 		fn(t.frame)
 	}
+	t.frame.endAreas()
 	if t.backdropActive() {
 		t.keepAppLayer()
 		t.composeBackdrop()

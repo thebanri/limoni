@@ -8,6 +8,23 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Added
+
+- `Frame.BeginArea(r)` / `EndArea()`: a view written for the whole
+  screen drawn in part of it — a tab, a pane, a preview. Between the two,
+  `f.Area()` is `r`, nothing is drawn outside it, and click, scroll and
+  event regions are cut to it, so a pane cannot take its neighbour's clicks.
+  Areas nest; one left open is closed after the frame. Underneath,
+  `Buffer.SetClip` / `ClearClip` / `Clip` limit every write, `Get` included.
+  Modals and layers are not scoped to an area yet. Asked for by
+  residual's tabbed multiplexer. Writes check the clip, which costs 1–4% in
+  the widget draw benchmarks (0 allocations, unchanged).
+
+### Changed
+
+- `Buffer.Snapshot` reads with `CellAt`, so taking one no longer marks the
+  buffer dirty, and works while a clip is set.
+
 ### Fixed
 
 - `go install …/apps/termimg@latest` on Windows stopped at a dozen compile

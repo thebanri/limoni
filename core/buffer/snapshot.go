@@ -18,7 +18,7 @@ func (b *Buffer) Snapshot() string {
 			out.WriteByte('\n')
 		}
 		for x := uint16(0); x < b.Area.Width; x++ {
-			r := b.Get(x, y).Content
+			r := b.CellAt(x, y).Content
 			if r == cell.RuneContinuation || r == 0 {
 				r = ' '
 			}
