@@ -23,6 +23,7 @@ import (
 	"github.com/thebanri/limoni"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func main() {
@@ -59,7 +60,6 @@ func main() {
 		s = uint64(time.Now().UnixNano())
 	}
 	g := newGame(s)
-	g.hint = kittyHint()
 	g.store = newStore()
 	if g.store != nil {
 		g.best = g.store.load()
@@ -80,6 +80,7 @@ func main() {
 		g.noSound = "no audio output"
 	}
 	ptr := newPointer()
+	g.hint = ptr.problem()
 	app := limoni.NewApp(term,
 		limoni.WithFPS(*fps),
 		limoni.WithTitle("Mark & Sweep"),
@@ -103,6 +104,7 @@ func main() {
 		ptr.want(g.phase == phPlay)
 		return !g.quit
 	})
+	ptr.close()
 	term.Close()
 	if mix != nil {
 		mix.close()
@@ -133,6 +135,11 @@ func (g *game) event(ev *limoni.Event) {
 	case limoni.EventMouse:
 		if !g.locked {
 			g.mouse(ev.Mouse)
+		}
+	case driver.EventFocus:
+		// Another window has the keyboard: let the mouse go with it.
+		if !ev.Focus.Gained && g.phase == phPlay {
+			g.pauseRun()
 		}
 	}
 }

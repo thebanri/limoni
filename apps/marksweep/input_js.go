@@ -93,3 +93,8 @@ func (p *pointer) want(w bool) {
 		}
 	}
 }
+
+func (*pointer) close() {}
+
+// problem is a line for the title screen: none, the page locks the pointer.
+func (*pointer) problem() string { return "" }

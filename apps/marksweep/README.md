@@ -12,9 +12,25 @@ marksweep            # -fps 60 for a smoother picture, -mute for silence
 marksweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
 ```
 
-No program in a terminal can hide the mouse pointer, so in a terminal it stays on the screen while it
-turns the view. kitty can hide it itself (its `mouse_hide_wait` option, set so the pointer goes once the
-mouse rests and never comes back), and `-window` opens the game in a kitty window with that set.
+### Mouse lock
+
+A terminal cannot lock the mouse pointer, so on Linux the game locks it itself, in any terminal: it
+reads the mice from their evdev devices and, while a run is on, grabs them (`EVIOCGRAB`), so their
+movement reaches the game alone. The pointer stays where it is, never onto another monitor or another
+window, and the game gets the mouse's raw movement, as a browser's pointer lock gives. Cards, menus,
+the pause and the terminal losing focus let it go; quitting lets it go whatever happens.
+
+It needs read access to the mice. One udev rule gives the person at the seat the mice, and not the
+keyboards:
+
+```bash
+echo 'SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_MOUSE}=="1", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-mouse-uaccess.rules
+sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
+```
+
+Without it, and outside Linux, the terminal's mouse reports turn the view, and at the window's edge
+the view keeps turning. In kitty, `-window` at least hides the pointer: it opens the game in a kitty
+window of its own with kitty's `mouse_hide_wait` set so the pointer goes once the mouse rests.
 
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep).
 
