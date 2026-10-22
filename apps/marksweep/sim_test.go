@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -68,6 +69,12 @@ func bot(g *game, taste []augID) {
 		if d < 1.6 && g.hp < g.st.maxHP*0.5 {
 			g.dash()
 		}
+		// What the game says to do about a claw slam: dash through it.
+		if w := g.wave; w.alive && !w.hit {
+			if gap := math.Sqrt(g.pos.dist2(w.pos)) - w.r; gap > 0 && gap < 0.6 {
+				g.dash()
+			}
+		}
 	} else {
 		// Nothing in sight: walk back to the middle.
 		to := vec{16, 16}.sub(g.pos)
@@ -87,29 +94,46 @@ func TestSimulatedRuns(t *testing.T) {
 		"broken":   {augFork, augRecursion, augPanic, augCascade, augScroll, augREP, augChain, augLoop, augHotPath},
 		"steady":   {augHotPath, augLoop, augHeap, augConcGC, augShutdown, augRecover, augEscape, augDiff},
 		"anything": nil,
+		"fire":     {augIgnite, augFirewall, augOverheat, augWildfire, augIncinerate, augAfterburn, augHotPath, augLoop},
+		"frost":    {augChill, augShatter, augPermafrost, augShards, augAbsZero, augColdSnap, augThermal, augIgnite, augLoop},
+		"storm":    {augChain, augStatic, augConductor, augThunder, augTesla, augShort, augSuper, augLoop},
+		"plague":   {augLeak, augPlague, augDangling, augCorrode, augFumes, augNeuro, augLoop, augHotPath},
+		"machine":  {augCron, augDaemon, augDoubleBuf, augRam, augRetry, augBatch, augBigO, augHotPath},
 	}
-	limit := 30.0
+	limit, seeds := 30.0, uint64(3)
 	if os.Getenv("SIM") != "" {
-		limit = 25 * 60
+		limit, seeds = 25*60, 10
 	}
 	for name, taste := range builds {
-		for seed := uint64(1); seed <= 3; seed++ {
+		var lasted []float64
+		for seed := uint64(1); seed <= seeds; seed++ {
 			g := newGame(seed * 7919)
 			g.reset()
 			g.exact = true
+			at3 := 0
 			for g.phase != phDead && g.runTime < limit {
 				bot(g, taste)
 				g.step(tick)
+				if at3 == 0 && g.runTime >= 180 {
+					at3 = g.level
+				}
 			}
 			if os.Getenv("SIM") == "" {
 				continue
 			}
-			t.Logf("%-8s seed %d: %s at %2d:%02d, level %3d, %5d swept, peak %3d shots, pressure x%.1f",
+			lasted = append(lasted, g.runTime)
+			t.Logf("%-8s seed %d: %s at %2d:%02d, level %2d at 3:00, %3d at the end, %5d swept, peak %3d shots, biggest hit %6.0f, pressure x%.1f, by %s %s",
 				name, seed, map[bool]string{true: "died", false: "alive"}[g.phase == phDead],
-				int(g.runTime)/60, int(g.runTime)%60, g.level, g.kills, g.peakShot, g.pressure())
+				int(g.runTime)/60, int(g.runTime)%60, at3, g.level, g.kills, g.peakShot, g.bigHit, g.pressure(), kinds[g.killedBy].name, g.killedHow)
 			if g.phase != phDead {
 				t.Errorf("%s seed %d still alive after %d minutes: the pressure does not end runs", name, seed, int(limit/60))
 			}
+		}
+		if len(lasted) > 0 {
+			slices.Sort(lasted)
+			m := lasted[len(lasted)/2]
+			t.Logf("MEDIAN %-8s %2d:%02d (shortest %2d:%02d, longest %2d:%02d)", name, int(m)/60, int(m)%60,
+				int(lasted[0])/60, int(lasted[0])%60, int(lasted[len(lasted)-1])/60, int(lasted[len(lasted)-1])%60)
 		}
 	}
 }

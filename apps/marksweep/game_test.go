@@ -24,7 +24,7 @@ func TestEveryGlyphIsOneColumn(t *testing.T) {
 			check(kinds[k].name, r)
 		}
 	}
-	for _, r := range "•∙*▮o●◆01·~─│◀▶▀▄▮▯○●◉▏▎▍▌▋▊▉█╲╱«»" {
+	for _, r := range "•∙*▮o●◆◇01·~─│◀▶▀▄▮▯○●◉▏▎▍▌▋▊▉█╲╱«»^°▲◥◢▼◣◤!o" {
 		check("hud", r)
 	}
 }

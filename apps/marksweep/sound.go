@@ -43,6 +43,8 @@ const (
 	sfxByte              // freed bytes picked up
 	sfxSpit              // an enemy fires
 	sfxMenu              // a menu moves
+	sfxCharge            // an enemy winds up an attack
+	sfxFreeze            // a foe freezes
 	nSfx
 )
 
@@ -337,6 +339,14 @@ func (m *mixer) synth() {
 	m.clips[sfxSpit] = mk(0.2, func(s *synth) {
 		s.tone(0, 0.2, 400, 900, 0.18, 4, saw)
 		s.hiss(0, 0.1, 2000, 800, 0.2, 6)
+	})
+	m.clips[sfxCharge] = mk(0.55, func(s *synth) {
+		s.tone(0, 0.5, 160, 640, 0.28, 0.8, saw)
+		s.tone(0, 0.5, 320, 1280, 0.1, 1, square)
+	})
+	m.clips[sfxFreeze] = mk(0.3, func(s *synth) {
+		s.tone(0, 0.3, 3200, 2400, 0.12, 5, sine)
+		s.hiss(0, 0.2, 9000, 6000, 0.2, 7)
 	})
 	m.clips[sfxMenu] = mk(0.06, func(s *synth) {
 		s.tone(0, 0.06, 1200, 1200, 0.15, 6, square)

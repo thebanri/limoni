@@ -212,6 +212,27 @@ func (g *game) drawHUD(c canvas, v *view) {
 	c.fgNumber(x, py+numRows-1, int(g.st.maxHP), hudDim)
 	g.bar(c, 1, h-1, hpW-2, g.hp/g.st.maxHP, hpCol, hex(0x2a1418))
 
+	// Over it, the dashes ready, and what hit last.
+	dw := 6 + 2*g.st.dashN
+	shadePanel(c, 0, py-1, dw, 1)
+	x = c.fg(1, py-1, "DASH ", hudDim)
+	for i := 0; i < g.st.dashN; i++ {
+		r, dc := "◆", hex(elementCol[elDash])
+		if i >= g.dashN {
+			r, dc = "◇", hudDim
+		}
+		x = c.fg(x, py-1, r, dc) + 1
+	}
+	if g.hurtShow > 0 && g.hurtHow != "" {
+		name := kinds[g.hurtBy].name
+		hw := 2 + digits(int(g.hurtAmt+0.5)) + 1 + width(name) + 1 + width(g.hurtHow) + 1
+		shadePanel(c, 0, py-2, hw, 1)
+		x = c.fg(1, py-2, "-", hudBad)
+		x = c.fgNumber(x, py-2, int(g.hurtAmt+0.5), hudBad) + 1
+		x = c.fg(x, py-2, name, hex(kinds[g.hurtBy].accent)) + 1
+		c.fg(x, py-2, g.hurtHow, hudText)
+	}
+
 	// Bottom right: the heap.
 	amW := max(min(g.st.mag, 24)+2, 3+4*scale*max(2, digits(g.st.mag))+2+5+1)
 	ax := w - amW
@@ -246,7 +267,7 @@ func (g *game) drawHUD(c canvas, v *view) {
 
 	// The keys, for the first seconds of a first run.
 	if g.runTime < 12 && g.best.runs == 0 {
-		hint := "WASD move · mouse aim · click sweep · R collect · Space dash · Esc pause"
+		hint := "WASD move · mouse aim · click sweep · R collect · Space dash (2) · Esc pause"
 		if hw := width(hint) + 2; hw < w-hpW-amW-2 {
 			shadePanel(c, (w-hw)/2, h-1, hw, 1)
 			c.fg((w-hw)/2+1, h-1, hint, hudDim)
@@ -290,6 +311,23 @@ func (g *game) drawBossBar(c canvas) {
 		shadePanel(c, x0-1, 2, w+2, 1)
 		c.fg(x0, 2, name, col)
 		g.bar(c, x0+width(name)+1, 2, w-width(name)-1, e.hp/e.max, col, hex(0x1d1020))
+		if e.windT > 0 {
+			// Its attack, named while it winds up.
+			what := "CLAW SALVO: get behind cover"
+			switch {
+			case e.slam:
+				what = "CLAW SLAM: dash through the wave"
+			case e.k == kBobaPrime:
+				what = "PEARL RING: find the gap"
+			}
+			ww := width(what) + 2
+			shadePanel(c, (c.w-ww)/2, 3, ww, 1)
+			wc := hudWarn
+			if int(g.clock*8)%2 == 0 {
+				wc = hudBad
+			}
+			c.fg((c.w-ww)/2+1, 3, what, wc)
+		}
 		return
 	}
 }
@@ -387,7 +425,7 @@ func (g *game) drawCard(c canvas, i int) {
 		}
 	}
 	c.text(x+2, y+1, rarityName[au.rar], style(rc, bg))
-	c.text(x+w-2-width(au.tag), y+1, au.tag, style(hudDim, bg))
+	c.text(x+w-2-width(au.tag), y+1, au.tag, style(hex(elementCol[au.el]), bg))
 	yy := y + 3
 	if h > 13 {
 		// The picture, on a glow of the rarity's colour.
@@ -558,7 +596,16 @@ func (g *game) drawDead(c canvas) {
 	dim := style(hudDim, bg)
 	c.fill(0, y-1, c.w, 14, ' ', st)
 	c.centered(y, "fatal error: out of memory", style(hudBad, bg))
-	c.centered(y+1, "the heap was overrun", dim)
+	if g.killedHow != "" {
+		by := kinds[g.killedBy].name
+		w := width(by) + 1 + width(g.killedHow) + 8
+		x := (c.w - w) / 2
+		x = c.text(x, y+1, "killed by ", dim)
+		x = c.text(x, y+1, by, style(hex(kinds[g.killedBy].accent), bg))
+		c.text(x+1, y+1, g.killedHow, dim)
+	} else {
+		c.centered(y+1, "the heap was overrun", dim)
+	}
 	rows := [...]struct {
 		label string
 		val   int

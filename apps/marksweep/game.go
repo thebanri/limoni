@@ -48,7 +48,7 @@ const (
 	playerR  = 0.25
 	maxDT    = 0.1
 	baseMove = 4.2
-	regen    = 1.0 // health a second
+	regen    = 0.8 // health a second, before Watchdog
 )
 
 // action is something held down.
@@ -75,15 +75,25 @@ type game struct {
 	runTime float64 // seconds of play in this run
 
 	// the player
-	pos     vec
-	ang     float64
-	hp      float64
-	hurtT   float64 // invulnerable while above zero
-	hurtFX  float64 // red edge, fading
-	dashT   float64 // dashing while above zero
-	dashCD  float64
-	dashDir vec
-	bob     float64
+	pos        vec
+	ang        float64
+	hp         float64
+	hurtT      float64 // invulnerable while above zero
+	hurtFX     float64 // red edge, fading
+	dashT      float64 // dashing while above zero
+	dashN      int     // dashes ready
+	dashCharge float64 // towards the next one
+	dashDir    vec
+	dashes     int32 // dashes made, so one runs through a foe once
+	trail      vec   // where Afterburner last left fire
+	bob        float64
+
+	// what hurt the player last, for the marker and the line over health
+	hurtAng  float64
+	hurtBy   kindID
+	hurtHow  string
+	hurtAmt  float64
+	hurtShow float64 // shown while above zero
 
 	// the sweeper
 	ammo    int
@@ -117,34 +127,51 @@ type game struct {
 	sens     float64 // radians per pixel of pointer movement
 
 	// the run
-	level    int
-	xp       float64
-	kills    int
-	pending  int // level-ups whose cards are still to be chosen
-	rank     [nAug]int
-	over     [nAug]int // picks past an augment's last rank
-	st       stats
-	cards    [3]augID
-	nCards   int
-	cardHov  int
-	cardAcc  float64 // a locked mouse's movement towards the next card
-	bossNext int     // the level at which the next boss comes
-	bossLive bool    // a boss is in the arena
-	spawnAcc float64 // spawn budget not yet spent
-	momentum float64 // stack overflow: damage built by hits in a row
-	slowT    float64 // mode 2026: time runs slow while above zero
-	peakShot int     // most shots alive at once, this run
-	bigHit   float64 // the largest single hit, this run
-	message  string
-	msgT     float64
-	newBest  bool
-	deadAt   float64
-	pausedAt float64
+	level     int
+	xp        float64
+	kills     int
+	pending   int // level-ups whose cards are still to be chosen
+	rank      [nAug]int
+	over      [nAug]int // picks past an augment's last rank
+	st        stats
+	cards     [3]augID
+	nCards    int
+	cardHov   int
+	cardAcc   float64 // a locked mouse's movement towards the next card
+	bossNext  int     // the level at which the next boss comes
+	bossLive  bool    // a boss is in the arena
+	spawnAcc  float64 // spawn budget not yet spent
+	momentum  float64 // stack overflow: damage built by hits in a row
+	hits      int     // shots' hits, for Thunderstrike's seventh
+	volleys   int     // trigger pulls, for Batch Job's tenth
+	deferT    float64 // defer: shots hit harder while above zero
+	retryT    float64 // Retry: the volley again when this runs out
+	phoenixT  float64 // Phoenix Restart: ready when not above zero
+	teslaT    float64
+	cronT     float64
+	absT      float64
+	gasT      float64
+	daemonT   float64
+	slamSeen  bool // the claw slam has been explained
+	zones     [maxZones]zone
+	wave      wave
+	slowT     float64 // mode 2026: time runs slow while above zero
+	peakShot  int     // most shots alive at once, this run
+	bigHit    float64 // the largest single hit, this run
+	message   string
+	msgT      float64
+	newBest   bool
+	deadAt    float64
+	killedBy  kindID
+	killedHow string
+	pausedAt  float64
 
 	// pools
 	enemies   [maxEnemies]enemy
 	shots     [maxShots]shot
 	parts     [maxParts]particle
+	nParts    int // alive in parts
+	partAt    int // where to look for a free one
 	bytes     [maxBytes]orb
 	nShots    int
 	shotTop   int // shots above this index are all dead
@@ -187,6 +214,7 @@ func (g *game) reset() {
 	g.recalc()
 	g.hp = g.st.maxHP
 	g.ammo = g.st.mag
+	g.dashN = g.st.dashN
 	g.phase = phPlay
 	for i := range g.bucket {
 		g.bucket[i] = -1
@@ -269,6 +297,9 @@ func (g *game) step(dt float64) {
 	g.stepWeapon(dt)
 	g.spawn(world)
 	g.stepEnemies(world)
+	g.stepZones(world)
+	g.stepWave(world)
+	g.stepPowers(dt)
 	g.stepShots(world)
 	g.stepParts(dt)
 	g.stepBytes(dt)
@@ -284,13 +315,11 @@ func (g *game) stepPlayer(dt float64) {
 		g.hurtT -= dt
 	}
 	// A slow mend, so chip damage is forgiven and swarms are not.
-	g.hp = math.Min(g.st.maxHP, g.hp+regen*dt)
+	g.hp = math.Min(g.st.maxHP, g.hp+g.st.regen*dt)
 	if g.hurtFX > 0 {
 		g.hurtFX -= dt * 2
 	}
-	if g.dashCD > 0 {
-		g.dashCD -= dt
-	}
+	g.hurtShow -= dt
 	// Looking: the mouse turns the view by how far it moves, as in any
 	// first-person game. The browser's pointer is locked; a terminal's moves
 	// by whole cells, so each step is eased in, and at the window's edge,
@@ -342,12 +371,24 @@ func (g *game) stepPlayer(dt float64) {
 		g.bob += dt * 9
 	}
 	speed := baseMove * g.st.speed
-	if g.dashT > 0 {
+	dashing := g.dashT > 0
+	if dashing {
 		g.dashT -= dt
-		m, speed = g.dashDir, 15
+		m, speed = g.dashDir, dashSpeed*g.st.dashDist
 	}
 	slide(&g.pos, m.x*speed*dt, m.y*speed*dt, playerR)
+	if dashing {
+		g.dashStep()
+		if g.dashT <= 0 {
+			g.dashEnd()
+		}
+	}
 }
+
+const (
+	dashSpeed = 17.0
+	dashTime  = 0.16 // about 2.7 units
+)
 
 // edgeTurn is -1 or 1 with the mouse in the last columns on either side,
 // where a terminal's pointer cannot move any further, and 0 elsewhere.
@@ -365,8 +406,10 @@ func edgeTurn(x, w int) float64 {
 // half turn across the window.
 func lookPerCell(w int) float64 { return math.Pi / float64(w) }
 
+// dash spends a charge: a short burst the way the keys point, untouchable
+// all the way and a moment after — through a bite, a bar, a claw slam.
 func (g *game) dash() {
-	if g.dashCD > 0 || g.phase != phPlay {
+	if g.dashN <= 0 || g.dashT > 0 || g.phase != phPlay {
 		return
 	}
 	f := dir(g.ang)
@@ -388,10 +431,12 @@ func (g *game) dash() {
 		m = f
 	}
 	g.dashDir = m.scale(1 / m.len())
-	g.dashT = 0.16
-	g.dashCD = 1.6 * g.st.dashCD
-	g.hurtT = math.Max(g.hurtT, 0.25)
+	g.dashT = dashTime
+	g.dashN--
+	g.dashes++
+	g.hurtT = math.Max(g.hurtT, dashTime+0.15)
 	g.sound(sfxDash)
+	g.dashStart()
 }
 
 // aim is the direction a shot leaves in: through the crosshair, in the
@@ -421,6 +466,9 @@ func (g *game) stepWeapon(dt float64) {
 	}
 	if g.held[actFire] && g.fireCD <= 0 {
 		g.fire()
+		if g.hp < g.st.maxHP*0.4 {
+			g.fireCD /= 1 + g.st.lastStand
+		}
 	}
 }
 
@@ -447,6 +495,28 @@ func (g *game) fire() {
 	}
 	g.recoil = 1
 	g.swayY += 0.05
+	g.volley(true)
+	if g.st.retry > 0 && g.rnd.f() < g.st.retry {
+		g.retryT = 0.08
+	}
+	g.sound(sfxShot)
+}
+
+// volley is the shots of one trigger pull; a Retry's again is not a pull
+// of its own.
+func (g *game) volley(pull bool) {
+	dmg := g.st.dmg
+	if g.hp > g.st.maxHP*0.8 {
+		dmg *= 1 + g.st.headroom
+	}
+	if g.deferT > 0 {
+		dmg *= 1 + g.st.deferK
+	}
+	slug := false
+	if pull {
+		g.volleys++
+		slug = g.st.batch > 0 && g.volleys%10 == 0
+	}
 	n := g.st.multishot
 	a := g.aim()
 	spread := 0.035 + 0.01*float64(n)
@@ -456,9 +526,13 @@ func (g *game) fire() {
 			off = (float64(i)/float64(n-1) - 0.5) * spread * float64(n-1)
 		}
 		off += g.rnd.between(-0.012, 0.012)
-		g.shoot(g.pos.add(dir(a).scale(0.3)), a+off, g.st.dmg, 0, shotPlayer)
+		j := g.shoot(g.pos.add(dir(a).scale(0.3)), a+off, dmg, 0, shotPlayer)
+		if slug && j >= 0 {
+			g.shots[j].dmg *= float64(g.st.batch)
+			g.shots[j].pierce += 4
+			g.shots[j].slug = true
+		}
 	}
-	g.sound(sfxShot)
 }
 
 // ── levels ───────────────────────────────────────────────────────────────
@@ -483,6 +557,7 @@ func (g *game) die() {
 	g.deadAt = g.clock
 	g.held = [nAct]bool{}
 	g.sound(sfxDeath)
+	g.killedBy, g.killedHow = g.hurtBy, g.hurtHow
 	g.newBest = g.best.add(runRecord{
 		secs: int(g.runTime), level: g.level, kills: g.kills,
 		peak: g.peakShot, bigHit: int(g.bigHit),

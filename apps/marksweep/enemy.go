@@ -74,6 +74,28 @@ type enemy struct {
 	knock    vec
 	lastShot int32 // the shot that last hit it, so a piercing one hits once
 	phaseOff float64
+
+	// the elements' stacks (element.go)
+	burn, poison, chill                           int
+	burnT, poisonT, chillT, frozenT, shockT, dotT float64
+	ramHit                                        int32 // the dash that last ran through it
+
+	windT   float64 // winding up an attack: it fires when this runs out
+	attacks int     // attacks made, for a boss that takes turns
+	slam    bool    // the attack wound up is Ferris's slam
+}
+
+// windUp is how long a ranged enemy shows its attack coming.
+func windUp(k kindID, slam bool) float64 {
+	switch {
+	case slam:
+		return 1.1
+	case k == kFerris:
+		return 0.75
+	case k == kBobaPrime:
+		return 0.6
+	}
+	return 0.45
 }
 
 func init() {
@@ -293,10 +315,21 @@ func (g *game) stepEnemies(dt float64) {
 
 func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	kd := &kinds[e.k]
-	e.t += dt
 	if e.flash > 0 {
 		e.flash -= dt * 6
 	}
+	if e.burn > 0 || e.poison > 0 || e.chill > 0 || e.frozenT > 0 || e.shockT > 0 {
+		g.stepStatus(i, e, dt)
+		if !e.alive {
+			return
+		}
+	}
+	if e.frozenT > 0 {
+		e.knock = e.knock.scale(math.Max(0, 1-dt*8))
+		slide(&e.pos, e.knock.x*dt, e.knock.y*dt, kd.r*0.8)
+		return // frozen: no step, no bite, no attack, and its frame held
+	}
+	e.t += dt
 	to := g.pos.sub(e.pos)
 	d := to.len()
 	if d < 0.001 {
@@ -306,6 +339,10 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	speed := kd.speed * (1 + 0.15*math.Log2(g.pressure()))
 	if e.elite {
 		speed *= 1.15
+	}
+	speed *= math.Max(0.3, 1-0.1*float64(e.chill))
+	if e.poison > 0 {
+		speed *= 1 - g.st.neuro
 	}
 	var m vec
 	switch kd.act {
@@ -349,14 +386,35 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 
 	// contact
 	if d < kd.r+playerR && g.hurtT <= 0 {
-		g.hurt(kd.dmg * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure()))
+		bite := kd.dmg * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure())
+		if e.poison > 0 {
+			bite *= 1 - g.st.neuro/2
+		}
+		g.hurt(bite, e.pos, e.k, "bite")
 		e.knock = n.scale(-6)
 	}
-	// ranged
+	// Ranged: a wind-up first, long enough to see and to dash.
 	if kd.ranged {
-		e.cd -= dt
-		if e.cd <= 0 && d < 13 && g.sees(e.pos) {
-			g.enemyFire(e, n, d)
+		switch {
+		case e.windT > 0:
+			if e.windT -= dt; e.windT <= 0 {
+				g.enemyFire(e, n)
+			}
+		default:
+			e.cd -= dt
+			if e.cd <= 0 && d < 13 && g.sees(e.pos) {
+				e.slam = e.k == kFerris && e.attacks%3 == 2
+				e.windT = windUp(e.k, e.slam)
+				vol := float32(0.5)
+				if kd.boss {
+					vol = 1
+				}
+				g.soundFrom(sfxCharge, e.pos, vol)
+				if e.slam && !g.slamSeen {
+					g.slamSeen = true
+					g.say("CLAW SLAM coming: dash through the wave")
+				}
+			}
 		}
 	}
 }
@@ -375,61 +433,110 @@ func (g *game) sees(p vec) bool {
 	return true
 }
 
-func (g *game) enemyFire(e *enemy, n vec, d float64) {
+func (g *game) enemyFire(e *enemy, n vec) {
 	kd := &kinds[e.k]
 	a := math.Atan2(n.y, n.x)
 	dmg := kd.dmg * 0.7 * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure())
+	e.attacks++
 	switch e.k {
 	case kCrab:
 		e.cd = 2.4
-		g.shoot(e.pos.add(n.scale(kd.r)), a, dmg, 0, shotBar)
+		g.enemyShot(e, e.pos.add(n.scale(kd.r)), a, dmg, shotBar)
 	case kBobaPrime:
 		e.cd = 2.2
 		for i := 0; i < 10; i++ {
-			g.shoot(e.pos, a+float64(i)*2*math.Pi/10+e.t, dmg, 0, shotPearl)
+			g.enemyShot(e, e.pos, a+float64(i)*2*math.Pi/10+e.t, dmg, shotPearl)
 		}
 		for i := 0; i < 3; i++ {
 			g.addEnemy(kSpinner, e.pos.add(vec{g.rnd.between(-1, 1), g.rnd.between(-1, 1)}))
 		}
 	case kFerris:
-		e.cd = 1.6
+		e.cd = 1.4
+		if e.slam {
+			// The claws hit the floor: a ring of force, to be dashed through.
+			g.wave = wave{alive: true, pos: e.pos, r: kd.r, dmg: kd.dmg * 1.1 * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure())}
+			g.soundFrom(sfxBoom, e.pos, 1)
+			return
+		}
 		for i := -2; i <= 2; i++ {
-			g.shoot(e.pos.add(n.scale(kd.r)), a+float64(i)*0.13, dmg, 0, shotBar)
+			g.enemyShot(e, e.pos.add(n.scale(kd.r)), a+float64(i)*0.13, dmg, shotBar)
 		}
 	}
 	g.soundFrom(sfxSpit, e.pos, 0.7)
 }
 
-func (g *game) hurt(dmg float64) {
+// enemyShot fires a hostile shot that remembers who fired it.
+func (g *game) enemyShot(e *enemy, p vec, a, dmg float64, k shotKind) {
+	if i := g.shoot(p, a, dmg, 0, k); i >= 0 {
+		g.shots[i].src = e.k
+	}
+}
+
+// attackName is what a hostile shot is called on the screen.
+func attackName(src kindID, k shotKind) string {
+	switch {
+	case src == kFerris:
+		return "claw salvo"
+	case k == shotPearl:
+		return "pearl ring"
+	}
+	return "bar shot"
+}
+
+// hurt takes dmg from the player, and remembers where it came from and
+// what it was, for the marker round the crosshair and the line over the
+// health.
+func (g *game) hurt(dmg float64, from vec, by kindID, how string) {
 	if g.hurtT > 0 || g.phase != phPlay {
+		return
+	}
+	dmg *= g.st.taken
+	if g.hp-dmg <= 0 && g.st.phoenix && g.phoenixT <= 0 {
+		g.phoenixT = 90
+		g.hp = g.st.maxHP * 0.5
+		g.hurtT = 1.5
+		g.say("phoenix: restarted")
+		g.nova(4, elFire, 6)
+		g.sound(sfxLevel)
 		return
 	}
 	g.hp -= dmg
 	g.hurtT = 0.55
 	g.hurtFX = 1
 	g.momentum = 0
+	to := from.sub(g.pos)
+	g.hurtAng = math.Atan2(to.y, to.x)
+	g.hurtBy, g.hurtHow, g.hurtAmt, g.hurtShow = by, how, dmg, 2.5
 	g.sound(sfxHurt)
 }
 
 // damage hits enemy i for dmg and reports whether it died.
-func (g *game) damage(i int, dmg float64, crit bool) bool {
+func (g *game) damage(i int, dmg float64, crit bool) bool { return g.hit(i, dmg, crit, 1, elNone) }
+
+// hit is damage with its element, and how much of the enemy's armour
+// counts against it (poison: none).
+func (g *game) hit(i int, dmg float64, crit bool, armorK float64, el element) bool {
 	e := &g.enemies[i]
 	if !e.alive {
 		return false
 	}
+	dmg *= g.vuln(e)
 	// Armour takes a flat amount off every hit: a swarm of tiny shrapnel
-	// does next to nothing to an elder.
-	dmg = math.Max(dmg-e.armor, dmg*0.05)
+	// does next to nothing to an elder. Corrosion eats it.
+	armor := math.Max(0, e.armor-g.st.corrode*float64(e.poison)) * armorK
+	dmg = math.Max(dmg-armor, dmg*0.05)
 	e.hp -= dmg
-	e.flash = 1
-	g.hitT = 0.12
+	if el == elNone {
+		e.flash = 1
+		g.hitT = 0.12
+	}
 	if dmg > g.bigHit {
 		g.bigHit = dmg
 	}
 	if g.st.execute > 0 && e.hp > 0 && e.hp < e.max*g.st.execute && !kinds[e.k].boss {
 		e.hp = 0
 	}
-	g.damageNumber(e.pos, kinds[e.k].height, dmg, crit)
+	g.damageNumber(e.pos, kinds[e.k].height, dmg, crit, el)
 	if e.hp > 0 {
 		return false
 	}
@@ -441,6 +548,7 @@ func (g *game) kill(i int) {
 	e := &g.enemies[i]
 	kd := &kinds[e.k]
 	e.alive = false
+	g.onDeath(i)
 	g.kills++
 	g.hitT, g.killT = 0.2, 0.2
 	g.burst(e)

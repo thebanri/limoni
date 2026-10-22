@@ -14,6 +14,7 @@ const (
 	shotShrapnel
 	shotBar   // Ratatui's ▮
 	shotPearl // Boba Prime's pearls
+	shotShard // Ice Shards: a frozen foe's pieces, which chill
 )
 
 const (
@@ -37,14 +38,17 @@ type shot struct {
 	crit    bool
 	id      int32
 	lastHit int16
+	slug    bool    // Batch Job's tenth
+	src     kindID  // who fired a hostile one
+	age     float64 // seconds in flight, for Big O
 }
 
 var shotSerial int32
 
 func (s *shot) hostile() bool { return s.kind == shotBar || s.kind == shotPearl }
 
-// shoot fires a shot from p at angle a.
-func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) {
+// shoot fires a shot from p at angle a and returns its index, or -1.
+func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) int {
 	i := -1
 	for j := range g.shots {
 		if !g.shots[j].alive {
@@ -53,20 +57,20 @@ func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) {
 		}
 	}
 	if i < 0 {
-		return // the pool is full: the build has broken the heap
+		return -1 // the pool is full: the build has broken the heap
 	}
 	sp := shotSpeed
 	life := 1.6
 	if k == shotBar || k == shotPearl {
 		sp, life = enemySpeed, 3
 	}
-	if k == shotShrapnel {
+	if k == shotShrapnel || k == shotShard {
 		sp, life = shotSpeed*0.8, 0.5
 	}
 	s := &g.shots[i]
 	shotSerial++
 	*s = shot{alive: true, kind: k, pos: p, vel: dir(a).scale(sp), dmg: dmg, life: life, gen: gen, id: shotSerial, lastHit: -1}
-	if k == shotPlayer || k == shotShrapnel {
+	if !s.hostile() {
 		s.bounces = g.st.bounces
 		s.pierce = g.st.pierce
 		if g.rnd.f() < g.st.crit {
@@ -77,6 +81,7 @@ func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) {
 	if i >= g.shotTop {
 		g.shotTop = i + 1
 	}
+	return i
 }
 
 func (g *game) stepShots(dt float64) {
@@ -88,6 +93,7 @@ func (g *game) stepShots(dt float64) {
 			continue
 		}
 		s.life -= dt
+		s.age += dt
 		if s.life <= 0 {
 			s.alive = false
 			continue
@@ -144,7 +150,7 @@ func (g *game) advance(i int, s *shot, d vec) {
 	if s.hostile() {
 		if s.pos.dist2(g.pos) < (playerR+0.15)*(playerR+0.15) {
 			s.alive = false
-			g.hurt(s.dmg)
+			g.hurt(s.dmg, s.pos.sub(s.vel), s.src, attackName(s.src, s.kind))
 		}
 		return
 	}
@@ -179,13 +185,17 @@ func (g *game) impact(s *shot, j int) {
 	e := &g.enemies[j]
 	e.lastShot = s.id
 	s.lastHit = int16(j)
-	dmg := s.dmg * (1 + g.momentum)
+	dmg := s.dmg * (1 + g.momentum) * (1 + g.st.bigO*s.age)
 	if g.st.overflow > 0 {
 		g.momentum = math.Min(0.9, g.momentum+g.st.overflow)
 	}
 	at := e.pos
 	e.knock = e.knock.add(s.vel.scale(0.08 / (1 + kinds[e.k].r)))
 	g.damage(j, dmg, s.crit)
+	g.onHit(s, j)
+	if s.kind == shotShard {
+		g.addChill(j, 1)
+	}
 	if s.gen == 0 {
 		g.soundFrom(sfxHit, at, 0.35)
 	}
@@ -225,7 +235,8 @@ func (g *game) explode(at vec, r, dmg float64, gen, skip int) {
 		if !e.alive || i == skip || e.immune || e.pos.dist2(at) > r2 {
 			continue
 		}
-		g.damage(i, dmg, false)
+		g.hit(i, dmg, false, 1, elFire)
+		g.addBurn(i, g.st.napalm)
 	}
 	// Cascading Diff: the blast throws shrapnel, and shrapnel is a shot
 	// like any other.
@@ -243,7 +254,7 @@ func (g *game) chain(from vec, skip, n int, dmg float64) {
 		n = 7
 	}
 	for k := 0; k < n; k++ {
-		best, bd := -1, 4.5*4.5
+		best, bd := -1, g.st.chainReach*g.st.chainReach
 		for i := range g.enemies {
 			e := &g.enemies[i]
 			if !e.alive || e.immune {
@@ -269,7 +280,8 @@ func (g *game) chain(from vec, skip, n int, dmg float64) {
 		to := g.enemies[best].pos
 		g.arc(last, to)
 		last = to
-		g.damage(best, dmg, false)
+		g.hit(best, dmg, false, 1, elShock)
+		g.arcCarries(best)
 	}
 	g.soundFrom(sfxZap, from, 0.3)
 }
@@ -290,12 +302,20 @@ type particle struct {
 	tiny  bool
 }
 
+// addPart puts p in the pool, looking for a free slot from where the last
+// one was found; a full pool turns it away at once.
 func (g *game) addPart(p particle) {
-	for i := range g.parts {
+	if g.nParts >= maxParts {
+		return
+	}
+	for k := 0; k < maxParts; k++ {
+		i := (g.partAt + k) % maxParts
 		if !g.parts[i].alive {
 			p.alive = true
 			p.max = p.life
 			g.parts[i] = p
+			g.partAt = i + 1
+			g.nParts++
 			return
 		}
 	}
@@ -343,12 +363,12 @@ func (g *game) arc(a, b vec) {
 	}
 }
 
-func (g *game) damageNumber(p vec, h float64, dmg float64, crit bool) {
+func (g *game) damageNumber(p vec, h float64, dmg float64, crit bool, el element) {
 	if dmg < 1 {
 		return
 	}
 	g.addPart(particle{pos: p.add(vec{g.rnd.between(-0.2, 0.2), g.rnd.between(-0.2, 0.2)}), z: h + 0.1, vz: 0.9,
-		life: 0.6, num: int32(dmg + 0.5), crit: crit})
+		life: 0.6, num: int32(dmg + 0.5), crit: crit, col: hex(elementTint[el])})
 }
 
 func (g *game) stepParts(dt float64) {
@@ -360,6 +380,7 @@ func (g *game) stepParts(dt float64) {
 		p.life -= dt
 		if p.life <= 0 {
 			p.alive = false
+			g.nParts--
 			continue
 		}
 		p.pos = p.pos.add(p.vel.scale(dt))

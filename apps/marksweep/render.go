@@ -271,6 +271,16 @@ func (g *game) floorAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	fx, fyy := footprint(v, d, 2*d*d/v.f, rx, ry)
 	k := math.Max(seam(wx, fx, 0.03), seam(wy, fyy, 0.03)) / (1 + d*0.12)
 	c := hex(0x0a0d18).mix(hex(0x24365e), float32(k))
+	if w := &g.wave; w.alive {
+		// Ferris's slam: a ring of fire on the floor, as wide as a pixel's
+		// footprint at least, so it holds together far away.
+		dx, dy := wx-w.pos.x, wy-w.pos.y
+		edge := math.Abs(math.Sqrt(dx*dx+dy*dy) - w.r)
+		if wide := math.Max(0.12, 1.5*math.Max(fx, fyy)); edge < wide {
+			c = c.mix(hex(0xff7a2a), float32(1-edge/wide))
+			return c // no fog: it must be seen
+		}
+	}
 	return fogged(c, d)
 }
 
@@ -367,20 +377,73 @@ func (g *game) drawEnemy(v *view, pos vec, e *enemy) {
 	top := bottom - hPx
 	left := sx - wPx/2
 	flash := float32(math.Max(0, e.flash))
-	tint := rgb{}
-	if e.elite {
+	tint, tintK := rgb{}, float32(0.3)
+	switch {
+	case e.frozenT > 0:
+		tint, tintK = hex(0x9fe8ff), 0.6
+	case e.windT > 0:
+		// Winding up: it glows its colour, faster as the attack nears.
+		tint = hex(kd.accent)
+		flash = max(flash, float32(0.12+0.28*math.Abs(math.Sin(e.windT*18))))
+	case e.burn > 0 && int(g.clock*10)%2 == 0:
+		tint, tintK = hex(0xff7a2a), 0.5
+	case e.poison > 0:
+		tint, tintK = hex(0x8ce04a), 0.45
+	case e.shockT > 0 && int(g.clock*14)%3 == 0:
+		tint, tintK = hex(0xffe14a), 0.55
+	case e.chill > 0:
+		tint, tintK = hex(0x9fe8ff), 0.35
+	case e.elite:
 		tint = hex(0xffd23a)
 	}
-	g.blitSprite(v, s, left, top, wPx, hPx, depth, flash, tint)
+	g.blitSprite(v, s, left, top, wPx, hPx, depth, flash, tint, tintK)
 	// A health bar over anything hurt, and every elite.
 	if (e.hp < e.max || e.elite) && !kd.boss {
 		g.miniBar(v, sx, top/2-1, wPx, depth, e.hp/e.max, e.elite, e.immune)
+	}
+	g.statusMarks(v, sx, top/2-2, depth, e)
+}
+
+// statusMarks writes a mark over an enemy for each element on it: ^ fire,
+// * ice, ° poison, ! lightning.
+func (g *game) statusMarks(v *view, sx, y, depth float64, e *enemy) {
+	var marks [4]byte
+	var cols [4]uint32
+	n := 0
+	if e.burn > 0 {
+		marks[n], cols[n] = '^', elementTint[elFire]
+		n++
+	}
+	if e.frozenT > 0 || e.chill > 0 {
+		marks[n], cols[n] = '*', elementTint[elIce]
+		n++
+	}
+	if e.poison > 0 {
+		marks[n], cols[n] = 'o', elementTint[elPoison]
+		n++
+	}
+	if e.shockT > 0 {
+		marks[n], cols[n] = '!', elementTint[elShock]
+		n++
+	}
+	yy := int(y)
+	if n == 0 || yy < v.top || yy >= v.top+v.h || depth > 14 {
+		return
+	}
+	x0 := int(sx) - n/2
+	for k := 0; k < n; k++ {
+		if x := x0 + k; x >= 0 && x < v.w && depth < sc.zbuf[x] {
+			if p := v.c.at(x, yy); p != nil {
+				p.Content = rune(marks[k])
+				p.Style.Fg = hex(cols[k]).color()
+			}
+		}
 	}
 }
 
 // blitSprite draws s over the pixels from (left, top), wPx by hPx, picking
 // the nearest of its pixels, in front of the walls only.
-func (g *game) blitSprite(v *view, s *sprite, left, top, wPx, hPx, depth float64, flash float32, tint rgb) {
+func (g *game) blitSprite(v *view, s *sprite, left, top, wPx, hPx, depth float64, flash float32, tint rgb, tintK float32) {
 	if wPx < 1 || hPx < 1 {
 		wPx, hPx = math.Max(wPx, 1), math.Max(hPx, 1)
 	}
@@ -404,7 +467,7 @@ func (g *game) blitSprite(v *view, s *sprite, left, top, wPx, hPx, depth float64
 			}
 			c := s.px[k]
 			if tint != (rgb{}) {
-				c = c.mix(tint, 0.3)
+				c = c.mix(tint, tintK)
 			}
 			if flash > 0 {
 				c = c.mix(rgb{1, 1, 1}, flash)
@@ -465,6 +528,18 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 	if !ok {
 		return
 	}
+	if s.hostile() {
+		// What can hurt the player is the clearest thing on the screen: a
+		// glowing ball of its maker's colour, whatever the distance.
+		col := hex(kinds[s.src].accent)
+		r := math.Min(4, math.Max(1.2, 0.1*2*rows))
+		g.glowBall(v, sx, 2*(v.horizon+0.5*rows-0.42*rows), r, depth, col)
+		return
+	}
+	if s.slug {
+		g.glowBall(v, sx, 2*(v.horizon+0.5*rows-0.42*rows), math.Max(1, 0.1*2*rows), depth, hex(0xfff3b0))
+		return
+	}
 	x := int(sx)
 	y := int(v.horizon + 0.5*rows - 0.42*rows)
 	if x < 0 || x >= v.w || y < v.top || y >= v.top+v.h || depth >= sc.zbuf[x] {
@@ -483,15 +558,49 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 		}
 	case shotShrapnel:
 		r, col = '*', hex(0xffb347)
+	case shotShard:
+		r, col = '◆', hex(0x9fe8ff)
 	case shotBar:
 		r, col = '▮', hex(0xf74c00)
 	case shotPearl:
 		r, col = 'o', hex(0xff8fe0)
 	}
-	if rows > 14 && s.kind != shotShrapnel {
+	if rows > 14 && s.kind == shotPlayer {
 		r = '●'
 	}
 	g.put(v, x, y, r, col.mul(0.5+0.5*fog(depth)), 0, rgb{})
+}
+
+// glowBall draws a disc of pixels centred at (sx, cy), r pixels across,
+// white at its heart and its colour at its rim, with a halo.
+func (g *game) glowBall(v *view, sx, cy, r, depth float64, col rgb) {
+	halo := r * 1.8
+	for x := max(int(sx-halo), 0); x <= min(int(sx+halo), v.w-1); x++ {
+		if depth >= sc.zbuf[x] {
+			continue
+		}
+		for py := max(int(cy-halo), 2*v.top); py <= min(int(cy+halo), 2*(v.top+v.h)-1); py++ {
+			dx, dy := float64(x)+0.5-sx, (float64(py)+0.5-cy)*1.0
+			d := math.Sqrt(dx*dx + dy*dy)
+			switch {
+			case d <= r*0.45:
+				v.c.px(x, py, col.mix(rgb{1, 1, 1}, 0.75))
+			case d <= r:
+				v.c.px(x, py, col)
+			case d <= halo:
+				if p := v.c.at(x, py/2); p != nil {
+					top, bot := halves(p)
+					k := float32(0.55 * (1 - (d-r)/(halo-r)))
+					if py%2 == 0 {
+						top = top.mix(col, k)
+					} else {
+						bot = bot.mix(col, k)
+					}
+					setHalves(p, top, bot)
+				}
+			}
+		}
+	}
 }
 
 func (g *game) drawPart(v *view, pos vec, p *particle) {
@@ -512,7 +621,7 @@ func (g *game) drawPart(v *view, pos vec, p *particle) {
 		if x < 0 || x >= v.w || depth >= sc.zbuf[x] {
 			return
 		}
-		col := hex(0xf4f0ff)
+		col := p.col
 		if p.crit {
 			col = hex(0xff6a3d)
 		}
@@ -604,8 +713,30 @@ func (g *game) drawCrosshair(v *view) {
 	}
 }
 
-// drawHurt reddens the edges of the picture, fading inwards.
+// drawHurt reddens the edges of the picture, fading inwards, and points
+// round the crosshair to where the hit came from.
 func (g *game) drawHurt(v *view) {
+	if g.hurtShow > 1.3 {
+		rel := math.Remainder(g.hurtAng-g.ang, 2*math.Pi) // 0: ahead, > 0: to the right
+		cx, cy := g.crosshair()
+		col := hudBad.mul(float32(0.5 + 0.5*math.Min(1, (g.hurtShow-1.3)/1.2)))
+		for k := -1; k <= 1; k++ {
+			a := rel + float64(k)*0.16
+			x := cx + int(math.Round(math.Sin(a)*9))
+			y := cy - int(math.Round(math.Cos(a)*4.5))
+			v.c.fg(x, y, arrowFor(a), col)
+		}
+	}
+	if g.dashT > 0 {
+		// Speed lines along the sides while dashing.
+		for y := v.top; y < v.top+v.h; y += 2 {
+			n := int(g.rnd.f() * float64(v.w) / 5)
+			for x := 0; x < n; x++ {
+				v.c.fg(x, y, "─", hex(0xdfe6ff).mul(0.5))
+				v.c.fg(v.w-1-x, y, "─", hex(0xdfe6ff).mul(0.5))
+			}
+		}
+	}
 	if g.hurtFX <= 0 {
 		return
 	}
@@ -627,6 +758,17 @@ func (g *game) drawHurt(v *view) {
 			}
 		}
 	}
+}
+
+// arrowFor is the arrow that points away from the crosshair at angle a
+// (0 up, clockwise).
+func arrowFor(a float64) string {
+	arrows := [8]string{"▲", "◥", "▶", "◢", "▼", "◣", "◀", "◤"}
+	k := int(math.Round(a/(math.Pi/4))) % 8
+	if k < 0 {
+		k += 8
+	}
+	return arrows[k]
 }
 
 // drawThreats marks, at the edges, what is close and out of sight: in a

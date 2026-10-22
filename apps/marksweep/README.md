@@ -34,7 +34,7 @@ window of its own with kitty's `mouse_hide_wait` set so the pointer goes once th
 | left button | sweep (hold to keep firing). `F` does the same from the keyboard |
 | `R` or right button | collect. The heap (magazine) never refills on its own |
 | `W` `A` `S` `D` | move. `←` `→` or `Q` `E` turn |
-| `Space` | dash: a short burst, and a moment no hit lands |
+| `Space` | dash: a short burst no hit lands through. Two charges (◆◆ over the health), each back in 1.6 s |
 | `1` `2` `3` or a click | take a card |
 | `Esc` or `P` | pause. In the browser, Esc also lets the pointer go |
 | `M` | sound on and off |
@@ -57,42 +57,44 @@ Enemies come in through the spawn windows on the walls:
 | elder | ncurses | an old phosphor monitor walking on two legs, a face on its screen; slow, armoured |
 
 Every tenth level a boss comes: **Boba Prime**, who throws rings of pearls and calls spinners, then
-**Ferris, Crab King**, crowned, then again, tougher each time. From level 12 some enemies are elites (gold, three
+**Ferris, Crab King**, crowned, then again, tougher each time. Every ranged enemy shows its attack before
+it: it glows and a rising tone plays, and a boss's attack is named under its health bar. Ferris takes
+turns between a **claw salvo**, five bars in a fan (get behind cover), and every third time a **claw slam**,
+a ring of fire spreading over the floor that hurts as it passes unless you dash through it. What hits you
+leaves an arrow round the crosshair pointing back at it and a line over the health ("-24 FERRIS, CRAB
+KING claw salvo"); the death screen says what killed you. From level 12 some enemies are elites (gold, three
 times the health), and some of those are insulated (cyan health bar): explosions and arcs do nothing to
 them.
 
 ## Cards
 
-| | rarity | |
-| :--- | :--- | :--- |
-| REP | common | +1 shot per trigger pull |
-| Scroll Region | common | shots bounce off walls |
-| Diff Engine | common | shots pass through enemies |
-| fork() | rare | a hit splits the shot |
-| panic() | rare | hits explode |
-| Goroutines | rare | hits arc to nearby enemies |
-| Hot Path, Tight Loop, Bigger Heap, Concurrent GC | common | damage, fire rate, magazine, collecting speed |
-| Zero-Alloc | rare | a chance that a shot costs nothing |
-| Escape Analysis | rare | critical hits |
-| Graceful Shutdown, recover() | common, rare | health; health on every kill |
-| Hot Reload, GOGC=200 | common | speed and dash; experience |
-| Cascading Diff | legendary | explosions throw shrapnel (needs panic()) |
-| Recursion | legendary | children split again (needs fork()) |
-| Stack Overflow | legendary | every hit in a row adds damage |
-| Mode 2026 | legendary | a kill can slow the world for two seconds |
-| kill -9 | legendary | enemies under a share of their health die |
+71 of them. A run starts weak on purpose — every level then adds 2.5% damage of its own, rare and
+legendary cards grow commoner as the levels go by, and a card of an element you already carry comes more
+often, so builds come together and the end of a run is much stronger than its start.
 
-A card can come back. Past its last rank it **overclocks**: +12% to what it does, without end. The
-broken builds are the ones that multiply each other. fork() children that bounce off walls, explode
-and throw shrapnel fill the arena with more shots than it can hold. The pool simply stays full.
+The elements live on the enemies as stacks, with a mark over each one carrying them (`^` `*` `o` `!`):
+
+| | |
+| :--- | :--- |
+| **fire** | burns hurt every half second (armour halves it). Firewall, Overheat, Wildfire (spreads as they die), Incinerate (ten burns erupt), Napalm (explosions burn), Afterburner (dashes leave fire), Phoenix Restart (a death restarts you, once in 90 s) |
+| **ice** | chill slows, five chills freeze: no step, no bite, no attack. Shatter, Permafrost, Ice Shards, Cold Snap (a dash ends in a frost nova), Absolute Zero, Frostbite, Cryo Plating |
+| **lightning** | Goroutines' arcs, Static (the shocked take more), Thunderstrike (every 7th hit a bolt), Tesla Coil, Short Circuit, Spark Gap (a dash zaps), Conductor, Superconductor (arcs carry burn and chill) |
+| **poison** | goes through armour. Corrosion (eats armour), Plague, Toxic Fumes, Neurotoxin (slower, softer bites), Dangling Pointer (a share of health), Mark Gas (collecting poisons what is near) |
+| **dash** | Double Buffer (+1 charge), goto (further), Context Switch (a dash refills the heap), defer (shots after a dash hit harder), Bulldozer (dashes hit what they pass), Hot Reload |
+| **and the rest** | REP, Scroll Region, Diff Engine, fork(), panic(), Recursion, Cascading Diff, Hot Path, Tight Loop, Bigger Heap, Zero-Alloc, Concurrent GC, Escape Analysis, Stack Overflow, kill -9, Mode 2026, Graceful Shutdown, recover(), Mutex, Watchdog, Vampire Thread, GOGC=200, Weak Refs, Reference Counting, Retry, Batch Job, Headroom, Last Resort, Generational GC, Big O, Daemons (orbit you), Cron Job (fires by itself), Polyglot (damage for every element), Thermal Shock (fire on the frozen is a blast) |
+
+Some need another first: Wildfire needs Thermal Throttle, Recursion needs fork(), Thermal Shock needs fire
+and ice both. A card can come back. Past its last rank it **overclocks**: +12% to what it does, without
+end. The broken builds are the ones that multiply each other. fork() children that bounce off walls,
+explode and throw shrapnel fill the arena with more shots than it can hold. The pool simply stays full.
 
 ## The pressure
 
 For ten minutes the heap grows with time. Then the pressure starts: enemy health doubles about every
 two minutes, they move faster, every one of them gains armour that grows by the minute, and more and more
 are insulated. Armour takes a flat amount off every hit, so a cloud of tiny shrapnel stops working just
-when it looked unbeatable. A bot with perfect aim (`sim_test.go`) dies between 10 and 19 minutes,
-whatever it builds.
+when it looked unbeatable. A bot with perfect aim (`sim_test.go`, `SIM=1`, ten seeds a build) dies at a median of
+7 to 11 minutes, whatever it builds — it never dashes on purpose, so the dash cards do nothing for it.
 
 Records (the longest run, the highest level, the most swept, the most shots alive at once, the biggest
 hit) stay where the game is played: `~/.config/marksweep/records.json`, or the browser's localStorage.

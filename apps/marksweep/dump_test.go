@@ -89,6 +89,64 @@ func TestDumpFrame(t *testing.T) {
 			return g
 		},
 	}
+	shots["ferris"] = func() *game {
+		g := playing()
+		g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		g.bossNext = 99
+		f := g.addEnemy(kFerris, vec{14.6, 22.9})
+		g.bossLive = true
+		e := &g.enemies[f]
+		e.windT, e.slam = 0.6, true
+		for i := -2; i <= 2; i++ {
+			g.enemyShot(e, vec{15.2 + float64(i)*0.45, 24.4 + math.Abs(float64(i))*0.15}, 1.3, 20, shotBar)
+		}
+		g.wave = wave{alive: true, pos: e.pos, r: 2.0}
+		g.stepWave(0.001)
+		g.hurt(24, vec{19, 22}, kFerris, "claw salvo")
+		g.hurtFX = 0.3
+		g.dashN = 1
+		g.msgT = 0
+		return g
+	}
+	shots["elements"] = func() *game {
+		g := playing()
+		g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		g.bossNext = 99
+		pickN(g, augIgnite, 1)
+		pickN(g, augChill, 1)
+		pickN(g, augLeak, 1)
+		pickN(g, augStatic, 1)
+		for i, k := range []kindID{kBoba, kCrab, kModal, kElder} {
+			j := g.addEnemy(k, vec{13.5 + float64(i)*2, 22.6})
+			switch i {
+			case 0:
+				g.addBurn(j, 6)
+			case 1:
+				g.freeze(j)
+			case 2:
+				g.addPoison(j, 8)
+			case 3:
+				g.enemies[j].shockT = 2
+			}
+		}
+		g.addZone(vec{16, 24}, 1.2, 3, elFire)
+		for i := 0; i < 20; i++ {
+			g.stepZones(1.0 / 30)
+			g.stepParts(1.0 / 30)
+			g.stepEnemies(1.0 / 30)
+			g.clock += 1.0 / 30
+		}
+		g.msgT = 0
+		return g
+	}
+	shots["cards2"] = func() *game {
+		g := playing()
+		g.pending = 1
+		g.openCards()
+		g.cards[0], g.cards[1], g.cards[2] = augThunder, augChill, augDangling
+		g.cardHov = 0
+		return g
+	}
 	shots["poster"] = func() *game {
 		g := playing()
 		g.pos, g.ang = vec{16.12, 28.2}, -math.Pi/2
