@@ -141,10 +141,32 @@ func TestDumpFrame(t *testing.T) {
 	}
 	shots["cards2"] = func() *game {
 		g := playing()
+		for _, a := range []augID{augTesla, augRoundTrip, augCron, augIgnite, augIgnite, augHotPath, augChain} {
+			pickN(g, a, 1)
+		}
 		g.pending = 1
 		g.openCards()
-		g.cards[0], g.cards[1], g.cards[2] = augThunder, augChill, augDangling
+		g.cards[0], g.cards[1], g.cards[2] = augStorm, augIgnite, augDangling
 		g.cardHov = 0
+		return g
+	}
+	shots["actives"] = func() *game {
+		g := playing()
+		g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		g.bossNext = 99
+		for _, a := range []augID{augDaemon, augDaemon, augDaemon, augRoundTrip, augRoundTrip, augIRQ, augCompaction, augSegfault, augColdPath} {
+			pickN(g, a, 1)
+		}
+		for i, k := range []kindID{kBoba, kCrab, kModal, kJSX, kElder, kBar, kSpinner, kBoba} {
+			j := g.addEnemy(k, vec{12.5 + float64(i)*1.0, 22.8 + float64(i%2)*0.8})
+			g.enemies[j].hp, g.enemies[j].max = 1e6, 1e6
+		}
+		for i := 0; i < 40; i++ {
+			g.step(1.0 / 30)
+			g.hp = g.st.maxHP
+			g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		}
+		g.msgT = 0
 		return g
 	}
 	shots["poster"] = func() *game {

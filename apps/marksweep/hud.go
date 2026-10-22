@@ -132,33 +132,27 @@ func (g *game) drawHUD(c canvas, v *view) {
 	x += barW + 1
 	c.fgClock(x, 0, int(g.runTime), hudText)
 
-	// Under it, the build: one augment a row.
+	// Under it, the build: the actives, then the passives, one a row.
 	y := 1
 	rows := max(0, h/2-3)
-	for a := augID(0); a < nAug; a++ {
-		if g.rank[a] == 0 {
+	for _, act := range [2]bool{true, false} {
+		if g.holds(act) == 0 {
 			continue
 		}
 		if y > rows {
-			shadePanel(c, 0, y, 7, 1)
-			c.fg(1, y, "+ more", hudDim)
 			break
 		}
-		name := augs[a].name
-		n := width(name) + 2 + digits(g.rank[a])
-		if g.over[a] > 0 {
-			n += 1 + digits(g.over[a])
+		label := "PASSIVE "
+		if act {
+			label = "ACTIVE "
 		}
-		shadePanel(c, 0, y, n+1, 1)
-		x := c.fg(1, y, name, hex(rarityCol[augs[a].rar]))
-		x = c.fgNumber(x+1, y, g.rank[a], hudText)
-		if g.over[a] > 0 {
-			x = c.fg(x, y, "+", hudWarn)
-			c.fgNumber(x, y, g.over[a], hudWarn)
-		}
+		shadePanel(c, 0, y, width(label)+5, 1)
+		x := c.fg(1, y, label, hudDim)
+		x = c.fgNumber(x, y, g.holds(act), hudCyan)
+		c.fg(x, y, "/6", hudDim)
 		y++
+		y = g.drawBuild(c, y, rows, act)
 	}
-
 	// Top right: what has been swept, and the pressure.
 	p := g.pressure()
 	rw := 6 + digits(g.kills) + 3 + 9 + 9
@@ -275,6 +269,35 @@ func (g *game) drawHUD(c canvas, v *view) {
 	}
 }
 
+// drawBuild lists the actives or the passives the build holds from row y,
+// and returns the row after them.
+func (g *game) drawBuild(c canvas, y, rows int, act bool) int {
+	for a := augID(0); a < nAug; a++ {
+		if g.rank[a] == 0 || augs[a].act != act {
+			continue
+		}
+		if y > rows {
+			shadePanel(c, 0, y, 7, 1)
+			c.fg(1, y, "+ more", hudDim)
+			return y + 1
+		}
+		name := augs[a].name
+		n := width(name) + 3 + digits(g.rank[a])
+		if g.over[a] > 0 {
+			n += 1 + digits(g.over[a])
+		}
+		shadePanel(c, 0, y, n+1, 1)
+		x := c.fg(2, y, name, hex(rarityCol[augs[a].rar]))
+		x = c.fgNumber(x+1, y, g.rank[a], hudText)
+		if g.over[a] > 0 {
+			x = c.fg(x, y, "+", hudWarn)
+			c.fgNumber(x, y, g.over[a], hudWarn)
+		}
+		y++
+	}
+	return y
+}
+
 var eighths = []rune("▏▎▍▌▋▊▉")
 
 func (g *game) bar(c canvas, x, y, w int, frac float64, on, off rgb) {
@@ -368,6 +391,14 @@ func (g *game) drawCards(c canvas) {
 	c.fill(0, y0-3, c.w, 1, ' ', title)
 	head := "LEVEL UP: CHOOSE AN AUGMENT"
 	c.centered(y0-3, head, style(hudWarn, hex(0x05060a)))
+	// The slots, under it: six actives, six passives.
+	slotsW := 28
+	x := (c.w - slotsW) / 2
+	x = c.text(x, y0-2, "ACTIVE ", style(hudDim, hex(0x05060a)))
+	x = c.number(x, y0-2, g.holds(true), style(hudCyan, hex(0x05060a)))
+	x = c.text(x, y0-2, "/6   PASSIVE ", style(hudDim, hex(0x05060a)))
+	x = c.number(x, y0-2, g.holds(false), style(hudCyan, hex(0x05060a)))
+	c.text(x, y0-2, "/6", style(hudDim, hex(0x05060a)))
 	for i := 0; i < g.nCards; i++ {
 		g.drawCard(c, i)
 	}
@@ -477,6 +508,16 @@ func (g *game) drawCard(c canvas, i int) {
 		xx = c.number(xx, ry, g.over[a]+1, style(hudWarn, bg))
 		c.text(xx+1, ry, "+12%", style(hudGood, bg))
 	}
+	kind, kc := "PASSIVE", hudDim
+	switch {
+	case au.act && g.rank[a] == 0:
+		kind, kc = "ACTIVE · NEW", hudCyan
+	case au.act:
+		kind, kc = "ACTIVE", hudCyan
+	case g.rank[a] == 0:
+		kind = "PASSIVE · NEW"
+	}
+	c.text(x+(w-width(kind))/2, y+h-3, kind, style(kc, bg))
 	k := style(hudDim, bg)
 	c.text(x+(w-5)/2, y+h-2, "[ ]", k)
 	c.set(x+(w-5)/2+1, y+h-2, rune('1'+i), style(hudWarn, bg))

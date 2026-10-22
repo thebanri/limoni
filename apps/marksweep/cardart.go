@@ -573,6 +573,55 @@ func paintIcon(a augID) *sprite {
 		p.disc(8, 6, 1.8, 1.8, cyanC)
 		p.disc(15, 6, 3.5, 3.5, cyanC)
 		p.dot(14, 4, hex(0xffffff))
+
+	// ── actives ──
+	case augStorm: // a cloud raining bolts
+		p.cloud(10, 2, hex(0x3a4058))
+		p.bolt(4, 4, 7, volt)
+		p.bolt(10, 5, 6, volt)
+		p.bolt(16, 4, 7, volt)
+	case augSegfault: // a blast with a broken pointer
+		p.boom(12, 6, 4)
+		p.line(1, 2, 6, 6, 1, steel)
+		p.arrowHead(7, 6, steel)
+		p.glyph(1, 7, '!', blood)
+	case augGasLeak: // a canister thrown, a cloud where it lands
+		p.cloud(13, 5, toxic.mul(0.9))
+		p.rect(2, 7, 5, 11, steel)
+		p.rect(3, 6, 4, 6, steel.mul(1.2))
+		p.line(5, 6, 8, 3, 1, toxic.mul(0.6))
+	case augColdPath: // a lance of ice
+		p.line(1, 10, 15, 2, 2, frost)
+		p.line(15, 2, 18, 0, 1, hex(0xffffff))
+		p.flake(5, 4, 2.5, frost.mul(0.8))
+	case augIRQ: // a field round a figure
+		for k := 0; k < 28; k++ {
+			t := float64(k) / 28 * 2 * math.Pi
+			p.dot(int(10+8*math.Cos(t)), int(6+5.5*math.Sin(t)), volt.mul(0.4+0.6*float32(k%2)))
+		}
+		p.runner(10, 2, dashV)
+	case augRoundTrip: // a boomerang and its path
+		p.line(4, 4, 10, 8, 2, ember)
+		p.line(10, 8, 16, 4, 2, ember)
+		for k := 0; k < 14; k++ {
+			t := float64(k) / 14 * math.Pi
+			p.dot(int(10+8*math.Cos(t)), int(4-3*math.Sin(t)), flameY.mul(0.6))
+		}
+	case augBurnIn: // footprints on fire
+		for k, x := range []float64{3, 8, 13, 18} {
+			y := 9.0 - float64(k%2)*2
+			p.disc(x, y, 1.3, 1, bone.mul(0.7))
+			p.flame(x, y-4, 0.35)
+		}
+	case augCompaction: // a vortex pulling foes in
+		for k := 0; k < 40; k++ {
+			t := float64(k) / 40 * 4 * math.Pi
+			r := 7 - float64(k)*0.16
+			p.dot(int(10+r*math.Cos(t)), int(6+r*0.7*math.Sin(t)), dashV.mul(0.5+0.5*float32(k)/40))
+		}
+		p.disc(10, 6, 1.4, 1.4, hex(0xffffff))
+		p.foe(2, 2, 1.5, steel)
+		p.foe(18, 10, 1.5, steel)
 	}
 	return p.done()
 }

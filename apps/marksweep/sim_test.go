@@ -69,6 +69,23 @@ func bot(g *game, taste []augID) {
 		if d < 1.6 && g.hp < g.st.maxHP*0.5 {
 			g.dash()
 		}
+		// What the warnings say: a wind-up means step aside, a shot about
+		// to land means dash.
+		for i := range g.enemies {
+			if e := &g.enemies[i]; e.alive && e.windT > 0 && !e.slam {
+				side := int(g.runTime/3)%2 == 0
+				g.held[actLeft], g.held[actRight] = side, !side
+				g.held[actFwd], g.held[actBack] = false, false
+				break
+			}
+		}
+		for i := 0; i < g.shotTop; i++ {
+			if s := &g.shots[i]; s.alive && s.hostile() && s.pos.dist2(g.pos) < 1.2*1.2 {
+				if to := g.pos.sub(s.pos); to.x*s.vel.x+to.y*s.vel.y > 0 && g.dashN > 1 {
+					g.dash()
+				}
+			}
+		}
 		// What the game says to do about a claw slam: dash through it.
 		if w := g.wave; w.alive && !w.hit {
 			if gap := math.Sqrt(g.pos.dist2(w.pos)) - w.r; gap > 0 && gap < 0.6 {
@@ -90,15 +107,16 @@ func bot(g *game, taste []augID) {
 // SIM unset it plays one short run for crashes only. The assertion that
 // matters: the pressure ends every run, broken or not.
 func TestSimulatedRuns(t *testing.T) {
+	// Six actives and six passives each, the order the bot prefers them.
 	builds := map[string][]augID{
-		"broken":   {augFork, augRecursion, augPanic, augCascade, augScroll, augREP, augChain, augLoop, augHotPath},
-		"steady":   {augHotPath, augLoop, augHeap, augConcGC, augShutdown, augRecover, augEscape, augDiff},
+		"broken":   {augRoundTrip, augFork, augCron, augPanic, augSegfault, augRecursion, augStorm, augCascade, augTesla, augScroll, augCompaction, augREP},
+		"steady":   {augCron, augHotPath, augTesla, augLoop, augColdPath, augHeap, augDaemon, augShutdown, augIRQ, augRecover, augAbsZero, augEscape},
 		"anything": nil,
-		"fire":     {augIgnite, augFirewall, augOverheat, augWildfire, augIncinerate, augAfterburn, augHotPath, augLoop},
-		"frost":    {augChill, augShatter, augPermafrost, augShards, augAbsZero, augColdSnap, augThermal, augIgnite, augLoop},
-		"storm":    {augChain, augStatic, augConductor, augThunder, augTesla, augShort, augSuper, augLoop},
-		"plague":   {augLeak, augPlague, augDangling, augCorrode, augFumes, augNeuro, augLoop, augHotPath},
-		"machine":  {augCron, augDaemon, augDoubleBuf, augRam, augRetry, augBatch, augBigO, augHotPath},
+		"fire":     {augSegfault, augIgnite, augBurnIn, augFirewall, augCron, augOverheat, augRoundTrip, augWildfire, augTesla, augIncinerate, augDaemon, augHotPath},
+		"frost":    {augColdPath, augChill, augAbsZero, augShatter, augCron, augPermafrost, augSegfault, augShards, augTesla, augThermal, augRoundTrip, augIgnite},
+		"storm":    {augTesla, augChain, augStorm, augStatic, augIRQ, augConductor, augCron, augThunder, augRoundTrip, augShort, augDaemon, augSuper},
+		"plague":   {augGasLeak, augLeak, augCompaction, augPlague, augCron, augDangling, augTesla, augCorrode, augRoundTrip, augNeuro, augDaemon, augHotPath},
+		"machine":  {augCron, augHotPath, augDaemon, augLoop, augRoundTrip, augRetry, augColdPath, augBatch, augStorm, augBigO, augTesla, augEscape},
 	}
 	limit, seeds := 30.0, uint64(3)
 	if os.Getenv("SIM") != "" {

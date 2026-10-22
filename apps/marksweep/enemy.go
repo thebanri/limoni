@@ -458,8 +458,8 @@ func (g *game) enemyFire(e *enemy, n vec) {
 			g.soundFrom(sfxBoom, e.pos, 1)
 			return
 		}
-		for i := -2; i <= 2; i++ {
-			g.enemyShot(e, e.pos.add(n.scale(kd.r)), a+float64(i)*0.13, dmg, shotBar)
+		for i := -2; i <= 2; i++ { // five bars: each softer than a crab's, it is the fan that hurts
+			g.enemyShot(e, e.pos.add(n.scale(kd.r)), a+float64(i)*0.13, dmg*0.6, shotBar)
 		}
 	}
 	g.soundFrom(sfxSpit, e.pos, 0.7)

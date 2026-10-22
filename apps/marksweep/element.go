@@ -128,7 +128,7 @@ func (g *game) onHit(s *shot, j int) {
 	if g.st.thunderK > 0 && s.gen == 0 && s.kind == shotPlayer {
 		g.hits++
 		if g.hits%7 == 0 {
-			g.bolt(j)
+			g.bolt(j, g.st.dmg*g.st.thunderK)
 		}
 	}
 	if s.crit && g.st.vampire > 0 {
@@ -165,14 +165,15 @@ func (g *game) arcCarries(j int) {
 	}
 }
 
-// bolt is Thunderstrike: lightning from above onto enemy j.
-func (g *game) bolt(j int) {
+// bolt is lightning from above onto enemy j (Thunderstrike, Broadcast
+// Storm).
+func (g *game) bolt(j int, dmg float64) {
 	e := &g.enemies[j]
 	for z := 0.0; z < 2.6; z += 0.2 {
 		g.addPart(particle{pos: e.pos.add(vec{g.rnd.between(-0.06, 0.06), g.rnd.between(-0.06, 0.06)}), z: z, life: 0.22, glyph: '│', col: hex(0xfff3a0)})
 	}
 	g.soundFrom(sfxZap, e.pos, 0.5)
-	g.hit(j, g.st.dmg*g.st.thunderK, true, 1, elShock)
+	g.hit(j, dmg, true, 1, elShock)
 }
 
 // stepStatus wears e's stacks down and lets the burn and poison hurt.
@@ -374,34 +375,6 @@ func (g *game) stepPowers(dt float64) {
 			g.volley(false)
 		}
 	}
-	if g.st.tesla > 0 {
-		if g.teslaT -= dt; g.teslaT <= 0 {
-			g.teslaT = 1
-			g.zap(g.pos, 5.5, g.st.tesla, g.st.dmg*1.1)
-		}
-	}
-	if g.st.cron > 0 {
-		if g.cronT -= dt; g.cronT <= 0 {
-			g.cronT = 0.7
-			var near [8]int16
-			n := g.nearest(g.pos, 12, -1, near[:min(g.st.cron, 8)])
-			for _, j := range near[:n] {
-				to := g.enemies[j].pos.sub(g.pos)
-				g.shoot(g.pos, math.Atan2(to.y, to.x), g.st.dmg*0.8, 1, shotPlayer)
-			}
-		}
-	}
-	if g.st.absZero {
-		if g.absT -= dt; g.absT <= 0 {
-			g.absT = 8
-			g.nova(4, elIce, 0)
-			for i := range g.enemies {
-				if e := &g.enemies[i]; e.alive && e.frozenT <= 0 && e.pos.dist2(g.pos) < 16 {
-					g.freeze(i)
-				}
-			}
-		}
-	}
 	if g.st.gas > 0 && g.reloadT > 0 {
 		if g.gasT -= dt; g.gasT <= 0 {
 			g.gasT = 0.4
@@ -413,7 +386,7 @@ func (g *game) stepPowers(dt float64) {
 			}
 		}
 	}
-	g.stepDaemons(dt)
+	g.stepActives(dt)
 }
 
 // zap is an arc from p to the n nearest within reach.
@@ -451,35 +424,6 @@ func (g *game) nova(r float64, el element, stacks int) {
 				g.addChill(i, stacks)
 			case elFire:
 				g.addBurn(i, stacks)
-			}
-		}
-	}
-}
-
-// daemonPos is where daemon k of n is now.
-func (g *game) daemonPos(k, n int) vec {
-	a := g.clock*2.6 + float64(k)*2*math.Pi/float64(n)
-	return g.pos.add(dir(a).scale(1.3))
-}
-
-func (g *game) stepDaemons(dt float64) {
-	n := g.st.daemons
-	if n == 0 {
-		return
-	}
-	for k := 0; k < n; k++ {
-		g.addPart(particle{pos: g.daemonPos(k, n), z: 0.5, life: 0.1, glyph: '◆', col: hex(0xc07bff)})
-	}
-	if g.daemonT -= dt; g.daemonT > 0 {
-		return
-	}
-	g.daemonT = 0.35
-	for k := 0; k < n; k++ {
-		p := g.daemonPos(k, n)
-		for i := range g.enemies {
-			e := &g.enemies[i]
-			if r := kinds[e.k].r + 0.3; e.alive && e.pos.dist2(p) < r*r {
-				g.hit(i, g.st.dmg*0.6, false, 1, elNone)
 			}
 		}
 	}

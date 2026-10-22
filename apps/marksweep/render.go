@@ -560,6 +560,11 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 		r, col = '*', hex(0xffb347)
 	case shotShard:
 		r, col = '◆', hex(0x9fe8ff)
+	case shotRang:
+		r, col = '+', hex(0xffb347)
+		if int(s.age*16)%2 == 1 {
+			r = 'x'
+		}
 	case shotBar:
 		r, col = '▮', hex(0xf74c00)
 	case shotPearl:

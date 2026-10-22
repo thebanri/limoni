@@ -95,8 +95,23 @@ const (
 	augPolyglot  // damage for every element carried
 	augThermal   // burning the frozen is a blast
 	augBigO      // shots grow as they fly
+
+	// actives: the build's core, which act by themselves (Tesla Coil,
+	// Daemons, Cron Job and Absolute Zero are actives too)
+	augStorm      // bolts on the nearest, again and again
+	augSegfault   // a fire blast where they crowd
+	augGasLeak    // poison clouds thrown at them
+	augColdPath   // piercing lances of ice
+	augIRQ        // a field round you that shocks
+	augRoundTrip  // a boomerang that comes back
+	augBurnIn     // fire left wherever you walk
+	augCompaction // a vortex that pulls them together, then bursts
 	nAug
 )
+
+// Slots: a build holds six actives and six passives. Once a kind's slots
+// are full, its cards are only upgrades of what is held.
+const slots = 6
 
 type rarity uint8
 
@@ -137,86 +152,112 @@ type augment struct {
 	what2 string // the second line, if any
 	needs augID  // offered only once this has a rank (or itself, for none)
 	el    element
+	act   bool // an active: a core ability that acts by itself
+}
+
+func init() {
+	for _, a := range []augID{augTesla, augDaemon, augCron, augAbsZero, augStorm, augSegfault, augGasLeak, augColdPath, augIRQ, augRoundTrip, augBurnIn, augCompaction} {
+		augs[a].act = true
+	}
+}
+
+// holds is how many augments of a kind the build has.
+func (g *game) holds(act bool) int {
+	n := 0
+	for a := augID(0); a < nAug; a++ {
+		if g.rank[a] > 0 && augs[a].act == act {
+			n++
+		}
+	}
+	return n
 }
 
 var augs = [nAug]augment{
-	augREP:       {"REP", "PROJECTILE", common, 5, "+1 shot per trigger pull", "repeat the last glyph", augREP, elNone},
-	augScroll:    {"Scroll Region", "BOUNCE", common, 5, "shots bounce off walls", "+1 bounce per rank", augScroll, elNone},
-	augDiff:      {"Diff Engine", "PIERCE", common, 5, "shots pass through", "+1 enemy per rank", augDiff, elNone},
-	augFork:      {"fork()", "SPLIT", rare, 5, "a hit splits the shot", "+1 child per rank", augFork, elNone},
-	augPanic:     {"panic()", "EXPLODE", rare, 5, "hits explode", "bigger, harder a rank", augPanic, elFire},
-	augChain:     {"Goroutines", "LIGHTNING", rare, 5, "hits arc to nearby foes", "+1 arc per rank", augChain, elShock},
-	augHotPath:   {"Hot Path", "DAMAGE", common, 5, "+20% damage", "", augHotPath, elNone},
-	augLoop:      {"Tight Loop", "RATE", common, 5, "+15% fire rate", "", augLoop, elNone},
-	augHeap:      {"Bigger Heap", "AMMO", common, 5, "+5 rounds a magazine", "", augHeap, elNone},
-	augZeroAlloc: {"Zero-Alloc", "AMMO", rare, 5, "+9% chance a shot", "costs no ammo", augZeroAlloc, elNone},
-	augConcGC:    {"Concurrent GC", "RELOAD", common, 5, "-15% reload time", "", augConcGC, elNone},
-	augEscape:    {"Escape Analysis", "CRIT", rare, 5, "+8% critical chance", "crits x2.5, +0.5x a rank", augEscape, elNone},
-	augShutdown:  {"Graceful Shutdown", "HEALTH", common, 5, "+25 max health", "and heals it", augShutdown, elNone},
-	augRecover:   {"recover()", "HEALTH", rare, 5, "+1.5 health a kill", "", augRecover, elNone},
-	augHotReload: {"Hot Reload", "SPEED", common, 5, "+9% speed", "-12% dash cooldown", augHotReload, elDash},
-	augGOGC:      {"GOGC=200", "GROWTH", common, 5, "+12% experience", "from every freed byte", augGOGC, elNone},
-	augCascade:   {"Cascading Diff", "EXPLODE", legendary, 3, "explosions throw shrapnel", "+3 pieces per rank", augPanic, elFire},
-	augRecursion: {"Recursion", "SPLIT", legendary, 3, "children split again", "+1 generation per rank", augFork, elNone},
-	augOverflow:  {"Stack Overflow", "DAMAGE", legendary, 3, "each hit in a row adds", "+3% damage, to +90%", augOverflow, elNone},
-	augSync:      {"Mode 2026", "TIME", legendary, 1, "a kill can stop the clock", "the world slows for 2s", augSync, elNone},
-	augKill9:     {"kill -9", "EXECUTE", legendary, 3, "foes under 8% health die", "+4% per rank", augKill9, elNone},
+	augREP:       {"REP", "PROJECTILE", common, 5, "+1 shot per trigger pull", "repeat the last glyph", augREP, elNone, false},
+	augScroll:    {"Scroll Region", "BOUNCE", common, 5, "shots bounce off walls", "+1 bounce per rank", augScroll, elNone, false},
+	augDiff:      {"Diff Engine", "PIERCE", common, 5, "shots pass through", "+1 enemy per rank", augDiff, elNone, false},
+	augFork:      {"fork()", "SPLIT", rare, 5, "a hit splits the shot", "+1 child per rank", augFork, elNone, false},
+	augPanic:     {"panic()", "EXPLODE", rare, 5, "hits explode", "bigger, harder a rank", augPanic, elFire, false},
+	augChain:     {"Goroutines", "LIGHTNING", rare, 5, "hits arc to nearby foes", "+1 arc per rank", augChain, elShock, false},
+	augHotPath:   {"Hot Path", "DAMAGE", common, 5, "+20% damage", "", augHotPath, elNone, false},
+	augLoop:      {"Tight Loop", "RATE", common, 5, "+15% fire rate", "", augLoop, elNone, false},
+	augHeap:      {"Bigger Heap", "AMMO", common, 5, "+5 rounds a magazine", "", augHeap, elNone, false},
+	augZeroAlloc: {"Zero-Alloc", "AMMO", rare, 5, "+9% chance a shot", "costs no ammo", augZeroAlloc, elNone, false},
+	augConcGC:    {"Concurrent GC", "RELOAD", common, 5, "-15% reload time", "", augConcGC, elNone, false},
+	augEscape:    {"Escape Analysis", "CRIT", rare, 5, "+8% critical chance", "crits x2.5, +0.5x a rank", augEscape, elNone, false},
+	augShutdown:  {"Graceful Shutdown", "HEALTH", common, 5, "+25 max health", "and heals it", augShutdown, elNone, false},
+	augRecover:   {"recover()", "HEALTH", rare, 5, "+1.5 health a kill", "", augRecover, elNone, false},
+	augHotReload: {"Hot Reload", "SPEED", common, 5, "+9% speed", "-12% dash cooldown", augHotReload, elDash, false},
+	augGOGC:      {"GOGC=200", "GROWTH", common, 5, "+12% experience", "from every freed byte", augGOGC, elNone, false},
+	augCascade:   {"Cascading Diff", "EXPLODE", legendary, 3, "explosions throw shrapnel", "+3 pieces per rank", augPanic, elFire, false},
+	augRecursion: {"Recursion", "SPLIT", legendary, 3, "children split again", "+1 generation per rank", augFork, elNone, false},
+	augOverflow:  {"Stack Overflow", "DAMAGE", legendary, 3, "each hit in a row adds", "+3% damage, to +90%", augOverflow, elNone, false},
+	augSync:      {"Mode 2026", "TIME", legendary, 1, "a kill can stop the clock", "the world slows for 2s", augSync, elNone, false},
+	augKill9:     {"kill -9", "EXECUTE", legendary, 3, "foes under 8% health die", "+4% per rank", augKill9, elNone, false},
 
-	augIgnite:     {"Thermal Throttle", "FIRE", common, 5, "hits can set foes burning", "+15% chance a rank", augIgnite, elFire},
-	augFirewall:   {"Firewall", "FIRE", common, 5, "+30% burn damage", "burns last +1s", augIgnite, elFire},
-	augWildfire:   {"Wildfire", "FIRE", rare, 3, "the burning spread it", "on death: +2 foes a rank", augIgnite, elFire},
-	augOverheat:   {"Overheat", "FIRE", rare, 5, "+14% damage", "to burning foes", augIgnite, elFire},
-	augIncinerate: {"Incinerate", "FIRE", legendary, 3, "10 burns erupt in a blast", "bigger a rank", augIgnite, elFire},
-	augNapalm:     {"Napalm", "FIRE", rare, 3, "explosions set fire", "+2 burns a rank", augPanic, elFire},
-	augAfterburn:  {"Afterburner", "FIRE", common, 3, "dashes leave fire behind", "it burns longer a rank", augAfterburn, elFire},
-	augPhoenix:    {"Phoenix Restart", "FIRE", legendary, 1, "a death restarts you", "at half health, every 90s", augPhoenix, elFire},
+	augIgnite:     {"Thermal Throttle", "FIRE", common, 5, "hits can set foes burning", "+15% chance a rank", augIgnite, elFire, false},
+	augFirewall:   {"Firewall", "FIRE", common, 5, "+30% burn damage", "burns last +1s", augIgnite, elFire, false},
+	augWildfire:   {"Wildfire", "FIRE", rare, 3, "the burning spread it", "on death: +2 foes a rank", augIgnite, elFire, false},
+	augOverheat:   {"Overheat", "FIRE", rare, 5, "+14% damage", "to burning foes", augIgnite, elFire, false},
+	augIncinerate: {"Incinerate", "FIRE", legendary, 3, "10 burns erupt in a blast", "bigger a rank", augIgnite, elFire, false},
+	augNapalm:     {"Napalm", "FIRE", rare, 3, "explosions set fire", "+2 burns a rank", augPanic, elFire, false},
+	augAfterburn:  {"Afterburner", "FIRE", common, 3, "dashes leave fire behind", "it burns longer a rank", augAfterburn, elFire, false},
+	augPhoenix:    {"Phoenix Restart", "FIRE", legendary, 1, "a death restarts you", "at half health, every 90s", augPhoenix, elFire, false},
 
-	augChill:      {"Cold Start", "ICE", common, 5, "hits can chill foes", "5 chills freeze them", augChill, elIce},
-	augShatter:    {"Shatter", "ICE", rare, 3, "+35% damage", "to frozen foes", augChill, elIce},
-	augPermafrost: {"Permafrost", "ICE", common, 5, "freezes last +0.3s", "chill wears off slower", augChill, elIce},
-	augShards:     {"Ice Shards", "ICE", rare, 3, "the frozen die in shards", "into 3 shards a rank", augChill, elIce},
-	augColdSnap:   {"Cold Snap", "ICE", common, 3, "dash ends in a frost nova", "+2 chills a rank", augColdSnap, elIce},
-	augAbsZero:    {"Absolute Zero", "ICE", legendary, 1, "every 8s a frost nova", "freezes all within 4m", augChill, elIce},
-	augFrostbite:  {"Frostbite", "ICE", rare, 5, "chilled foes take damage", "6% dmg a chill, a second", augChill, elIce},
-	augCryo:       {"Cryo Plating", "ICE", common, 5, "-5% damage taken", "", augCryo, elIce},
+	augChill:      {"Cold Start", "ICE", common, 5, "hits can chill foes", "5 chills freeze them", augChill, elIce, false},
+	augShatter:    {"Shatter", "ICE", rare, 3, "+35% damage", "to frozen foes", augChill, elIce, false},
+	augPermafrost: {"Permafrost", "ICE", common, 5, "freezes last +0.3s", "chill wears off slower", augChill, elIce, false},
+	augShards:     {"Ice Shards", "ICE", rare, 3, "the frozen die in shards", "into 3 shards a rank", augChill, elIce, false},
+	augColdSnap:   {"Cold Snap", "ICE", common, 3, "dash ends in a frost nova", "+2 chills a rank", augColdSnap, elIce, false},
+	augAbsZero:    {"Absolute Zero", "ICE", rare, 5, "a frost nova: 250%, and", "freezes; sooner a rank", augAbsZero, elIce, false},
+	augFrostbite:  {"Frostbite", "ICE", rare, 5, "chilled foes take damage", "6% dmg a chill, a second", augChill, elIce, false},
+	augCryo:       {"Cryo Plating", "ICE", common, 5, "-5% damage taken", "", augCryo, elIce, false},
 
-	augStatic:    {"Static", "LIGHTNING", common, 5, "hits shock foes for 2s", "shocked take +8% a rank", augStatic, elShock},
-	augThunder:   {"Thunderstrike", "LIGHTNING", rare, 5, "every 7th hit: a bolt", "250% damage, +60% a rank", augThunder, elShock},
-	augTesla:     {"Tesla Coil", "LIGHTNING", legendary, 3, "zaps the nearest foes", "each second, +1 a rank", augTesla, elShock},
-	augShort:     {"Short Circuit", "LIGHTNING", rare, 3, "the shocked discharge", "on death: +2 arcs a rank", augStatic, elShock},
-	augSparkGap:  {"Spark Gap", "LIGHTNING", common, 3, "a dash zaps what is near", "+1 arc a rank", augSparkGap, elShock},
-	augConductor: {"Conductor", "LIGHTNING", rare, 5, "+20% arc damage", "and +0.6m reach a rank", augChain, elShock},
-	augSuper:     {"Superconductor", "LIGHTNING", legendary, 1, "arcs carry burn and chill", "whichever you have", augChain, elShock},
+	augStatic:    {"Static", "LIGHTNING", common, 5, "hits shock foes for 2s", "shocked take +8% a rank", augStatic, elShock, false},
+	augThunder:   {"Thunderstrike", "LIGHTNING", rare, 5, "every 7th hit: a bolt", "250% damage, +60% a rank", augThunder, elShock, false},
+	augTesla:     {"Tesla Coil", "LIGHTNING", common, 5, "zaps the 2 nearest foes", "each second, +1 a rank", augTesla, elShock, false},
+	augShort:     {"Short Circuit", "LIGHTNING", rare, 3, "the shocked discharge", "on death: +2 arcs a rank", augStatic, elShock, false},
+	augSparkGap:  {"Spark Gap", "LIGHTNING", common, 3, "a dash zaps what is near", "+1 arc a rank", augSparkGap, elShock, false},
+	augConductor: {"Conductor", "LIGHTNING", rare, 5, "+20% arc damage", "and +0.6m reach a rank", augChain, elShock, false},
+	augSuper:     {"Superconductor", "LIGHTNING", legendary, 1, "arcs carry burn and chill", "whichever you have", augChain, elShock, false},
 
-	augLeak:     {"Memory Leak", "POISON", common, 5, "hits can poison foes", "it ignores armour", augLeak, elPoison},
-	augCorrode:  {"Corrosion", "POISON", rare, 3, "poison eats armour", "-1 a stack, more a rank", augLeak, elPoison},
-	augPlague:   {"Plague", "POISON", rare, 3, "poison spreads", "on death: +2 foes a rank", augLeak, elPoison},
-	augFumes:    {"Toxic Fumes", "POISON", rare, 3, "kills can leave a cloud", "+12% chance a rank", augFumes, elPoison},
-	augNeuro:    {"Neurotoxin", "POISON", rare, 3, "the poisoned are slower", "-10% a rank, bite softer", augLeak, elPoison},
-	augDangling: {"Dangling Pointer", "POISON", legendary, 1, "poison takes 1% health", "per stack/s; bosses 0.1%", augLeak, elPoison},
-	augGCGas:    {"Mark Gas", "POISON", common, 3, "collecting poisons", "everything within 3m", augGCGas, elPoison},
+	augLeak:     {"Memory Leak", "POISON", common, 5, "hits can poison foes", "it ignores armour", augLeak, elPoison, false},
+	augCorrode:  {"Corrosion", "POISON", rare, 3, "poison eats armour", "-1 a stack, more a rank", augLeak, elPoison, false},
+	augPlague:   {"Plague", "POISON", rare, 3, "poison spreads", "on death: +2 foes a rank", augLeak, elPoison, false},
+	augFumes:    {"Toxic Fumes", "POISON", rare, 3, "kills can leave a cloud", "+12% chance a rank", augFumes, elPoison, false},
+	augNeuro:    {"Neurotoxin", "POISON", rare, 3, "the poisoned are slower", "-10% a rank, bite softer", augLeak, elPoison, false},
+	augDangling: {"Dangling Pointer", "POISON", legendary, 1, "poison takes 1% health", "per stack/s; bosses 0.1%", augLeak, elPoison, false},
+	augGCGas:    {"Mark Gas", "POISON", common, 3, "collecting poisons", "everything within 3m", augGCGas, elPoison, false},
 
-	augDoubleBuf: {"Double Buffer", "DASH", rare, 2, "+1 dash charge", "", augDoubleBuf, elDash},
-	augGoto:      {"goto", "DASH", common, 3, "dashes go 30% further", "", augGoto, elDash},
-	augCtxSwitch: {"Context Switch", "DASH", rare, 1, "a dash refills the heap", "", augCtxSwitch, elDash},
-	augDefer:     {"defer", "DASH", common, 3, "for 1s after a dash", "+40% damage a rank", augDefer, elDash},
-	augRam:       {"Bulldozer", "DASH", rare, 3, "dashes hit what they pass", "150% damage a rank", augRam, elDash},
+	augDoubleBuf: {"Double Buffer", "DASH", rare, 2, "+1 dash charge", "", augDoubleBuf, elDash, false},
+	augGoto:      {"goto", "DASH", common, 3, "dashes go 30% further", "", augGoto, elDash, false},
+	augCtxSwitch: {"Context Switch", "DASH", rare, 1, "a dash refills the heap", "", augCtxSwitch, elDash, false},
+	augDefer:     {"defer", "DASH", common, 3, "for 1s after a dash", "+40% damage a rank", augDefer, elDash, false},
+	augRam:       {"Bulldozer", "DASH", rare, 3, "dashes hit what they pass", "150% damage a rank", augRam, elDash, false},
 
-	augRefCount:  {"Reference Counting", "AMMO", common, 5, "a kill can refund a round", "+20% chance a rank", augRefCount, elNone},
-	augRetry:     {"Retry", "PROJECTILE", rare, 3, "+12% chance a shot", "fires twice", augRetry, elNone},
-	augBatch:     {"Batch Job", "PROJECTILE", rare, 3, "every 10th shot a slug", "x4, pierces 4, +x1 a rank", augBatch, elNone},
-	augHeadroom:  {"Headroom", "DAMAGE", common, 5, "+10% damage", "above 80% health", augHeadroom, elNone},
-	augLastStand: {"Last Resort", "RATE", rare, 3, "+25% fire rate", "under 40% health", augLastStand, elNone},
-	augWeakRefs:  {"Weak Refs", "GROWTH", common, 3, "+8% experience", "bytes fly to you at once", augWeakRefs, elNone},
-	augGenGC:     {"Generational GC", "DAMAGE", rare, 3, "+15% damage", "to elites and bosses", augGenGC, elNone},
-	augMutex:     {"Mutex", "HEALTH", common, 5, "-6% damage taken", "", augMutex, elNone},
-	augWatchdog:  {"Watchdog", "HEALTH", common, 5, "+0.6 health a second", "", augWatchdog, elNone},
-	augVampire:   {"Vampire Thread", "HEALTH", rare, 3, "crits heal you", "1 health a rank", augEscape, elNone},
-	augDaemon:    {"Daemons", "ORBIT", legendary, 3, "a daemon circles you", "+1 a rank, 60% damage", augDaemon, elNone},
-	augCron:      {"Cron Job", "AUTO", legendary, 3, "fires at the nearest", "every 0.7s, +1 a rank", augCron, elNone},
-	augPolyglot:  {"Polyglot", "ELEMENT", legendary, 1, "+15% damage for every", "element you carry", augPolyglot, elNone},
-	augThermal:   {"Thermal Shock", "FIRE+ICE", legendary, 1, "burning a frozen foe", "is a 400% blast", augChill, elIce},
-	augBigO:      {"Big O", "PROJECTILE", rare, 3, "shots grow as they fly", "+35% dmg a second a rank", augBigO, elNone},
+	augRefCount:   {"Reference Counting", "AMMO", common, 5, "a kill can refund a round", "+20% chance a rank", augRefCount, elNone, false},
+	augRetry:      {"Retry", "PROJECTILE", rare, 3, "+12% chance a shot", "fires twice", augRetry, elNone, false},
+	augBatch:      {"Batch Job", "PROJECTILE", rare, 3, "every 10th shot a slug", "x4, pierces 4, +x1 a rank", augBatch, elNone, false},
+	augHeadroom:   {"Headroom", "DAMAGE", common, 5, "+10% damage", "above 80% health", augHeadroom, elNone, false},
+	augLastStand:  {"Last Resort", "RATE", rare, 3, "+25% fire rate", "under 40% health", augLastStand, elNone, false},
+	augWeakRefs:   {"Weak Refs", "GROWTH", common, 3, "+8% experience", "bytes fly to you at once", augWeakRefs, elNone, false},
+	augGenGC:      {"Generational GC", "DAMAGE", rare, 3, "+15% damage", "to elites and bosses", augGenGC, elNone, false},
+	augMutex:      {"Mutex", "HEALTH", common, 5, "-6% damage taken", "", augMutex, elNone, false},
+	augWatchdog:   {"Watchdog", "HEALTH", common, 5, "+0.6 health a second", "", augWatchdog, elNone, false},
+	augVampire:    {"Vampire Thread", "HEALTH", rare, 3, "crits heal you", "1 health a rank", augEscape, elNone, false},
+	augDaemon:     {"Daemons", "ORBIT", rare, 5, "a daemon circles you", "+1 a rank, 80% damage", augDaemon, elNone, false},
+	augCron:       {"Cron Job", "AUTO", common, 5, "fires at the nearest", "every 0.7s, +1 a rank", augCron, elNone, false},
+	augPolyglot:   {"Polyglot", "ELEMENT", legendary, 1, "+15% damage for every", "element you carry", augPolyglot, elNone, false},
+	augThermal:    {"Thermal Shock", "FIRE+ICE", legendary, 1, "burning a frozen foe", "is a 400% blast", augChill, elIce, false},
+	augBigO:       {"Big O", "PROJECTILE", rare, 3, "shots grow as they fly", "+35% dmg a second a rank", augBigO, elNone, false},
+	augStorm:      {"Broadcast Storm", "LIGHTNING", rare, 5, "bolts strike the nearest", "220%, +1 bolt a rank", augStorm, elShock, false},
+	augSegfault:   {"Segfault", "FIRE", common, 5, "a fire blast where", "they crowd; sooner a rank", augSegfault, elFire, false},
+	augGasLeak:    {"Gas Leak", "POISON", common, 5, "throws poison clouds", "at them; bigger a rank", augGasLeak, elPoison, false},
+	augColdPath:   {"Cold Path", "ICE", common, 5, "fires lances of ice", "they pierce and chill", augColdPath, elIce, false},
+	augIRQ:        {"IRQ Field", "LIGHTNING", rare, 5, "a field round you", "shocks all inside", augIRQ, elShock, false},
+	augRoundTrip:  {"Round Trip", "BOOMERANG", common, 5, "a boomerang that", "hits going and coming", augRoundTrip, elNone, false},
+	augBurnIn:     {"Burn-in", "FIRE", rare, 5, "fire is left wherever", "you walk; longer a rank", augBurnIn, elFire, false},
+	augCompaction: {"Compaction", "VORTEX", legendary, 5, "a vortex pulls them in", "then bursts, more a rank", augCompaction, elNone, false},
 }
 
 // stats are what the ranks add up to.
@@ -249,11 +290,11 @@ type stats struct {
 
 	chillP, shatter, freezeFor, chillFor, frostbite float64
 	shards, coldSnap                                int
-	absZero, thermal                                bool
+	thermal                                         bool
 
-	shockAmp, thunderK  float64
-	tesla, short, spark int
-	superArc            bool
+	shockAmp, thunderK float64
+	short, spark       int
+	superArc           bool
 
 	poisonP, poisonK, corrode, fumes, neuro float64
 	plague, gas                             int
@@ -267,7 +308,7 @@ type stats struct {
 
 	// the rest
 	refund, retry, headroom, lastStand, genGC, vampire, bigO float64
-	batch, daemons, cron                                     int
+	batch                                                    int
 	bytesNow                                                 bool
 }
 
@@ -333,12 +374,10 @@ func (g *game) recalc() {
 		frostbite: 0.06 * g.rk(augFrostbite),
 		shards:    3 * r[augShards],
 		coldSnap:  2 * r[augColdSnap],
-		absZero:   r[augAbsZero] > 0,
 		thermal:   r[augThermal] > 0,
 
 		shockAmp: 0.08 * g.rk(augStatic),
 		thunderK: (2.5 + 0.6*float64(r[augThunder])) * g.ov(augThunder),
-		tesla:    r[augTesla],
 		short:    2 * r[augShort],
 		spark:    r[augSparkGap],
 		superArc: r[augSuper] > 0,
@@ -366,8 +405,6 @@ func (g *game) recalc() {
 		genGC:     0.15 * g.rk(augGenGC),
 		vampire:   g.rk(augVampire),
 		bigO:      0.35 * g.rk(augBigO),
-		daemons:   r[augDaemon] + g.over[augDaemon]/3,
-		cron:      r[augCron] + g.over[augCron]/3,
 		bytesNow:  r[augWeakRefs] > 0,
 	}
 	if r[augIgnite] == 0 {
@@ -458,6 +495,9 @@ func (g *game) offerable(a augID) bool {
 	need := augs[a].needs
 	if need != a && g.rank[need] == 0 {
 		return false
+	}
+	if g.rank[a] == 0 && g.holds(augs[a].act) >= slots {
+		return false // its kind's slots are full: upgrades only
 	}
 	if a == augThermal && g.rank[augIgnite] == 0 {
 		return false // it needs both

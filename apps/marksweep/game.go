@@ -147,11 +147,10 @@ type game struct {
 	deferT    float64 // defer: shots hit harder while above zero
 	retryT    float64 // Retry: the volley again when this runs out
 	phoenixT  float64 // Phoenix Restart: ready when not above zero
-	teslaT    float64
-	cronT     float64
-	absT      float64
 	gasT      float64
-	daemonT   float64
+	actT      [nAug]float64 // each active's clock: it acts when this runs out
+	vortex    vortex
+	burnAt    vec  // where Burn-in last left fire
 	slamSeen  bool // the claw slam has been explained
 	zones     [maxZones]zone
 	wave      wave

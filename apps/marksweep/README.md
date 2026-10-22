@@ -68,20 +68,46 @@ them.
 
 ## Cards
 
-71 of them. A run starts weak on purpose — every level then adds 2.5% damage of its own, rare and
-legendary cards grow commoner as the levels go by, and a card of an element you already carry comes more
-often, so builds come together and the end of a run is much stronger than its start.
+79 of them, in two kinds, as in Megabonk: a build holds **six actives and six passives**. Once a kind's
+six slots are full, its cards are only upgrades of what is held, so what you take is a choice. The card
+screen shows the slots (ACTIVE 3/6 · PASSIVE 3/6), and every card says which kind it is and whether it
+is new.
+
+**Actives** are the build's core: abilities that act by themselves, each on its own clock, for a share of
+the gun's damage, so whatever makes the gun stronger makes them stronger too. A rank makes one sooner,
+bigger or more of it.
+
+| | |
+| :--- | :--- |
+| Tesla Coil | arcs to the nearest foes |
+| Broadcast Storm | bolts from above on the nearest |
+| IRQ Field | a field round you that shocks everything inside |
+| Segfault | a fire blast where they are, that sets them burning |
+| Burn-in | fire left wherever you walk |
+| Absolute Zero | a frost nova that hurts and freezes all it reaches |
+| Cold Path | lances of ice that pierce and chill |
+| Gas Leak | poison clouds thrown onto them |
+| Daemons | daemons circling you, hitting what they touch |
+| Cron Job | a round at each of the nearest, by itself |
+| Round Trip | boomerangs thrown where you look, that hit going and coming |
+| Compaction | a vortex that pulls them together, then bursts |
+
+**Passives** are everything else: what the gun's shots do, the elements, health, the dash.
+
+A run starts weak on purpose. Every level then adds 2.5% damage of its own, rare and legendary cards
+grow commoner as the levels go by, and a card of an element you already carry comes more often, so
+builds come together and the end of a run is much stronger than its start.
 
 The elements live on the enemies as stacks, with a mark over each one carrying them (`^` `*` `o` `!`):
 
 | | |
 | :--- | :--- |
 | **fire** | burns hurt every half second (armour halves it). Firewall, Overheat, Wildfire (spreads as they die), Incinerate (ten burns erupt), Napalm (explosions burn), Afterburner (dashes leave fire), Phoenix Restart (a death restarts you, once in 90 s) |
-| **ice** | chill slows, five chills freeze: no step, no bite, no attack. Shatter, Permafrost, Ice Shards, Cold Snap (a dash ends in a frost nova), Absolute Zero, Frostbite, Cryo Plating |
-| **lightning** | Goroutines' arcs, Static (the shocked take more), Thunderstrike (every 7th hit a bolt), Tesla Coil, Short Circuit, Spark Gap (a dash zaps), Conductor, Superconductor (arcs carry burn and chill) |
+| **ice** | chill slows, five chills freeze: no step, no bite, no attack. Shatter, Permafrost, Ice Shards, Cold Snap (a dash ends in a frost nova), Frostbite, Cryo Plating |
+| **lightning** | Goroutines' arcs, Static (the shocked take more), Thunderstrike (every 7th hit a bolt), Short Circuit, Spark Gap (a dash zaps), Conductor, Superconductor (arcs carry burn and chill) |
 | **poison** | goes through armour. Corrosion (eats armour), Plague, Toxic Fumes, Neurotoxin (slower, softer bites), Dangling Pointer (a share of health), Mark Gas (collecting poisons what is near) |
 | **dash** | Double Buffer (+1 charge), goto (further), Context Switch (a dash refills the heap), defer (shots after a dash hit harder), Bulldozer (dashes hit what they pass), Hot Reload |
-| **and the rest** | REP, Scroll Region, Diff Engine, fork(), panic(), Recursion, Cascading Diff, Hot Path, Tight Loop, Bigger Heap, Zero-Alloc, Concurrent GC, Escape Analysis, Stack Overflow, kill -9, Mode 2026, Graceful Shutdown, recover(), Mutex, Watchdog, Vampire Thread, GOGC=200, Weak Refs, Reference Counting, Retry, Batch Job, Headroom, Last Resort, Generational GC, Big O, Daemons (orbit you), Cron Job (fires by itself), Polyglot (damage for every element), Thermal Shock (fire on the frozen is a blast) |
+| **and the rest** | REP, Scroll Region, Diff Engine, fork(), panic(), Recursion, Cascading Diff, Hot Path, Tight Loop, Bigger Heap, Zero-Alloc, Concurrent GC, Escape Analysis, Stack Overflow, kill -9, Mode 2026, Graceful Shutdown, recover(), Mutex, Watchdog, Vampire Thread, GOGC=200, Weak Refs, Reference Counting, Retry, Batch Job, Headroom, Last Resort, Generational GC, Big O, Polyglot (damage for every element), Thermal Shock (fire on the frozen is a blast) |
 
 Some need another first: Wildfire needs Thermal Throttle, Recursion needs fork(), Thermal Shock needs fire
 and ice both. A card can come back. Past its last rank it **overclocks**: +12% to what it does, without
@@ -93,8 +119,10 @@ explode and throw shrapnel fill the arena with more shots than it can hold. The 
 For ten minutes the heap grows with time. Then the pressure starts: enemy health doubles about every
 two minutes, they move faster, every one of them gains armour that grows by the minute, and more and more
 are insulated. Armour takes a flat amount off every hit, so a cloud of tiny shrapnel stops working just
-when it looked unbeatable. A bot with perfect aim (`sim_test.go`, `SIM=1`, ten seeds a build) dies at a median of
-7 to 11 minutes, whatever it builds — it never dashes on purpose, so the dash cards do nothing for it.
+when it looked unbeatable. A bot with perfect aim (`sim_test.go`, `SIM=1`, ten seeds a build of six actives and six
+passives) dies at a median of 8 to 11 minutes, whatever it builds. It heeds the warnings — a step aside
+on a wind-up, a dash through a slam or a shot about to land — and nothing else, so the dash cards do
+little for it.
 
 Records (the longest run, the highest level, the most swept, the most shots alive at once, the biggest
 hit) stay where the game is played: `~/.config/marksweep/records.json`, or the browser's localStorage.

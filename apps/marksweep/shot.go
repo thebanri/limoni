@@ -15,6 +15,7 @@ const (
 	shotBar   // Ratatui's ▮
 	shotPearl // Boba Prime's pearls
 	shotShard // Ice Shards: a frozen foe's pieces, which chill
+	shotRang  // Round Trip: out, and back to the player
 )
 
 const (
@@ -39,6 +40,7 @@ type shot struct {
 	id      int32
 	lastHit int16
 	slug    bool    // Batch Job's tenth
+	back    bool    // a boomerang on its way home
 	src     kindID  // who fired a hostile one
 	age     float64 // seconds in flight, for Big O
 }
@@ -67,12 +69,18 @@ func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) int {
 	if k == shotShrapnel || k == shotShard {
 		sp, life = shotSpeed*0.8, 0.5
 	}
+	if k == shotRang {
+		sp, life = 15, 1.8
+	}
 	s := &g.shots[i]
 	shotSerial++
 	*s = shot{alive: true, kind: k, pos: p, vel: dir(a).scale(sp), dmg: dmg, life: life, gen: gen, id: shotSerial, lastHit: -1}
 	if !s.hostile() {
 		s.bounces = g.st.bounces
 		s.pierce = g.st.pierce
+		if k == shotRang {
+			s.pierce = 1 << 30 // it goes through everything, both ways
+		}
 		if g.rnd.f() < g.st.crit {
 			s.crit = true
 			s.dmg *= g.st.critMul
@@ -97,6 +105,21 @@ func (g *game) stepShots(dt float64) {
 		if s.life <= 0 {
 			s.alive = false
 			continue
+		}
+		if s.kind == shotRang && s.age > 0.38 {
+			// Home: straight back to the player, able to hit again.
+			to := g.pos.sub(s.pos)
+			if l := to.len(); l < 0.5 {
+				s.alive = false
+				continue
+			} else {
+				s.vel = to.scale(15 / l)
+			}
+			if !s.back {
+				s.back = true
+				shotSerial++
+				s.id, s.lastHit = shotSerial, -1
+			}
 		}
 		// Sub-steps of a quarter of a unit, so a fast shot does not skip
 		// through a thin enemy or a wall's corner.
