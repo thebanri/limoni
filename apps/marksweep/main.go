@@ -80,7 +80,6 @@ func main() {
 		g.noSound = "no audio output"
 	}
 	ptr := newPointer()
-	g.hint = ptr.problem()
 	app := limoni.NewApp(term,
 		limoni.WithFPS(*fps),
 		limoni.WithTitle("Mark & Sweep"),
@@ -92,6 +91,7 @@ func main() {
 		if ev == nil {
 			now := time.Now()
 			ptr.drain(g)
+			g.hint = ptr.problem()
 			g.step(now.Sub(last).Seconds())
 			last = now
 		} else {
@@ -101,7 +101,7 @@ func main() {
 		if g.phase == phPlay {
 			f.RenderWidget(crosshairPointer{}, f.Buffer.Area)
 		}
-		ptr.want(g.phase == phPlay)
+		ptr.want(g)
 		return !g.quit
 	})
 	ptr.close()
@@ -358,6 +358,21 @@ func abs(n int) int {
 	return n
 }
 
+// nudgeCard moves the highlight across the cards for a locked mouse, which
+// has no pointer to put on one: a card for every 80 pixels of movement.
+func (g *game) nudgeCard(dx float64) {
+	if g.cardHov < 0 {
+		g.cardHov, g.cardAcc = g.nCards/2, 0
+	}
+	g.cardAcc += dx
+	for ; g.cardAcc > 80; g.cardAcc -= 80 {
+		g.cardHov = min(g.cardHov+1, g.nCards-1)
+	}
+	for ; g.cardAcc < -80; g.cardAcc += 80 {
+		g.cardHov = max(g.cardHov-1, 0)
+	}
+}
+
 func (g *game) pauseRun() {
 	g.phase, g.pause, g.pausedAt = phPause, 0, g.clock
 	g.held = [nAct]bool{}
@@ -367,8 +382,11 @@ func (g *game) pauseRun() {
 func (g *game) pointerButton(button int, down bool) {
 	switch {
 	case button == 0 && down:
-		if g.phase == phPlay {
+		switch {
+		case g.phase == phPlay:
 			g.press(actFire)
+		case g.phase == phCards && g.cardHov >= 0:
+			g.take(g.cardHov) // the locked mouse chose it (nudgeCard)
 		}
 	case button == 0:
 		g.release(actFire)

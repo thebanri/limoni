@@ -14,25 +14,17 @@ marksweep -window    # in kitty: a window of its own, full screen, with no mouse
 
 ### Mouse lock
 
-A terminal cannot lock the mouse pointer, so on Linux the game locks it itself, in any terminal: it
-reads the mice from their evdev devices and, while a run is on, grabs them (`EVIOCGRAB`), so their
-movement reaches the game alone. The pointer stays where it is, never onto another monitor or another
-window, and the game gets the mouse's raw movement, as a browser's pointer lock gives. Cards, menus,
-the pause and the terminal losing focus let it go; quitting lets it go whatever happens.
+A terminal cannot lock the mouse pointer, so on Linux the game asks the desktop to. The InputCapture
+portal (KDE Plasma 6.1 and later, GNOME 45 and later) is how Input Leap and Barrier take the mouse: no
+root, no setup, the desktop asks once whether to allow it and remembers the answer. The portal starts a
+capture only when the pointer crosses the edge of the screens, so in a run a flick to any edge takes the
+mouse; from then on the pointer is hidden and held, never onto another monitor, and the mouse's movement
+reaches the game alone (through libei, `ei_linux.go`). The cards are chosen with the mouse moving left
+and right and a click. The pause and the terminal losing focus give the mouse back.
 
-It needs read access to the mice. One udev rule gives the person at the seat the mice, and not the
-keyboards:
-
-```bash
-echo 'SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_MOUSE}=="1", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-mouse-uaccess.rules
-sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
-```
-
-Without it, and outside Linux, the terminal's mouse reports turn the view, and at the window's edge
-the view keeps turning. In kitty, `-window` at least hides the pointer: it opens the game in a kitty
+Elsewhere, or if the desktop says no, the terminal's mouse reports turn the view, and at the window's
+edge the view keeps turning. In kitty, `-window` at least hides the pointer: it opens the game in a kitty
 window of its own with kitty's `mouse_hide_wait` set so the pointer goes once the mouse rests.
-
-Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep).
 
 ## Playing
 

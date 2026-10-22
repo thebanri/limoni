@@ -184,6 +184,12 @@ func (g *game) drawHUD(c canvas, v *view) {
 	if g.bossLive {
 		g.drawBossBar(c)
 	}
+	if g.lockHint && g.phase == phPlay {
+		const lock = "flick the mouse to the edge of the screen: the game takes it"
+		lw := width(lock) + 4
+		shadePanel(c, (w-lw)/2, h/3, lw, 1)
+		c.fg((w-lw)/2+2, h/3, lock, hudCyan)
+	}
 	if g.msgT > 0 {
 		mw := width(g.message) + 4
 		shadePanel(c, (w-mw)/2, h/4, mw, 1)
@@ -328,6 +334,9 @@ func (g *game) drawCards(c canvas) {
 		g.drawCard(c, i)
 	}
 	hint := "click a card, or press 1 2 3"
+	if g.locked {
+		hint = "move the mouse to choose, click to take, or press 1 2 3"
+	}
 	if g.pending > 0 {
 		hint = "click a card, or press 1 2 3   ·   more cards waiting"
 	}

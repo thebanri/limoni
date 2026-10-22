@@ -76,7 +76,8 @@ func (p *pointer) drain(g *game) {
 // want tells the page whether a click should lock the pointer: during a
 // run, yes; on a card, a menu or the end of a run, the pointer is let go so
 // the cards can be clicked.
-func (p *pointer) want(w bool) {
+func (p *pointer) want(g *game) {
+	w := g.phase == phPlay
 	if p.init && w == p.wanted {
 		return
 	}

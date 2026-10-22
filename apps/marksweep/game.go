@@ -105,7 +105,8 @@ type game struct {
 	mouseX   int
 	mouseY   int
 	mouseIn  bool    // a mouse position has been seen
-	locked   bool    // the browser has the pointer: look by movement
+	locked   bool    // the browser or the desktop has the pointer: look by movement
+	lockHint bool    // the desktop will take the mouse at a screen's edge
 	lookDX   float64 // movement to turn by, from the browser
 	lookPend float64 // turn still to come from the terminal's mouse, in radians
 	viewW    int
@@ -125,6 +126,7 @@ type game struct {
 	cards    [3]augID
 	nCards   int
 	cardHov  int
+	cardAcc  float64 // a locked mouse's movement towards the next card
 	bossNext int     // the level at which the next boss comes
 	bossLive bool    // a boss is in the arena
 	spawnAcc float64 // spawn budget not yet spent

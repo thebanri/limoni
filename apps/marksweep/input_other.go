@@ -9,7 +9,7 @@ type pointer struct{}
 
 func newPointer() *pointer   { return &pointer{} }
 func (*pointer) drain(*game) {}
-func (*pointer) want(bool)   {}
+func (*pointer) want(*game)  {}
 func (*pointer) close()      {}
 
 // problem is a line for the title screen: in kitty, -window hides the
