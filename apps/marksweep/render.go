@@ -9,8 +9,8 @@ import (
 
 // The picture is a raycaster in half-block pixels, two to a cell: a column
 // per ray, walls textured with terminal windows, a polished floor and a
-// ceiling. The enemies are art in characters over it, scaled by picking the
-// nearest character, and the gun is drawn by viewmodel.go over them. A
+// ceiling. The enemies are pixel sprites over it (sprites.go), scaled by
+// picking the nearest pixel, and the gun is drawn by viewmodel.go over them. A
 // frame allocates nothing; its scratch is sized once.
 
 const maxCols = 512
@@ -119,20 +119,6 @@ func (g *game) render(b *buffer.Buffer) {
 	case phDead:
 		g.drawDead(c)
 	}
-}
-
-// stretches reports whether a glyph keeps going when it is drawn wider or
-// taller than a cell: lines and blocks do, letters do not.
-func stretches(r rune) (horizontal, vertical bool) {
-	switch r {
-	case '─', '═', '▔', '▁', '▀', '▄', '━', '~':
-		return true, false
-	case '│', '║', '▕', '▏', '▌', '▐', '┃':
-		return false, true
-	case '█', '▓', '▒', '░':
-		return true, true
-	}
-	return false, false
 }
 
 func fog(d float64) float32 { return float32(1 / (1 + d*d*0.018)) }
@@ -247,10 +233,8 @@ func (g *game) ceilingAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	d := v.f * 0.5 * (wallH - eye) / o
 	wx, wy := pos.x+rx*d, pos.y+ry*d
 	// Cable trays every second tile, and a light panel every fourth.
-	ex := math.Abs(wx/2 - math.Round(wx/2))
-	ey := math.Abs(wy/2 - math.Round(wy/2))
-	lw := 0.012 + d*0.004
-	k := math.Max(0, 1-math.Min(ex, ey)/lw) / (1 + d*0.2)
+	fx, fyy := footprint(v, d, d*d/(v.f*(wallH-eye)), rx, ry)
+	k := math.Max(seam(wx/2, fx/2, 0.012), seam(wy/2, fyy/2, 0.012)) / (1 + d*0.2)
 	c := hex(0x07090f).mix(hex(0x111727), float32(k))
 	ix, iy := int(math.Floor(wx)), int(math.Floor(wy))
 	if ix%4 == 2 && iy%4 == 2 {
@@ -262,16 +246,30 @@ func (g *game) ceilingAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	return fogged(c, d)
 }
 
+// footprint is how far one pixel reaches across the floor or ceiling at
+// distance d, along x and along y: a column steps along the camera plane,
+// a half row (dd world units further) along the ray.
+func footprint(v *view, d, dd, rx, ry float64) (float64, float64) {
+	col := 2 * d / float64(v.w)
+	return math.Max(math.Abs(rx)*dd, math.Abs(v.plX)*col), math.Max(math.Abs(ry)*dd, math.Abs(v.plY)*col)
+}
+
+// seam is how much of a pixel a grid line covers: w is the coordinate in
+// grid units, foot how far it moves across the pixel, lw the line's width.
+// A line thinner than its pixel fades by how little of it it fills, rather
+// than breaking into dots that crawl as the view turns.
+func seam(w, foot, lw float64) float64 {
+	e := math.Abs(w - math.Round(w))
+	reach := math.Max(lw, foot)
+	return math.Max(0, 1-e/reach) * math.Min(1, lw/foot)
+}
+
 func (g *game) floorAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	o := math.Max(fy-v.horizon, 0.25)
 	d := v.f * 0.25 / o
 	wx, wy := pos.x+rx*d, pos.y+ry*d
-	ex := math.Abs(wx - math.Round(wx))
-	ey := math.Abs(wy - math.Round(wy))
-	// The seams between tiles, thinning into the distance before they
-	// would shimmer.
-	lw := 0.02 + d*0.008
-	k := math.Max(0, 1-math.Min(ex, ey)/lw) / (1 + d*0.18)
+	fx, fyy := footprint(v, d, 2*d*d/v.f, rx, ry)
+	k := math.Max(seam(wx, fx, 0.03), seam(wy, fyy, 0.03)) / (1 + d*0.12)
 	c := hex(0x0a0d18).mix(hex(0x24365e), float32(k))
 	return fogged(c, d)
 }
@@ -350,96 +348,68 @@ func (g *game) drawEnemy(v *view, pos vec, e *enemy) {
 	if !ok {
 		return
 	}
-	a := kd.art[int(e.t*6+e.phaseOff)%len(kd.art)]
-	if e.k == kTag || e.k == kButton {
-		a = kd.art[int(e.phaseOff)%len(kd.art)] // a half keeps its shape
-	}
-	if e.k == kSpinner {
-		a = kd.art[int(e.t*14+e.phaseOff)%len(kd.art)]
+	n := len(kd.spr)
+	s := kd.spr[int(e.t*6+e.phaseOff)%n]
+	switch e.k {
+	case kTag, kButton:
+		s = kd.spr[int(e.phaseOff)%n] // a half keeps its shape
+	case kSpinner, kBar:
+		s = kd.spr[int(e.t*14+e.phaseOff)%n]
 	}
 	z := 0.0
 	if kd.act == bHop {
 		z = math.Abs(math.Sin(e.t*7+e.phaseOff)) * 0.35
 	}
-	hRows := kd.height * rows
-	bottom := v.horizon + 0.5*rows - z*rows
-	top := bottom - hRows
-	wCols := hRows * float64(a.w) / float64(a.h)
-	if kd.act == bWeave {
-		wCols *= 0.8
-	}
-	left := sx - wCols/2
-	shade := fog(depth)
+	// In pixels: a column wide and half a row tall, so square.
+	hPx := 2 * kd.height * rows
+	wPx := hPx * float64(s.w) / float64(s.h)
+	bottom := 2 * (v.horizon + 0.5*rows - z*rows)
+	top := bottom - hPx
+	left := sx - wPx/2
 	flash := float32(math.Max(0, e.flash))
 	tint := rgb{}
 	if e.elite {
 		tint = hex(0xffd23a)
 	}
-	g.blitArt(v, a, left, top, wCols, hRows, depth, shade, flash, tint)
+	g.blitSprite(v, s, left, top, wPx, hPx, depth, flash, tint)
 	// A health bar over anything hurt, and every elite.
 	if (e.hp < e.max || e.elite) && !kd.boss {
-		g.miniBar(v, sx, top-1, wCols, depth, e.hp/e.max, e.elite, e.immune)
+		g.miniBar(v, sx, top/2-1, wPx, depth, e.hp/e.max, e.elite, e.immune)
 	}
 }
 
-// blitArt draws art over the cells from (left, top), wCols by hRows, in
-// front of the walls only.
-func (g *game) blitArt(v *view, a *art, left, top, wCols, hRows, depth float64, shade, flash float32, tint rgb) {
-	if wCols < 1 || hRows < 1 {
-		// Too far for its shape: one character, the art's most telling.
-		x, y := int(left+wCols/2), int(top+hRows/2)
-		if x < 0 || x >= v.w || y < v.top || y >= v.top+v.h || depth >= sc.zbuf[x] {
-			return
-		}
-		k := a.w*(a.h/2) + a.w/2
-		r := a.glyph[k]
-		if r == ' ' {
-			r = '•'
-		}
-		g.put(v, x, y, r, a.col[k].mul(shade), flash, tint)
-		return
+// blitSprite draws s over the pixels from (left, top), wPx by hPx, picking
+// the nearest of its pixels, in front of the walls only.
+func (g *game) blitSprite(v *view, s *sprite, left, top, wPx, hPx, depth float64, flash float32, tint rgb) {
+	if wPx < 1 || hPx < 1 {
+		wPx, hPx = math.Max(wPx, 1), math.Max(hPx, 1)
 	}
-	x0 := int(math.Floor(left))
-	x1 := int(math.Ceil(left + wCols))
-	y0 := int(math.Floor(top))
-	y1 := int(math.Ceil(top + hRows))
-	cw, ch := wCols/float64(a.w), hRows/float64(a.h) // cells per character
-	for x := max(x0, 0); x < min(x1, v.w); x++ {
+	y0, y1 := max(int(math.Floor(top)), 2*v.top), min(int(math.Ceil(top+hPx)), 2*(v.top+v.h))
+	for x := max(int(math.Floor(left)), 0); x < min(int(math.Ceil(left+wPx)), v.w); x++ {
 		if depth >= sc.zbuf[x] {
 			continue
 		}
-		fx := (float64(x) + 0.5 - left) / cw
-		ax := int(fx)
-		if ax < 0 || ax >= a.w {
+		ax := int((float64(x) + 0.5 - left) / wPx * float64(s.w))
+		if ax < 0 || ax >= s.w {
 			continue
 		}
-		// The column a character is centred on; the others in its span
-		// are drawn only by characters that stretch (lines, blocks).
-		centreX := cw <= 1 || int(left+(float64(ax)+0.5)*cw) == x
-		for y := max(y0, v.top); y < min(y1, v.top+v.h); y++ {
-			ay := int((float64(y) + 0.5 - top) / ch)
-			if ay < 0 || ay >= a.h {
+		for py := y0; py < y1; py++ {
+			ay := int((float64(py) + 0.5 - top) / hPx * float64(s.h))
+			if ay < 0 || ay >= s.h {
 				continue
 			}
-			k := ay*a.w + ax
-			r := a.glyph[k]
-			if a.bg != (rgb{}) && a.solid[k] {
-				if p := v.c.at(x, y); p != nil {
-					p.Content = ' '
-					p.Style.Bg = a.bg.mul(shade).mix(rgb{1, 1, 1}, flash*0.3).grey(v.grey).color()
-				}
-			}
-			if r == ' ' {
+			k := ay*s.w + ax
+			if !s.on[k] {
 				continue
 			}
-			centreY := ch <= 1 || int(top+(float64(ay)+0.5)*ch) == y
-			if !centreX || !centreY {
-				sh, sv := stretches(r)
-				if !centreX && !sh || !centreY && !sv {
-					continue
-				}
+			c := s.px[k]
+			if tint != (rgb{}) {
+				c = c.mix(tint, 0.3)
 			}
-			g.put(v, x, y, r, a.col[k].mul(shade), flash, tint)
+			if flash > 0 {
+				c = c.mix(rgb{1, 1, 1}, flash)
+			}
+			v.c.px(x, py, fogged(c, depth).grey(v.grey))
 		}
 	}
 }

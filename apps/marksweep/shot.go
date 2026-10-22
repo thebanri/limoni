@@ -312,20 +312,16 @@ func (g *game) sparks(p vec, n int, c uint32) {
 // burst breaks an enemy into the characters it was drawn with.
 func (g *game) burst(e *enemy) {
 	kd := &kinds[e.k]
-	a := kd.art[0]
+	bits := kd.bits
 	n := 6
 	if kd.boss {
 		n = 40
 	}
 	for i := 0; i < n; i++ {
-		k := g.rnd.intn(len(a.glyph))
-		r := a.glyph[k]
-		if r == ' ' {
-			continue
-		}
+		r := bits[g.rnd.intn(len(bits))]
 		ang := g.rnd.f() * 2 * math.Pi
 		g.addPart(particle{pos: e.pos, vel: dir(ang).scale(g.rnd.between(1, 4)), z: kd.height * 0.5, vz: g.rnd.between(1, 4),
-			life: g.rnd.between(0.5, 1.0), glyph: r, col: a.col[k]})
+			life: g.rnd.between(0.5, 1.0), glyph: r, col: hex(kd.accent)})
 	}
 }
 

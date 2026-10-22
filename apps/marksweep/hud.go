@@ -291,12 +291,16 @@ func (g *game) drawBossBar(c canvas) {
 // ── cards ────────────────────────────────────────────────────────────────
 
 // cardRect is where card i is drawn, for the mouse as much as the picture.
+// A window with the room gets tall cards with their pictures.
 func (g *game) cardRect(c canvas, i int) (x, y, w, h int) {
 	w = 28
 	if room := (c.w - 4) / 3; room-2 < w {
 		w = room - 2
 	}
 	h = 13
+	if c.h >= 28 && w >= iconW+6 {
+		h = 19
+	}
 	gap := 2
 	total := 3*w + 2*gap
 	x = (c.w-total)/2 + i*(w+gap)
@@ -332,32 +336,80 @@ func (g *game) drawCards(c canvas) {
 	c.centered(y+h+1, hint, style(hudDim, hex(0x05060a)))
 }
 
+// drawCard draws a card in its rarity's colour: a tinted face, a frame
+// that brightens under the mouse (a legendary one has a glint running
+// round it), its picture on a glow, and what it does.
 func (g *game) drawCard(c canvas, i int) {
 	x, y, w, h := g.cardRect(c, i)
 	a := g.cards[i]
 	au := &augs[a]
 	rc := hex(rarityCol[au.rar])
-	bg := hex(0x0d1020)
-	if i == g.cardHov {
-		bg = hex(0x172040)
+	hov := i == g.cardHov
+	tintK := float32(0.1)
+	if hov {
+		tintK = 0.2
 	}
+	bg := hex(0x0b0e1a).mix(rc, tintK)
 	st := style(hudText, bg)
 	c.fill(x, y, w, h, ' ', st)
-	border := rc.mul(0.6)
-	if i == g.cardHov {
+	border := rc.mul(0.55)
+	if hov {
 		border = rc
 	}
 	c.box(x, y, w, h, style(border, bg))
+	if au.rar == legendary {
+		// A glint running round the frame.
+		per := 2 * (w + h)
+		at := int(g.clock*24) % per
+		for d := -2; d <= 2; d++ {
+			k := (at + d + per) % per
+			bx, by := x+k, y
+			switch {
+			case k >= w+h+w:
+				bx, by = x, y+h-1-(k-w-h-w)
+			case k >= w+h:
+				bx, by = x+w-1-(k-w-h), y+h-1
+			case k >= w:
+				bx, by = x+w-1, y+(k-w)
+			}
+			if p := c.at(bx, by); p != nil {
+				p.Style.Fg = rc.mix(rgb{1, 1, 1}, 0.7-0.2*float32(abs(d))).color()
+			}
+		}
+	}
 	c.text(x+2, y+1, rarityName[au.rar], style(rc, bg))
 	c.text(x+w-2-width(au.tag), y+1, au.tag, style(hudDim, bg))
+	yy := y + 3
+	if h > 13 {
+		// The picture, on a glow of the rarity's colour.
+		top, rows := 2*(y+2), 7
+		for py := top; py < top+2*rows; py++ {
+			for px := x + 2; px < x+w-2; px++ {
+				dx := float64(px-(x+w/2)) / float64(w/2-2)
+				dy := float64(py-(top+rows)) / float64(rows)
+				k := float32(math.Max(0, 1-math.Sqrt(dx*dx+dy*dy)))
+				c.px(px, py, bg.mix(rc, k*(0.15+tintK)))
+			}
+		}
+		ic := icons[a]
+		ix, iy := x+(w-ic.w)/2, top+1
+		for py := 0; py < ic.h; py++ {
+			for px := 0; px < ic.w; px++ {
+				if k := py*ic.w + px; ic.on[k] {
+					c.px(ix+px, iy+py, ic.px[k])
+				}
+			}
+		}
+		yy = y + 10
+	}
 	name := au.name
-	c.text(x+(w-width(name))/2, y+3, name, style(rc.mix(rgb{1, 1, 1}, 0.3), bg))
-	c.text(x+2, y+5, au.what, st)
+	c.text(x+(w-width(name))/2, yy, name, style(rc.mix(rgb{1, 1, 1}, 0.3), bg))
+	c.text(x+2, yy+2, au.what, st)
 	if au.what2 != "" {
-		c.text(x+2, y+6, au.what2, style(hudDim, bg))
+		c.text(x+2, yy+3, au.what2, style(hudDim, bg))
 	}
 	r := g.rank[a]
-	yy := y + h - 4
+	ry := y + h - 4
 	if r < au.max {
 		xx := x + 2
 		for k := 0; k < au.max; k++ {
@@ -367,16 +419,16 @@ func (g *game) drawCard(c canvas, i int) {
 			} else if k == r {
 				pip, col = '◉', hudWarn
 			}
-			c.set(xx, yy, pip, style(col, bg))
+			c.set(xx, ry, pip, style(col, bg))
 			xx += 2
 		}
-		xx = c.text(xx, yy, "rank ", style(hudDim, bg))
-		c.number(xx, yy, r+1, st)
+		xx = c.text(xx, ry, "rank ", style(hudDim, bg))
+		c.number(xx, ry, r+1, st)
 	} else {
-		xx := c.text(x+2, yy, "OVERCLOCK ", style(hudWarn, bg))
-		xx = c.text(xx, yy, "x", style(hudWarn, bg))
-		xx = c.number(xx, yy, g.over[a]+1, style(hudWarn, bg))
-		c.text(xx+1, yy, "+12%", style(hudGood, bg))
+		xx := c.text(x+2, ry, "OVERCLOCK ", style(hudWarn, bg))
+		xx = c.text(xx, ry, "x", style(hudWarn, bg))
+		xx = c.number(xx, ry, g.over[a]+1, style(hudWarn, bg))
+		c.text(xx+1, ry, "+12%", style(hudGood, bg))
 	}
 	k := style(hudDim, bg)
 	c.text(x+(w-5)/2, y+h-2, "[ ]", k)

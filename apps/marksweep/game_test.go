@@ -19,10 +19,8 @@ func TestEveryGlyphIsOneColumn(t *testing.T) {
 		}
 	}
 	for k := range kinds {
-		for _, a := range kinds[k].art {
-			for _, r := range a.glyph {
-				check(kinds[k].name, r)
-			}
+		for _, r := range kinds[k].bits {
+			check(kinds[k].name, r)
 		}
 	}
 	for _, r := range "•∙*▮o●◆01·~─│◀▶▀▄▮▯○●◉▏▎▍▌▋▊▉█╲╱«»" {
@@ -313,6 +311,30 @@ func TestTheMouseLooks(t *testing.T) {
 	if math.Abs(g.ang-want) > 1e-6 {
 		t.Fatal("moving the mouse on the pause screen turned the view")
 	}
+	// The pointer leaving the window on one side and coming back on the
+	// other is not a half turn.
+	g.mouse(limoni.MouseEvent{X: 130, Y: 20})
+	for i := 0; i < 30; i++ {
+		g.step(tick)
+	}
+	if math.Abs(g.ang-want) > 1e-6 {
+		t.Fatalf("the pointer coming back in turned the view by %.2f", g.ang-want)
+	}
+}
+
+// A grid line on the floor fades as its pixels grow past it, rather than
+// breaking into dots: full where a pixel is narrower than the line, faint
+// where it is far wider, and nothing between lines.
+func TestSeamsFadeWithDistance(t *testing.T) {
+	if seam(3, 0.01, 0.03) != 1 {
+		t.Fatal("a near seam is not drawn in full")
+	}
+	if k := seam(3, 1, 0.03); k <= 0 || k > 0.03 {
+		t.Fatalf("a far seam covers %.3f of its pixel, want a faint trace", k)
+	}
+	if seam(3.5, 0.01, 0.03) != 0 {
+		t.Fatal("a seam drawn between lines")
+	}
 }
 
 // At the window's edge, where a terminal's pointer can go no further, the
@@ -422,6 +444,27 @@ func TestSplitsAndShrapnelEnd(t *testing.T) {
 	}
 	if g.nShots != 0 {
 		t.Fatalf("%d shots still alive after 13 seconds from a single trigger pull", g.nShots)
+	}
+}
+
+// A key held when the cards come up and let go while they are up must not
+// stay held after the pick: in a terminal that reports releases nothing
+// else ever lets it go.
+func TestNoKeyStaysHeldAfterACard(t *testing.T) {
+	g := playing()
+	g.exact = true
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w'})
+	g.pending = 1
+	g.openCards()
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w', Release: true})
+	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: '1'})
+	if g.phase != phPlay {
+		t.Fatal("the pick did not go back to the run")
+	}
+	for a, held := range g.held {
+		if held {
+			t.Fatalf("action %d still held after the pick", a)
+		}
 	}
 }
 

@@ -1,5 +1,5 @@
-// Mark & Sweep: a first-person roguelite in the terminal, the room and the
-// gun in half-block pixels, the enemies in characters.
+// Mark & Sweep: a first-person roguelite in the terminal, drawn in
+// half-block pixels.
 //
 //	go run .            # play
 //	go run . -fps 60    # smoother, where the terminal keeps up
@@ -269,8 +269,10 @@ func (g *game) pausePick(i int) {
 }
 
 func (g *game) mouse(m limoni.MouseEvent) {
-	if g.phase == phPlay && g.mouseIn && g.viewW > 0 {
-		g.lookPend += float64(int(m.X)-g.mouseX) * lookPerCell(g.viewW)
+	// A jump of a third of the window is the pointer coming back in from
+	// somewhere else, not a turn.
+	if dx := int(m.X) - g.mouseX; g.phase == phPlay && g.mouseIn && g.viewW > 0 && 3*abs(dx) < g.viewW {
+		g.lookPend += float64(dx) * lookPerCell(g.viewW)
 	}
 	g.mouseX, g.mouseY, g.mouseIn = int(m.X), int(m.Y), true
 	c := canvas{w: g.scrW, h: g.scrH}
@@ -305,6 +307,13 @@ func (g *game) mouse(m limoni.MouseEvent) {
 			g.reset()
 		}
 	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 func (g *game) pauseRun() {

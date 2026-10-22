@@ -43,7 +43,9 @@ const (
 )
 
 var rarityName = [...]string{"COMMON", "RARE", "LEGENDARY"}
-var rarityCol = [...]uint32{0x9fb3c8, 0x5ad1ff, 0xffc94a}
+
+// rarityCol is each rarity's colour: silver, blue, gold.
+var rarityCol = [...]uint32{0xb8c4d6, 0x4aa3ff, 0xffb020}
 
 type augment struct {
 	name  string
@@ -188,6 +190,9 @@ var rarityWeight = [...]float64{10, 4.5, 1.6}
 // player already has a little more often, so builds come together.
 func (g *game) openCards() {
 	g.phase = phCards
+	// Keys let go while the cards are up never reach the run: let go of
+	// them all now, or one stays held after the pick.
+	g.held = [nAct]bool{}
 	g.pending--
 	g.nCards = 0
 	g.cardHov = -1

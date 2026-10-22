@@ -73,10 +73,10 @@ var font = map[rune][fontH]string{
 }
 
 // glyphBits is the font as bits, row by row, three to a row: read on every
-// frame by the HUD, so a lookup must not touch the map.
-var glyphBits [128][fontH]uint8
-
-func init() {
+// frame by the HUD, so a lookup must not touch the map. It is a variable's
+// initialiser, not an init function, so the sprites painted at start-up
+// find it filled whichever file they are in.
+var glyphBits = func() (bits [128][fontH]uint8) {
 	for r, rows := range font {
 		if r >= 128 {
 			continue
@@ -84,12 +84,13 @@ func init() {
 		for y, row := range rows {
 			for x := 0; x < fontW; x++ {
 				if row[x] == '#' {
-					glyphBits[r][y] |= 1 << x
+					bits[r][y] |= 1 << x
 				}
 			}
 		}
 	}
-}
+	return bits
+}()
 
 // fontPixel reports whether pixel (x, y) of r's glyph is on.
 func fontPixel(r rune, x, y int) bool {

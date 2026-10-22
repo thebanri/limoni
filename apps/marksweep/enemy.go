@@ -2,11 +2,9 @@ package main
 
 import "math"
 
-// The enemies are other people's terminal frameworks, each drawn the way
-// its own apps look: Bubble Tea in pink rounded boxes and spinners,
-// Ratatui as Ferris, tview in double-lined modals, Ink as JSX, ncurses in
-// plain ASCII. When one dies it comes apart into the characters it was
-// drawn with.
+// The enemies are other people's terminal frameworks, each a creature made
+// from its own idea (sprites.go). When one dies it comes apart into its
+// framework's characters.
 
 type kindID uint8
 
@@ -52,8 +50,9 @@ type kind struct {
 	splitTo  kindID
 	splitN   int
 	ranged   bool
-	art      []*art // animation frames
-	accent   uint32 // its colour, for particles and the HUD
+	spr      []*sprite // animation frames
+	bits     []rune    // the characters it comes apart into
+	accent   uint32    // its colour, for particles and the HUD
 	boss     bool
 }
 
@@ -78,215 +77,36 @@ type enemy struct {
 }
 
 func init() {
-	pink := map[byte]uint32{'p': 0xff5fd2, 'w': 0xf4f0ff, 'b': 0x6b3b2a, 's': 0xffa6e6, 'v': 0x9b7bff}
-	spin := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	var spinArt []*art
-	for i, s := range spin {
-		k := "p"
-		if i%2 == 1 {
-			k = "s"
-		}
-		spinArt = append(spinArt, newArt([]string{s}, []string{k}, pink))
-	}
-	boba := []*art{
-		newArt([]string{
-			"  ╲ ╱  ",
-			"╭──╳──╮",
-			"│ ◕ ◕ │",
-			"│  ▿  │",
-			"│°o°o°│",
-			"╰─────╯",
-		}, []string{
-			"  s s  ",
-			"ppppppp",
-			"p w w p",
-			"p  w  p",
-			"pbbbbbp",
-			"ppppppp",
-		}, pink),
-		newArt([]string{
-			"  ╲ ╱  ",
-			"╭──╳──╮",
-			"│ - - │",
-			"│  ▿  │",
-			"│o°o°o│",
-			"╰─────╯",
-		}, []string{
-			"  s s  ",
-			"ppppppp",
-			"p w w p",
-			"p  w  p",
-			"pbbbbbp",
-			"ppppppp",
-		}, pink),
-	}
-	react := map[byte]uint32{'c': 0x61dafb, 'w': 0xeaf6ff}
-	jsx := []*art{newArt([]string{"</>"}, []string{"cwc"}, react)}
-	tag := []*art{
-		newArt([]string{"<"}, []string{"c"}, react),
-		newArt([]string{">"}, []string{"c"}, react),
-	}
-	rust := map[byte]uint32{'o': 0xf74c00, 'd': 0xa33200, 'w': 0xfff4e0, 'k': 0x2a1208}
-	crab := []*art{
-		newArt([]string{
-			"(\\/)   (\\/)",
-			" \\_(°▄°)_/ ",
-			"   /▔▔▔\\   ",
-		}, []string{
-			"oooo   oooo",
-			" ooowowoooo ",
-			"   ddddd   ",
-		}, rust),
-		newArt([]string{
-			"(\\/)   (\\/)",
-			" \\_(°▄°)_/ ",
-			"   \\▔▔▔/   ",
-		}, []string{
-			"oooo   oooo",
-			" ooowowoooo ",
-			"   ddddd   ",
-		}, rust),
-	}
-	tv := map[byte]uint32{'b': 0x3d7bff, 'w': 0xf2f5ff, 'y': 0xffe14a}
-	modal := []*art{newArt([]string{
-		"╔═══════╗",
-		"║ Quit? ║",
-		"║[Y] [N]║",
-		"╚═══════╝",
-	}, []string{
-		"bbbbbbbbb",
-		"bwwwwwwwb",
-		"byyywyyyb",
-		"bbbbbbbbb",
-	}, tv)}
-	button := []*art{
-		newArt([]string{"[Y]"}, []string{"yyy"}, tv),
-		newArt([]string{"[N]"}, []string{"yyy"}, tv),
-	}
-	prog := map[byte]uint32{'1': 0x5a56e0, '2': 0x7c5ee8, '3': 0x9e66ef, '4': 0xc06ef3, '5': 0xee6ff8, 'g': 0x4a4a5e}
-	bar := []*art{newArt([]string{"▕██████░░░▏"}, []string{"g12345ggggg"}, prog)}
-	green := map[byte]uint32{'g': 0x33ff66, 'd': 0x1d9a3e}
-	elder := []*art{
-		newArt([]string{
-			"+-------+",
-			"|@ (o) @|",
-			"|  ===  |",
-			"+-------+",
-		}, []string{
-			"ddddddddd",
-			"dg ggg gd",
-			"d  ggg  d",
-			"ddddddddd",
-		}, green),
-		newArt([]string{
-			"+-------+",
-			"|@ (-) @|",
-			"|  ===  |",
-			"+-------+",
-		}, []string{
-			"ddddddddd",
-			"dg ggg gd",
-			"d  ggg  d",
-			"ddddddddd",
-		}, green),
-	}
-	prime := []*art{
-		newArt([]string{
-			"     ╲   ╱     ",
-			"   ╭──╲─╱──╮   ",
-			"   │ ◣   ◢ │   ",
-			"   │ ◕   ◕ │   ",
-			"   │  ╰─╯  │   ",
-			"   │°o°o°o°│   ",
-			"   │o°o°o°o│   ",
-			"   ╰───────╯   ",
-		}, []string{
-			"     s   s     ",
-			"   ppppppppp   ",
-			"   p v   v p   ",
-			"   p w   w p   ",
-			"   p  www  p   ",
-			"   pbbbbbbbp   ",
-			"   pbbbbbbbp   ",
-			"   ppppppppp   ",
-		}, pink),
-		newArt([]string{
-			"     ╲   ╱     ",
-			"   ╭──╲─╱──╮   ",
-			"   │ ◣   ◢ │   ",
-			"   │ ●   ● │   ",
-			"   │  ╭─╮  │   ",
-			"   │o°o°o°o│   ",
-			"   │°o°o°o°│   ",
-			"   ╰───────╯   ",
-		}, []string{
-			"     s   s     ",
-			"   ppppppppp   ",
-			"   p v   v p   ",
-			"   p w   w p   ",
-			"   p  www  p   ",
-			"   pbbbbbbbp   ",
-			"   pbbbbbbbp   ",
-			"   ppppppppp   ",
-		}, pink),
-	}
-	crown := map[byte]uint32{'o': 0xf74c00, 'd': 0xa33200, 'w': 0xfff4e0, 'y': 0xffd23a}
-	ferris := []*art{
-		newArt([]string{
-			"      ▲ ▲ ▲      ",
-			"      █████      ",
-			"(\\/)  ▀▀▀▀▀  (\\/)",
-			" \\ \\_(◉▄▄◉)_/ / ",
-			"  \\__/▔▔▔▔▔\\__/  ",
-			"    / /   \\ \\    ",
-		}, []string{
-			"      y y y      ",
-			"      yyyyy      ",
-			"oooo  ddddd  oooo",
-			" o oooowwwwoooo o ",
-			"  ooooddddddoooo  ",
-			"    d d   d d    ",
-		}, crown),
-		newArt([]string{
-			"      ▲ ▲ ▲      ",
-			"      █████      ",
-			"(\\/)  ▀▀▀▀▀  (\\/)",
-			" / /_(◉▄▄◉)_\\ \\ ",
-			"  \\__/▔▔▔▔▔\\__/  ",
-			"    \\ \\   / /    ",
-		}, []string{
-			"      y y y      ",
-			"      yyyyy      ",
-			"oooo  ddddd  oooo",
-			" o oooowwwwoooo o ",
-			"  ooooddddddoooo  ",
-			"    d d   d d    ",
-		}, crown),
-	}
+	tap := func(f int) *sprite { return tapioca(f, false) }
+	prime := func(f int) *sprite { return tapioca(f, true) }
+	crab := func(f int) *sprite { return ratacrab(f, false) }
+	king := func(f int) *sprite { return ratacrab(f, true) }
+	tag := []*sprite{halfChevron(false), halfChevron(true)}
+	btn := []*sprite{button(false), button(true)}
 
 	kinds = [nKinds]kind{
 		kSpinner: {name: "spinner", from: "Bubble Tea", hp: 5, speed: 3.4, r: 0.18, height: 0.32, dmg: 5, xp: 0.6,
-			act: bChase, minLevel: 1, weight: 5, cost: 0.6, group: 5, art: spinArt, accent: 0xff5fd2},
+			act: bChase, minLevel: 1, weight: 5, cost: 0.6, group: 5, spr: frames(8, dotling), bits: []rune("⠋⠙⠹⠸⠼⠴"), accent: 0xff5fd2},
 		kBoba: {name: "boba", from: "Bubble Tea", hp: 20, speed: 2.0, r: 0.32, height: 0.75, dmg: 11, xp: 2,
-			act: bChase, minLevel: 1, weight: 6, cost: 2, group: 1, art: panel(boba, 0x2a0d24), accent: 0xff5fd2},
+			act: bChase, minLevel: 1, weight: 6, cost: 2, group: 1, spr: frames(6, tap), bits: []rune("°o●"), accent: 0xff5fd2},
 		kJSX: {name: "</>", from: "Ink", hp: 14, speed: 2.5, r: 0.26, height: 0.4, dmg: 9, xp: 1.5,
-			act: bHop, minLevel: 3, weight: 4, cost: 1.6, group: 2, splitTo: kTag, splitN: 2, art: jsx, accent: 0x61dafb},
+			act: bHop, minLevel: 3, weight: 4, cost: 1.6, group: 2, splitTo: kTag, splitN: 2, spr: frames(2, chevron), bits: []rune("</>"), accent: 0x61dafb},
 		kTag: {name: "<", from: "Ink", hp: 5, speed: 3.3, r: 0.18, height: 0.3, dmg: 6, xp: 0.4,
-			act: bHop, art: tag, accent: 0x61dafb},
+			act: bHop, spr: tag, bits: []rune("<>"), accent: 0x61dafb},
 		kCrab: {name: "crab", from: "Ratatui", hp: 28, speed: 1.6, r: 0.36, height: 0.6, dmg: 10, xp: 3,
-			act: bKeepAway, minLevel: 5, weight: 3, cost: 3, group: 1, ranged: true, art: crab, accent: 0xf74c00},
+			act: bKeepAway, minLevel: 5, weight: 3, cost: 3, group: 1, ranged: true, spr: frames(2, crab), bits: []rune("()/\\"), accent: 0xf74c00},
 		kModal: {name: "modal", from: "tview", hp: 85, speed: 1.05, r: 0.48, height: 0.9, dmg: 20, xp: 6,
-			act: bChase, minLevel: 8, weight: 2, cost: 6, group: 1, splitTo: kButton, splitN: 2, art: panel(modal, 0x0a1640), accent: 0x3d7bff},
+			act: bChase, minLevel: 8, weight: 2, cost: 6, group: 1, splitTo: kButton, splitN: 2, spr: frames(2, mimic), bits: []rune("[]YN═║"), accent: 0x3d7bff},
 		kButton: {name: "button", from: "tview", hp: 10, speed: 2.7, r: 0.22, height: 0.32, dmg: 7, xp: 0.8,
-			act: bChase, art: button, accent: 0xffe14a},
+			act: bChase, spr: btn, bits: []rune("[]YN"), accent: 0xffe14a},
 		kBar: {name: "progress", from: "Bubbles", hp: 36, speed: 3.0, r: 0.3, height: 0.3, dmg: 12, xp: 3,
-			act: bWeave, minLevel: 12, weight: 3, cost: 3.5, group: 2, art: bar, accent: 0xc06ef3},
+			act: bWeave, minLevel: 12, weight: 3, cost: 3.5, group: 2, spr: frames(8, serpent), bits: []rune("█░▕▏"), accent: 0xc06ef3},
 		kElder: {name: "elder", from: "ncurses", hp: 210, speed: 0.95, r: 0.52, height: 0.85, dmg: 28, xp: 12, armor: 3,
-			act: bChase, minLevel: 18, weight: 1.4, cost: 11, group: 1, art: panel(elder, 0x021a08), accent: 0x33ff66},
+			act: bChase, minLevel: 18, weight: 1.4, cost: 11, group: 1, spr: frames(5, phosphor), bits: []rune("+-|@="), accent: 0x33ff66},
 		kBobaPrime: {name: "BOBA PRIME", from: "Bubble Tea", hp: 1400, speed: 1.35, r: 0.95, height: 1.6, dmg: 30, xp: 60,
-			act: bChase, ranged: true, art: panel(prime, 0x2a0d24), accent: 0xff5fd2, boss: true},
+			act: bChase, ranged: true, spr: frames(6, prime), bits: []rune("°o●◕"), accent: 0xff5fd2, boss: true},
 		kFerris: {name: "FERRIS, CRAB KING", from: "Ratatui", hp: 2300, speed: 1.1, r: 1.0, height: 1.5, dmg: 34, xp: 90, armor: 4,
-			act: bKeepAway, ranged: true, art: ferris, accent: 0xf74c00, boss: true},
+			act: bKeepAway, ranged: true, spr: frames(2, king), bits: []rune("()/\\▲"), accent: 0xf74c00, boss: true},
 	}
 }
 

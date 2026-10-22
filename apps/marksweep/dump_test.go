@@ -57,7 +57,7 @@ func TestDumpFrame(t *testing.T) {
 			pickN(g, augHotPath, 5)
 			g.pending = 1
 			g.openCards()
-			g.cards[0], g.cards[1], g.cards[2] = augRecursion, augHotPath, augScroll
+			g.cards[0], g.cards[1], g.cards[2] = augRecursion, augPanic, augHotPath
 			g.cardHov = 1
 			return g
 		},

@@ -177,6 +177,7 @@ func (g *game) reset() {
 	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn = noSound, clock, locked, mx, my, in
 	g.pos = vec{16, 16.5}
 	g.ang = -math.Pi / 2
+	g.prevAim = g.ang // or the gun swings at the start of every run
 	g.level = 1
 	g.bossNext = 10
 	g.recalc()

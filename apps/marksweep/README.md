@@ -3,7 +3,7 @@
 A first-person roguelite in a terminal made of terminals, built on [Limoni](../../README.md).
 
 You are the garbage collector. The frameworks have come for the heap: **Bubble Tea**, **Ratatui**,
-**tview**, **Ink** and **ncurses**, each drawn the way its own apps look. Sweep them, take a card every
+**tview**, **Ink** and **ncurses**, each a creature made from its own idea. Sweep them, take a card every
 level, build something broken, and outlast the pressure. After ten minutes, nothing does for long.
 
 ```bash
@@ -35,16 +35,16 @@ Enemies come in through the spawn windows on the walls:
 
 | | from | |
 | :--- | :--- | :--- |
-| spinner | Bubble Tea | `⠋⠙⠹` in swarms of five, fast and fragile |
-| boba | Bubble Tea | a pink rounded cup with tapioca pearls |
-| `</>` | Ink | hops, and splits into `<` and `>` |
-| crab | Ratatui | Ferris keeps its distance and fires bars |
-| modal | tview | slow and tough, and splits into its `[Y]` and `[N]` buttons |
-| progress | Bubbles | weaves in at speed |
-| elder | ncurses | plain ASCII, slow, armoured |
+| spinner | Bubble Tea | a pink orb its dots go round, in swarms of five, fast and fragile |
+| boba | Bubble Tea | a jelly cup on stubby legs, a straw on its head and pearls in its belly |
+| `</>` | Ink | its brackets are its jaws and its slash a glowing spine; hops, and splits into `<` and `>` |
+| crab | Ratatui | a crab with a rat's ears, whiskers and tail; keeps its distance and fires bars |
+| modal | tview | a mimic: its title bar lifts on a row of teeth, its `[Y]` and `[N]` buttons glare; slow and tough, and splits into the buttons |
+| progress | Bubbles | a serpent, its filled part bright and the rest grey; weaves in at speed |
+| elder | ncurses | an old phosphor monitor walking on two legs, a face on its screen; slow, armoured |
 
 Every tenth level a boss comes: **Boba Prime**, who throws rings of pearls and calls spinners, then
-**Ferris, Crab King**, then again, tougher each time. From level 12 some enemies are elites (gold, three
+**Ferris, Crab King**, crowned, then again, tougher each time. From level 12 some enemies are elites (gold, three
 times the health), and some of those are insulated (cyan health bar): explosions and arcs do nothing to
 them.
 
@@ -93,9 +93,11 @@ a bar of its colour, the way an editor's minimap shows code, because letters ave
 So text reads up close and far walls stay clean lines. The floor is polished and shows the walls standing
 on it; the floor's seams and the ceiling's trays thin out before they would shimmer.
 
-The enemies are drawn in characters over that, art scaled by picking the nearest character: lines and
-blocks stretch, letters stay one character, so a near Bubble Tea box grows and its face stays readable.
-Boxed enemies are filled with a panel colour so they read against the walls.
+The enemies are pixel creatures over that (`sprites.go`), painted in code at start-up, each with a dark
+outline so it reads against any wall, and scaled by picking the nearest pixel. When one dies it comes
+apart into its framework's characters. Every card has a picture of its own too (`cardart.go`), on a
+glow of its rarity's colour: silver for common, blue for rare, gold for legendary, whose frame has a
+glint running round it.
 
 The gun has a small 3D engine of its own (`viewmodel.go`): a mesh of boxes, hulls and prisms built once,
 posed every frame, lit, rasterised with a depth buffer into half-block pixels and outlined. Its barrel
@@ -107,7 +109,7 @@ The HUD floats on panels that darken the picture under them, its numbers in the 
 
 A frame allocates nothing: the pools, the gun's pixels and the renderer's scratch are sized once. The
 tests hold it to that on every screen, and with the most broken build's pools full (`BenchmarkFullPools`:
-about 0.9 ms a frame, 878 shots, 200 enemies).
+about 1.2 ms a frame, 872 shots, 200 enemies).
 
 ```bash
 go test ./...                                  # rules, allocations, every window size
