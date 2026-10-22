@@ -7,6 +7,7 @@ import (
 	"github.com/thebanri/limoni"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 const tick = 1.0 / 30
@@ -447,24 +448,60 @@ func TestSplitsAndShrapnelEnd(t *testing.T) {
 	}
 }
 
-// A key held when the cards come up and let go while they are up must not
-// stay held after the pick: in a terminal that reports releases nothing
-// else ever lets it go.
-func TestNoKeyStaysHeldAfterACard(t *testing.T) {
-	g := playing()
-	g.exact = true
-	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w'})
-	g.pending = 1
-	g.openCards()
-	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: 'w', Release: true})
-	g.key(limoni.KeyEvent{Type: limoni.KeyRune, Ch: '1'})
-	if g.phase != phPlay {
-		t.Fatal("the pick did not go back to the run")
-	}
-	for a, held := range g.held {
-		if held {
-			t.Fatalf("action %d still held after the pick", a)
+// kitty sends these for w, 1 and the left button; feed parses them the way
+// the terminal's input is parsed and hands them to the game.
+func feed(g *game, s string) {
+	b := []byte(s)
+	for len(b) > 0 {
+		ev, n := driver.ParseEvent(b)
+		if n == 0 {
+			return
 		}
+		b = b[n:]
+		e := limoni.Event(ev)
+		g.event(&e)
+	}
+}
+
+// The keys held after a card are the keys held on the keyboard: one let go
+// while the cards were up is let go (it once stayed held, walking on its
+// own), and one still held when the pick was made on 1 is still held, though
+// the terminal sends no more repeats of it once 1 was pressed.
+func TestTheKeysAfterACardAreTheKeysHeld(t *testing.T) {
+	const wDown, wUp, oneDown, oneUp = "w", "\x1b[119;1:3u", "1", "\x1b[49;1:3u"
+
+	g := playing()
+	feed(g, wDown)
+	g.pending = 1
+	g.step(tick)
+	if g.phase != phCards {
+		t.Fatal("no cards")
+	}
+	feed(g, wUp+oneDown+oneUp)
+	g.step(tick)
+	if g.phase != phPlay || g.held[actFwd] {
+		t.Fatal("w let go during the cards is still held after the pick")
+	}
+
+	g = playing()
+	feed(g, wDown+wUp+wDown) // the release tells the game this terminal reports them
+	g.pending = 1
+	g.step(tick)
+	feed(g, oneDown+oneUp)
+	for i := 0; i < 30; i++ {
+		g.step(tick)
+	}
+	if !g.held[actFwd] {
+		t.Fatal("w still held on the keyboard was let go by the pick")
+	}
+
+	g = playing()
+	feed(g, "\x1b[<0;70;20M") // the button down: firing
+	g.pending = 1
+	g.step(tick)
+	feed(g, "\x1b[<0;70;20m")
+	if g.take(0); g.held[actFire] {
+		t.Fatal("still firing after the cards")
 	}
 }
 

@@ -509,6 +509,9 @@ func (g *game) drawTitle(c canvas) {
 		y++
 	}
 	c.centered(y+1, "click or Enter to start · W/S choose · Esc quits", style(hudDim, hex(0x03040a)))
+	if g.hint != "" {
+		c.centered(y+3, g.hint, style(hudCyan, hex(0x03040a)))
+	}
 }
 
 func (g *game) drawPause(c canvas) {

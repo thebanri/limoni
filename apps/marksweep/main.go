@@ -29,7 +29,21 @@ func main() {
 	fps := flag.Int("fps", 30, "frames per second")
 	mute := flag.Bool("mute", false, "no sound")
 	seed := flag.Uint64("seed", 0, "a seed, for a run that goes the same way twice")
+	window := flag.Bool("window", false, "open in a kitty window of its own, full screen, with no mouse pointer")
 	flag.Parse()
+	if *window {
+		var rest []string
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name != "window" {
+				rest = append(rest, "-"+f.Name+"="+f.Value.String())
+			}
+		})
+		if err := openWindow(rest); err != nil {
+			fmt.Fprintln(os.Stderr, "-window needs kitty:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	var mix *mixer
 	if !*mute {
@@ -45,6 +59,7 @@ func main() {
 		s = uint64(time.Now().UnixNano())
 	}
 	g := newGame(s)
+	g.hint = kittyHint()
 	g.store = newStore()
 	if g.store != nil {
 		g.best = g.store.load()
@@ -158,6 +173,18 @@ func (g *game) key(k limoni.KeyEvent) {
 		}
 		return
 	case phCards:
+		// Movement keys are followed while the cards are up, so the run
+		// goes on with the keys as they are: one let go here would stay
+		// held, and one still held after a pick on 1, 2 or 3 sends no
+		// more repeats to say so.
+		if a, ok := moveAction(k, isRune, ch); ok {
+			if down {
+				g.press(a)
+			} else {
+				g.release(a)
+			}
+			return
+		}
 		if down && isRune && ch >= '1' && ch <= '3' {
 			g.take(int(ch - '1'))
 		} else if down && k.Type == limoni.KeyEnter && g.cardHov >= 0 {
@@ -166,20 +193,9 @@ func (g *game) key(k limoni.KeyEvent) {
 		return
 	}
 
-	var a action
+	a, ok := moveAction(k, isRune, ch)
 	switch {
-	case isRune && ch == 'w' || k.Type == limoni.KeyUp:
-		a = actFwd
-	case isRune && ch == 's' || k.Type == limoni.KeyDown:
-		a = actBack
-	case isRune && ch == 'a':
-		a = actLeft
-	case isRune && ch == 'd':
-		a = actRight
-	case k.Type == limoni.KeyLeft || isRune && ch == 'q':
-		a = actTurnL
-	case k.Type == limoni.KeyRight || isRune && ch == 'e':
-		a = actTurnR
+	case ok:
 	case isRune && ch == 'f':
 		a = actFire // a keyboard trigger, for terminals without a mouse
 	default:
@@ -211,6 +227,25 @@ func (g *game) key(k limoni.KeyEvent) {
 	} else {
 		g.release(a)
 	}
+}
+
+// moveAction is the movement a key holds down, if it is one.
+func moveAction(k limoni.KeyEvent, isRune bool, ch rune) (action, bool) {
+	switch {
+	case isRune && ch == 'w' || k.Type == limoni.KeyUp:
+		return actFwd, true
+	case isRune && ch == 's' || k.Type == limoni.KeyDown:
+		return actBack, true
+	case isRune && ch == 'a':
+		return actLeft, true
+	case isRune && ch == 'd':
+		return actRight, true
+	case k.Type == limoni.KeyLeft || isRune && ch == 'q':
+		return actTurnL, true
+	case k.Type == limoni.KeyRight || isRune && ch == 'e':
+		return actTurnR, true
+	}
+	return 0, false
 }
 
 // menuKey moves through a three-item menu whose middle item is the volume.

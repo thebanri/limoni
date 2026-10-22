@@ -9,7 +9,12 @@ level, build something broken, and outlast the pressure. After ten minutes, noth
 ```bash
 go install github.com/thebanri/limoni/apps/marksweep@latest
 marksweep            # -fps 60 for a smoother picture, -mute for silence
+marksweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
 ```
+
+No program in a terminal can hide the mouse pointer, so in a terminal it stays on the screen while it
+turns the view. kitty can hide it itself (its `mouse_hide_wait` option, set so the pointer goes once the
+mouse rests and never comes back), and `-window` opens the game in a kitty window with that set.
 
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep).
 

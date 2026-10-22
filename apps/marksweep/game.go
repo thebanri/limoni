@@ -159,6 +159,7 @@ type game struct {
 	store   store
 	best    records
 	noSound string
+	hint    string // a line for the title screen
 }
 
 func newGame(seed uint64) *game {
@@ -171,10 +172,10 @@ func newGame(seed uint64) *game {
 // reset starts a new run.
 func (g *game) reset() {
 	best, store, audio, vol, last, sens, exact, seed := g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd
-	noSound, clock, locked, mx, my, in := g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn
+	noSound, clock, locked, mx, my, in, hint := g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint
 	*g = game{}
 	g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd = best, store, audio, vol, last, sens, exact, seed
-	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn = noSound, clock, locked, mx, my, in
+	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint = noSound, clock, locked, mx, my, in, hint
 	g.pos = vec{16, 16.5}
 	g.ang = -math.Pi / 2
 	g.prevAim = g.ang // or the gun swings at the start of every run
