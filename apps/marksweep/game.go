@@ -98,20 +98,21 @@ type game struct {
 	killT   float64 // ... and killed
 
 	// input
-	held    [nAct]bool
-	heldT   [nAct]float64 // when a press without release support lets go
-	exact   bool          // the terminal reports key releases
-	fireKey bool          // the trigger is held by F, not by a button
-	mouseX  int
-	mouseY  int
-	mouseIn bool    // a mouse position has been seen
-	locked  bool    // the browser has the pointer: look by movement
-	lookDX  float64 // movement to turn by, from the browser
-	viewW   int
-	viewH   int
-	scrW    int // the last frame's size, for clicks on cards
-	scrH    int
-	sens    float64 // radians per pixel of pointer movement
+	held     [nAct]bool
+	heldT    [nAct]float64 // when a press without release support lets go
+	exact    bool          // the terminal reports key releases
+	fireKey  bool          // the trigger is held by F, not by a button
+	mouseX   int
+	mouseY   int
+	mouseIn  bool    // a mouse position has been seen
+	locked   bool    // the browser has the pointer: look by movement
+	lookDX   float64 // movement to turn by, from the browser
+	lookPend float64 // turn still to come from the terminal's mouse, in radians
+	viewW    int
+	viewH    int
+	scrW     int // the last frame's size, for clicks on cards
+	scrH     int
+	sens     float64 // radians per pixel of pointer movement
 
 	// the run
 	level    int
@@ -285,12 +286,17 @@ func (g *game) stepPlayer(dt float64) {
 	if g.dashCD > 0 {
 		g.dashCD -= dt
 	}
-	// Looking: the browser's pointer turns by movement; in a terminal the
-	// crosshair follows the mouse, and near the edges the view turns.
+	// Looking: the mouse turns the view by how far it moves, as in any
+	// first-person game. The browser's pointer is locked; a terminal's moves
+	// by whole cells, so each step is eased in, and at the window's edge,
+	// where it can go no further, the view keeps turning.
 	if g.locked {
 		g.ang += g.lookDX * g.sens
 	}
 	g.lookDX = 0
+	k := math.Min(1, dt*25)
+	g.ang += g.lookPend * k
+	g.lookPend -= g.lookPend * k
 	turn := 0.0
 	if g.held[actTurnL] {
 		turn -= 2.6
@@ -299,7 +305,7 @@ func (g *game) stepPlayer(dt float64) {
 		turn += 2.6
 	}
 	if !g.locked && g.mouseIn && g.viewW > 0 {
-		turn += steer(g.mouseX, g.viewW) * 3.4
+		turn += edgeTurn(g.mouseX, g.viewW) * 2.4
 	}
 	g.ang += turn * dt
 	g.ang = math.Remainder(g.ang, 2*math.Pi)
@@ -307,9 +313,9 @@ func (g *game) stepPlayer(dt float64) {
 	a := g.aim()
 	da := math.Remainder(a-g.prevAim, 2*math.Pi)
 	g.prevAim = a
-	k := math.Min(1, dt*10)
-	g.swayX += (math.Max(-0.25, math.Min(0.25, -da*2.5)) - g.swayX) * k
-	g.swayY += (-g.swayY) * k
+	spring := math.Min(1, dt*10)
+	g.swayX += (math.Max(-0.25, math.Min(0.25, -da*2.5)) - g.swayX) * spring
+	g.swayY += (-g.swayY) * spring
 
 	f := dir(g.ang)
 	r := dir(g.ang + math.Pi/2)
@@ -338,24 +344,21 @@ func (g *game) stepPlayer(dt float64) {
 	slide(&g.pos, m.x*speed*dt, m.y*speed*dt, playerR)
 }
 
-// steer is how hard the view turns with the mouse at column x of w: not at
-// all in the middle half, then harder towards the edges, and all the way over
-// the outer fifteenth — so turning never needs the mouse outside the window,
-// where a terminal stops reporting it.
-func steer(x, w int) float64 {
-	n := 2*(float64(x)+0.5)/float64(w) - 1
-	const dead, full = 0.5, 0.85
-	a := math.Abs(n)
-	if a <= dead {
-		return 0
+// edgeTurn is -1 or 1 with the mouse in the last columns on either side,
+// where a terminal's pointer cannot move any further, and 0 elsewhere.
+func edgeTurn(x, w int) float64 {
+	switch {
+	case x < 2:
+		return -1
+	case x >= w-2:
+		return 1
 	}
-	t := math.Min(1, (a-dead)/(full-dead))
-	t = t * t * (3 - 2*t)
-	if n < 0 {
-		return -t
-	}
-	return t
+	return 0
 }
+
+// lookPerCell is how far the view turns for the mouse moving one column: a
+// half turn across the window.
+func lookPerCell(w int) float64 { return math.Pi / float64(w) }
 
 func (g *game) dash() {
 	if g.dashCD > 0 || g.phase != phPlay {
@@ -386,15 +389,9 @@ func (g *game) dash() {
 	g.sound(sfxDash)
 }
 
-// aim is the direction a shot leaves in: through the crosshair, which in a
-// terminal is wherever the mouse is.
-func (g *game) aim() float64 {
-	if g.locked || !g.mouseIn || g.viewW <= 0 {
-		return g.ang
-	}
-	camX := 2*(float64(g.mouseX)+0.5)/float64(g.viewW) - 1
-	return g.ang + math.Atan(camX*math.Tan(fov/2))
-}
+// aim is the direction a shot leaves in: through the crosshair, in the
+// middle of the picture.
+func (g *game) aim() float64 { return g.ang }
 
 func (g *game) stepWeapon(dt float64) {
 	if g.fireCD > 0 {

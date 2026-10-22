@@ -584,17 +584,11 @@ func (g *game) drawByte(v *view, pos vec, o *orb) {
 
 // ── the player's side ────────────────────────────────────────────────────
 
-// crosshair is the cell the shots go through: the mouse, kept inside the
-// picture, or the middle when the browser has the pointer.
-func (g *game) crosshair() (int, int) {
-	if g.locked || !g.mouseIn || g.viewW <= 0 {
-		return g.viewW / 2, g.viewH / 2
-	}
-	return min(max(g.mouseX, 0), g.viewW-1), min(max(g.mouseY, 0), g.viewH-1)
-}
+// crosshair is the cell the shots go through: the middle of the picture.
+func (g *game) crosshair() (int, int) { return g.viewW / 2, g.viewH / 2 }
 
 // drawCrosshair draws the crosshair, opened up by the kick, with a marker
-// when a shot lands and arrows when the mouse is turning the view.
+// when a shot lands and arrows while the mouse at the edge turns the view.
 func (g *game) drawCrosshair(v *view) {
 	x, y := g.crosshair()
 	if g.reloadT > 0 && g.st.reload > 0 {
@@ -629,10 +623,10 @@ func (g *game) drawCrosshair(v *view) {
 		v.c.fg(x+1, y+1, "╲", hc)
 	}
 	if !g.locked && g.mouseIn {
-		if t := steer(g.mouseX, g.viewW); t < 0 {
-			v.c.fg(x-gap-3, y, "«", hudWarn.mul(float32(0.5-0.5*t)))
+		if t := edgeTurn(g.mouseX, g.viewW); t < 0 {
+			v.c.fg(x-gap-3, y, "«", hudWarn)
 		} else if t > 0 {
-			v.c.fg(x+gap+3, y, "»", hudWarn.mul(float32(0.5+0.5*t)))
+			v.c.fg(x+gap+3, y, "»", hudWarn)
 		}
 	}
 	if g.ammo == 0 && int(g.clock*3)%2 == 0 {

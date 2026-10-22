@@ -17,7 +17,7 @@ Or [play it in the browser](https://thebanri.github.io/limoni/?app=marksweep).
 
 | | |
 | :--- | :--- |
-| mouse | aim; the gun points wherever the crosshair is. In a terminal the crosshair follows the mouse, and off the middle half the view turns, faster towards the edges, so the mouse never has to leave the window. In the browser the pointer is locked and moves the view, as in any first-person game |
+| mouse | look, as in any first-person game: moving it turns the view, and the crosshair stays in the middle. In the browser the pointer is locked. A terminal cannot lock it, so with the pointer at the window's edge the view keeps turning that way; move back in to stop |
 | left button | sweep (hold to keep firing). `F` does the same from the keyboard |
 | `R` or right button | collect. The heap (magazine) never refills on its own |
 | `W` `A` `S` `D` | move. `←` `→` or `Q` `E` turn |
@@ -99,8 +99,7 @@ Boxed enemies are filled with a panel colour so they read against the walls.
 
 The gun has a small 3D engine of its own (`viewmodel.go`): a mesh of boxes, hulls and prisms built once,
 posed every frame, lit, rasterised with a depth buffer into half-block pixels and outlined. Its barrel
-points at a point on the ray through the crosshair, so on the screen its line meets the crosshair wherever
-the mouse is. It sways behind the aim, kicks on a shot, and on a reload rolls over while the heap (the
+points at a point on the ray through the crosshair, so on the screen its line meets the crosshair. It sways behind the aim, kicks on a shot, and on a reload rolls over while the heap (the
 canister of glowing bytes under it, as full as the magazine) drops out and a fresh one comes up. The
 muzzle flash and the tracer are light added to what is behind them.
 

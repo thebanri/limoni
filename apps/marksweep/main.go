@@ -269,6 +269,9 @@ func (g *game) pausePick(i int) {
 }
 
 func (g *game) mouse(m limoni.MouseEvent) {
+	if g.phase == phPlay && g.mouseIn && g.viewW > 0 {
+		g.lookPend += float64(int(m.X)-g.mouseX) * lookPerCell(g.viewW)
+	}
 	g.mouseX, g.mouseY, g.mouseIn = int(m.X), int(m.Y), true
 	c := canvas{w: g.scrW, h: g.scrH}
 	press := !m.Drag && (m.Button == limoni.MouseLeft || m.Button == limoni.MouseRight)
