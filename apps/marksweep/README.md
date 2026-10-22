@@ -14,15 +14,15 @@ marksweep -window    # in kitty: a window of its own, full screen, with no mouse
 
 ### Mouse lock
 
-A terminal cannot lock the mouse pointer, so on Linux the game asks the desktop to. The InputCapture
-portal (KDE Plasma 6.1 and later, GNOME 45 and later) is how Input Leap and Barrier take the mouse: no
-root, no setup, the desktop asks once whether to allow it and remembers the answer. The portal starts a
-capture only when the pointer crosses the edge of the screens, so in a run a flick to any edge takes the
-mouse; from then on the pointer is hidden and held, never onto another monitor, and the mouse's movement
-reaches the game alone (through libei, `ei_linux.go`). The cards are chosen with the mouse moving left
-and right and a click. The pause and the terminal losing focus give the mouse back.
+A terminal cannot lock the mouse pointer, so on Wayland the game does what every game does: during a
+run it opens a window of its own — full screen, every pixel transparent, so the terminal shows through —
+and the compositor locks the pointer to it (`zwp_pointer_constraints_v1`) and hides it. The mouse's
+movement comes as relative motion, unaccelerated, and the keys as the compositor's own presses and
+releases, so a key let go is never left held. No permission, no setup, no extra program: the Wayland
+client is the game's own (`wayland_linux.go`). The cards are chosen with the mouse moving left and right
+and a click, or 1, 2, 3. The pause and switching to another window give the mouse and the keys back.
 
-Elsewhere, or if the desktop says no, the terminal's mouse reports turn the view, and at the window's
+Elsewhere (X11, macOS, Windows), or if the compositor cannot, the terminal's mouse reports turn the view, and at the window's
 edge the view keeps turning. In kitty, `-window` at least hides the pointer: it opens the game in a kitty
 window of its own with kitty's `mouse_hide_wait` set so the pointer goes once the mouse rests.
 

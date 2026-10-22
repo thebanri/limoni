@@ -185,7 +185,7 @@ func (g *game) drawHUD(c canvas, v *view) {
 		g.drawBossBar(c)
 	}
 	if g.lockHint && g.phase == phPlay {
-		const lock = "flick the mouse to the edge of the screen: the game takes it"
+		const lock = "click to take the mouse"
 		lw := width(lock) + 4
 		shadePanel(c, (w-lw)/2, h/3, lw, 1)
 		c.fg((w-lw)/2+2, h/3, lock, hudCyan)

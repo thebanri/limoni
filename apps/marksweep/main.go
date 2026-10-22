@@ -138,7 +138,7 @@ func (g *game) event(ev *limoni.Event) {
 		}
 	case driver.EventFocus:
 		// Another window has the keyboard: let the mouse go with it.
-		if !ev.Focus.Gained && g.phase == phPlay {
+		if !ev.Focus.Gained && g.phase == phPlay && !g.grab {
 			g.pauseRun()
 		}
 	}

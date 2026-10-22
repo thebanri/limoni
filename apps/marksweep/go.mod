@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/ebitengine/oto/v3 v3.5.1
-	github.com/godbus/dbus/v5 v5.2.2
 	github.com/thebanri/limoni v0.15.0
 )
 

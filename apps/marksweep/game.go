@@ -106,7 +106,8 @@ type game struct {
 	mouseY   int
 	mouseIn  bool    // a mouse position has been seen
 	locked   bool    // the browser or the desktop has the pointer: look by movement
-	lockHint bool    // the desktop will take the mouse at a screen's edge
+	lockHint bool    // the game's window is up but has no lock yet: a click gives it
+	grab     bool    // the game's window holds the keyboard: the terminal losing it is no pause
 	lookDX   float64 // movement to turn by, from the browser
 	lookPend float64 // turn still to come from the terminal's mouse, in radians
 	viewW    int
