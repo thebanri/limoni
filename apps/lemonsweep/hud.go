@@ -223,25 +223,37 @@ func (g *game) drawHUD(c canvas, v *view) {
 	c.fgNumber(x, py+numRows-1, int(g.st.maxHP), hudDim)
 	g.bar(c, 1, h-1, hpW-2, g.hp/g.st.maxHP, hpCol, hex(0x2a1418))
 
-	// Over it, the dashes ready, and what hit last.
-	dw := 6 + 2*g.st.dashN
-	shadePanel(c, 0, py-1, dw, 1)
-	x = c.fg(1, py-1, "DASH ", hudDim)
+	// Over it, the dashes: a bar each, like stamina, the next one filling
+	// as it recharges; and over that, what hit last.
+	const dashBarW = 6
+	dRows := (fontH + 2) / 2
+	dy := py - dRows
+	dCol := hex(elementCol[elDash])
+	shadePanel(c, 0, dy, 2+4*(fontW+1)+1+g.st.dashN*(dashBarW+1)+1, dRows)
+	tc := hudDim
+	if g.dashN > 0 {
+		tc = dCol
+	}
+	x = c.big(2, 2*dy+1, "DASH", 1, tc) + 1
 	for i := 0; i < g.st.dashN; i++ {
-		r, dc := "◆", hex(elementCol[elDash])
-		if i >= g.dashN {
-			r, dc = "◇", hudDim
+		frac, col := 1.0, dCol
+		switch {
+		case i == g.dashN:
+			frac, col = g.dashCharge/(1.6*g.st.dashCD), dCol.mul(0.5)
+		case i > g.dashN:
+			frac = 0
 		}
-		x = c.fg(x, py-1, r, dc) + 1
+		g.bar(c, x, dy+dRows/2, dashBarW, frac, col, hex(0x1a1430))
+		x += dashBarW + 1
 	}
 	if g.hurtShow > 0 && g.hurtHow != "" {
 		name := kinds[g.hurtBy].name
 		hw := 2 + digits(int(g.hurtAmt+0.5)) + 1 + width(name) + 1 + width(g.hurtHow) + 1
-		shadePanel(c, 0, py-2, hw, 1)
-		x = c.fg(1, py-2, "-", hudBad)
-		x = c.fgNumber(x, py-2, int(g.hurtAmt+0.5), hudBad) + 1
-		x = c.fg(x, py-2, name, hex(kinds[g.hurtBy].accent)) + 1
-		c.fg(x, py-2, g.hurtHow, hudText)
+		shadePanel(c, 0, dy-1, hw, 1)
+		x = c.fg(1, dy-1, "-", hudBad)
+		x = c.fgNumber(x, dy-1, int(g.hurtAmt+0.5), hudBad) + 1
+		x = c.fg(x, dy-1, name, hex(kinds[g.hurtBy].accent)) + 1
+		c.fg(x, dy-1, g.hurtHow, hudText)
 	}
 
 	// Bottom right: the heap.
