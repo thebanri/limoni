@@ -13,6 +13,8 @@ type records struct {
 	peak   int
 	bigHit int
 	volume int
+	ret    reticle
+	hasRet bool // a crosshair was saved
 }
 
 type runRecord struct {
@@ -40,11 +42,24 @@ type saved struct {
 	Peak   int  `json:"most_shots"`
 	BigHit int  `json:"biggest_hit"`
 	Volume *int `json:"volume,omitempty"`
+
+	Crosshair *savedReticle `json:"crosshair,omitempty"`
+}
+
+type savedReticle struct {
+	Style   int  `json:"style"`
+	Color   int  `json:"color"`
+	Size    int  `json:"size"`
+	Outline bool `json:"outline"`
 }
 
 func encodeRecords(r records) []byte {
 	v := r.volume
-	b, _ := json.Marshal(saved{r.runs, r.secs, r.level, r.kills, r.peak, r.bigHit, &v})
+	s := saved{r.runs, r.secs, r.level, r.kills, r.peak, r.bigHit, &v, nil}
+	if r.hasRet {
+		s.Crosshair = &savedReticle{r.ret.style, r.ret.color, r.ret.size, r.ret.outline}
+	}
+	b, _ := json.Marshal(s)
 	return b
 }
 
@@ -59,6 +74,9 @@ func decodeRecords(b []byte) records {
 	if s.Volume != nil && *s.Volume >= 0 && *s.Volume <= 10 {
 		r.volume = *s.Volume
 	}
+	if c := s.Crosshair; c != nil && c.Style >= 0 && c.Style < len(reticleStyles) && c.Color >= 0 && c.Color < len(reticleColors) && c.Size >= 0 && c.Size < len(reticleSizes) {
+		r.ret, r.hasRet = reticle{c.Style, c.Color, c.Size, c.Outline}, true
+	}
 	return r
 }
 
@@ -67,11 +85,12 @@ type store interface {
 	save(records)
 }
 
-// persist saves the records with the current volume.
+// persist saves the records with the current volume and crosshair.
 func (g *game) persist() {
 	if g.store == nil {
 		return
 	}
 	g.best.volume = g.volume
+	g.best.ret, g.best.hasRet = g.ret, true
 	g.store.save(g.best)
 }

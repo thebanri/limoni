@@ -232,6 +232,31 @@ func TestDumpFrame(t *testing.T) {
 		g.hitT, g.killT, g.recoil = 0.1, 0, 0.3
 		return g
 	}
+	shots["settings"] = func() *game {
+		g := newGame(42)
+		g.clock = 3
+		g.openSettings()
+		g.setSel = 1
+		return g
+	}
+	shots["settings-pause"] = func() *game {
+		g := scene()
+		g.pauseRun()
+		g.openSettings()
+		g.setSel, g.ret = 2, reticle{style: 3, color: 2, size: 2, outline: true}
+		return g
+	}
+	for s := range reticleStyles {
+		s := s
+		shots[fmt.Sprintf("ret%d", s)] = func() *game {
+			g := playing()
+			g.pos, g.ang = vec{16, 26}, -math.Pi/2
+			g.bossNext = 99
+			g.addEnemy(kElder, vec{17.2, 23.2})
+			g.ret = reticle{style: s, color: s % len(reticleColors), size: 1, outline: true}
+			return g
+		}
+	}
 	shots["poster"] = func() *game {
 		g := playing()
 		g.pos, g.ang = vec{16.12, 28.2}, -math.Pi/2

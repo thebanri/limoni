@@ -65,6 +65,9 @@ func main() {
 	g.store = newStore()
 	if g.store != nil {
 		g.best = g.store.load()
+		if g.best.hasRet {
+			g.ret = g.best.ret
+		}
 		if g.best.volume >= 0 {
 			g.volume = g.best.volume
 			if g.volume > 0 {
@@ -175,6 +178,11 @@ func (g *game) key(k limoni.KeyEvent) {
 			g.menuKey(k, isRune, ch, &g.pause, g.pausePick)
 		}
 		return
+	case phSettings:
+		if down {
+			g.settingsKey(k, isRune, ch)
+		}
+		return
 	case phDead:
 		if down && (isRune && ch == 'r' || k.Type == limoni.KeyEnter) {
 			g.reset()
@@ -258,7 +266,7 @@ func moveAction(k limoni.KeyEvent, isRune bool, ch rune) (action, bool) {
 	return 0, false
 }
 
-// menuKey moves through a three-item menu whose middle item is the volume.
+// menuKey moves through a three-item menu.
 func (g *game) menuKey(k limoni.KeyEvent, isRune bool, ch rune, sel *int, pick func(int)) {
 	switch {
 	case isRune && ch == 'w' || k.Type == limoni.KeyUp:
@@ -267,14 +275,6 @@ func (g *game) menuKey(k limoni.KeyEvent, isRune bool, ch rune, sel *int, pick f
 	case isRune && ch == 's' || k.Type == limoni.KeyDown:
 		*sel = (*sel + 1) % 3
 		g.sound(sfxMenu)
-	case *sel == 1 && (k.Type == limoni.KeyLeft || isRune && ch == 'a'):
-		g.setVolume(g.volume - 1)
-		g.sound(sfxMenu)
-		g.persist()
-	case *sel == 1 && (k.Type == limoni.KeyRight || isRune && ch == 'd'):
-		g.setVolume(g.volume + 1)
-		g.sound(sfxMenu)
-		g.persist()
 	case k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace:
 		pick(*sel)
 	case k.Type == limoni.KeyEsc:
@@ -290,13 +290,7 @@ func (g *game) titlePick(i int) {
 		g.reset()
 		g.sound(sfxPick)
 	case 1:
-		if g.volume > 0 {
-			g.setVolume(0)
-		} else {
-			g.setVolume(g.lastVol)
-			g.sound(sfxMenu)
-		}
-		g.persist()
+		g.openSettings()
 	case 2:
 		g.quit = true
 	}
@@ -307,7 +301,7 @@ func (g *game) pausePick(i int) {
 	case 0:
 		g.phase = phPlay
 	case 1:
-		g.titlePick(1)
+		g.openSettings()
 	case 2:
 		g.quit = true
 	}
@@ -339,13 +333,37 @@ func (g *game) mouse(m limoni.MouseEvent) {
 			g.take(g.cardHov)
 			g.release(actFire)
 		}
-	case phTitle:
-		if press {
-			g.titlePick(0)
+	case phTitle, phPause:
+		// The buttons follow the mouse; a click on one picks it, a click
+		// anywhere else starts the run or resumes it.
+		sel, pick := &g.menu, g.titlePick
+		if g.phase == phPause {
+			sel, pick = &g.pause, g.pausePick
 		}
-	case phPause:
-		if press {
-			g.phase = phPlay
+		row := g.mouseY - g.menuY
+		on := row >= 0 && row < 3 && abs(g.mouseX-c.w/2) <= buttonW/2
+		if on {
+			*sel = row
+		}
+		switch {
+		case press && on:
+			pick(row)
+		case press:
+			pick(0)
+		}
+	case phSettings:
+		row := g.mouseY - g.setY
+		if row < 0 || row >= len(settingRows) {
+			break
+		}
+		g.setSel = row
+		switch {
+		case press && row == len(settingRows)-1:
+			g.closeSettings()
+		case m.Button == limoni.MouseLeft && !m.Drag:
+			g.adjust(row, 1)
+		case m.Button == limoni.MouseRight && !m.Drag:
+			g.adjust(row, -1)
 		}
 	case phDead:
 		if press && g.clock-g.deadAt > 1 {

@@ -77,7 +77,7 @@ func (g *game) render(b *buffer.Buffer) {
 	v := view{c: c, w: w, h: h}
 	g.viewW, g.viewH = w, v.h
 	ang := g.ang
-	if g.phase == phTitle {
+	if g.onTitle() {
 		ang = g.clock * 0.12
 	}
 	if g.phase == phPlay && g.shake > 0 {
@@ -101,23 +101,23 @@ func (g *game) render(b *buffer.Buffer) {
 	}
 	v.horizon = float64(v.top) + float64(v.h)/2 + bob
 	v.dim = 1
-	if g.phase == phTitle {
+	if g.onTitle() {
 		v.dim = 0.3
 	}
 	if g.reloadT > 0 && g.st.reload > 0 {
 		v.grey = float32(0.25 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
 	}
 	pos := g.pos
-	if g.phase == phTitle {
+	if g.onTitle() {
 		pos = vec{16, 16}
 	}
 	sc.decals = sc.decals[:0]
-	if g.phase != phTitle {
+	if !g.onTitle() {
 		g.gatherDecals(pos)
 	}
 	g.aimOn = false
 	g.drawWorld(&v, pos)
-	if g.phase != phTitle {
+	if !g.onTitle() {
 		g.muzzleLight(&v)
 		g.drawSprites(&v, pos)
 		g.drawArcs(&v, pos)
@@ -136,6 +136,8 @@ func (g *game) render(b *buffer.Buffer) {
 		g.drawPause(c)
 	case phDead:
 		g.drawDead(c)
+	case phSettings:
+		g.drawSettings(c)
 	}
 	if g.showFPS {
 		// -showfps: the frames drawn in the last second, top centre.
@@ -806,39 +808,11 @@ func (g *game) drawCrosshair(v *view) {
 		v.c.fg(x, y, "·", hudCyan)
 		return
 	}
-	// In pixels: four thin arms round a dot, outlined dark so they read
-	// over anything, opened by the kick of a shot; red over an enemy.
-	col := hex(0xf4f6ff)
-	switch {
-	case g.ammo == 0:
-		col = hudBad.mul(0.8)
-	case g.aimOn:
-		col = hex(0xff5a6a)
-	}
+	// The crosshair the settings chose, opened by the kick of a shot.
 	cx, cy := x, 2*y+1
-	gap := 2 + int(math.Max(0, g.recoil)*4)
-	const arm = 3
-	ink := hex(0x05060a)
-	for k := 0; k < arm; k++ {
-		d := gap + k
-		for _, p := range [4][2]int{{cx - d, cy}, {cx + d, cy}, {cx, cy - d}, {cx, cy + d}} {
-			// The outline first: the pixels to either side of the arm.
-			if p[1] == cy {
-				blendPx(v, p[0], p[1]-1, ink, 0.8)
-				blendPx(v, p[0], p[1]+1, ink, 0.8)
-			} else {
-				blendPx(v, p[0]-1, p[1], ink, 0.8)
-				blendPx(v, p[0]+1, p[1], ink, 0.8)
-			}
-		}
-	}
-	for k := 0; k < arm; k++ {
-		d := gap + k
-		for _, p := range [4][2]int{{cx - d, cy}, {cx + d, cy}, {cx, cy - d}, {cx, cy + d}} {
-			blendPx(v, p[0], p[1], col, 0.95)
-		}
-	}
-	blendPx(v, cx, cy, col, 1)
+	spread := int(math.Max(0, g.recoil) * 4)
+	drawReticle(v, cx, cy, g.ret, spread, g.reticleColor())
+	gap := [...]int{1, 2, 3}[g.ret.size] + spread
 	if g.hitT > 0 {
 		// The hit marker: four diagonal strokes, spreading as they fade;
 		// red for a kill.

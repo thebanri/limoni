@@ -113,7 +113,7 @@ func (c canvas) fgClock(x, y, secs int, col rgb) int {
 }
 
 func (g *game) drawHUD(c canvas, v *view) {
-	if g.phase == phTitle || c.w < 24 || c.h < 8 {
+	if g.onTitle() || c.w < 24 || c.h < 8 {
 		return
 	}
 	w, h := c.w, c.h
@@ -654,44 +654,20 @@ func card(c canvas, x, y, w, h int, frame rgb) {
 }
 
 // buttons draws a three-item menu centred at row y: the chosen item a lit
-// bar with its marks, the others dim; SOUND carries its meter.
+// bar with its marks, the others dim. The mouse finds it by menuY.
 func (g *game) buttons(c canvas, y int, items [3]string, sel int, bg rgb) {
+	g.menuY = y
 	x0 := (c.w - buttonW) / 2
 	for i, it := range items {
 		yy := y + i
 		st := style(hudDim, bg)
 		if i == sel {
-			lit := bg.mix(hudWarn, 0.16)
-			st = style(hudWarn, lit)
+			st = style(hudWarn, bg.mix(hudWarn, 0.16))
 			c.fill(x0, yy, buttonW, 1, ' ', st)
 			c.set(x0, yy, '▐', style(hudWarn, bg))
 			c.set(x0+buttonW-1, yy, '▌', style(hudWarn, bg))
 		}
 		c.text(x0+3, yy, it, st)
-		if it != "SOUND" {
-			continue
-		}
-		// The meter, at the right of the bar.
-		on := hudCyan
-		if i != sel {
-			on = hudDim
-		}
-		mx := x0 + buttonW - 14
-		for k := 0; k < 10; k++ {
-			r, col := '▮', on
-			if k >= g.volume {
-				r, col = '▯', hex(cardBorder)
-			}
-			p := c.at(mx+k, yy)
-			if p != nil {
-				p.Content = r
-				p.Style.Fg = col.color()
-			}
-		}
-		if i == sel {
-			c.set(mx-2, yy, '‹', st)
-			c.set(mx+11, yy, '›', st)
-		}
 	}
 }
 
@@ -750,10 +726,7 @@ func (g *game) drawTitle(c canvas) {
 	if tall {
 		y = g.parade(c, y, 12) + 1
 	}
-	g.buttons(c, y, [3]string{"SWEEP", "SOUND", "QUIT"}, g.menu, hex(0x03040a))
-	if g.noSound != "" {
-		c.text((c.w+buttonW)/2+1, y+1, g.noSound, style(hudDim, hex(0x03040a)))
-	}
+	g.buttons(c, y, [3]string{"SWEEP", "SETTINGS", "QUIT"}, g.menu, hex(0x03040a))
 	y += 4
 	if g.best.runs > 0 {
 		dim, val := style(hudDim, hex(0x03040a)), style(hudWarn, hex(0x03040a))
@@ -790,7 +763,7 @@ func (g *game) drawPause(c canvas) {
 	sx = c.text(sx, y+7, "  ·  ", dim)
 	sx = c.number(sx, y+7, g.kills, val)
 	c.text(sx, y+7, " swept", dim)
-	g.buttons(c, y+9, [3]string{"RESUME", "SOUND", "QUIT"}, g.pause, bg)
+	g.buttons(c, y+9, [3]string{"RESUME", "SETTINGS", "QUIT"}, g.pause, bg)
 	c.centered(y+h-2, "Esc or P resumes", style(hex(cardBorder).mix(hudDim, 0.6), bg))
 }
 
@@ -846,4 +819,81 @@ func (g *game) drawDead(c canvas) {
 	}
 	c.centered(y+h-3, "R or click: run again", style(hudText, bg))
 	c.centered(y+h-2, "Esc quits", style(hex(cardBorder).mix(hudDim, 0.6), bg))
+}
+
+// drawSettings is the settings card: a row for each setting, the chosen
+// one lit with arrows to either side of its value, and beside them the
+// crosshair as it is now, over a patch of wall.
+func (g *game) drawSettings(c canvas) {
+	veil(c, 0.6, hex(0x03040a))
+	w, h := 66, 17
+	x, y := (c.w-w)/2, (c.h-h)/2
+	card(c, x, y, w, h, hex(cardBorder))
+	bg := hex(cardBg)
+	c.big(x+4, 2*(y+1)+1, "SETTINGS", 1, hudWarn)
+	g.setY = y + 5
+	for i, name := range settingRows {
+		yy := g.setY + i
+		chosen := i == g.setSel
+		st := style(hudDim, bg)
+		if chosen {
+			st = style(hudWarn, bg.mix(hudWarn, 0.16))
+			c.fill(x+2, yy, 40, 1, ' ', st)
+			c.set(x+2, yy, '▐', style(hudWarn, bg))
+		}
+		c.text(x+5, yy, name, st)
+		vx := x + 20
+		if chosen && name != "BACK" {
+			c.text(vx-2, yy, "‹", st)
+		}
+		val := ""
+		switch name {
+		case "SOUND":
+			for k := 0; k < 10; k++ {
+				r, col := '▮', hudCyan
+				if k >= g.volume {
+					r, col = '▯', hex(cardBorder)
+				}
+				if p := c.at(vx+k, yy); p != nil {
+					p.Content, p.Style.Fg = r, col.color()
+				}
+			}
+			vx += 10
+		case "CROSSHAIR":
+			val = reticleStyles[g.ret.style]
+		case "COLOR":
+			val = reticleColors[g.ret.color].name
+			c.set(vx, yy, '■', style(hex(reticleColors[g.ret.color].col), fromColor(st.Bg)))
+			vx += 2
+		case "SIZE":
+			val = reticleSizes[g.ret.size]
+		case "OUTLINE":
+			val = "OFF"
+			if g.ret.outline {
+				val = "ON"
+			}
+		}
+		if val != "" {
+			vx = c.text(vx, yy, val, style(hudText, fromColor(st.Bg)))
+		}
+		if chosen && name != "BACK" {
+			c.text(max(vx+1, x+38), yy, "›", st)
+		}
+	}
+	// The preview: a patch of wall, the crosshair on it.
+	px, py, pw, ph := x+45, y+4, 17, 9
+	for yy := py; yy < py+ph; yy++ {
+		for xx := px; xx < px+pw; xx++ {
+			k := float32(hash2(xx/3, yy)) * 0.15
+			c.set(xx, yy, '▀', style(hex(0x1a2236).mix(hex(0x2c3a5c), k), hex(0x141a2a).mix(hex(0x24365e), k)))
+		}
+	}
+	c.box(px-1, py-1, pw+2, ph+2, style(hex(cardBorder), bg))
+	pv := view{c: c, w: c.w, h: c.h}
+	drawReticle(&pv, px+pw/2, 2*(py+ph/2)+1, g.ret, 0, hex(reticleColors[g.ret.color].col))
+	if g.noSound != "" {
+		sx := c.text(x+5, y+h-3, "sound: ", style(hudDim, bg))
+		c.text(sx, y+h-3, g.noSound, style(hudDim, bg))
+	}
+	c.centered(y+h-2, "W/S choose · A/D or click change · Esc back", style(hex(cardBorder).mix(hudDim, 0.6), bg))
 }

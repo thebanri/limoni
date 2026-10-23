@@ -38,6 +38,7 @@ window of its own with kitty's `mouse_hide_wait` set so the pointer goes once th
 | `1` `2` `3` or a click | take a card |
 | `Esc` or `P` | pause. In the browser, Esc also lets the pointer go |
 | `M` | sound on and off |
+| SETTINGS | in the title and the pause menus: the sound, and the crosshair: style, colour, size, outline |
 
 Kitty, Ghostty, WezTerm and foot report key releases, so movement keys stay down exactly as long as you
 hold them. Elsewhere a press holds for a moment and the key's repeats keep it going.
@@ -155,9 +156,11 @@ dies; the freed bytes only stream home for the picture.
 The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font. The
 build is listed down the right edge, unframed: ACTIVE 3/6, then a row for each — its name, its ranks as
 pips, and a mark of its element's colour that, on an active, brightens as it readies to act and flashes
-as it does. A reload is a ring filling round the crosshair. The crosshair is drawn in
-pixels — four outlined arms that open with each shot's kick, red over an enemy, a hit marker that
-spreads as it fades (red on a kill).
+as it does. A reload is a ring filling round the crosshair. The crosshair is yours
+to choose in SETTINGS (from the title or the pause): six styles — cross, cross and dot, dot, circle,
+chevron, and the first one in characters — six colours, three sizes, a dark outline or none, with a
+preview beside them; the choice is kept with the records (`reticle.go`). Every style opens with a shot's
+kick and turns red over an enemy, and a hit marker spreads as it fades (red on a kill).
 
 The elements and the actives are drawn in pixels too (`fx.go`): clouds, flames, mist and fireballs as
 soft blobs that grow and fade; rings and patches painted on the floor itself — a nova spreading, the IRQ

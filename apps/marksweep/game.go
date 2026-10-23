@@ -44,7 +44,14 @@ const (
 	phCards // the run waits while a card is chosen
 	phPause
 	phDead
+	phSettings // over the title or the pause, whichever opened it
 )
+
+// onTitle reports whether the title is what is on the screen, the settings
+// over it or not.
+func (g *game) onTitle() bool {
+	return g.phase == phTitle || g.phase == phSettings && g.setFrom == phTitle
+}
 
 const (
 	fov      = 66 * math.Pi / 180
@@ -186,8 +193,13 @@ type game struct {
 	nextInCel [maxEnemies]int16
 
 	// screens
-	menu  int
-	pause int
+	menu    int
+	pause   int
+	setSel  int     // the settings row chosen
+	setFrom phase   // where the settings go back to
+	menuY   int     // the row of the menu's first button, for the mouse
+	setY    int     // the row of the first setting, for the mouse
+	ret     reticle // the crosshair, as chosen
 
 	// outside
 	audio   speaker
@@ -216,7 +228,7 @@ func (g *game) countFrame(now time.Time) {
 }
 
 func newGame(seed uint64) *game {
-	g := &game{rnd: rng(seed | 1), volume: 7, lastVol: 7, sens: 0.0032}
+	g := &game{rnd: rng(seed | 1), volume: 7, lastVol: 7, sens: 0.0032, ret: reticle{size: 1, outline: true}}
 	g.reset()
 	g.phase = phTitle
 	return g
@@ -225,12 +237,14 @@ func newGame(seed uint64) *game {
 // reset starts a new run.
 func (g *game) reset() {
 	best, store, audio, vol, last, sens, exact, seed := g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd
+	ret := g.ret
 	showFPS, fps, frames, fpsAt := g.showFPS, g.fps, g.frames, g.fpsAt
 	noSound, clock, locked, mx, my, in, hint := g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint
 	*g = game{}
 	g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd = best, store, audio, vol, last, sens, exact, seed
 	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint = noSound, clock, locked, mx, my, in, hint
 	g.showFPS, g.fps, g.frames, g.fpsAt = showFPS, fps, frames, fpsAt
+	g.ret = ret
 	g.pos = vec{16, 16.5}
 	g.ang = -math.Pi / 2
 	g.prevAim = g.ang // or the gun swings at the start of every run
