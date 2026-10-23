@@ -75,23 +75,23 @@ var arenas = [...]arena{
 			"P..............................P",
 			"z..ccccccccccc....ccccccccccc..z",
 			"z..............................z",
-			"z......l................l......z",
-			"z......l................l......z",
+			"z..............................z",
+			"z..............................z",
 			"z..............................z",
 			"z..ccccccccccc....ccccccccccc..z",
 			"z..............................z",
-			"z..............hh..............z",
+			"z......hh..............hh......z",
 			"z..............................z",
 			"z..............................z",
 			"z..............................z",
 			"z..............................z",
 			"z..............................z",
-			"z..............hh..............z",
+			"z......hh..............hh......z",
 			"z..............................z",
 			"z..ccccccccccc....ccccccccccc..z",
 			"z..............................z",
-			"z......l................l......z",
-			"z......l................l......z",
+			"z..............................z",
+			"z..............................z",
 			"z..............................z",
 			"P..ccccccccccc....ccccccccccc..P",
 			"z..............................z",
@@ -185,6 +185,7 @@ var cur = &arenas[0]
 // useArena makes arena i the one played, and finds its spawn windows.
 func useArena(i int) {
 	cur = &arenas[i]
+	markRoomy()
 	portals = portals[:0]
 	for y := 0; y < mapH; y++ {
 		for x := 0; x < mapW; x++ {
@@ -211,7 +212,20 @@ func solid(x, y float64) bool { return tile(int(math.Floor(x)), int(math.Floor(y
 
 // free reports whether a body of radius r fits at (x, y).
 func free(x, y, r float64) bool {
-	return !solid(x-r, y-r) && !solid(x+r, y-r) && !solid(x-r, y+r) && !solid(x+r, y+r)
+	if r <= 0.5 {
+		return !solid(x-r, y-r) && !solid(x+r, y-r) && !solid(x-r, y+r) && !solid(x+r, y+r)
+	}
+	// A body wider than a tile: its corners alone could stand either side
+	// of a thin wall, so it is looked at no more than a tile apart.
+	n := int(math.Ceil(2 * r))
+	for i := 0; i <= n; i++ {
+		for j := 0; j <= n; j++ {
+			if solid(x-r+2*r*float64(i)/float64(n), y-r+2*r*float64(j)/float64(n)) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // slide moves a body by (dx, dy), one axis at a time so it slides along walls.

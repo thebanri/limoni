@@ -276,6 +276,31 @@ func TestDumpFrame(t *testing.T) {
 		g.hitT, g.killT, g.recoil = 0.1, 0, 0.3
 		return g
 	}
+	shots["recipes"] = func() *game {
+		g := newGame(42)
+		g.clock = 3
+		g.openBook()
+		return g
+	}
+	shots["recipes-run"] = func() *game {
+		g := scene()
+		pickN(g, augIgnite, 2)
+		pickN(g, augChill, 1)
+		pickN(g, augFork, 1)
+		g.pauseRun()
+		g.openBook()
+		return g
+	}
+	shots["cards-combo"] = func() *game {
+		g := scene()
+		pickN(g, augIgnite, 2)
+		pickN(g, augFirewall, 1)
+		pickN(g, augFork, 1)
+		g.pending = 1
+		g.openCards()
+		g.cards[0], g.cards[1], g.cards[2] = augWildfire, augRecursion, augMutex
+		return g
+	}
 	shots["settings"] = func() *game {
 		g := newGame(42)
 		g.clock = 3

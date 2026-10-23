@@ -29,30 +29,26 @@ func TestEveryGlyphIsOneColumn(t *testing.T) {
 	}
 }
 
-func TestReloadIsManual(t *testing.T) {
+func TestEmptyHeapReloadsItself(t *testing.T) {
 	g := playing()
-	g.ammo = 0
+	g.ammo = 1
 	g.press(actFire)
 	g.step(tick)
-	if g.ammo != 0 || g.dryT <= 0 {
-		t.Fatalf("an empty heap fired or said nothing: ammo %d, dry %.2f", g.ammo, g.dryT)
-	}
-	for i := 0; i < 60; i++ {
-		g.step(tick)
-	}
-	if g.ammo != 0 {
-		t.Fatal("the heap refilled by itself; collecting is the player's job")
-	}
-	g.release(actFire)
-	g.reload()
-	if g.reloadT <= 0 {
-		t.Fatal("R did not start the collector")
+	if g.ammo != 0 || g.reloadT <= 0 {
+		t.Fatalf("the last round left ammo %d, collector %.2f; want 0 and collecting", g.ammo, g.reloadT)
 	}
 	for g.reloadT > 0 {
 		g.step(tick)
 	}
 	if g.ammo != g.st.mag {
 		t.Fatalf("after collecting the heap holds %d, want %d", g.ammo, g.st.mag)
+	}
+	g.release(actFire)
+	g.ammo = 0
+	g.press(actFire) // an empty heap from elsewhere: the trigger collects
+	g.step(tick)
+	if g.reloadT <= 0 {
+		t.Fatal("the trigger on an empty heap did not start the collector")
 	}
 }
 
@@ -586,5 +582,47 @@ func TestArmourBluntsSmallHits(t *testing.T) {
 	g.damage(i, 100, false)
 	if lost := 1000 - e.hp; lost < 90 {
 		t.Fatalf("a 100-damage hit took only %.2f", lost)
+	}
+}
+
+// A trigger held down as the cards come up picks nothing: the button must
+// come up first, and the cards stay a moment before a click counts.
+func TestHeldTriggerDoesNotPickACard(t *testing.T) {
+	g := playing()
+	g.pointerButton(0, true) // firing
+	g.pending = 1
+	g.step(tick)
+	if g.phase != phCards {
+		t.Fatal("no cards")
+	}
+	g.cardHov = 0
+	g.pointerButton(0, true) // a second press of the burst, still firing
+	if g.phase != phCards {
+		t.Fatal("the held trigger took a card")
+	}
+	g.pointerButton(0, false)
+	g.pointerButton(0, true) // a click at once: still the burst
+	if g.phase != phCards {
+		t.Fatal("a click the moment the cards came took one")
+	}
+	g.pointerButton(0, false)
+	for i := 0; i < 15; i++ {
+		g.step(tick)
+	}
+	g.pointerButton(0, true)
+	if g.phase != phPlay {
+		t.Fatal("a click after the cards had settled took nothing")
+	}
+
+	g = playing() // not firing: a click takes after the moment, no release needed
+	g.pending = 1
+	g.step(tick)
+	g.cardHov = 1
+	for i := 0; i < 15; i++ {
+		g.step(tick)
+	}
+	g.pointerButton(0, true)
+	if g.phase != phPlay {
+		t.Fatal("a fresh click took nothing")
 	}
 }

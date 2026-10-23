@@ -88,6 +88,8 @@ await sleep(500);
 const paused = since(mark);
 const stillRunning = !exited;
 
+send("s"); // down to RECIPES
+await sleep(100);
 send("s"); // down to SETTINGS
 await sleep(100);
 send("s"); // down to QUIT

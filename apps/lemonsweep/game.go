@@ -48,12 +48,13 @@ const (
 	phPause
 	phDead
 	phSettings // over the title or the pause, whichever opened it
+	phRecipes  // the recipe book, the same way
 )
 
 // onTitle reports whether the title is what is on the screen, the settings
 // over it or not.
 func (g *game) onTitle() bool {
-	return g.phase == phTitle || g.phase == phSettings && g.setFrom == phTitle
+	return g.phase == phTitle || (g.phase == phSettings || g.phase == phRecipes) && g.setFrom == phTitle
 }
 
 const (
@@ -113,7 +114,6 @@ type game struct {
 	reloadT float64 // collecting while above zero
 	fireCD  float64
 	recoil  float64
-	dryT    float64 // "the heap is full" hint
 	swayX   float64 // the gun lagging behind the aim, sideways and up
 	swayY   float64
 	prevAim float64
@@ -160,6 +160,8 @@ type game struct {
 	nCards    int
 	cardHov   int
 	cardAcc   float64 // a locked mouse's movement towards the next card
+	cardsAt   float64 // when the cards came up
+	clickOK   bool    // the button was let go since: a click now is meant for a card
 	bossNext  int     // the level at which the next boss comes
 	bossLive  bool    // a boss is in the arena
 	spawnAcc  float64 // spawn budget not yet spent
@@ -202,16 +204,17 @@ type game struct {
 	nShots    int
 	shotTop   int // shots above this index are all dead
 	bucket    [mapW * mapH]int16
-	flow      [mapW * mapH]uint8 // steps to the player round the walls (flow.go)
-	flowAt    int                // the player's tile when it was counted
-	flowArena *arena             // and the map
+	flow      [2][mapW * mapH]uint8 // steps to the player round the walls, for small and big bodies (flow.go)
+	flowAt    int                   // the player's tile when it was counted
+	flowArena *arena                // and the map
 	nextInCel [maxEnemies]int16
 
 	// screens
 	menu    int
 	pause   int
 	setSel  int     // the settings row chosen
-	setFrom phase   // where the settings go back to
+	setFrom phase   // where the settings or the recipe book go back to
+	bookTop int     // the first recipe shown
 	menuY   int     // the row of the menu's first button, for the mouse
 	setY    int     // the row of the first setting, for the mouse
 	ret     reticle // the crosshair, as chosen
@@ -518,9 +521,6 @@ func (g *game) stepWeapon(dt float64) {
 	g.shake = math.Max(0, g.shake-dt*4)
 	g.hitT -= dt
 	g.killT -= dt
-	if g.dryT > 0 {
-		g.dryT -= dt
-	}
 	if g.reloadT > 0 {
 		g.reloadT -= dt
 		if g.reloadT <= 0 {
@@ -548,11 +548,7 @@ func (g *game) reload() {
 
 func (g *game) fire() {
 	if g.ammo <= 0 {
-		if g.dryT <= 0 {
-			g.sound(sfxDry)
-		}
-		g.dryT = 1.2
-		g.fireCD = 0.25
+		g.reload()
 		return
 	}
 	g.fireCD = 1 / g.st.fireRate
@@ -566,6 +562,9 @@ func (g *game) fire() {
 		g.retryT = 0.08
 	}
 	g.sound(sfxShot)
+	if g.ammo <= 0 {
+		g.reload() // the last round reloads by itself
+	}
 }
 
 // volley is the shots of one trigger pull; a Retry's again is not a pull

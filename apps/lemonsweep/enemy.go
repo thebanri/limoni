@@ -191,16 +191,20 @@ func init() {
 // hpScale is how much tougher everything is now: a little with every
 // level and minute of heat, and then the pressure on top.
 func (g *game) hpScale() float64 {
-	return (1 + 0.02*float64(g.level-1)) * (1 + g.heat()/heatPace) * g.pressure()
+	return crowdHP * (1 + 0.02*float64(g.level-1)) * (1 + g.heat()/heatPace) * g.pressure()
 }
+
+// A crowd: crowdN times as many enemies as the first tuning, each crowdHP
+// as tough, so a sweep mows lines down rather than picking off a few.
+const crowdN, crowdHP = 1.6, 0.75
 
 // budget is how much enemy arrives per second.
 func (g *game) budget() float64 {
 	// Time alone sets it: tied to the level, more enemies meant more
 	// experience meant more enemies, and a good run never stopped growing.
-	b := (0.8 + g.heat()/heatPace) * math.Sqrt(g.pressure())
-	if g.wardenUp {
-		b *= 0.35 // the warden's fight is with the warden, not its crowd
+	b := crowdN * (0.8 + g.heat()/heatPace) * math.Sqrt(g.pressure())
+	if g.bossLive {
+		b *= 0.35 // a boss's fight is with the boss, not its crowd
 	}
 	return b
 }
@@ -351,6 +355,23 @@ func (g *game) spawnBoss() {
 
 // ── behaviour ────────────────────────────────────────────────────────────
 
+// backOff is a step away from the player at speed k; with a wall at its
+// back, one along the wall instead, or a keep-away is pinned in a corner.
+func backOff(e *enemy, w vec, r, k float64) vec {
+	m := w.scale(-k)
+	if free(e.pos.x+m.x*r, e.pos.y+m.y*r, r*0.8) {
+		return m
+	}
+	side := vec{-w.y, w.x}.scale(k)
+	if math.Sin(e.phaseOff) < 0 {
+		side = side.scale(-1)
+	}
+	if !free(e.pos.x+side.x*r, e.pos.y+side.y*r, r*0.8) {
+		side = side.scale(-1)
+	}
+	return side
+}
+
 func (g *game) stepEnemies(dt float64) {
 	g.flowFrom()
 	for i := range g.bucket {
@@ -414,8 +435,12 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	// Its way: straight at the player if nothing is in between, else
 	// round the walls.
 	w := n
-	if d > 1.5 && !g.direct(e.pos) {
-		w = g.flowDir(e.pos, n)
+	big := 0
+	if kd.boss {
+		big = 1
+	}
+	if d > 1.5 && !g.direct(e.pos, big) {
+		w = g.flowDir(e.pos, n, big)
 	}
 	var m vec
 	switch kd.act {
@@ -437,7 +462,7 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		case d > 11:
 			m = w
 		case d < 7:
-			m = w.scale(-0.8)
+			m = backOff(e, w, kd.r, 0.8)
 		default:
 			m = vec{-w.y, w.x}.scale(0.5 * math.Sin(e.phaseOff+e.t*0.5))
 		}
@@ -456,7 +481,7 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		case d > 9:
 			m = w
 		case d < 6:
-			m = w.scale(-0.9)
+			m = backOff(e, w, kd.r, 0.9)
 		}
 		if e.cd -= dt; e.cd <= 0 {
 			e.cd = 1.2
@@ -474,7 +499,7 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		case d > 7:
 			m = w
 		case d < 4.5:
-			m = w.scale(-0.8)
+			m = backOff(e, w, kd.r, 0.8)
 		default:
 			m = vec{-w.y, w.x}.scale(0.6 * math.Sin(e.phaseOff))
 		}
@@ -815,7 +840,11 @@ func (g *game) kill(i int) {
 	}
 	g.hitT, g.killT = 0.2, 0.2
 	g.burst(e)
-	g.dropBytes(e.pos, 1.5*kd.xp*(1+boolf(e.elite)*2))
+	xp := kd.xp
+	if !kd.boss {
+		xp /= crowdN // a crowd levels the build no faster than the few did
+	}
+	g.dropBytes(e.pos, 1.5*xp*(1+boolf(e.elite)*2))
 	g.soundFrom(sfxPop, e.pos, 0.6)
 	if g.st.onKill > 0 {
 		g.hp = math.Min(g.st.maxHP, g.hp+g.st.onKill)

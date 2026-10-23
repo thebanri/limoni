@@ -604,6 +604,19 @@ func (g *game) drawCard(c canvas, i int) {
 	if au.what2 != "" {
 		c.text(x+2, yy+3, au.what2, style(hudDim, bg))
 	}
+	if rc, ok := g.comboHint(a); ok && w >= 20 {
+		// A recipe this card goes on with: its name, and how far it gets.
+		n := g.has(rc)
+		if g.rank[a] == 0 {
+			n++
+		}
+		hw := 2 + width(rc.name) + 1 + digits(n) + 1 + digits(len(rc.cards))
+		hx := c.text(x+(w-hw)/2, yy+4, "★ ", style(hudWarn, bg))
+		hx = c.text(hx, yy+4, rc.name, style(hudWarn, bg))
+		hx = c.number(hx+1, yy+4, n, style(hudGood, bg))
+		hx = c.text(hx, yy+4, "/", style(hudDim, bg))
+		c.number(hx, yy+4, len(rc.cards), style(hudDim, bg))
+	}
 	r := g.rank[a]
 	ry := y + h - 4
 	if r < au.max {
@@ -673,8 +686,8 @@ func veil(c canvas, k float32, tint rgb) {
 }
 
 var (
-	titleItems = [...]string{"SWEEP: THREE MAPS", "ENDLESS: /dev/zero", "SETTINGS", "QUIT"}
-	pauseItems = [...]string{"RESUME", "SETTINGS", "QUIT"}
+	titleItems = [...]string{"SWEEP: THREE MAPS", "ENDLESS: /dev/zero", "RECIPES", "SETTINGS", "QUIT"}
+	pauseItems = [...]string{"RESUME", "RECIPES", "SETTINGS", "QUIT"}
 )
 
 // card draws a framed card w by h at (x, y), in the colour of its frame.
@@ -749,7 +762,7 @@ func (g *game) drawTitle(c canvas) {
 	case c.w >= 56:
 		need += len(arenas) + 1
 	}
-	tall := need+9 < c.h
+	tall := need+9 <= c.h
 	if tall {
 		need += 9
 	}
@@ -810,6 +823,7 @@ func (g *game) drawTitle(c canvas) {
 var titleAbout = [len(titleItems)]string{
 	"three maps, ten minutes on each, then its warden",
 	"one open map, no warden and no end: how long?",
+	"which cards work together",
 	"sound, and the crosshair",
 	"back to the shell",
 }
@@ -908,7 +922,7 @@ func (g *game) mapLine(c canvas, x, y, i int) {
 
 func (g *game) drawPause(c canvas) {
 	veil(c, 0.6, hex(0x03040a))
-	w, h := 44, 15
+	w, h := 44, 16
 	x, y := (c.w-w)/2, (c.h-h)/2
 	card(c, x, y, w, h, hex(cardBorder))
 	bg := hex(cardBg)

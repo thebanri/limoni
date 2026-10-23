@@ -221,3 +221,42 @@ func TestMapAboutFitsItsCard(t *testing.T) {
 		}
 	}
 }
+
+// A boss is wider than a tile: started anywhere it fits on any map, it must
+// come within its fighting range of the player, not stand against a wall
+// it was led into. Walks are counted from many starts, and every boss
+// kind; without its own count (flow[1]) some stuck in the gaps.
+func TestBossesDoNotStickInWalls(t *testing.T) {
+	defer useArena(0)
+	for stage := range arenas {
+		g := playing()
+		g.enter(stage)
+		g.endless = stage == len(arenas)-1
+		r := rng(uint64(stage) + 7)
+		for try := 0; try < 60; try++ {
+			k := bosses[try%len(bosses)]
+			kd := &kinds[k]
+			var at, me vec
+			for {
+				at = vec{1 + r.f()*(mapW-2), 1 + r.f()*(mapH-2)}
+				me = vec{1 + r.f()*(mapW-2), 1 + r.f()*(mapH-2)}
+				if free(at.x, at.y, kd.r*0.8) && free(me.x, me.y, playerR) && at.dist2(me) > 12*12 {
+					break
+				}
+			}
+			g.enemies = [maxEnemies]enemy{}
+			g.pos = me
+			i := g.addEnemy(k, at)
+			e := &g.enemies[i]
+			e.cd = 1e9 // no shots or hazards: only the walk
+			for s := 0; s < 30*60 && e.pos.dist2(g.pos) > 7.5*7.5; s++ {
+				g.hurtT = 1
+				g.stepEnemies(tick)
+			}
+			if d := math.Sqrt(e.pos.dist2(g.pos)); d > 7.5 {
+				t.Errorf("%s: %s from %v to the player at %v stopped %.1f away, at %v",
+					cur.name, kd.name, at, me, d, e.pos)
+			}
+		}
+	}
+}

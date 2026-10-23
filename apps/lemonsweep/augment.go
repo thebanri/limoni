@@ -524,6 +524,10 @@ func rarityWeight(r rarity, level int) float64 {
 // player already has a little more often, so builds come together.
 func (g *game) openCards() {
 	g.phase = phCards
+	// A trigger held when the cards come up is not a pick: the button has
+	// to come up first, and the cards stay a moment before a click counts.
+	g.clickOK = !g.held[actFire] || g.fireKey
+	g.cardsAt = g.clock
 	g.release(actFire) // the click that picks a card must not fire
 	g.pending--
 	g.nCards = 0
@@ -571,6 +575,16 @@ func (g *game) cardWeight(a augID) float64 {
 	}
 	return w
 }
+
+// click takes card i for a mouse button, unless the button is one that
+// was firing when the cards came up, or the cards have only just come.
+func (g *game) click(i int) {
+	if g.clickOK && g.clock-g.cardsAt >= cardGrace {
+		g.take(i)
+	}
+}
+
+const cardGrace = 0.4 // seconds before a click picks a card
 
 // take applies card i and goes back to the run, or to the next card.
 func (g *game) take(i int) {

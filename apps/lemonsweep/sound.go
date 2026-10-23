@@ -33,7 +33,6 @@ const (
 	sfxPing              // a shot off a wall
 	sfxReload            // the collector starts
 	sfxReady             // the heap is clean again
-	sfxDry               // the trigger, on an empty heap
 	sfxHurt              // the player is hit
 	sfxLevel             // a level up: cards
 	sfxPick              // a card taken
@@ -301,10 +300,6 @@ func (m *mixer) synth() {
 	m.clips[sfxReady] = mk(0.25, func(s *synth) {
 		s.tone(0, 0.06, 900, 900, 0.25, 3, square)
 		s.tone(0.08, 0.2, 1400, 1400, 0.22, 4, square)
-	})
-	m.clips[sfxDry] = mk(0.08, func(s *synth) {
-		s.hiss(0, 0.05, 4000, 2000, 0.4, 10)
-		s.tone(0, 0.05, 1800, 1700, 0.1, 9, square)
 	})
 	m.clips[sfxHurt] = mk(0.35, func(s *synth) {
 		s.tone(0, 0.35, 180, 70, 0.55, 3, square)

@@ -56,6 +56,7 @@ type scratch struct {
 	wallID [maxCols]byte
 	bbs    []billboard
 	decals []decal
+	px     []rgb // the world's pixels, before they are sharpened into cells
 }
 
 var sc = scratch{bbs: make([]billboard, 0, maxEnemies+maxShots+maxParts+maxBytes), decals: make([]decal, 0, 32)}
@@ -138,6 +139,8 @@ func (g *game) render(b *buffer.Buffer) {
 		g.drawDead(c)
 	case phSettings:
 		g.drawSettings(c)
+	case phRecipes:
+		g.drawBook(c)
 	}
 	if g.showFPS {
 		// -showfps: the frames drawn in the last second, top centre.
@@ -149,7 +152,7 @@ func (g *game) render(b *buffer.Buffer) {
 	}
 }
 
-func fog(d float64) float32 { return float32(1 / (1 + d*d*0.018)) }
+func fog(d float64) float32 { return float32(1 / (1 + d*d*0.008)) }
 
 var fogCol = hex(0x05070e)
 
@@ -170,6 +173,10 @@ type column struct {
 
 func (g *game) drawWorld(v *view, pos vec) {
 	c := v.c
+	if n := v.w * 2 * v.h; cap(sc.px) < n {
+		sc.px = make([]rgb, n) // only when the window grows
+	}
+	sc.px = sc.px[:v.w*2*v.h]
 	prevAlong, prevTile, prevSide := 0.0, byte(0), -1
 	for x := 0; x < v.w; x++ {
 		camX := 2*(float64(x)+0.5)/float64(v.w) - 1
@@ -211,15 +218,33 @@ func (g *game) drawWorld(v *view, pos vec) {
 		if h.tile == 'P' {
 			col.pulse = hex(0x5a0b3a).mul(float32(0.25 + 0.25*math.Sin(g.clock*4)))
 		}
-		for y := v.top; y < v.top+v.h; y++ {
-			top := g.pixel(v, &col, float64(y)+0.25, pos)
-			bot := g.pixel(v, &col, float64(y)+0.75, pos)
-			if p := c.at(x, y); p != nil {
-				setHalves(p, top.mul(v.dim).grey(v.grey), bot.mul(v.dim).grey(v.grey))
+		for y := 0; y < v.h; y++ {
+			fy := float64(v.top + y)
+			sc.px[2*y*v.w+x] = g.pixel(v, &col, fy+0.25, pos)
+			sc.px[(2*y+1)*v.w+x] = g.pixel(v, &col, fy+0.75, pos)
+		}
+	}
+	// Two pixels to a cell is few: the mip levels and the haze leave the
+	// walls soft. An unsharp mask gives their edges back.
+	at := func(x, y int) rgb { return sc.px[y*v.w+x] }
+	for y := 0; y < v.h; y++ {
+		for x := 0; x < v.w; x++ {
+			var two [2]rgb
+			for k := range two {
+				py := 2*y + k
+				p := at(x, py)
+				blur := at(max(x-1, 0), py).add(at(min(x+1, v.w-1), py)).
+					add(at(x, max(py-1, 0))).add(at(x, min(py+1, 2*v.h-1))).mul(0.25)
+				two[k] = p.add(p.add(blur.mul(-1)).mul(sharpK))
+			}
+			if p := c.at(x, v.top+y); p != nil {
+				setHalves(p, two[0].mul(v.dim).grey(v.grey), two[1].mul(v.dim).grey(v.grey))
 			}
 		}
 	}
 }
+
+const sharpK = 0.45 // how hard the world's edges are sharpened
 
 // pixel is the colour at row fy of a column: ceiling, wall or floor.
 func (g *game) pixel(v *view, col *column, fy float64, pos vec) rgb {

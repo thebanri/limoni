@@ -11,14 +11,32 @@ import "math"
 // they are the core, and six passives are all the rest a build gets.
 const activeK = 1.25
 
+// Six actives each on a short clock filled the screen with effects. They
+// act actPace times as seldom and hit actPunch times as hard: a little less
+// damage in all, and each one reads. Daemons and Burn-in are not paced —
+// they are touch and trail, not casts.
+const (
+	actPace  = 1.8
+	actPunch = 1.5
+	actRetry = 0.25 // an active that found nothing to act on tries again soon
+)
+
 func (g *game) stepActives(dt float64) {
 	for a := augID(0); a < nAug; a++ {
 		if !augs[a].act || g.rank[a] == 0 {
 			continue
 		}
 		if g.actT[a] -= dt; g.actT[a] <= 0 {
-			g.actT[a] = g.activate(a, g.rank[a], g.st.dmg*g.ov(a)*activeK)
-			g.actP[a] = g.actT[a]
+			paced := a != augDaemon && a != augBurnIn
+			d := g.st.dmg * g.ov(a) * activeK
+			if paced {
+				d *= actPunch
+			}
+			t := g.activate(a, g.rank[a], d)
+			if paced && t > actRetry {
+				t *= actPace
+			}
+			g.actT[a], g.actP[a] = t, t
 		}
 	}
 	if n := g.rank[augDaemon]; n > 0 {
@@ -31,10 +49,9 @@ func (g *game) stepActives(dt float64) {
 }
 
 // activate makes active a, at rank r, act for damage d, and returns how
-// long until it acts again. One that found nothing to act on tries again
-// soon.
+// long until it acts again, before actPace.
 func (g *game) activate(a augID, r int, d float64) float64 {
-	const retry = 0.25
+	const retry = actRetry
 	lv := float64(r)
 	var near [8]int16
 	switch a {
