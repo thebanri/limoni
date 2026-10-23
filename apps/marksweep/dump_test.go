@@ -68,6 +68,13 @@ func TestDumpFrame(t *testing.T) {
 			g.die()
 			return g
 		},
+		"pause": func() *game {
+			g := scene()
+			pickN(g, augTesla, 2)
+			pickN(g, augHotPath, 1)
+			g.pauseRun()
+			return g
+		},
 		"title": func() *game {
 			g := newGame(42)
 			g.best = records{runs: 4, secs: 754, level: 35, kills: 2041}

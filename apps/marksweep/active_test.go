@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
@@ -169,8 +170,8 @@ func TestTheReloadChangesTheHeap(t *testing.T) {
 	}
 }
 
-// The build is drawn in two panels on the right when there is room, and
-// not again under the level.
+// The build is listed down the right edge when there is room: a heading
+// for each kind, then each held with its ranks.
 func TestTheBuildShowsInThePanel(t *testing.T) {
 	g := playing()
 	pickN(g, augTesla, 2)
@@ -186,12 +187,28 @@ func TestTheBuildShowsInThePanel(t *testing.T) {
 		}
 		return -1, -1
 	}
-	for _, s := range []string{"ACTIVE 1/6", "PASSIVE 1/6", "Tesla Coil", "Hot Path"} {
+	for _, s := range []string{"ACTIVE 1/6", "PASSIVE 1/6", "Tesla Coil •••••", "Hot Path •••••"} {
 		if x, y := find(s); x < 160-slotsW || y < slotsTop {
-			t.Errorf("%q at %d,%d, want in the panel at the right", s, x, y)
+			t.Errorf("%q at %d,%d, want at the right", s, x, y)
 		}
 	}
-	if x, _ := find("●●○○○"); x < 160-slotsW {
+	// Two ranks of five: the first two pips lit, the third not.
+	x, y := find("Tesla Coil •••••")
+	pip := func(k int) cell.Color { return b.Content[y*160+x+11+k].Style.Fg }
+	if pip(1) == pip(2) || pip(0) != pip(1) {
 		t.Errorf("Tesla Coil's two ranks of five are not shown")
+	}
+}
+
+// -showfps counts the frames drawn and shows the count a second.
+func TestTheFrameRateIsCounted(t *testing.T) {
+	g := playing()
+	start := g.fpsAt.Add(time.Hour)
+	g.countFrame(start) // the first second starts
+	for i := 1; i <= 144; i++ {
+		g.countFrame(start.Add(time.Duration(i) * time.Second / 144))
+	}
+	if g.fps != 144 {
+		t.Fatalf("144 frames in a second counted as %d fps", g.fps)
 	}
 }

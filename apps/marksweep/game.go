@@ -1,6 +1,9 @@
 package main
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 // Mark & Sweep: you are Limoni's garbage collector, and the frameworks have
 // come for the heap. Mark them with the crosshair, sweep them with the
@@ -191,6 +194,22 @@ type game struct {
 	best    records
 	noSound string
 	hint    string // a line for the title screen
+
+	// -showfps: the frames drawn in the last whole second
+	showFPS bool
+	fps     int
+	frames  int
+	fpsAt   time.Time
+}
+
+// countFrame counts a frame drawn, and every second makes the count the
+// frame rate shown.
+func (g *game) countFrame(now time.Time) {
+	g.frames++
+	if d := now.Sub(g.fpsAt); d >= time.Second {
+		g.fps = int(float64(g.frames)/d.Seconds() + 0.5)
+		g.frames, g.fpsAt = 0, now
+	}
 }
 
 func newGame(seed uint64) *game {
@@ -203,10 +222,12 @@ func newGame(seed uint64) *game {
 // reset starts a new run.
 func (g *game) reset() {
 	best, store, audio, vol, last, sens, exact, seed := g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd
+	showFPS, fps, frames, fpsAt := g.showFPS, g.fps, g.frames, g.fpsAt
 	noSound, clock, locked, mx, my, in, hint := g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint
 	*g = game{}
 	g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd = best, store, audio, vol, last, sens, exact, seed
 	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint = noSound, clock, locked, mx, my, in, hint
+	g.showFPS, g.fps, g.frames, g.fpsAt = showFPS, fps, frames, fpsAt
 	g.pos = vec{16, 16.5}
 	g.ang = -math.Pi / 2
 	g.prevAim = g.ang // or the gun swings at the start of every run

@@ -8,7 +8,7 @@ level, build something broken, and outlast the pressure. After ten minutes, noth
 
 ```bash
 go install github.com/thebanri/limoni/apps/marksweep@latest
-marksweep            # -fps 60 for a smoother picture, -mute for silence
+marksweep            # up to 144 frames a second; -showfps shows them, -mute for silence
 marksweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
 ```
 
@@ -153,8 +153,15 @@ lifts the view, and a kill, a blast or a hit taken shakes it. A kill's experienc
 dies; the freed bytes only stream home for the picture.
 
 The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font. The
-build sits in two framed panels at the right, ACTIVE and PASSIVE, six slots each: an element's mark, the
-name, the ranks and overclocks, and behind an active's row a fill that shows it readying to act.
+build is listed down the right edge, unframed: ACTIVE 3/6, then a row for each — its name, its ranks as
+pips, and a mark of its element's colour that, on an active, brightens as it readies to act and flashes
+as it does. A reload is a ring filling round the crosshair. The menus are cards over a veiled picture,
+headed in the pixel font, their choices buttons.
+
+The game draws up to 144 frames a second (`-fps` to change it; a frame costs about 1.2 ms with the pools
+full). What reaches the screen is the terminal's to decide: kitty waits 10 ms between its own frames
+unless told otherwise, about 100 a second at most — `repaint_delay 4` and `input_delay 1` in
+`kitty.conf` let it keep up with a 144 Hz screen, and `-window` opens it so.
 
 A frame allocates nothing: the pools, the gun's pixels and the renderer's scratch are sized once. The
 tests hold it to that on every screen, and with the most broken build's pools full (`BenchmarkFullPools`:

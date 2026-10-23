@@ -274,104 +274,92 @@ func (g *game) drawHUD(c canvas, v *view) {
 }
 
 const (
-	slotsW   = 32
-	slotsBg  = 0x0a0d18
-	slotsTop = 4 // under the boss bar and its warning
+	slotsW   = 30 // the widest row: a long name, five pips, the mark
+	slotsTop = 4  // under the boss bar and its warning
 )
 
-// drawSlots draws the build as two framed panels at the right: the six
-// active slots, then the six passive ones. A slot shows its element's mark,
-// its name, its ranks and overclocks; an active's row fills as it readies
-// to act again. It reports false, drawing nothing, when the window is too
-// small or the cards would cover it (the build is then listed instead).
+// drawSlots lists the build down the right edge, right-aligned and
+// unframed: a dim heading for the actives and one for the passives, then
+// a row for each held: its name, its ranks, and a mark of its element's
+// colour — an active's brightening as it readies to act. It reports false,
+// drawing nothing, when the window is too small or the cards would cover
+// it (the build is then listed under the level instead).
 func (g *game) drawSlots(c canvas) bool {
-	if c.w < 100 || c.h < slotsTop+2*(slots+2)+6 {
+	if c.w < 100 || c.h < slotsTop+2*(slots+1)+6 {
 		return false
 	}
-	if g.holds(true)+g.holds(false) == 0 {
-		return true // nothing to show yet, and nothing for the list either
-	}
-	x0 := c.w - slotsW
 	if g.phase == phCards {
-		if x, _, w, _ := g.cardRect(c, 2); x+w+1 > x0 {
+		if x, _, w, _ := g.cardRect(c, 2); x+w+1 > c.w-slotsW {
 			return false
 		}
 	}
 	y := slotsTop
 	for _, act := range [2]bool{true, false} {
-		g.slotBox(c, x0, y, act)
-		y += slots + 2
+		n := g.holds(act)
+		if n == 0 {
+			continue
+		}
+		label := "PASSIVE "
+		if act {
+			label = "ACTIVE "
+		}
+		hw := width(label) + 3
+		shadePanel(c, c.w-hw-1, y, hw+1, 1)
+		x := c.fg(c.w-hw, y, label, hudDim)
+		x = c.fgNumber(x, y, n, hudCyan)
+		c.fg(x, y, "/6", hudDim)
+		y++
+		for a := augID(0); a < nAug; a++ {
+			if g.rank[a] > 0 && augs[a].act == act {
+				g.slotRow(c, y, a)
+				y++
+			}
+		}
+		y++
 	}
 	return true
 }
 
-func (g *game) slotBox(c canvas, x0, y0 int, act bool) {
-	bg := hex(slotsBg)
-	border := hex(0x2a3350)
-	title, tc := " PASSIVE ", hudText
-	if act {
-		title, tc = " ACTIVE ", hudCyan
-	}
-	c.fill(x0, y0, slotsW, slots+2, ' ', style(hudText, bg))
-	c.box(x0, y0, slotsW, slots+2, style(border, bg))
-	x := c.text(x0+2, y0, title, style(tc, bg))
-	n := g.holds(act)
-	x = c.number(x, y0, n, style(hudWarn, bg))
-	c.text(x, y0, "/6 ", style(hudDim, bg))
-
-	row := 0
-	for a := augID(0); a < nAug && row < slots; a++ {
-		if g.rank[a] == 0 || augs[a].act != act {
-			continue
-		}
-		g.slotRow(c, x0+1, y0+1+row, a, bg)
-		row++
-	}
-	for ; row < slots; row++ {
-		c.text(x0+3, y0+1+row, "· · ·", style(hex(0x2a3350), bg))
-	}
-}
-
-// slotRow is one held augment, slotsW-2 columns wide from x.
-func (g *game) slotRow(c canvas, x, y int, a augID, bg rgb) {
+// slotRow is one held augment, ending at the right edge.
+func (g *game) slotRow(c canvas, y int, a augID) {
 	au := &augs[a]
-	inner := slotsW - 2
 	el := hex(elementCol[au.el])
 	if au.el == elNone {
 		el = hex(rarityCol[au.rar])
 	}
-	// An active's readiness, as its row's background filling up.
-	if au.act && g.actP[a] > 0 {
-		ready := 1 - math.Max(0, g.actT[a])/g.actP[a]
-		fill := int(ready * float64(inner))
-		for i := 0; i < fill; i++ {
-			if p := c.at(x+i, y); p != nil {
-				p.Style.Bg = bg.mix(el, 0.18).color()
-			}
-		}
+	over := g.over[a]
+	w := width(au.name) + 1 + au.max + 2
+	if over > 0 {
+		w += 2 + digits(over)
 	}
-	mark := "■"
+	x := c.w - w - 1
+	shadePanel(c, x-1, y, w+2, 1)
+	x = c.fg(x, y, au.name, hex(rarityCol[au.rar]).mix(rgb{1, 1, 1}, 0.5)) + 1
+	if over > 0 {
+		x = c.fg(x, y, "+", hudWarn)
+		x = c.fgNumber(x, y, over, hudWarn) + 1
+	}
+	for k := 0; k < au.max; k++ {
+		pip, pc := "•", hex(0x39405a)
+		if k < g.rank[a] {
+			pc = el
+		}
+		x = c.fg(x, y, pip, pc)
+	}
+	// The mark: an active's glows up as it readies, and flashes as it acts.
+	mark, mc := "■", el.mul(0.8)
 	if au.act {
 		mark = "◆"
-	}
-	c.fg(x+1, y, mark, el)
-	c.fg(x+3, y, au.name, hex(rarityCol[au.rar]).mix(rgb{1, 1, 1}, 0.45))
-	// The ranks at the right, and the overclocks past them.
-	r := x + inner - 2
-	if o := g.over[a]; o > 0 {
-		r -= digits(o)
-		c.fgNumber(r+1, y, o, hudWarn)
-		c.fg(r, y, "+", hudWarn)
-		r--
-	}
-	for k := au.max - 1; k >= 0; k-- {
-		pip, pc := "○", hudDim
-		if k < g.rank[a] {
-			pip, pc = "●", el
+		ready := 1.0
+		if g.actP[a] > 0 {
+			ready = 1 - math.Max(0, g.actT[a])/g.actP[a]
 		}
-		c.fg(r, y, pip, pc)
-		r--
+		mc = el.mul(float32(0.3 + 0.7*ready*ready))
+		if g.actP[a]-g.actT[a] < 0.12 {
+			mc = el.mix(rgb{1, 1, 1}, 0.6)
+		}
 	}
+	c.fg(x+1, y, mark, mc)
 }
 
 // drawBuild lists the actives or the passives the build holds from row y,
@@ -629,128 +617,205 @@ func (g *game) drawCard(c canvas, i int) {
 }
 
 // ── screens ──────────────────────────────────────────────────────────────
+//
+// The menus share one look: the picture behind veiled, a card with a
+// heading in the pixel font, and the choices as buttons, the chosen one a
+// lit bar.
+
+const (
+	cardBg     = 0x0a0d18
+	cardBorder = 0x2a3350
+	buttonW    = 26
+)
+
+// veil darkens the whole screen towards the night by k.
+func veil(c canvas, k float32, tint rgb) {
+	for y := 0; y < c.h; y++ {
+		for x := 0; x < c.w; x++ {
+			p := c.at(x, y)
+			if p == nil {
+				continue
+			}
+			top, bot := halves(p)
+			if p.Content == '▀' || p.Content == ' ' {
+				setHalves(p, top.mix(tint, k), bot.mix(tint, k))
+				continue
+			}
+			p.Style.Fg = fromColor(p.Style.Fg).mix(tint, k).color()
+			p.Style.Bg = bot.mix(tint, k).color()
+		}
+	}
+}
+
+// card draws a framed card w by h at (x, y), in the colour of its frame.
+func card(c canvas, x, y, w, h int, frame rgb) {
+	c.fill(x, y, w, h, ' ', style(hudText, hex(cardBg)))
+	c.box(x, y, w, h, style(frame, hex(cardBg)))
+}
+
+// buttons draws a three-item menu centred at row y: the chosen item a lit
+// bar with its marks, the others dim; SOUND carries its meter.
+func (g *game) buttons(c canvas, y int, items [3]string, sel int, bg rgb) {
+	x0 := (c.w - buttonW) / 2
+	for i, it := range items {
+		yy := y + i
+		st := style(hudDim, bg)
+		if i == sel {
+			lit := bg.mix(hudWarn, 0.16)
+			st = style(hudWarn, lit)
+			c.fill(x0, yy, buttonW, 1, ' ', st)
+			c.set(x0, yy, '▐', style(hudWarn, bg))
+			c.set(x0+buttonW-1, yy, '▌', style(hudWarn, bg))
+		}
+		c.text(x0+3, yy, it, st)
+		if it != "SOUND" {
+			continue
+		}
+		// The meter, at the right of the bar.
+		on := hudCyan
+		if i != sel {
+			on = hudDim
+		}
+		mx := x0 + buttonW - 14
+		for k := 0; k < 10; k++ {
+			r, col := '▮', on
+			if k >= g.volume {
+				r, col = '▯', hex(cardBorder)
+			}
+			p := c.at(mx+k, yy)
+			if p != nil {
+				p.Content = r
+				p.Style.Fg = col.color()
+			}
+		}
+		if i == sel {
+			c.set(mx-2, yy, '‹', st)
+			c.set(mx+11, yy, '›', st)
+		}
+	}
+}
+
+// parade draws the five frameworks' creatures in a row, rows tall in
+// pixels, with their framework under each; it returns the row after them.
+func (g *game) parade(c canvas, y, px int) int {
+	foes := [...]struct {
+		k    kindID
+		name string
+	}{{kBoba, "Bubble Tea"}, {kCrab, "Ratatui"}, {kModal, "tview"}, {kJSX, "Ink"}, {kElder, "ncurses"}}
+	step := 16
+	x0 := c.w/2 - step*len(foes)/2
+	for i, f := range foes {
+		kd := &kinds[f.k]
+		s := kd.spr[int(g.clock*5+float64(i))%len(kd.spr)]
+		hPx := px
+		wPx := hPx * s.w / s.h
+		cx := x0 + i*step + step/2
+		left, top := cx-wPx/2, 2*y+(px-hPx)
+		hop := int(math.Abs(math.Sin(g.clock*3+float64(i))) * 2)
+		for yy := 0; yy < hPx; yy++ {
+			for xx := 0; xx < wPx; xx++ {
+				k := (yy*s.h/hPx)*s.w + xx*s.w/wPx
+				if s.on[k] {
+					c.px(left+xx, top+yy-hop, s.px[k])
+				}
+			}
+		}
+		c.text(cx-width(f.name)/2, y+px/2+1, f.name, style(hex(kd.accent), hex(0x03040a)))
+	}
+	return y + px/2 + 2
+}
 
 func (g *game) drawTitle(c canvas) {
+	veil(c, 0.35, hex(0x03040a))
 	size := widgets.BigTextHalfHeight
 	tw, th := 96, 4
 	if c.w < 100 {
 		size, tw, th = widgets.BigTextQuadrant, 48, 4
 	}
+	tall := c.h >= 34
 	y := c.h/2 - 9
-	if y < 2 {
-		y = 2
+	if tall {
+		y = c.h/2 - 14
 	}
+	y = max(y, 1)
+	// The name, over its shadow.
+	tx := max(0, (c.w-tw)/2)
+	shadow := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hex(0x3a0e34).color()}}
+	shadow.Draw(cell.Context{Area: cell.Rect{X: uint16(tx + 1), Y: uint16(y + 1), Width: uint16(min(tw, c.w-tx-1)), Height: uint16(th)}}, c.b)
 	big := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hudPink.color()}}
-	big.Draw(cell.Context{Area: cell.Rect{X: uint16(max(0, (c.w-tw)/2)), Y: uint16(y), Width: uint16(min(tw, c.w)), Height: uint16(th)}}, c.b)
-	y += th + 1
-	sub := style(hudText, hex(0x03040a))
-	c.centered(y, "you are the garbage collector. the frameworks have come for the heap.", sub)
+	big.Draw(cell.Context{Area: cell.Rect{X: uint16(tx), Y: uint16(y), Width: uint16(min(tw, c.w)), Height: uint16(th)}}, c.b)
+	y += th + 2
+	c.centered(y, "you are the garbage collector. the frameworks have come for the heap.", style(hudText, hex(0x03040a)))
 	y += 2
-	items := [...]string{"SWEEP", "SOUND", "QUIT"}
-	for i, it := range items {
-		st := style(hudDim, hex(0x03040a))
-		mark := "  "
-		if i == g.menu {
-			st = style(hudWarn, hex(0x03040a))
-			mark = "▶ "
-		}
-		x := c.w/2 - 8
-		x = c.text(x, y+i, mark, st)
-		x = c.text(x, y+i, it, st)
-		if i == 1 {
-			x++
-			for k := 0; k < 10; k++ {
-				r := '·'
-				if k < g.volume {
-					r = '▮'
-				}
-				c.set(x+k, y+i, r, st)
-			}
-			if g.noSound != "" {
-				c.text(x+11, y+i, g.noSound, style(hudDim, hex(0x03040a)))
-			}
-		}
+	if tall {
+		y = g.parade(c, y, 12) + 1
 	}
-	y += len(items) + 1
-	// Who is coming, each in its own colour.
-	foes := [...]struct {
-		name string
-		col  uint32
-	}{{"Bubble Tea", 0xff5fd2}, {"Ratatui", 0xf74c00}, {"tview", 0x3d7bff}, {"Ink", 0x61dafb}, {"ncurses", 0x33ff66}}
-	total := 0
-	for _, f := range foes {
-		total += width(f.name) + 3
+	g.buttons(c, y, [3]string{"SWEEP", "SOUND", "QUIT"}, g.menu, hex(0x03040a))
+	if g.noSound != "" {
+		c.text((c.w+buttonW)/2+1, y+1, g.noSound, style(hudDim, hex(0x03040a)))
 	}
-	x := (c.w - total + 3) / 2
-	for i, f := range foes {
-		x = c.text(x, y, f.name, style(hex(f.col), hex(0x03040a)))
-		if i < len(foes)-1 {
-			x = c.text(x, y, " · ", style(hudDim, hex(0x03040a)))
-		}
-	}
-	y += 2
+	y += 4
 	if g.best.runs > 0 {
-		dim := style(hudDim, hex(0x03040a))
-		val := style(hudText, hex(0x03040a))
-		x := c.w/2 - 22
+		dim, val := style(hudDim, hex(0x03040a)), style(hudWarn, hex(0x03040a))
+		x := c.w/2 - 17
 		x = c.text(x, y, "BEST  ", dim)
 		x = c.clock(x, y, g.best.secs, val)
-		x = c.text(x, y, "  level ", dim)
+		x = c.text(x, y, "  ·  LV ", dim)
 		x = c.number(x, y, g.best.level, val)
-		x = c.text(x, y, "  swept ", dim)
-		c.number(x, y, g.best.kills, val)
-		y++
+		x = c.text(x, y, "  ·  ", dim)
+		x = c.number(x, y, g.best.kills, val)
+		c.text(x, y, " swept", dim)
+		y += 2
 	}
-	c.centered(y+1, "click or Enter to start · W/S choose · Esc quits", style(hudDim, hex(0x03040a)))
+	c.centered(y, "Enter or click to start · W/S choose · Esc quits", style(hudDim, hex(0x03040a)))
 	if g.hint != "" {
-		c.centered(y+3, g.hint, style(hudCyan, hex(0x03040a)))
+		c.centered(y+2, g.hint, style(hudCyan, hex(0x03040a)))
 	}
 }
 
 func (g *game) drawPause(c canvas) {
-	y := c.h/2 - 3
-	st := style(hudText, hex(0x05060a))
-	c.fill(0, y-1, c.w, 7, ' ', st)
-	c.centered(y, "SIGSTOP", style(hudWarn, hex(0x05060a)))
-	items := [...]string{"RESUME", "SOUND", "QUIT"}
-	for i, it := range items {
-		s := style(hudDim, hex(0x05060a))
-		mark := "  "
-		if i == g.pause {
-			s = style(hudWarn, hex(0x05060a))
-			mark = "▶ "
-		}
-		x := c.text(c.w/2-6, y+2+i, mark, s)
-		x = c.text(x, y+2+i, it, s)
-		if i == 1 {
-			x++
-			for k := 0; k < 10; k++ {
-				r := '·'
-				if k < g.volume {
-					r = '▮'
-				}
-				c.set(x+k, y+2+i, r, s)
-			}
-		}
-	}
+	veil(c, 0.6, hex(0x03040a))
+	w, h := 44, 15
+	x, y := (c.w-w)/2, (c.h-h)/2
+	card(c, x, y, w, h, hex(cardBorder))
+	bg := hex(cardBg)
+	c.big((c.w-27)/2, 2*(y+1)+1, "SIGSTOP", 1, hudWarn)
+	c.centered(y+5, "the run is stopped, not freed", style(hudDim, bg))
+	// Where the run stands.
+	dim, val := style(hudDim, bg), style(hudText, bg)
+	sx := c.w/2 - 14
+	sx = c.clock(sx, y+7, int(g.runTime), val)
+	sx = c.text(sx, y+7, "  ·  LV ", dim)
+	sx = c.number(sx, y+7, g.level, val)
+	sx = c.text(sx, y+7, "  ·  ", dim)
+	sx = c.number(sx, y+7, g.kills, val)
+	c.text(sx, y+7, " swept", dim)
+	g.buttons(c, y+9, [3]string{"RESUME", "SOUND", "QUIT"}, g.pause, bg)
+	c.centered(y+h-2, "Esc or P resumes", style(hex(cardBorder).mix(hudDim, 0.6), bg))
 }
 
 func (g *game) drawDead(c canvas) {
-	y := c.h/2 - 6
-	bg := hex(0x12040a)
-	st := style(hudText, bg)
+	veil(c, 0.55, hex(0x1a0208))
+	w, h := 58, 17
+	x, y := (c.w-w)/2, (c.h-h)/2
+	frame := hudBad.mul(0.6)
+	card(c, x, y, w, h, frame)
+	bg := hex(cardBg)
 	dim := style(hudDim, bg)
-	c.fill(0, y-1, c.w, 14, ' ', st)
-	c.centered(y, "fatal error: out of memory", style(hudBad, bg))
+	if c.w >= w+2 {
+		c.big((c.w-51)/2, 2*(y+1)+1, "OUT OF MEMORY", 1, hudBad)
+	} else {
+		c.centered(y+2, "OUT OF MEMORY", style(hudBad, bg))
+	}
 	if g.killedHow != "" {
 		by := kinds[g.killedBy].name
-		w := width(by) + 1 + width(g.killedHow) + 8
-		x := (c.w - w) / 2
-		x = c.text(x, y+1, "killed by ", dim)
-		x = c.text(x, y+1, by, style(hex(kinds[g.killedBy].accent), bg))
-		c.text(x+1, y+1, g.killedHow, dim)
+		tw := 10 + width(by) + 1 + width(g.killedHow)
+		xx := (c.w - tw) / 2
+		xx = c.text(xx, y+5, "killed by ", dim)
+		xx = c.text(xx, y+5, by, style(hex(kinds[g.killedBy].accent), bg))
+		c.text(xx+1, y+5, g.killedHow, dim)
 	} else {
-		c.centered(y+1, "the heap was overrun", dim)
+		c.centered(y+5, "the heap was overrun", dim)
 	}
 	rows := [...]struct {
 		label string
@@ -765,18 +830,20 @@ func (g *game) drawDead(c canvas) {
 		{"biggest hit", int(g.bigHit), g.best.bigHit, false},
 	}
 	for i, r := range rows {
-		yy := y + 3 + i
-		x := c.w/2 - 20
-		c.text(x, yy, r.label, dim)
-		x += 18
+		yy := y + 7 + i
+		lx := c.w/2 - 18
+		c.text(lx, yy, r.label, dim)
+		vx := c.w/2 + 4
+		st := style(hudText, bg)
 		if r.clock {
-			x = c.clock(x, yy, r.val, st)
+			vx = c.clock(vx, yy, r.val, st)
 		} else {
-			x = c.number(x, yy, r.val, st)
+			vx = c.number(vx, yy, r.val, st)
 		}
 		if r.val >= r.best && r.val > 0 {
-			c.text(x+2, yy, "best", style(hudWarn, bg))
+			c.text(vx+2, yy, " BEST ", style(hex(0x1a1408), hudWarn))
 		}
 	}
-	c.centered(y+10, "click or R to run again · Esc quits", dim)
+	c.centered(y+h-3, "R or click: run again", style(hudText, bg))
+	c.centered(y+h-2, "Esc quits", style(hex(cardBorder).mix(hudDim, 0.6), bg))
 }

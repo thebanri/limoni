@@ -12,7 +12,7 @@ import (
 // game with the other flags, and marked so it does not offer -window again.
 func TestWindowOpensKittyWithoutAPointer(t *testing.T) {
 	cmd := windowCmd("/usr/bin/kitty", "/bin/marksweep", []string{"-fps=60"})
-	want := []string{"/usr/bin/kitty", "-o", "mouse_hide_wait=0.05 1000 1000000 no", "--start-as=fullscreen", "--title", "Mark & Sweep", "/bin/marksweep", "-fps=60"}
+	want := []string{"/usr/bin/kitty", "-o", "mouse_hide_wait=0.05 1000 1000000 no", "-o", "repaint_delay=4", "-o", "input_delay=1", "--start-as=fullscreen", "--title", "Mark & Sweep", "/bin/marksweep", "-fps=60"}
 	if !slices.Equal(cmd.Args, want) {
 		t.Fatalf("args %q\nwant %q", cmd.Args, want)
 	}

@@ -1,8 +1,8 @@
 // Mark & Sweep: a first-person roguelite in the terminal, drawn in
 // half-block pixels.
 //
-//	go run .            # play
-//	go run . -fps 60    # smoother, where the terminal keeps up
+//	go run .            # play, at up to 144 frames a second
+//	go run . -showfps   # and show how many frames a second are drawn
 //	go run . -mute      # no sound
 //
 // You are Limoni's garbage collector. Bubble Tea, Ratatui, tview, Ink and
@@ -27,7 +27,8 @@ import (
 )
 
 func main() {
-	fps := flag.Int("fps", 30, "frames per second")
+	fps := flag.Int("fps", 144, "frames per second to draw; the terminal may show fewer (kitty: repaint_delay)")
+	showFPS := flag.Bool("showfps", false, "show the frames drawn each second")
 	mute := flag.Bool("mute", false, "no sound")
 	seed := flag.Uint64("seed", 0, "a seed, for a run that goes the same way twice")
 	window := flag.Bool("window", false, "open in a kitty window of its own, full screen, with no mouse pointer")
@@ -60,6 +61,7 @@ func main() {
 		s = uint64(time.Now().UnixNano())
 	}
 	g := newGame(s)
+	g.showFPS = *showFPS
 	g.store = newStore()
 	if g.store != nil {
 		g.best = g.store.load()
@@ -98,6 +100,7 @@ func main() {
 			g.event(ev)
 		}
 		g.render(f.Buffer)
+		g.countFrame(time.Now())
 		if g.phase == phPlay {
 			f.RenderWidget(crosshairPointer{}, f.Buffer.Area)
 		}

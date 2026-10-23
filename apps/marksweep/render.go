@@ -130,6 +130,14 @@ func (g *game) render(b *buffer.Buffer) {
 	case phDead:
 		g.drawDead(c)
 	}
+	if g.showFPS {
+		// -showfps: the frames drawn in the last second, top centre.
+		fw := digits(g.fps) + 4
+		x := (w - fw) / 2
+		shadePanel(c, x-1, 0, fw+2, 1)
+		x = c.fgNumber(x, 0, g.fps, hudCyan)
+		c.fg(x, 0, " fps", hudDim)
+	}
 }
 
 func fog(d float64) float32 { return float32(1 / (1 + d*d*0.018)) }
@@ -765,16 +773,22 @@ func (g *game) crosshair() (int, int) { return g.viewW / 2, g.viewH / 2 }
 func (g *game) drawCrosshair(v *view) {
 	x, y := g.crosshair()
 	if g.reloadT > 0 && g.st.reload > 0 {
-		// The collector at work: a little bar under the crosshair.
+		// The collector at work: a thin ring round the crosshair, filling
+		// clockwise from the top, in pixels.
 		frac := 1 - g.reloadT/g.st.reload
-		v.c.fg(x-1, y, "GC", hudCyan)
-		for i := 0; i < 5; i++ {
-			col := hudDim
-			if float64(i) < frac*5 {
-				col = hudCyan
+		cx, cy := float64(x)+0.5, float64(2*y)+1
+		const r = 5.5
+		n := 44
+		for i := 0; i < n; i++ {
+			t := (float64(i) + 0.5) / float64(n)
+			a := t * 2 * math.Pi
+			col := hex(0x2a3350)
+			if t <= frac {
+				col = hudCyan.mix(rgb{1, 1, 1}, float32(0.5*math.Max(0, 1-(frac-t)*8)))
 			}
-			v.c.fg(x-2+i, y+1, "▀", col)
+			v.c.px(int(cx+math.Sin(a)*r), int(cy-math.Cos(a)*r), col)
 		}
+		v.c.fg(x, y, "·", hudCyan)
 		return
 	}
 	col := hex(0xffffff)

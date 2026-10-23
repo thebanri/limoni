@@ -102,7 +102,7 @@ const checks = [
   ["a run after Enter: the HUD (HEAP, SWEPT, PRESSURE)", ["HEAP", "SWEPT", "PRESSURE"].every((s) => run.includes(s))],
   ["the run wants the pointer locked, and asked for it", wanted && asked],
   ["a click on the locked pointer fired (a sound, the frame redrawn)", fired && firing.length > 500],
-  ["letting the pointer go pauses the run (SIGSTOP)", paused.includes("SIGSTOP") && stillRunning],
+  ["letting the pointer go pauses the run (the pause card: stopped, RESUME)", paused.includes("stopped") && paused.includes("RESUME") && stillRunning],
   ["clips loaded into Web Audio", audio.buffers > 0],
   ["QUIT from the pause ended the program", exited],
 ];

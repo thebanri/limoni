@@ -15,6 +15,10 @@ import (
 // the game in a kitty window of its own, full screen, with that set.
 const hiddenPointer = "mouse_hide_wait=0.05 1000 1000000 no"
 
+// fastRepaint lets kitty draw as often as a fast screen refreshes: its
+// default waits 10 ms between frames, about 100 a second at most.
+const fastRepaint = "repaint_delay=4"
+
 // inOwnWindow reports whether this is the game -window opened.
 func inOwnWindow() bool { return os.Getenv("MARKSWEEP_WINDOW") == "1" }
 
@@ -45,7 +49,7 @@ func openWindow(args []string) error {
 }
 
 func windowCmd(kitty, exe string, args []string) *exec.Cmd {
-	cmd := exec.Command(kitty, append([]string{"-o", hiddenPointer, "--start-as=fullscreen", "--title", "Mark & Sweep", exe}, args...)...)
+	cmd := exec.Command(kitty, append([]string{"-o", hiddenPointer, "-o", fastRepaint, "-o", "input_delay=1", "--start-as=fullscreen", "--title", "Mark & Sweep", exe}, args...)...)
 	cmd.Env = append(os.Environ(), "MARKSWEEP_WINDOW=1")
 	return cmd
 }
