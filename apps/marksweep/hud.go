@@ -132,9 +132,13 @@ func (g *game) drawHUD(c canvas, v *view) {
 	x += barW + 1
 	c.fgClock(x, 0, int(g.runTime), hudText)
 
-	// Under it, the build: the actives, then the passives, one a row.
+	// The build: in a panel on the right when there is room, else listed
+	// under the level.
 	y := 1
 	rows := max(0, h/2-3)
+	if g.drawSlots(c) {
+		rows = -1
+	}
 	for _, act := range [2]bool{true, false} {
 		if g.holds(act) == 0 {
 			continue
@@ -266,6 +270,107 @@ func (g *game) drawHUD(c canvas, v *view) {
 			shadePanel(c, (w-hw)/2, h-1, hw, 1)
 			c.fg((w-hw)/2+1, h-1, hint, hudDim)
 		}
+	}
+}
+
+const (
+	slotsW   = 32
+	slotsBg  = 0x0a0d18
+	slotsTop = 4 // under the boss bar and its warning
+)
+
+// drawSlots draws the build as two framed panels at the right: the six
+// active slots, then the six passive ones. A slot shows its element's mark,
+// its name, its ranks and overclocks; an active's row fills as it readies
+// to act again. It reports false, drawing nothing, when the window is too
+// small or the cards would cover it (the build is then listed instead).
+func (g *game) drawSlots(c canvas) bool {
+	if c.w < 100 || c.h < slotsTop+2*(slots+2)+6 {
+		return false
+	}
+	if g.holds(true)+g.holds(false) == 0 {
+		return true // nothing to show yet, and nothing for the list either
+	}
+	x0 := c.w - slotsW
+	if g.phase == phCards {
+		if x, _, w, _ := g.cardRect(c, 2); x+w+1 > x0 {
+			return false
+		}
+	}
+	y := slotsTop
+	for _, act := range [2]bool{true, false} {
+		g.slotBox(c, x0, y, act)
+		y += slots + 2
+	}
+	return true
+}
+
+func (g *game) slotBox(c canvas, x0, y0 int, act bool) {
+	bg := hex(slotsBg)
+	border := hex(0x2a3350)
+	title, tc := " PASSIVE ", hudText
+	if act {
+		title, tc = " ACTIVE ", hudCyan
+	}
+	c.fill(x0, y0, slotsW, slots+2, ' ', style(hudText, bg))
+	c.box(x0, y0, slotsW, slots+2, style(border, bg))
+	x := c.text(x0+2, y0, title, style(tc, bg))
+	n := g.holds(act)
+	x = c.number(x, y0, n, style(hudWarn, bg))
+	c.text(x, y0, "/6 ", style(hudDim, bg))
+
+	row := 0
+	for a := augID(0); a < nAug && row < slots; a++ {
+		if g.rank[a] == 0 || augs[a].act != act {
+			continue
+		}
+		g.slotRow(c, x0+1, y0+1+row, a, bg)
+		row++
+	}
+	for ; row < slots; row++ {
+		c.text(x0+3, y0+1+row, "· · ·", style(hex(0x2a3350), bg))
+	}
+}
+
+// slotRow is one held augment, slotsW-2 columns wide from x.
+func (g *game) slotRow(c canvas, x, y int, a augID, bg rgb) {
+	au := &augs[a]
+	inner := slotsW - 2
+	el := hex(elementCol[au.el])
+	if au.el == elNone {
+		el = hex(rarityCol[au.rar])
+	}
+	// An active's readiness, as its row's background filling up.
+	if au.act && g.actP[a] > 0 {
+		ready := 1 - math.Max(0, g.actT[a])/g.actP[a]
+		fill := int(ready * float64(inner))
+		for i := 0; i < fill; i++ {
+			if p := c.at(x+i, y); p != nil {
+				p.Style.Bg = bg.mix(el, 0.18).color()
+			}
+		}
+	}
+	mark := "■"
+	if au.act {
+		mark = "◆"
+	}
+	c.fg(x+1, y, mark, el)
+	c.fg(x+3, y, au.name, hex(rarityCol[au.rar]).mix(rgb{1, 1, 1}, 0.45))
+	// The ranks at the right, and the overclocks past them.
+	r := x + inner - 2
+	if o := g.over[a]; o > 0 {
+		r -= digits(o)
+		c.fgNumber(r+1, y, o, hudWarn)
+		c.fg(r, y, "+", hudWarn)
+		r--
+	}
+	for k := au.max - 1; k >= 0; k-- {
+		pip, pc := "○", hudDim
+		if k < g.rank[a] {
+			pip, pc = "●", el
+		}
+		c.fg(r, y, pip, pc)
+		r--
 	}
 }
 

@@ -144,11 +144,17 @@ glint running round it.
 
 The gun has a small 3D engine of its own (`viewmodel.go`): a mesh of boxes, hulls and prisms built once,
 posed every frame, lit, rasterised with a depth buffer into half-block pixels and outlined. Its barrel
-points at a point on the ray through the crosshair, so on the screen its line meets the crosshair. It sways behind the aim, kicks on a shot, and on a reload rolls over while the heap (the
-canister of glowing bytes under it, as full as the magazine) drops out and a fresh one comes up. The
-muzzle flash and the tracer are light added to what is behind them.
+points at a point on the ray through the crosshair, so on the screen its line meets the crosshair. It
+sways behind the aim and kicks on a shot. A reload is a heap change: the gun tips and comes up, the spent
+heap (the canister of glowing bytes under it, as full as the magazine) slides out and falls, a full one
+rises into the socket and clicks home with a jolt. The muzzle flash, the tracer and the rounds in flight
+(hot streaks) are light added to what is behind them; a shot also lights the room round the gun and
+lifts the view, and a kill, a blast or a hit taken shakes it. A kill's experience counts the moment it
+dies; the freed bytes only stream home for the picture.
 
-The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font.
+The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font. The
+build sits in two framed panels at the right, ACTIVE and PASSIVE, six slots each: an element's mark, the
+name, the ranks and overclocks, and behind an active's row a fill that shows it readying to act.
 
 A frame allocates nothing: the pools, the gun's pixels and the renderer's scratch are sized once. The
 tests hold it to that on every screen, and with the most broken build's pools full (`BenchmarkFullPools`:

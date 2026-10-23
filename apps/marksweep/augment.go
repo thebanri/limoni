@@ -85,7 +85,7 @@ const (
 	augBatch     // every tenth shot a slug
 	augHeadroom  // damage at high health
 	augLastStand // fire rate at low health
-	augWeakRefs  // experience, and the bytes come at once
+	augWeakRefs  // experience
 	augGenGC     // damage to elites and bosses
 	augMutex     // less damage taken
 	augWatchdog  // regeneration
@@ -240,7 +240,7 @@ var augs = [nAug]augment{
 	augBatch:      {"Batch Job", "PROJECTILE", rare, 3, "every 10th shot a slug", "x4, pierces 4, +x1 a rank", augBatch, elNone, false},
 	augHeadroom:   {"Headroom", "DAMAGE", common, 5, "+10% damage", "above 80% health", augHeadroom, elNone, false},
 	augLastStand:  {"Last Resort", "RATE", rare, 3, "+25% fire rate", "under 40% health", augLastStand, elNone, false},
-	augWeakRefs:   {"Weak Refs", "GROWTH", common, 3, "+8% experience", "bytes fly to you at once", augWeakRefs, elNone, false},
+	augWeakRefs:   {"Weak Refs", "GROWTH", common, 3, "+8% experience", "from every kill, a rank", augWeakRefs, elNone, false},
 	augGenGC:      {"Generational GC", "DAMAGE", rare, 3, "+15% damage", "to elites and bosses", augGenGC, elNone, false},
 	augMutex:      {"Mutex", "HEALTH", common, 5, "-6% damage taken", "", augMutex, elNone, false},
 	augWatchdog:   {"Watchdog", "HEALTH", common, 5, "+0.6 health a second", "", augWatchdog, elNone, false},
@@ -309,7 +309,6 @@ type stats struct {
 	// the rest
 	refund, retry, headroom, lastStand, genGC, vampire, bigO float64
 	batch                                                    int
-	bytesNow                                                 bool
 }
 
 // ov is the overclock multiplier of an augment: +12% a pick past its last
@@ -405,7 +404,6 @@ func (g *game) recalc() {
 		genGC:     0.15 * g.rk(augGenGC),
 		vampire:   g.rk(augVampire),
 		bigO:      0.35 * g.rk(augBigO),
-		bytesNow:  r[augWeakRefs] > 0,
 	}
 	if r[augIgnite] == 0 {
 		s.burnP = 0

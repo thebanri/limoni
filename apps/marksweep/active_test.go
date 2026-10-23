@@ -2,7 +2,11 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
+
+	"github.com/thebanri/limoni/core/buffer"
+	"github.com/thebanri/limoni/core/cell"
 )
 
 // Six actives and six passives: once a kind's slots are full, its cards
@@ -127,5 +131,67 @@ func TestTheBoomerangComesBack(t *testing.T) {
 	}
 	if g.shots[j].alive || far < 3 || !g.shots[j].back {
 		t.Fatalf("alive %v after 2s, went %.1f, came back %v", g.shots[j].alive, far, g.shots[j].back)
+	}
+}
+
+// A kill pays its experience at once: the level, and its cards, come the
+// moment the enemy dies, not when the bytes arrive.
+func TestAKillPaysAtOnce(t *testing.T) {
+	g := playing()
+	g.xp = need(1) - 0.1
+	i := stillEnemy(g, kBoba, vec{16, 10}, 1, 0)
+	g.damage(i, 10, false)
+	if g.level != 2 || g.pending != 1 {
+		t.Fatalf("level %d, %d cards waiting, right after the kill", g.level, g.pending)
+	}
+}
+
+// The reload is a heap change: the spent heap slides out and falls, empty;
+// a full one rises back into the socket; the gun ends where it began.
+func TestTheReloadChangesTheHeap(t *testing.T) {
+	g := playing()
+	v := view{w: 140, h: 44, f: 90, horizon: 22}
+	at := func(t float64) pose {
+		g.reloadT = g.st.reload * (1 - t)
+		return g.gunPose(&v, 70, 44, 90)
+	}
+	rest := at(0.999)
+	g.reloadT = 0
+	still := g.gunPose(&v, 70, 44, 90)
+	if p := at(0.35); p.heapDrop < 0.15 || p.fill != 0 {
+		t.Fatalf("a third in: heap down %.2f, glow %.1f; want fallen and empty", p.heapDrop, p.fill)
+	}
+	if a, b := at(0.5), at(0.65); !(b.heapDrop < a.heapDrop) || a.fill != 1 {
+		t.Fatalf("the fresh heap does not rise: %.2f then %.2f, glow %.1f", a.heapDrop, b.heapDrop, a.fill)
+	}
+	if rest.heapDrop != 0 || math.Abs(rest.at.y-still.at.y) > 0.005 {
+		t.Fatalf("the gun does not come back: heap %.2f, height %.3f vs %.3f", rest.heapDrop, rest.at.y, still.at.y)
+	}
+}
+
+// The build is drawn in two panels on the right when there is room, and
+// not again under the level.
+func TestTheBuildShowsInThePanel(t *testing.T) {
+	g := playing()
+	pickN(g, augTesla, 2)
+	pickN(g, augHotPath, 1)
+	b := buffer.NewBuffer(cell.Rect{Width: 160, Height: 46})
+	g.render(b)
+	lines := strings.Split(snapshot(b), "\n")
+	find := func(s string) (int, int) {
+		for y, l := range lines {
+			if x := strings.Index(string([]rune(l)), s); x >= 0 {
+				return len([]rune(l[:x])), y
+			}
+		}
+		return -1, -1
+	}
+	for _, s := range []string{"ACTIVE 1/6", "PASSIVE 1/6", "Tesla Coil", "Hot Path"} {
+		if x, y := find(s); x < 160-slotsW || y < slotsTop {
+			t.Errorf("%q at %d,%d, want in the panel at the right", s, x, y)
+		}
+	}
+	if x, _ := find("●●○○○"); x < 160-slotsW {
+		t.Errorf("Tesla Coil's two ranks of five are not shown")
 	}
 }

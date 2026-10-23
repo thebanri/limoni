@@ -79,6 +79,9 @@ func (g *game) render(b *buffer.Buffer) {
 	if g.phase == phTitle {
 		ang = g.clock * 0.12
 	}
+	if g.phase == phPlay && g.shake > 0 {
+		ang += math.Sin(g.clock*61) * g.shake * 0.012
+	}
 	v.dirX, v.dirY = math.Cos(ang), math.Sin(ang)
 	pl := math.Tan(fov / 2)
 	v.plX, v.plY = -v.dirY*pl, v.dirX*pl
@@ -87,6 +90,13 @@ func (g *game) render(b *buffer.Buffer) {
 	bob := 0.0
 	if g.phase == phPlay {
 		bob = math.Sin(g.bob) * 0.35
+		// The kick of a shot lifts the view, and a kill, a blast or a hit
+		// taken shakes it — the picture only: the aim stays where it was.
+		k := math.Max(0, g.recoil)
+		bob += k * k * 0.9
+		if g.shake > 0 {
+			bob += math.Sin(g.clock*87) * g.shake * 0.9
+		}
 	}
 	v.horizon = float64(v.top) + float64(v.h)/2 + bob
 	v.dim = 1
@@ -94,7 +104,7 @@ func (g *game) render(b *buffer.Buffer) {
 		v.dim = 0.3
 	}
 	if g.reloadT > 0 && g.st.reload > 0 {
-		v.grey = float32(0.55 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
+		v.grey = float32(0.25 * math.Sin(math.Pi*(1-g.reloadT/g.st.reload)))
 	}
 	pos := g.pos
 	if g.phase == phTitle {
@@ -102,6 +112,7 @@ func (g *game) render(b *buffer.Buffer) {
 	}
 	g.drawWorld(&v, pos)
 	if g.phase != phTitle {
+		g.muzzleLight(&v)
 		g.drawSprites(&v, pos)
 		g.drawGun(&v)
 		g.drawCrosshair(&v)
@@ -540,6 +551,22 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 		g.glowBall(v, sx, 2*(v.horizon+0.5*rows-0.42*rows), math.Max(1, 0.1*2*rows), depth, hex(0xfff3b0))
 		return
 	}
+	if s.kind == shotPlayer && s.gen == 0 {
+		// A round in flight: a hot streak, white at its head, its tail
+		// the way it came.
+		col := hex(0xffd36b)
+		if s.crit {
+			col = hex(0xff6a3d)
+		}
+		l := s.vel.len()
+		tail := s.pos.sub(s.vel.scale(math.Min(0.9, s.age*30) / l))
+		tx, _, trows, tok := v.project(tail, pos)
+		if !tok {
+			tx, trows = sx, rows
+		}
+		g.streak(v, tx, 2*(v.horizon+0.08*trows), sx, 2*(v.horizon+0.08*rows), depth, col)
+		return
+	}
 	x := int(sx)
 	y := int(v.horizon + 0.5*rows - 0.42*rows)
 	if x < 0 || x >= v.w || y < v.top || y >= v.top+v.h || depth >= sc.zbuf[x] {
@@ -574,6 +601,68 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 		r = '●'
 	}
 	g.put(v, x, y, r, col.mul(0.5+0.5*fog(depth)), 0, rgb{})
+}
+
+// streak draws a line of light in pixels from its tail (x0, y0) to its
+// head (x1, y1): fading in from the tail, white at the head, with a halo
+// above and below.
+func (g *game) streak(v *view, x0, y0, x1, y1, depth float64, col rgb) {
+	n := int(math.Max(math.Abs(x1-x0), math.Abs(y1-y0))) + 1
+	n = min(n, 48)
+	for i := 0; i <= n; i++ {
+		t := float64(i) / float64(n)
+		x, py := int(x0+(x1-x0)*t), int(y0+(y1-y0)*t)
+		if x < 0 || x >= v.w || depth >= sc.zbuf[x] || py < 2*v.top || py >= 2*(v.top+v.h) {
+			continue
+		}
+		c := col.mul(float32(0.35 + 0.65*t))
+		if i == n {
+			c = col.mix(rgb{1, 1, 1}, 0.7)
+		}
+		v.c.px(x, py, c)
+		for _, dy := range [2]int{-1, 1} {
+			if q := py + dy; q >= 2*v.top && q < 2*(v.top+v.h) {
+				if p := v.c.at(x, q/2); p != nil {
+					top, bot := halves(p)
+					k := float32(0.35 * t)
+					if q%2 == 0 {
+						top = top.mix(col, k)
+					} else {
+						bot = bot.mix(col, k)
+					}
+					setHalves(p, top, bot)
+				}
+			}
+		}
+	}
+}
+
+// muzzleLight is the shot lighting the room: warm light added round the
+// gun, strongest at the moment of the flash.
+func (g *game) muzzleLight(v *view) {
+	k := (g.recoil - 0.55) / 0.45
+	if k <= 0 {
+		return
+	}
+	cx, cy := float64(v.w)*0.6, float64(v.top)+float64(v.h)*0.72
+	rx, ry := float64(v.w)*0.55, float64(v.h)*0.6
+	for y := v.top; y < v.top+v.h; y++ {
+		dy := (float64(y) - cy) / ry
+		for x := 0; x < v.w; x++ {
+			dx := (float64(x) - cx) / rx
+			f := 1 - (dx*dx + dy*dy)
+			if f <= 0 {
+				continue
+			}
+			p := v.c.at(x, y)
+			if p == nil || (p.Content != '▀' && p.Content != ' ') {
+				continue
+			}
+			add := flashCol.mul(float32(f * k * 0.16))
+			top, bot := halves(p)
+			setHalves(p, top.add(add), bot.add(add))
+		}
+	}
 }
 
 // glowBall draws a disc of pixels centred at (sx, cy), r pixels across,

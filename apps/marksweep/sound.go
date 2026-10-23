@@ -267,9 +267,11 @@ func (m *mixer) synth() {
 		f(s)
 		return s.buf
 	}
-	m.clips[sfxShot] = mk(0.14, func(s *synth) {
-		s.tone(0, 0.09, 1500, 420, 0.22, 5, square)
-		s.hiss(0, 0.07, 7000, 2000, 0.35, 9)
+	m.clips[sfxShot] = mk(0.18, func(s *synth) {
+		s.tone(0, 0.16, 190, 48, 0.55, 5, sine)     // the thump
+		s.hiss(0, 0.06, 9500, 2600, 0.5, 11)        // the crack
+		s.tone(0, 0.05, 1300, 520, 0.12, 8, square) // the action
+		s.hiss(0.02, 0.18, 1800, 300, 0.18, 6)      // the tail in the room
 	})
 	m.clips[sfxHit] = mk(0.08, func(s *synth) {
 		s.tone(0, 0.08, 520, 260, 0.25, 7, square)

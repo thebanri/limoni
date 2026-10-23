@@ -221,6 +221,23 @@ func TestDumpFrame(t *testing.T) {
 	shots["gun-right"] = gun(125, 30, 0)
 	shots["gun-reload"] = gun(70, 22, 0.2)
 	shots["gunbig"] = gun(100, 28, 0)
+	if os.Getenv("DUMP_FRAMES") != "" {
+		for _, r := range []float64{0.1, 0.25, 0.35, 0.5, 0.6, 0.75, 0.85, 0.95} {
+			shots[fmt.Sprintf("reload%02d", int(r*100))] = gun(70, 22, r)
+		}
+		for _, k := range []float64{1, 0.8, 0.5} {
+			k := k
+			shots[fmt.Sprintf("fire%02d", int(k*100))] = func() *game {
+				g := gun(70, 22, 0)()
+				g.recoil = k
+				for i := 0; i < 3; i++ {
+					j := g.shoot(g.pos.add(vec{math.Cos(g.ang), math.Sin(g.ang)}.scale(0.4+float64(i)*1.6+(1-k)*3)), g.ang, 10, 0, shotPlayer)
+					g.shots[j].age = 0.05
+				}
+				return g
+			}
+		}
+	}
 	for name, make := range shots {
 		g := make()
 		w, h := uint16(140), uint16(44)

@@ -332,19 +332,39 @@ func (g *game) gunPose(v *view, cx, cy, fp float64) pose {
 	pitch += k * k * 0.16
 	p.fill = float64(g.ammo) / float64(max(1, g.st.mag))
 	if g.reloadT > 0 && g.st.reload > 0 {
+		// A heap change: the gun tips, the spent heap slides out and
+		// falls, a fresh one rises into the socket and clicks home with a
+		// jolt, and the gun comes back.
 		t := 1 - g.reloadT/g.st.reload
-		tilt := math.Sin(math.Pi * t)
-		roll += tilt * 0.7
-		pitch -= tilt * 0.22
-		at.y -= tilt * 0.025
+		tilt := 1.0
 		switch {
-		case t < 0.3: // the spent heap falls out
-			p.heapDrop = ease(t/0.3) * 0.32
+		case t < 0.18:
+			tilt = ease(t / 0.18)
+		case t > 0.8:
+			tilt = 1 - ease((t-0.8)/0.2)
+		}
+		roll += tilt * 0.35
+		pitch -= tilt * 0.12
+		at.x -= tilt * 0.06 // brought in and up, so the socket shows
+		at.y += tilt * 0.05
+		switch {
+		case t < 0.18: // unlatched: it slips
+			p.heapDrop = ease(t/0.18) * 0.05
 			p.fill = 0
-		case t < 0.62:
-			p.heapDrop, p.fill = 0.32, 1
-		default: // a fresh one comes up
-			p.heapDrop, p.fill = 0.32*(1-ease((t-0.62)/0.38)), 1
+		case t < 0.42: // and falls away
+			f := (t - 0.18) / 0.24
+			p.heapDrop = 0.05 + f*f*0.45
+			p.fill = 0
+		case t < 0.7: // a fresh one rises into the socket
+			p.heapDrop = 0.28 * (1 - ease((t-0.42)/0.28))
+			p.fill = 1
+		default:
+			p.fill = 1
+			if t < 0.8 { // the click: a jolt up
+				bump := math.Sin(math.Pi * (t - 0.7) / 0.1)
+				at.y += bump * 0.012
+				pitch += bump * 0.06
+			}
 		}
 	}
 	p.rot = rotY(yaw).mul(rotX(pitch)).mul(rotZ(roll))

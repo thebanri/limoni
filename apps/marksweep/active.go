@@ -18,6 +18,7 @@ func (g *game) stepActives(dt float64) {
 		}
 		if g.actT[a] -= dt; g.actT[a] <= 0 {
 			g.actT[a] = g.activate(a, g.rank[a], g.st.dmg*g.ov(a)*activeK)
+			g.actP[a] = g.actT[a]
 		}
 	}
 	if n := g.rank[augDaemon]; n > 0 {

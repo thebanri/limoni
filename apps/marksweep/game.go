@@ -105,6 +105,7 @@ type game struct {
 	swayY   float64
 	prevAim float64
 	hitT    float64 // a shot landed: the crosshair's marker
+	shake   float64 // the screen shaking: a kill, a blast, a hit taken
 	killT   float64 // ... and killed
 
 	// input
@@ -149,6 +150,7 @@ type game struct {
 	phoenixT  float64 // Phoenix Restart: ready when not above zero
 	gasT      float64
 	actT      [nAug]float64 // each active's clock: it acts when this runs out
+	actP      [nAug]float64 // and how long that clock was set to, for the panel
 	vortex    vortex
 	burnAt    vec  // where Burn-in last left fire
 	slamSeen  bool // the claw slam has been explained
@@ -449,6 +451,7 @@ func (g *game) stepWeapon(dt float64) {
 	if g.recoil > 0 {
 		g.recoil -= dt * 6
 	}
+	g.shake = math.Max(0, g.shake-dt*4)
 	g.hitT -= dt
 	g.killT -= dt
 	if g.dryT > 0 {

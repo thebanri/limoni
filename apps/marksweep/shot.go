@@ -22,7 +22,7 @@ const (
 	maxShots   = 900
 	maxParts   = 700
 	maxBytes   = 400
-	shotSpeed  = 21.0
+	shotSpeed  = 32.0 // fast enough to feel like a shot, slow enough to see
 	enemySpeed = 7.5
 )
 
@@ -62,7 +62,7 @@ func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) int {
 		return -1 // the pool is full: the build has broken the heap
 	}
 	sp := shotSpeed
-	life := 1.6
+	life := 1.05
 	if k == shotBar || k == shotPearl {
 		sp, life = enemySpeed, 3
 	}
@@ -222,7 +222,11 @@ func (g *game) impact(s *shot, j int) {
 	if s.gen == 0 {
 		g.soundFrom(sfxHit, at, 0.35)
 	}
-	g.sparks(s.pos, 2, 0xffffff)
+	if s.gen == 0 {
+		g.sparks(s.pos, 5, 0xffd36b) // a hit throws sparks the way the shot went
+	} else {
+		g.sparks(s.pos, 2, 0xffffff)
+	}
 
 	// panic(): an explosion around the hit.
 	if g.st.explodeR > 0 {
@@ -249,6 +253,9 @@ func (g *game) impact(s *shot, j int) {
 
 func (g *game) explode(at vec, r, dmg float64, gen, skip int) {
 	g.ring(at, r)
+	if gen == 0 && at.dist2(g.pos) < 64 {
+		g.shake = math.Max(g.shake, 0.3)
+	}
 	if gen == 0 {
 		g.soundFrom(sfxBoom, at, 0.45)
 	}
@@ -420,16 +427,19 @@ func (g *game) stepParts(dt float64) {
 
 // ── freed bytes ──────────────────────────────────────────────────────────
 
-// orb is experience: the bytes an enemy held, freed.
+// orb is experience: the bytes an enemy held, freed. The experience is the
+// collector's the moment the enemy dies — a level comes at once — and the
+// bytes are its picture, streaming home.
 type orb struct {
 	alive bool
 	pos   vec
-	xp    float64
+	xp    float64 // for its size
 	t     float64 // for its flicker
 	age   float64
 }
 
 func (g *game) dropBytes(p vec, xp float64) {
+	g.gain(xp * g.st.xpK)
 	for i := range g.bytes {
 		if !g.bytes[i].alive {
 			g.bytes[i] = orb{alive: true, pos: p, xp: xp, t: g.rnd.f() * 6}
@@ -437,11 +447,10 @@ func (g *game) dropBytes(p vec, xp float64) {
 			return
 		}
 	}
-	g.gain(xp * g.st.xpK) // no room on the floor: straight to the collector
 }
 
-// stepBytes brings the freed bytes home: they rest a moment where the
-// enemy fell, then stream to the collector, faster the longer they fly.
+// stepBytes brings the freed bytes home at once, faster the longer they
+// fly.
 func (g *game) stepBytes(dt float64) {
 	for i := range g.bytes {
 		b := &g.bytes[i]
@@ -454,13 +463,10 @@ func (g *game) stepBytes(dt float64) {
 		l := d.len()
 		if l < 0.35 {
 			b.alive = false
-			g.gain(b.xp * g.st.xpK)
 			g.soundAt(sfxByte, 0.2, 0)
 			continue
 		}
-		if b.age > 0.6 {
-			speed := 4 + (b.age-0.6)*14
-			b.pos = b.pos.add(d.scale(math.Min(1, speed*dt/l)))
-		}
+		speed := 6 + b.age*20
+		b.pos = b.pos.add(d.scale(math.Min(1, speed*dt/l)))
 	}
 }

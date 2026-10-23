@@ -507,6 +507,7 @@ func (g *game) hurt(dmg float64, from vec, by kindID, how string) {
 	to := from.sub(g.pos)
 	g.hurtAng = math.Atan2(to.y, to.x)
 	g.hurtBy, g.hurtHow, g.hurtAmt, g.hurtShow = by, how, dmg, 2.5
+	g.shake = math.Max(g.shake, 0.7)
 	g.sound(sfxHurt)
 }
 
@@ -550,6 +551,10 @@ func (g *game) kill(i int) {
 	e.alive = false
 	g.onDeath(i)
 	g.kills++
+	g.shake = math.Max(g.shake, 0.22)
+	if kd.boss {
+		g.shake = 1.2
+	}
 	g.hitT, g.killT = 0.2, 0.2
 	g.burst(e)
 	g.dropBytes(e.pos, 1.5*kd.xp*(1+boolf(e.elite)*2))
