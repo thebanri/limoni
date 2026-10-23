@@ -56,12 +56,30 @@ Enemies come in through the spawn windows on the walls:
 | modal | tview | a mimic: its title bar lifts on a row of teeth, its `[Y]` and `[N]` buttons glare; slow and tough, and splits into the buttons |
 | progress | Bubbles | a serpent, its filled part bright and the rest grey; weaves in at speed |
 | elder | ncurses | an old phosphor monitor walking on two legs, a face on its screen; slow, armoured |
+| cursor | termbox | a block cursor with a gopher's eyes; blinks, and every blink brings it nearer |
+| bomb | notcurses | a worried bomb; beside you it lights its fuse and marks its blast on the floor. Shot dead it goes off at once, among its own |
+| crossterm | crossterm | a steel beetle with a cursor key's cross for a horn; stops, shows its line on the floor, and charges along it |
+| lip gloss | Lip Gloss | a lipstick with a glossy gem; keeps behind the others and shields them (`+`): shielded, they take half |
+| caret | prompt_toolkit | a floating `>` with a blinking cursor; keeps far, aims a red laser that holds still just before the shot, and fires one fast, hard one |
 
-Every tenth level a boss comes: **Boba Prime**, who throws rings of pearls and calls spinners, then
-**Ferris, Crab King**, crowned, then again, tougher each time. Every ranged enemy shows its attack before
-it: it glows and a rising tone plays, and a boss's attack is named under its health bar. Ferris takes
-turns between a **claw salvo**, five bars in a fan (get behind cover), and every third time a **claw slam**,
-a ring of fire spreading over the floor that hurts as it passes unless you dash through it. What hits you
+Kinds come in by level — spinner and boba from the start, termbox from 2, `</>` 3, bomb 4, crab 5,
+crossterm 6, modal 8, Lip Gloss 9, caret 10, progress 11, elder 15 — and a kind not yet met this run
+comes four times as often until it has, its arrival announced.
+
+Every tenth level a boss comes, in turn, then round again, tougher:
+
+| | from | |
+| :--- | :--- | :--- |
+| **Boba Prime** | Bubble Tea | rings of pearls, and spinners |
+| **Ferris, Crab King** | Ratatui | a claw salvo, five bars in a fan; every third time a claw slam, a ring of fire over the floor, to dash through |
+| **The Modal Queen** | tview | a dialog wall, eleven bars side by side with a gap in it; every second time her buttons and a modal |
+| **Ink, the Reconciler** | Ink | props drilled down to you, three shots that turn after you; every second time a re-render: it lands beside you where the floor glows |
+| **Textual, the Cascade** | Textual | a CSS cascade, blocks falling on you and round you on marked floor; every third time a storm of carets and cursors |
+
+Every ranged enemy shows its attack before
+it: it glows and a rising tone plays, and a boss's attack is named under its health bar. Marked floor
+(`hazard.go`) is a ring that fills as the moment nears; standing on it, MARKED: MOVE blinks under the
+crosshair, since you cannot see your own feet. What hits you
 leaves an arrow round the crosshair pointing back at it and a line over the health ("-24 FERRIS, CRAB
 KING claw salvo"); the death screen says what killed you. From level 12 some enemies are elites (gold, three
 times the health), and some of those are insulated (cyan health bar): explosions and arcs do nothing to

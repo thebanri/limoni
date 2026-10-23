@@ -431,6 +431,18 @@ func (g *game) drawBossBar(c canvas) {
 			// Its attack, named while it winds up.
 			what := "CLAW SALVO: get behind cover"
 			switch {
+			case e.k == kQueen && e.slam:
+				what = "SUMMONS: her buttons are coming"
+			case e.k == kQueen:
+				what = "DIALOG WALL: find the gap in it"
+			case e.k == kReconciler && e.slam:
+				what = "RE-RENDER: it lands where the floor glows"
+			case e.k == kReconciler:
+				what = "PROPS DRILL: they follow you, dash"
+			case e.k == kTextual && e.slam:
+				what = "WIDGET STORM: prompts and cursors"
+			case e.k == kTextual:
+				what = "CSS CASCADE: leave the marked floor"
 			case e.slam:
 				what = "CLAW SLAM: dash through the wave"
 			case e.k == kBobaPrime:

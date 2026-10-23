@@ -433,8 +433,8 @@ func (g *game) drawEnemy(v *view, pos vec, e *enemy) {
 // statusMarks writes a mark over an enemy for each element on it: ^ fire,
 // * ice, ° poison, ! lightning.
 func (g *game) statusMarks(v *view, sx, y, depth float64, e *enemy) {
-	var marks [4]byte
-	var cols [4]uint32
+	var marks [5]byte
+	var cols [5]uint32
 	n := 0
 	if e.burn > 0 {
 		marks[n], cols[n] = '^', elementTint[elFire]
@@ -450,6 +450,10 @@ func (g *game) statusMarks(v *view, sx, y, depth float64, e *enemy) {
 	}
 	if e.shockT > 0 {
 		marks[n], cols[n] = '!', elementTint[elShock]
+		n++
+	}
+	if e.shieldT > 0 && n < len(marks) {
+		marks[n], cols[n] = '+', 0xff6ad5
 		n++
 	}
 	yy := int(y)
@@ -838,6 +842,11 @@ func (g *game) drawCrosshair(v *view) {
 	}
 	if g.ammo == 0 && int(g.clock*3)%2 == 0 {
 		v.c.fg(x-5, y+2, "R: COLLECT", hudBad)
+	}
+	// The floor under the player is marked, and the player cannot see
+	// their own feet: say so under the crosshair.
+	if g.marked() && int(g.clock*6)%2 == 0 {
+		v.c.fg(x-6, y+4, "MARKED: MOVE", hudBad)
 	}
 }
 

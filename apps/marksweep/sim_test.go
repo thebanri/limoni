@@ -86,6 +86,22 @@ func bot(g *game, taste []augID) {
 				}
 			}
 		}
+		// A marked floor: step off it, and dash if it is about to go.
+		for k := range g.hazards {
+			h := &g.hazards[k]
+			if !h.alive || g.pos.dist2(h.pos) > (h.r+0.3)*(h.r+0.3) {
+				continue
+			}
+			out := g.pos.sub(h.pos)
+			f, r := dir(g.ang), dir(g.ang+math.Pi/2)
+			fw, rt := out.x*f.x+out.y*f.y, out.x*r.x+out.y*r.y
+			g.held[actFwd], g.held[actBack] = fw > 0, fw < 0
+			g.held[actRight], g.held[actLeft] = rt > 0, rt < 0
+			if h.t < 0.3 {
+				g.dash()
+			}
+			break
+		}
 		// What the game says to do about a claw slam: dash through it.
 		if w := g.wave; w.alive && !w.hit {
 			if gap := math.Sqrt(g.pos.dist2(w.pos)) - w.r; gap > 0 && gap < 0.6 {

@@ -12,10 +12,11 @@ type shotKind uint8
 const (
 	shotPlayer shotKind = iota
 	shotShrapnel
-	shotBar   // Ratatui's ▮
-	shotPearl // Boba Prime's pearls
-	shotShard // Ice Shards: a frozen foe's pieces, which chill
-	shotRang  // Round Trip: out, and back to the player
+	shotBar    // Ratatui's ▮
+	shotPearl  // Boba Prime's pearls
+	shotShard  // Ice Shards: a frozen foe's pieces, which chill
+	shotRang   // Round Trip: out, and back to the player
+	shotHoming // Ink's props: they turn after the player
 )
 
 const (
@@ -47,7 +48,9 @@ type shot struct {
 
 var shotSerial int32
 
-func (s *shot) hostile() bool { return s.kind == shotBar || s.kind == shotPearl }
+func (s *shot) hostile() bool {
+	return s.kind == shotBar || s.kind == shotPearl || s.kind == shotHoming
+}
 
 // shoot fires a shot from p at angle a and returns its index, or -1.
 func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) int {
@@ -65,6 +68,9 @@ func (g *game) shoot(p vec, a, dmg float64, gen int, k shotKind) int {
 	life := 1.05
 	if k == shotBar || k == shotPearl {
 		sp, life = enemySpeed, 3
+	}
+	if k == shotHoming {
+		sp, life = 6, 4.5
 	}
 	if k == shotShrapnel || k == shotShard {
 		sp, life = shotSpeed*0.8, 0.5
@@ -105,6 +111,9 @@ func (g *game) stepShots(dt float64) {
 		if s.life <= 0 {
 			s.alive = false
 			continue
+		}
+		if s.kind == shotHoming {
+			g.steerHoming(s, dt)
 		}
 		if s.kind == shotRang && s.age > 0.38 {
 			// Home: straight back to the player, able to hit again.

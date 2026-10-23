@@ -49,12 +49,24 @@ type arcFX struct {
 	life, max float64
 	col       rgb
 	seed      uint32
+	straight  bool // a laser, not lightning
 }
 
 func (g *game) addArc(a, b vec, za, zb, life float64, col rgb) {
 	for i := range g.arcs {
 		if !g.arcs[i].alive {
 			g.arcs[i] = arcFX{alive: true, a: a, b: b, za: za, zb: zb, life: life, max: life, col: col, seed: uint32(g.rnd.next())}
+			return
+		}
+	}
+}
+
+// addLaser is a straight line of light for a frame: a sniper's aim, a
+// shield's thread.
+func (g *game) addLaser(a, b vec, col rgb) {
+	for i := range g.arcs {
+		if !g.arcs[i].alive {
+			g.arcs[i] = arcFX{alive: true, a: a, b: b, za: 0.4, zb: 0.4, life: 0.05, max: 0.05, col: col, straight: true}
 			return
 		}
 	}
@@ -120,7 +132,8 @@ func (g *game) gatherDecals(pos vec) {
 		}
 		ds = append(ds, decal{pos: r.pos, r: r.r, inner: inner, col: r.col, k: float32(0.9 * r.life / r.max)})
 	}
-	if w := &g.wave; w.alive {
+	ds = g.hazardDecals(ds)
+	if w := &g.wave; w.alive && len(ds) < cap(ds) {
 		ds = append(ds, decal{pos: w.pos, r: w.r + 0.15, inner: w.r - 0.15, col: hex(0xff7a2a), k: 1})
 	}
 	sc.decals = ds
@@ -247,7 +260,7 @@ func (g *game) drawArcs(v *view, pos vec) {
 		for s := 1; s <= segs; s++ {
 			t := float64(s) / segs
 			nx, ny := ax+(bx-ax)*t, ay+(by-ay)*t
-			if s < segs {
+			if s < segs && !a.straight {
 				j := (float64(hash2(int(seed), s)) - 0.5) * span * 0.18
 				// across the line
 				nx += -(by - ay) / span * j

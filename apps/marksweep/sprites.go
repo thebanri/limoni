@@ -388,6 +388,195 @@ func phosphor(f int) *sprite {
 	return p.done()
 }
 
+// ── the newer arrivals ───────────────────────────────────────────────────
+
+// beetle is crossterm: a steel beetle whose horn is a cursor key's cross,
+// low to the ground, its legs scuttling.
+func beetle(f int) *sprite {
+	p := newPaint(20, 14)
+	steel, dark := hex(0x6f8fb8), hex(0x34465e)
+	for i, x := range []int{4, 9, 14} {
+		lift := (f + i) % 2
+		p.line(float64(x), 9, float64(x-2), float64(12-lift), 1, dark)
+		p.line(float64(x+2), 9, float64(x+4), float64(12-lift), 1, dark)
+	}
+	p.disc(10, 7, 7.5, 4.5, steel)
+	p.line(10, 3, 10, 11, 1, dark) // the seam of its shell
+	p.disc(17, 7.5, 2.8, 2.6, dark)
+	p.rect(18, 2, 18, 6, hex(0xdfe6f5)) // the horn: a cross
+	p.rect(16, 3, 20, 3, hex(0xdfe6f5))
+	p.eye(16, 6, true)
+	return p.done()
+}
+
+// caret is prompt_toolkit: a floating prompt, its body the > of a shell,
+// its eye a cursor that blinks, in Python's blue and yellow.
+func caret(f int) *sprite {
+	p := newPaint(16, 16)
+	blue, yellow := hex(0x3776ab), hex(0xffd43b)
+	p.line(2, 2, 9, 8, 3, blue)
+	p.line(9, 8, 2, 14, 3, blue)
+	p.line(3, 3, 8, 8, 1, blue.mul(1.4))
+	if f%2 == 0 {
+		p.rect(11, 9, 13, 13, yellow) // the cursor
+	}
+	p.rect(11, 14, 13, 14, yellow.mul(0.6))
+	p.dot(5, 7, hex(0xffffff))
+	p.dot(5, 9, hex(0x14101c))
+	return p.done()
+}
+
+// bomb is notcurses: a round black bomb with a burning fuse, its face
+// worried; lit is the fuse's spark.
+func bomb(f int) *sprite {
+	p := newPaint(16, 17)
+	p.disc(8, 10, 6.5, 6.2, hex(0x262634))
+	p.disc(6, 8, 2, 1.6, hex(0x4a4a5e))
+	p.rect(7, 2, 9, 4, hex(0x8a8a9a))
+	p.line(8, 2, 11, 0, 1, hex(0xc8b080))
+	spark := []uint32{0xffe14a, 0xff6a1a, 0xffffff, 0xff6a1a}[f%4]
+	p.dot(12, 0, hex(spark))
+	p.dot(13, 1, hex(spark).mul(0.7))
+	p.eye(5, 10, true)
+	p.eye(9, 10, true)
+	p.rect(6, 14, 10, 14, hex(0xff3a5a))
+	return p.done()
+}
+
+// gloss is Lip Gloss: a lipstick of a creature in Charm's pink, its cap a
+// glossy gem, sparkling.
+func gloss(f int) *sprite {
+	p := newPaint(14, 20)
+	p.rect(3, 11, 10, 19, hex(0x3a2440))
+	p.rect(3, 11, 10, 12, hex(0xc8a0ff))
+	p.disc(6.5, 7, 3.5, 5, hex(0xff5fd2))
+	p.rect(5, 3, 6, 9, hex(0xffc6ef))
+	p.eye(4, 14, true)
+	p.eye(8, 14, true)
+	for k, q := range [][2]int{{1, 2}, {12, 4}, {11, 0}, {0, 8}} {
+		if (k+f)%4 < 2 {
+			p.dot(q[0], q[1], hex(0xffffff))
+		}
+	}
+	return p.done()
+}
+
+// cursorBox is termbox: a block cursor with a gopher's eyes; half of it
+// gone on the frame it blinks.
+func cursorBox(f int) *sprite {
+	p := newPaint(12, 15)
+	top := 1
+	if f%2 == 1 {
+		top = 8 // blinking: the lower half only
+	}
+	p.rect(1, top, 10, 13, hex(0x8e9bb8))
+	p.rect(1, 13, 10, 14, hex(0x00add8))
+	if top == 1 {
+		p.disc(3.5, 5, 2.2, 2.2, hex(0xffffff))
+		p.disc(8.5, 5, 2.2, 2.2, hex(0xffffff))
+		p.rect(4, 5, 4, 6, hex(0x14101c))
+		p.rect(9, 5, 9, 6, hex(0x14101c))
+		p.rect(5, 9, 6, 10, hex(0xfff4a0))
+	} else {
+		p.rect(3, 10, 8, 10, hex(0x00add8))
+	}
+	return p.done()
+}
+
+// queen is tview's Modal Queen: a mimic twice as big, crowned, three
+// buttons across her front, her lid opening on teeth.
+func queen(f int) *sprite {
+	p := newPaint(32, 30)
+	blue, light := hex(0x2a5bd7), hex(0x8fb4ff)
+	body := 12
+	p.rect(1, body, 30, 28, blue)
+	p.rect(1, body, 1, 28, light)
+	p.rect(30, body, 30, 28, light)
+	p.rect(1, 28, 30, 28, light)
+	lid := body - 3
+	if f%2 == 1 {
+		lid = body - 7
+		p.rect(2, body-4, 29, body-1, hex(0x4a0014))
+		for x := 3; x < 29; x += 3 {
+			p.rect(x, body-1, x+1, body-1, hex(0xffffff))
+			p.dot(x, body-4, hex(0xffffff))
+		}
+	}
+	p.rect(1, lid, 30, lid+2, light)
+	for i, c := range []uint32{0xff5f57, 0xfebc2e, 0x28c840} {
+		p.dot(3+i*2, lid+1, hex(c))
+	}
+	// The crown.
+	gold := hex(0xffd23a)
+	p.rect(9, lid-3, 22, lid-1, gold)
+	for _, x := range []int{9, 13, 18, 22} {
+		p.rect(x, lid-6, x, lid-4, gold)
+	}
+	p.dot(15, lid-2, hex(0xff3a5a))
+	p.dot(16, lid-2, hex(0xff3a5a))
+	for i, r := range []rune{'Y', 'N', '?'} {
+		x := 3 + i*9
+		p.rect(x, 16, x+6, 24, hex(0xffe14a))
+		p.glyph(x+2, 18, r, hex(0x14101c))
+	}
+	return p.done()
+}
+
+// atom is Ink's Reconciler: React's atom made a creature, an eye for its
+// nucleus and three orbits turning round it.
+func atom(f int) *sprite {
+	p := newPaint(30, 30)
+	cyan := hex(0x61dafb)
+	for o := 0; o < 3; o++ {
+		tilt := float64(o)*math.Pi/3 + float64(f)*0.08
+		for k := 0; k < 90; k++ {
+			t := float64(k) / 90 * 2 * math.Pi
+			x, y := 13*math.Cos(t), 5*math.Sin(t)
+			rx := x*math.Cos(tilt) - y*math.Sin(tilt)
+			ry := x*math.Sin(tilt) + y*math.Cos(tilt)
+			p.dot(int(15+rx), int(15+ry), cyan.mul(0.75))
+		}
+		// an electron on each orbit
+		t := float64(f)*0.9 + float64(o)*2
+		x, y := 13*math.Cos(t), 5*math.Sin(t)
+		p.disc(15+x*math.Cos(tilt)-y*math.Sin(tilt), 15+x*math.Sin(tilt)+y*math.Cos(tilt), 1.4, 1.4, hex(0xffffff))
+	}
+	p.disc(15, 15, 4.5, 4.5, cyan)
+	p.rect(13, 13, 16, 16, hex(0xffffff))
+	p.rect(15, 14, 16, 15, hex(0x0a1a2a))
+	return p.done()
+}
+
+// cascade is Textual's golem: a layout of panels stacked like its CSS
+// box model — a header, a sidebar, a body with a face, a footer of keys.
+func cascade(f int) *sprite {
+	p := newPaint(28, 32)
+	p.rect(1, 2, 26, 4, hex(0x0178d4))   // the header
+	p.rect(1, 5, 7, 24, hex(0x3a3f50))   // the sidebar
+	p.rect(8, 5, 26, 24, hex(0x1e2433))  // the body
+	p.rect(1, 25, 26, 26, hex(0x2b2f3d)) // the footer
+	for x := 2; x < 26; x += 5 {
+		p.rect(x, 25, x+2, 25, hex(0xffa62b)) // its keys
+	}
+	for y := 7; y < 22; y += 3 {
+		p.rect(2, y, 6, y, hex(0x6c7390))
+	}
+	// The face, in the body.
+	g := hex(0xffa62b)
+	if f%2 == 0 {
+		p.rect(11, 9, 14, 12, g)
+		p.rect(19, 9, 22, 12, g)
+	} else {
+		p.rect(11, 11, 14, 11, g)
+		p.rect(19, 11, 22, 11, g)
+	}
+	p.rect(13, 17, 20, 18, hex(0xff3a5a))
+	// Legs: two columns of the grid.
+	p.rect(5, 27, 8, 31-f%2, hex(0x3a3f50))
+	p.rect(19, 27, 22, 30+f%2, hex(0x3a3f50))
+	return p.done()
+}
+
 func frames(n int, draw func(int) *sprite) []*sprite {
 	s := make([]*sprite, n)
 	for i := range s {

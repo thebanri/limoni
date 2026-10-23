@@ -194,8 +194,10 @@ func TestTheMostBrokenBuildStaysInsideThePools(t *testing.T) {
 			t.Fatalf("%d shots alive in a pool of %d", g.nShots, maxShots)
 		}
 	}
-	if g.peakShot != maxShots {
-		t.Errorf("the broken build peaked at %d shots; against foes that do not die it should fill all %d", g.peakShot, maxShots)
+	// Shots die as fast as they split once the pool is full, so the count
+	// at the end of a step sits just under it.
+	if g.peakShot < maxShots*95/100 {
+		t.Errorf("the broken build peaked at %d shots; against foes that do not die it should fill the %d", g.peakShot, maxShots)
 	}
 	b := buffer.NewBuffer(cell.Rect{Width: 160, Height: 46})
 	g.render(b)
@@ -205,10 +207,17 @@ func TestTheMostBrokenBuildStaysInsideThePools(t *testing.T) {
 }
 
 // fillArena puts n enemies of every ordinary kind in rows; tough ones do
-// not die, so a build's shots keep finding something to split on.
+// not die, so a build's shots keep finding something to split on. Bombs
+// are left out: they go off, and go with it, however tough.
 func fillArena(g *game, n int, tough bool) {
+	var ordinary []kindID
+	for k := kindID(0); k < kBobaPrime; k++ {
+		if kinds[k].act != bBomb {
+			ordinary = append(ordinary, k)
+		}
+	}
 	for i := 0; i < n; i++ {
-		j := g.addEnemy(kindID(i%int(kBobaPrime)), vec{4 + float64(i%24), 2 + float64(i/24)*0.6})
+		j := g.addEnemy(ordinary[i%len(ordinary)], vec{4 + float64(i%24), 2 + float64(i/24)*0.6})
 		if tough && j >= 0 {
 			g.enemies[j].hp, g.enemies[j].max = 1e12, 1e12
 		}

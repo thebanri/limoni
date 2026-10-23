@@ -34,6 +34,9 @@ func (g *game) vuln(e *enemy) float64 {
 	if e.elite || kinds[e.k].boss {
 		k += g.st.genGC
 	}
+	if e.shieldT > 0 {
+		k *= 0.5 // a Lip Gloss shield
+	}
 	return k
 }
 

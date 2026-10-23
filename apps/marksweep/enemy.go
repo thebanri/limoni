@@ -9,17 +9,25 @@ import "math"
 type kindID uint8
 
 const (
-	kSpinner   kindID = iota // Bubble Tea's spinner: swarms
-	kBoba                    // Bubble Tea: a cup with pearls
-	kJSX                     // Ink: </>, hops, splits in two
-	kTag                     // half of a </>
-	kCrab                    // Ratatui: keeps its distance and fires bars
-	kModal                   // tview: a slow modal that splits into buttons
-	kButton                  // one of a modal's buttons
-	kBar                     // Bubbles' progress bar: weaves at speed
-	kElder                   // ncurses: old, armoured, slow
-	kBobaPrime               // boss
-	kFerris                  // boss
+	kSpinner    kindID = iota // Bubble Tea's spinner: swarms
+	kBoba                     // Bubble Tea: a cup with pearls
+	kJSX                      // Ink: </>, hops, splits in two
+	kTag                      // half of a </>
+	kCrab                     // Ratatui: keeps its distance and fires bars
+	kModal                    // tview: a slow modal that splits into buttons
+	kButton                   // one of a modal's buttons
+	kBar                      // Bubbles' progress bar: weaves at speed
+	kElder                    // ncurses: old, armoured, slow
+	kBeetle                   // crossterm: winds up, then charges in a line
+	kCaret                    // prompt_toolkit: a sniper, its aim a laser
+	kBomb                     // notcurses: runs in, and blows up
+	kGloss                    // Lip Gloss: shields the others
+	kCursor                   // termbox: blinks closer
+	kBobaPrime                // boss
+	kFerris                   // boss
+	kQueen                    // boss: tview's Modal Queen
+	kReconciler               // boss: Ink's Reconciler
+	kTextual                  // boss: Textual's Cascade
 	nKinds
 )
 
@@ -30,7 +38,15 @@ const (
 	bHop
 	bWeave
 	bKeepAway
+	bCharge  // stops, shows its line, and charges along it
+	bSnipe   // keeps far, aims a laser, fires one hard shot
+	bBomb    // runs in; close, it lights its fuse
+	bSupport // keeps behind the others and shields them
+	bBlink   // walks, and every so often blinks nearer
 )
+
+// bosses come in this order, one every ten levels, then again, tougher.
+var bosses = [...]kindID{kBobaPrime, kFerris, kQueen, kReconciler, kTextual}
 
 type kind struct {
 	name     string
@@ -54,6 +70,7 @@ type kind struct {
 	bits     []rune    // the characters it comes apart into
 	accent   uint32    // its colour, for particles and the HUD
 	boss     bool
+	intro    string // said the first time it comes in a run
 }
 
 var kinds [nKinds]kind
@@ -82,12 +99,24 @@ type enemy struct {
 
 	windT   float64 // winding up an attack: it fires when this runs out
 	attacks int     // attacks made, for a boss that takes turns
-	slam    bool    // the attack wound up is Ferris's slam
+	slam    bool    // the attack wound up is Ferris's slam, or a boss's other one
+	dashT   float64 // charging while above zero
+	dashDir vec     // and which way
+	aim     vec     // where a sniper's laser points
+	shieldT float64 // shielded by a Lip Gloss while above zero
 }
 
 // windUp is how long a ranged enemy shows its attack coming.
 func windUp(k kindID, slam bool) float64 {
 	switch {
+	case k == kCaret:
+		return 1.1
+	case k == kBeetle:
+		return 0.75
+	case k == kCursor:
+		return 0.35
+	case k == kQueen, k == kReconciler, k == kTextual:
+		return 1.0
 	case slam:
 		return 1.1
 	case k == kFerris:
@@ -108,9 +137,9 @@ func init() {
 
 	kinds = [nKinds]kind{
 		kSpinner: {name: "spinner", from: "Bubble Tea", hp: 5, speed: 3.4, r: 0.18, height: 0.32, dmg: 5, xp: 0.6,
-			act: bChase, minLevel: 1, weight: 5, cost: 0.6, group: 5, spr: frames(8, dotling), bits: []rune("⠋⠙⠹⠸⠼⠴"), accent: 0xff5fd2},
+			act: bChase, minLevel: 1, weight: 3.5, cost: 0.6, group: 5, spr: frames(8, dotling), bits: []rune("⠋⠙⠹⠸⠼⠴"), accent: 0xff5fd2},
 		kBoba: {name: "boba", from: "Bubble Tea", hp: 20, speed: 2.0, r: 0.32, height: 0.75, dmg: 11, xp: 2,
-			act: bChase, minLevel: 1, weight: 6, cost: 2, group: 1, spr: frames(6, tap), bits: []rune("°o●"), accent: 0xff5fd2},
+			act: bChase, minLevel: 1, weight: 4.5, cost: 2, group: 1, spr: frames(6, tap), bits: []rune("°o●"), accent: 0xff5fd2},
 		kJSX: {name: "</>", from: "Ink", hp: 14, speed: 2.5, r: 0.26, height: 0.4, dmg: 9, xp: 1.5,
 			act: bHop, minLevel: 3, weight: 4, cost: 1.6, group: 2, splitTo: kTag, splitN: 2, spr: frames(2, chevron), bits: []rune("</>"), accent: 0x61dafb},
 		kTag: {name: "<", from: "Ink", hp: 5, speed: 3.3, r: 0.18, height: 0.3, dmg: 6, xp: 0.4,
@@ -122,13 +151,37 @@ func init() {
 		kButton: {name: "button", from: "tview", hp: 10, speed: 2.7, r: 0.22, height: 0.32, dmg: 7, xp: 0.8,
 			act: bChase, spr: btn, bits: []rune("[]YN"), accent: 0xffe14a},
 		kBar: {name: "progress", from: "Bubbles", hp: 36, speed: 3.0, r: 0.3, height: 0.3, dmg: 12, xp: 3,
-			act: bWeave, minLevel: 12, weight: 3, cost: 3.5, group: 2, spr: frames(8, serpent), bits: []rune("█░▕▏"), accent: 0xc06ef3},
+			act: bWeave, minLevel: 11, weight: 3, cost: 3.5, group: 2, spr: frames(8, serpent), bits: []rune("█░▕▏"), accent: 0xc06ef3},
 		kElder: {name: "elder", from: "ncurses", hp: 210, speed: 0.95, r: 0.52, height: 0.85, dmg: 28, xp: 12, armor: 3,
-			act: bChase, minLevel: 18, weight: 1.4, cost: 11, group: 1, spr: frames(5, phosphor), bits: []rune("+-|@="), accent: 0x33ff66},
+			act: bChase, minLevel: 15, weight: 1.4, cost: 11, group: 1, spr: frames(5, phosphor), bits: []rune("+-|@="), accent: 0x33ff66},
+		kBeetle: {name: "crossterm", from: "crossterm", hp: 42, speed: 1.8, r: 0.34, height: 0.45, dmg: 18, xp: 3.5, armor: 1,
+			act: bCharge, minLevel: 6, weight: 2.5, cost: 3, group: 1, ranged: true, spr: frames(2, beetle), bits: []rune("+=#"), accent: 0x6f8fb8},
+		kCaret: {name: "caret", from: "prompt_toolkit", hp: 22, speed: 1.6, r: 0.26, height: 0.45, dmg: 9, xp: 3,
+			act: bSnipe, minLevel: 10, weight: 2, cost: 3, group: 1, ranged: true, spr: frames(2, caret), bits: []rune(">_$"), accent: 0xffd43b},
+		kBomb: {name: "bomb", from: "notcurses", hp: 10, speed: 3.1, r: 0.27, height: 0.45, dmg: 30, xp: 1.6,
+			act: bBomb, minLevel: 4, weight: 2.5, cost: 1.8, group: 1, spr: frames(4, bomb), bits: []rune("*#@"), accent: 0xff6a1a},
+		kGloss: {name: "lip gloss", from: "Lip Gloss", hp: 30, speed: 1.9, r: 0.24, height: 0.55, dmg: 6, xp: 3.5,
+			act: bSupport, minLevel: 9, weight: 1.5, cost: 4, group: 1, spr: frames(4, gloss), bits: []rune("✧·+"), accent: 0xff6ad5},
+		kCursor: {name: "cursor", from: "termbox", hp: 13, speed: 1.6, r: 0.22, height: 0.42, dmg: 8, xp: 1.2,
+			act: bBlink, minLevel: 2, weight: 3, cost: 1.4, group: 2, ranged: true, spr: frames(2, cursorBox), bits: []rune("█▄_"), accent: 0x00add8},
 		kBobaPrime: {name: "BOBA PRIME", from: "Bubble Tea", hp: 1400, speed: 1.35, r: 0.95, height: 1.6, dmg: 30, xp: 60,
 			act: bChase, ranged: true, spr: frames(6, prime), bits: []rune("°o●◕"), accent: 0xff5fd2, boss: true},
 		kFerris: {name: "FERRIS, CRAB KING", from: "Ratatui", hp: 2300, speed: 1.1, r: 1.0, height: 1.5, dmg: 34, xp: 90, armor: 4,
 			act: bKeepAway, ranged: true, spr: frames(2, king), bits: []rune("()/\\▲"), accent: 0xf74c00, boss: true},
+		kQueen: {name: "THE MODAL QUEEN", from: "tview", hp: 3200, speed: 0.9, r: 1.1, height: 1.7, dmg: 36, xp: 120, armor: 5,
+			act: bKeepAway, ranged: true, spr: frames(2, queen), bits: []rune("[]YN?═"), accent: 0x3d7bff, boss: true},
+		kReconciler: {name: "INK, THE RECONCILER", from: "Ink", hp: 4000, speed: 1.4, r: 1.0, height: 1.6, dmg: 38, xp: 150, armor: 4,
+			act: bKeepAway, ranged: true, spr: frames(6, atom), bits: []rune("</>{}"), accent: 0x61dafb, boss: true},
+		kTextual: {name: "TEXTUAL, THE CASCADE", from: "Textual", hp: 5200, speed: 0.8, r: 1.1, height: 1.8, dmg: 42, xp: 180, armor: 6,
+			act: bKeepAway, ranged: true, spr: frames(2, cascade), bits: []rune("┃━▔▁"), accent: 0xffa62b, boss: true},
+	}
+	for k := range kinds {
+		if kd := &kinds[k]; kd.minLevel > 0 {
+			kd.intro = kd.from + "'s " + kd.name + " has come for the heap"
+			if kd.from == kd.name {
+				kd.intro = kd.name + " has come for the heap"
+			}
+		}
 	}
 }
 
@@ -162,6 +215,12 @@ func (g *game) spawn(dt float64) {
 			break
 		}
 		g.spawnAcc -= cost
+		if !g.seen[k] {
+			g.seen[k] = true
+			if k != kSpinner && k != kBoba {
+				g.say(kinds[k].intro) // the first of its kind this run
+			}
+		}
 		p := g.portal()
 		for i := 0; i < kinds[k].group; i++ {
 			off := vec{g.rnd.between(-0.6, 0.6), g.rnd.between(-0.6, 0.6)}
@@ -182,20 +241,30 @@ func (g *game) spawn(dt float64) {
 func (g *game) pickKind() kindID {
 	total := 0.0
 	for k := range kinds {
-		if kd := &kinds[k]; kd.minLevel > 0 && kd.minLevel <= g.level {
-			total += kd.weight
-		}
+		total += g.kindWeight(kindID(k))
 	}
 	pick := g.rnd.f() * total
 	for k := range kinds {
-		if kd := &kinds[k]; kd.minLevel > 0 && kd.minLevel <= g.level {
-			if pick < kd.weight {
-				return kindID(k)
-			}
-			pick -= kd.weight
+		if w := g.kindWeight(kindID(k)); pick < w {
+			return kindID(k)
+		} else {
+			pick -= w
 		}
 	}
 	return kBoba
+}
+
+// kindWeight is how often kind k comes now: not before its level, and much
+// more often until it has come once, so a new one is met soon.
+func (g *game) kindWeight(k kindID) float64 {
+	kd := &kinds[k]
+	if kd.minLevel == 0 || kd.minLevel > g.level {
+		return 0
+	}
+	if !g.seen[k] {
+		return kd.weight * 4
+	}
+	return kd.weight
 }
 
 // portal picks a spawn window that is not right next to the player, and
@@ -267,17 +336,16 @@ func (g *game) addEnemy(k kindID, p vec) int {
 }
 
 func (g *game) spawnBoss() {
-	k := kBobaPrime
-	if (g.bossNext/10)%2 == 0 {
-		k = kFerris
-	}
-	tier := float64(g.bossNext / 10)
+	k := bosses[(g.bossNext/10-1)%len(bosses)]
+	// Each boss in the order is tougher than the last by its own health;
+	// each time the order comes round, all of them again.
+	round := float64((g.bossNext/10 - 1) / len(bosses))
 	p := vec{16, 4}
 	if g.pos.y < 16 {
 		p = vec{16, 28}
 	}
 	if i := g.addEnemy(k, p); i >= 0 {
-		g.enemies[i].hp *= 1 + 0.6*(tier-1)
+		g.enemies[i].hp *= 1 + 0.8*round
 		g.enemies[i].max = g.enemies[i].hp
 		g.bossLive = true
 		g.say(kinds[k].name + " has entered the heap")
@@ -344,10 +412,58 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	if e.poison > 0 {
 		speed *= 1 - g.st.neuro
 	}
+	if e.shieldT > 0 {
+		e.shieldT -= dt
+	}
 	var m vec
 	switch kd.act {
 	case bChase, bHop:
 		m = n
+	case bCharge:
+		switch {
+		case e.dashT > 0:
+			e.dashT -= dt
+			m, speed = e.dashDir, 10
+		case e.windT > 0:
+			// standing, showing its line
+		default:
+			m = n
+		}
+	case bSnipe:
+		switch {
+		case e.windT > 0:
+		case d > 11:
+			m = n
+		case d < 7:
+			m = n.scale(-0.8)
+		default:
+			m = vec{-n.y, n.x}.scale(0.5 * math.Sin(e.phaseOff+e.t*0.5))
+		}
+	case bBomb:
+		if e.windT > 0 {
+			break // the fuse is lit: it stands and fizzes
+		}
+		m = n
+		if d < 1.6 {
+			e.windT = 0.9
+			g.addHazard(hazard{pos: e.pos, r: 1.8, t: 0.9, dmg: g.contact(e), src: e.k, how: "blast", owner: i, ownerK: e.k, foes: true})
+			g.soundFrom(sfxCharge, e.pos, 0.8)
+		}
+	case bSupport:
+		switch {
+		case d > 9:
+			m = n
+		case d < 6:
+			m = n.scale(-0.9)
+		}
+		if e.cd -= dt; e.cd <= 0 {
+			e.cd = 1.2
+			g.shieldNear(i, e)
+		}
+	case bBlink:
+		if e.windT <= 0 {
+			m = n
+		}
 	case bWeave:
 		side := vec{-n.y, n.x}
 		m = n.add(side.scale(math.Sin(e.t*4+e.phaseOff) * 1.2))
@@ -390,20 +506,48 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		if e.poison > 0 {
 			bite *= 1 - g.st.neuro/2
 		}
-		g.hurt(bite, e.pos, e.k, "bite")
+		how := "bite"
+		if e.dashT > 0 {
+			how = "charge"
+		}
+		g.hurt(bite, e.pos, e.k, how)
 		e.knock = n.scale(-6)
+	}
+	if kd.act == bBomb && e.windT > 0 {
+		e.windT -= dt // its hazard goes off, and it with it
+	}
+	// A sniper's laser: it follows the player until just before the shot,
+	// then holds still, so a step aside is the way out.
+	if kd.act == bSnipe && e.windT > 0 {
+		if e.windT > 0.3 {
+			e.aim = n
+		}
+		g.addLaser(e.pos, e.pos.add(e.aim.scale(math.Min(d+2, 14))), hex(0xff3a3a))
 	}
 	// Ranged: a wind-up first, long enough to see and to dash.
 	if kd.ranged {
 		switch {
 		case e.windT > 0:
 			if e.windT -= dt; e.windT <= 0 {
-				g.enemyFire(e, n)
+				g.enemyFire(i, e, n, d)
 			}
 		default:
 			e.cd -= dt
-			if e.cd <= 0 && d < 13 && g.sees(e.pos) {
-				e.slam = e.k == kFerris && e.attacks%3 == 2
+			reach := 13.0
+			switch kd.act {
+			case bCharge:
+				reach = 7
+			case bSnipe:
+				reach = 14
+			}
+			if e.cd <= 0 && d < reach && (kd.act == bBlink || g.sees(e.pos)) {
+				e.slam = slams(e)
+				if kd.act == bCharge {
+					e.dashDir = n
+					for k := 1; k <= 6; k++ { // its line, on the floor
+						g.addRing(e.pos.add(n.scale(float64(k)*1.0)), 0.22, 0, 0.22, windUp(e.k, false), hex(0x6f8fb8), true)
+					}
+				}
 				e.windT = windUp(e.k, e.slam)
 				vol := float32(0.5)
 				if kd.boss {
@@ -433,12 +577,86 @@ func (g *game) sees(p vec) bool {
 	return true
 }
 
-func (g *game) enemyFire(e *enemy, n vec) {
+func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
 	kd := &kinds[e.k]
 	a := math.Atan2(n.y, n.x)
 	dmg := kd.dmg * 0.7 * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure())
 	e.attacks++
 	switch e.k {
+	case kBeetle:
+		e.cd, e.dashT = 3, 0.6
+		g.soundFrom(sfxDash, e.pos, 0.8)
+		return
+	case kCaret:
+		e.cd = 3.2
+		if j := g.enemyShot(e, e.pos.add(e.aim.scale(kd.r)), math.Atan2(e.aim.y, e.aim.x), dmg*2.2, shotBar); j >= 0 {
+			g.shots[j].vel = g.shots[j].vel.scale(3) // a prompt's shot is fast
+		}
+	case kCursor:
+		e.cd = 1.8
+		step := math.Min(2.6, d-1.2)
+		if to := e.pos.add(n.scale(step)); step > 0.3 && free(to.x, to.y, kd.r) {
+			g.puff(e.pos, 0.3, 0.25, 0.4, 0, 0.3, hex(0x00add8))
+			e.pos = to
+			g.puff(e.pos, 0.3, 0.25, 0.4, 0, 0.3, hex(0xe8ecf8))
+		}
+		return
+	case kQueen:
+		e.cd = 2.6
+		if e.slam { // her buttons, and a modal
+			for k := 0; k < 4; k++ {
+				g.addEnemy(kButton, e.pos.add(dir(float64(k)*math.Pi/2).scale(1.5)))
+			}
+			g.addEnemy(kModal, e.pos.add(n.scale(1.5)))
+			g.soundFrom(sfxRoar, e.pos, 0.6)
+			return
+		}
+		// A dialog wall: eleven bars side by side, two missing.
+		side := vec{-n.y, n.x}
+		gap := 1 + g.rnd.intn(8)
+		for k := 0; k < 11; k++ {
+			if k == gap || k == gap+1 {
+				continue
+			}
+			g.enemyShot(e, e.pos.add(side.scale((float64(k)-5)*0.55)).add(n.scale(kd.r)), a, dmg*0.8, shotBar)
+		}
+	case kReconciler:
+		e.cd = 2.4
+		if e.slam { // a re-render: it lands by the player, where the floor glows
+			for try := 0; try < 8; try++ {
+				to := g.pos.add(dir(g.rnd.f() * 2 * math.Pi).scale(2.5))
+				if free(to.x, to.y, kd.r) {
+					g.addHazard(hazard{pos: to, r: 1.7, t: 1.0, dmg: g.contact(e) * 0.8, src: e.k, how: "re-render", owner: i, ownerK: e.k, land: true})
+					break
+				}
+			}
+			return
+		}
+		for k := -1; k <= 1; k++ { // props, drilled down to the player
+			g.enemyShot(e, e.pos.add(n.scale(kd.r)), a+float64(k)*0.6, dmg*0.7, shotHoming)
+		}
+	case kTextual:
+		e.cd = 2.8
+		if e.slam { // widgets of its own
+			for k := 0; k < 2; k++ {
+				g.addEnemy(kCaret, e.pos.add(dir(g.rnd.f()*2*math.Pi).scale(1.6)))
+			}
+			for k := 0; k < 3; k++ {
+				g.addEnemy(kCursor, e.pos.add(dir(g.rnd.f()*2*math.Pi).scale(1.6)))
+			}
+			g.soundFrom(sfxRoar, e.pos, 0.6)
+			return
+		}
+		// A cascade: blocks falling on the player and round them.
+		for k := 0; k < 5; k++ {
+			at := g.pos
+			if k > 0 {
+				at = at.add(dir(float64(k)*math.Pi/2 + g.rnd.f()).scale(g.rnd.between(1.8, 3)))
+			}
+			g.addHazard(hazard{pos: at, r: 1.2, t: 1.1 + 0.15*float64(k), dmg: g.contact(e) * 0.7, src: e.k, how: "css cascade", owner: -1})
+		}
+		g.soundFrom(sfxCharge, g.pos, 0.6)
+		return
 	case kCrab:
 		e.cd = 2.4
 		g.enemyShot(e, e.pos.add(n.scale(kd.r)), a, dmg, shotBar)
@@ -465,10 +683,39 @@ func (g *game) enemyFire(e *enemy, n vec) {
 	g.soundFrom(sfxSpit, e.pos, 0.7)
 }
 
-// enemyShot fires a hostile shot that remembers who fired it.
-func (g *game) enemyShot(e *enemy, p vec, a, dmg float64, k shotKind) {
-	if i := g.shoot(p, a, dmg, 0, k); i >= 0 {
+// enemyShot fires a hostile shot that remembers who fired it, and returns
+// its index or -1.
+func (g *game) enemyShot(e *enemy, p vec, a, dmg float64, k shotKind) int {
+	i := g.shoot(p, a, dmg, 0, k)
+	if i >= 0 {
 		g.shots[i].src = e.k
+	}
+	return i
+}
+
+// slams reports whether e's next attack is its other one: Ferris's slam
+// every third, the Queen's summons and the Reconciler's re-render every
+// second, Textual's widgets every third.
+func slams(e *enemy) bool {
+	switch e.k {
+	case kFerris, kTextual:
+		return e.attacks%3 == 2
+	case kQueen, kReconciler:
+		return e.attacks%2 == 1
+	}
+	return false
+}
+
+// shieldNear is Lip Gloss at work: the others near it are shielded for a
+// while, a pink line to each.
+func (g *game) shieldNear(i int, e *enemy) {
+	for j := range g.enemies {
+		o := &g.enemies[j]
+		if j == i || !o.alive || kinds[o.k].act == bSupport || o.pos.dist2(e.pos) > 16 {
+			continue
+		}
+		o.shieldT = 2.5
+		g.addLaser(e.pos, o.pos, hex(0xff6ad5))
 	}
 }
 
@@ -477,6 +724,12 @@ func attackName(src kindID, k shotKind) string {
 	switch {
 	case src == kFerris:
 		return "claw salvo"
+	case src == kCaret:
+		return "prompt shot"
+	case src == kQueen:
+		return "dialog wall"
+	case src == kReconciler:
+		return "props drill"
 	case k == shotPearl:
 		return "pearl ring"
 	}
@@ -549,6 +802,9 @@ func (g *game) kill(i int) {
 	e := &g.enemies[i]
 	kd := &kinds[e.k]
 	e.alive = false
+	if kd.act == bBomb {
+		g.bombGoesOff(i)
+	}
 	g.onDeath(i)
 	g.kills++
 	g.shake = math.Max(g.shake, 0.22)

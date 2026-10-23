@@ -257,6 +257,47 @@ func TestDumpFrame(t *testing.T) {
 			return g
 		}
 	}
+	shots["minions"] = func() *game {
+		g := playing()
+		g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		g.bossNext = 99
+		for i, k := range []kindID{kBeetle, kCaret, kBomb, kGloss, kCursor} {
+			j := g.addEnemy(k, vec{13.6 + float64(i)*1.2, 23.6 + float64(i%2)*0.5})
+			g.enemies[j].phaseOff = 0
+		}
+		return g
+	}
+	boss := func(k kindID, slam bool, steps int) func() *game {
+		return func() *game {
+			g := playing()
+			g.pos, g.ang = vec{16, 26}, -math.Pi/2
+			g.bossNext, g.hp = 99, 1e6
+			j := g.addEnemy(k, vec{15, 22.4})
+			g.bossLive = true
+			e := &g.enemies[j]
+			if slam {
+				e.attacks = 1
+				if k == kTextual {
+					e.attacks = 2
+				}
+			}
+			e.slam = slams(e)
+			to := g.pos.sub(e.pos)
+			g.enemyFire(j, e, to.scale(1/to.len()), to.len())
+			for i := 0; i < steps; i++ {
+				g.stepShots(1.0 / 30)
+				g.stepHazards(1.0 / 30)
+				g.stepFX(1.0 / 30)
+				g.clock += 1.0 / 30
+			}
+			e.windT, e.slam = 0.5, slams(e)
+			g.msgT = 0
+			return g
+		}
+	}
+	shots["boss-queen"] = boss(kQueen, false, 6)
+	shots["boss-ink"] = boss(kReconciler, true, 12)
+	shots["boss-textual"] = boss(kTextual, false, 12)
 	shots["poster"] = func() *game {
 		g := playing()
 		g.pos, g.ang = vec{16.12, 28.2}, -math.Pi/2

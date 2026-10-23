@@ -166,6 +166,8 @@ type game struct {
 	burnAt    vec  // where Burn-in last left fire
 	slamSeen  bool // the claw slam has been explained
 	zones     [maxZones]zone
+	hazards   [maxHazards]hazard
+	seen      [nKinds]bool // the kinds that have come this run
 	rings     [maxRings]ringFX
 	arcs      [maxArcs]arcFX
 	wave      wave
@@ -337,6 +339,7 @@ func (g *game) step(dt float64) {
 	g.spawn(world)
 	g.stepEnemies(world)
 	g.stepZones(world)
+	g.stepHazards(world)
 	g.stepWave(world)
 	g.stepPowers(dt)
 	g.stepShots(world)
