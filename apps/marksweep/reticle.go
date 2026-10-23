@@ -24,6 +24,12 @@ var reticleColors = [...]struct {
 
 var reticleSizes = [...]string{"SMALL", "MEDIUM", "LARGE"}
 
+// Each size's arm length and gap from the middle, in pixels.
+var (
+	reticleArm = [...]int{1, 2, 3}
+	reticleGap = [...]int{1, 1, 2}
+)
+
 // reticlePx collects a crosshair's pixels before they are drawn, so the
 // outline can go under all of them first.
 var reticlePx [96][2]int
@@ -35,8 +41,8 @@ func drawReticle(v *view, cx, cy int, r reticle, spread int, col rgb) {
 		classicReticle(v, cx, cy/2, spread, col)
 		return
 	}
-	arm := [...]int{2, 3, 5}[r.size]
-	gap := [...]int{1, 2, 3}[r.size] + spread
+	arm := reticleArm[r.size]
+	gap := reticleGap[r.size] + spread
 	n := 0
 	add := func(x, y int) {
 		if n < len(reticlePx) {
@@ -72,12 +78,12 @@ func drawReticle(v *view, cx, cy int, r reticle, spread int, col rgb) {
 			add(cx, cy+d)
 		}
 		if r.style == 1 {
-			dot()
+			add(cx, cy) // a single pixel: a bigger dot would fill the gap
 		}
 	case "DOT":
 		dot()
 	case "CIRCLE":
-		rad := float64(gap + arm - 1)
+		rad := float64(gap + arm)
 		steps := int(rad * 7)
 		for i := 0; i < steps; i++ {
 			a := float64(i) / float64(steps) * 2 * math.Pi

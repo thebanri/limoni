@@ -810,9 +810,9 @@ func (g *game) drawCrosshair(v *view) {
 	}
 	// The crosshair the settings chose, opened by the kick of a shot.
 	cx, cy := x, 2*y+1
-	spread := int(math.Max(0, g.recoil) * 4)
+	spread := int(math.Max(0, g.recoil) * 2.5)
 	drawReticle(v, cx, cy, g.ret, spread, g.reticleColor())
-	gap := [...]int{1, 2, 3}[g.ret.size] + spread
+	gap := reticleGap[g.ret.size] + spread
 	if g.hitT > 0 {
 		// The hit marker: four diagonal strokes, spreading as they fade;
 		// red for a kill.
