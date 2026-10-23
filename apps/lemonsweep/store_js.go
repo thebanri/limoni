@@ -4,7 +4,9 @@ package main
 
 import "syscall/js"
 
-const storageKey = "marksweep"
+// storageKey holds the records; oldKey held them when the game was Mark &
+// Sweep, and is read until the new one is written.
+const storageKey, oldKey = "lemonsweep", "marksweep"
 
 type browserStore struct{}
 
@@ -19,6 +21,9 @@ func (browserStore) load() (r records) {
 		}
 	}()
 	v := js.Global().Get("localStorage").Call("getItem", storageKey)
+	if v.Type() != js.TypeString {
+		v = js.Global().Get("localStorage").Call("getItem", oldKey)
+	}
 	if v.Type() != js.TypeString {
 		return records{volume: -1}
 	}

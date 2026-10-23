@@ -1,4 +1,4 @@
-module github.com/thebanri/limoni/apps/marksweep
+module github.com/thebanri/limoni/apps/lemonsweep
 
 go 1.25.0
 

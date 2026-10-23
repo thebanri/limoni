@@ -735,9 +735,9 @@ func (g *game) drawTitle(c canvas) {
 	bg := hex(0x03040a)
 	veil(c, 0.35, bg)
 	size := widgets.BigTextHalfHeight
-	tw, th := 96, 4
-	if c.w < 100 {
-		size, tw, th = widgets.BigTextQuadrant, 48, 4
+	tw, th := 88, 4 // eight columns a letter
+	if c.w < 92 {
+		size, tw, th = widgets.BigTextQuadrant, 44, 4
 	}
 	// What fits: the creatures' parade on a tall screen, the maps as cards
 	// on a wide one, as lines on a narrower one.
@@ -756,9 +756,9 @@ func (g *game) drawTitle(c canvas) {
 	y := max(1, (c.h-need)/2)
 	// The name, over its shadow.
 	tx := max(0, (c.w-tw)/2)
-	shadow := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hex(0x3a0e34).color()}}
+	shadow := widgets.BigText{Text: "LEMON SWEEP", Size: size, Style: cell.Style{Fg: hex(0x3a2e08).color()}}
 	shadow.Draw(cell.Context{Area: cell.Rect{X: uint16(tx + 1), Y: uint16(y + 1), Width: uint16(min(tw, c.w-tx-1)), Height: uint16(th)}}, c.b)
-	big := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hudPink.color()}}
+	big := widgets.BigText{Text: "LEMON SWEEP", Size: size, Style: cell.Style{Fg: hex(0xffe14a).color()}}
 	big.Draw(cell.Context{Area: cell.Rect{X: uint16(tx), Y: uint16(y), Width: uint16(min(tw, c.w)), Height: uint16(th)}}, c.b)
 	y += th + 2
 	c.centered(y, "you are the garbage collector. the frameworks have come for the heap.", style(hudText, bg))

@@ -88,18 +88,18 @@ jobs:
           go -C "$work/lemonsnake" mod tidy
           go -C "$work/lemonsnake" build -trimpath -ldflags="-s -w" -o "$PWD/site/lemonsnake.wasm" .
 
-      # Mark & Sweep the same way, loaded as ?app=marksweep.
-      - name: Build Mark & Sweep
+      # Lemon Sweep the same way, loaded as ?app=lemonsweep.
+      - name: Build Lemon Sweep
         env:
           GOOS: js
           GOARCH: wasm
         run: |
           set -euo pipefail
           work=$(mktemp -d)
-          cp -r apps/marksweep "$work/marksweep"
-          go -C "$work/marksweep" mod edit -replace github.com/thebanri/limoni="$PWD"
-          go -C "$work/marksweep" mod tidy
-          go -C "$work/marksweep" build -trimpath -ldflags="-s -w" -o "$PWD/site/marksweep.wasm" .
+          cp -r apps/lemonsweep "$work/lemonsweep"
+          go -C "$work/lemonsweep" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemonsweep" mod tidy
+          go -C "$work/lemonsweep" build -trimpath -ldflags="-s -w" -o "$PWD/site/lemonsweep.wasm" .
 
       - name: Assemble site
         run: |
@@ -110,7 +110,7 @@ jobs:
           # The pictures on the cards. assets/ is a module of its own, so
           # these reach the site and nobody who imports Limoni.
           mkdir -p site/img
-          cp assets/marksweep.png assets/lemonsnake.png assets/lemondrop.png assets/castle-lemonstein.png assets/limoni.png site/img/
+          cp assets/lemonsweep.png assets/lemonsnake.png assets/lemondrop.png assets/castle-lemonstein.png assets/limoni.png site/img/
           cp assets/limoni-logo.svg site/img/logo.svg
           # wasm_exec.js must match the toolchain that produced the module.
           # Go moved it from misc/wasm to lib/wasm in 1.24; support both.
@@ -132,12 +132,12 @@ jobs:
           node scripts/verify-wasm-castle-lemonstein.mjs "$(go env GOROOT)" site/castle-lemonstein.wasm
           node scripts/verify-wasm-lemondrop.mjs "$(go env GOROOT)" site/lemondrop.wasm
           node scripts/verify-wasm-lemonsnake.mjs "$(go env GOROOT)" site/lemonsnake.wasm
-          node scripts/verify-wasm-marksweep.mjs "$(go env GOROOT)" site/marksweep.wasm
+          node scripts/verify-wasm-lemonsweep.mjs "$(go env GOROOT)" site/lemonsweep.wasm
 
       - name: Report module size
         run: |
           set -euo pipefail
-          for module in limoni castle-lemonstein lemondrop lemonsnake marksweep; do
+          for module in limoni castle-lemonstein lemondrop lemonsnake lemonsweep; do
             raw=$(stat -c%s "site/$module.wasm")
             gz=$(gzip -9 -c "site/$module.wasm" | wc -c)
             br=$(command -v brotli >/dev/null && brotli -q 11 -c "site/$module.wasm" | wc -c || echo 0)

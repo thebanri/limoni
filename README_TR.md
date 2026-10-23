@@ -264,9 +264,9 @@ lemonsnake
 Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemonsnake); sesi ve dünya skor
 tablosu da var.
 
-<p align="center"><img src="assets/marksweep.png" alt="Mark &amp; Sweep: terminal pencerelerinden bir koridorda üstüne gelen bir tview modalı, bir Bubble Tea bardağı, Ferris, bir ncurses kutusu ve bir ilerleme çubuğu" width="100%" /></p>
+<p align="center"><img src="assets/lemonsweep.png" alt="Lemon Sweep: terminal pencerelerinden bir koridorda üstüne gelen bir tview modalı, bir Bubble Tea bardağı, Ferris, bir ncurses kutusu ve bir ilerleme çubuğu" width="100%" /></p>
 
-[**Mark & Sweep**](apps/marksweep) terminallerden yapılmış bir terminalde geçen birinci şahıs bir roguelite:
+[**Lemon Sweep**](apps/lemonsweep) terminallerden yapılmış bir terminalde geçen birinci şahıs bir roguelite:
 duvarlar bir kabuk, bir log görüntüleyici, biraz Go ve htop. Sen çöp toplayıcısın; Bubble Tea, Ratatui,
 tview, Ink ve ncurses heap'e saldırıyor, her biri kendi uygulamalarının göründüğü gibi çizilmiş: pembe
 yuvarlak kutular ve spinner'lar, Ferris, ölünce düğmelerine bölünen çift çizgili modallar, ikiye ayrılan
@@ -276,11 +276,11 @@ birbirini katlayıp bozuk bir şeye dönüşür. On dakikadan sonra baskı başl
 build ona uzun dayanmaz. Skor tablosu yok: rekorlar makinede ya da tarayıcıda kalır.
 
 ```bash
-go install github.com/thebanri/limoni/apps/marksweep@latest
-marksweep
+go install github.com/thebanri/limoni/apps/lemonsweep@latest
+lemonsweep
 ```
 
-Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=marksweep); orada mouse ile bakmak için imleç
+Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemonsweep); orada mouse ile bakmak için imleç
 kilitlenir. Bir kare, en bozuk build'in dolu havuzları dahil, hiç bellek ayırmaz.
 
 <p align="center"><img src="assets/pikap.gif" alt="pikap demo plağını çalıyor: iğne plağın ortasına konuyor, plak ileri geri sürüklenip scratch yapılıyor, sonra ASCII ile çiziliyor" /></p>

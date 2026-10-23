@@ -1,4 +1,4 @@
-# Mark & Sweep
+# Lemon Sweep
 
 A first-person roguelite in a terminal made of terminals, built on [Limoni](../../README.md).
 
@@ -8,9 +8,9 @@ level, build something broken, and get through three maps — ten minutes on eac
 play `/dev/zero`, the endless map, for as long as the build holds.
 
 ```bash
-go install github.com/thebanri/limoni/apps/marksweep@latest
-marksweep            # up to 144 frames a second; -showfps shows them, -mute for silence
-marksweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
+go install github.com/thebanri/limoni/apps/lemonsweep@latest
+lemonsweep            # up to 144 frames a second; -showfps shows them, -mute for silence
+lemonsweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
 ```
 
 ### Mouse lock
@@ -161,7 +161,7 @@ the last warden. On `/dev/zero` it lasts 18 to 20 minutes. It heeds the warnings
 wind-up, a dash through a slam or a shot about to land — and turns to a boss in sight, and nothing else,
 so the dash cards do little for it.
 
-Records stay where the game is played: `~/.config/marksweep/records.json`, or the browser's
+Records stay where the game is played: `~/.config/lemonsweep/records.json`, or the browser's
 localStorage. The title shows them as a card for each map: how often its warden was swept, the fewest
 seconds one stood, the most swept there in one run; for `/dev/zero` the longest run, its level and its
 count; and under them the longest run of all. There is no leaderboard.

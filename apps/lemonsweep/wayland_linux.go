@@ -214,9 +214,9 @@ func (c *wlClient) show() {
 	c.begin(c.xdgSurface, 1) // get_toplevel
 	c.u32(c.toplevel)
 	c.begin(c.toplevel, 2) // set_title
-	c.str("Mark & Sweep")
+	c.str("Lemon Sweep")
 	c.begin(c.toplevel, 3) // set_app_id
-	c.str("marksweep")
+	c.str("lemonsweep")
 	c.begin(c.toplevel, 11) // set_fullscreen, on the output the compositor picks
 	c.u32(0)
 	if c.pointer != 0 {
@@ -275,7 +275,7 @@ func (c *wlClient) fill() error {
 		}
 		// An unlinked file of zeros: transparent black, and pages never
 		// written cost nothing.
-		f, err := os.CreateTemp(os.Getenv("XDG_RUNTIME_DIR"), "marksweep-*")
+		f, err := os.CreateTemp(os.Getenv("XDG_RUNTIME_DIR"), "lemonsweep-*")
 		if err != nil {
 			return err
 		}

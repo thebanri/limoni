@@ -20,7 +20,7 @@ const hiddenPointer = "mouse_hide_wait=0.05 1000 1000000 no"
 const fastRepaint = "repaint_delay=4"
 
 // inOwnWindow reports whether this is the game -window opened.
-func inOwnWindow() bool { return os.Getenv("MARKSWEEP_WINDOW") == "1" }
+func inOwnWindow() bool { return os.Getenv("LEMONSWEEP_WINDOW") == "1" }
 
 // kittyHint is the line the title screen shows in kitty, where -window
 // would hide the pointer.
@@ -31,7 +31,7 @@ func kittyHint() string {
 	if _, err := exec.LookPath("kitty"); err != nil {
 		return ""
 	}
-	return "marksweep -window: its own kitty window, full screen, no mouse pointer"
+	return "lemonsweep -window: its own kitty window, full screen, no mouse pointer"
 }
 
 // openWindow starts the game again in a kitty window of its own, with the
@@ -49,7 +49,7 @@ func openWindow(args []string) error {
 }
 
 func windowCmd(kitty, exe string, args []string) *exec.Cmd {
-	cmd := exec.Command(kitty, append([]string{"-o", hiddenPointer, "-o", fastRepaint, "-o", "input_delay=1", "--start-as=fullscreen", "--title", "Mark & Sweep", exe}, args...)...)
-	cmd.Env = append(os.Environ(), "MARKSWEEP_WINDOW=1")
+	cmd := exec.Command(kitty, append([]string{"-o", hiddenPointer, "-o", fastRepaint, "-o", "input_delay=1", "--start-as=fullscreen", "--title", "Lemon Sweep", exe}, args...)...)
+	cmd.Env = append(os.Environ(), "LEMONSWEEP_WINDOW=1")
 	return cmd
 }

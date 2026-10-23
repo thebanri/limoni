@@ -8,11 +8,11 @@ import "syscall/js"
 // on, so the mouse turns the view as in any first-person game and never
 // leaves the window. The page reports movement and buttons here:
 //
-//	window.__marksweep_pointer('move', dx, dy)
-//	window.__marksweep_pointer('button', button, down)
-//	window.__marksweep_pointer('lock', locked)
+//	window.__lemonsweep_pointer('move', dx, dy)
+//	window.__lemonsweep_pointer('button', button, down)
+//	window.__lemonsweep_pointer('lock', locked)
 //
-// and reads window.__marksweep_wantLock to know whether a click should lock
+// and reads window.__lemonsweep_wantLock to know whether a click should lock
 // it. The calls arrive between frames; drain hands them to the game.
 type pointer struct {
 	dx      float64
@@ -30,7 +30,7 @@ type pointerEvent struct {
 
 func newPointer() *pointer {
 	p := &pointer{buttons: make([]pointerEvent, 0, 16)}
-	js.Global().Set("__marksweep_pointer", js.FuncOf(func(this js.Value, args []js.Value) any {
+	js.Global().Set("__lemonsweep_pointer", js.FuncOf(func(this js.Value, args []js.Value) any {
 		if len(args) == 0 {
 			return nil
 		}
@@ -82,14 +82,14 @@ func (p *pointer) want(g *game) {
 		return
 	}
 	p.init, p.wanted = true, w
-	js.Global().Set("__marksweep_wantLock", w)
+	js.Global().Set("__lemonsweep_wantLock", w)
 	switch {
 	case !w && p.locked:
 		js.Global().Get("document").Call("exitPointerLock")
 	case w && !p.locked:
 		// Right after the click or key that started the run, the browser
 		// still counts it as the player's gesture and grants the lock.
-		if req := js.Global().Get("__marksweep_requestLock"); req.Type() == js.TypeFunction {
+		if req := js.Global().Get("__lemonsweep_requestLock"); req.Type() == js.TypeFunction {
 			req.Invoke()
 		}
 	}

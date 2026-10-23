@@ -1,4 +1,4 @@
-// Mark & Sweep: a first-person roguelite in the terminal, drawn in
+// Lemon Sweep: a first-person roguelite in the terminal, drawn in
 // half-block pixels.
 //
 //	go run .            # play, at up to 144 frames a second
@@ -87,7 +87,7 @@ func main() {
 	ptr := newPointer()
 	app := limoni.NewApp(term,
 		limoni.WithFPS(*fps),
-		limoni.WithTitle("Mark & Sweep"),
+		limoni.WithTitle("Lemon Sweep"),
 		limoni.WithKeyReleases(),
 		limoni.WithMouseMode(limoni.MouseMotion),
 	)

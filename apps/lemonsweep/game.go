@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Mark & Sweep: you are Limoni's garbage collector, and the frameworks have
+// Lemon Sweep: you are Limoni's garbage collector, and the frameworks have
 // come for the heap. Mark them with the crosshair, sweep them with the
 // trigger, take a card every level, and build something broken enough to
 // get through three maps: ten minutes on each, then its warden, and the

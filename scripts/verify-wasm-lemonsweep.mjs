@@ -1,4 +1,4 @@
-// Smoke-tests Mark & Sweep's WebAssembly build by running it, as
+// Smoke-tests Lemon Sweep's WebAssembly build by running it, as
 // verify-wasm-lemonsnake.mjs does for Lemon Snake.
 //
 // It boots the module under Node with a stub xterm.js bridge and a stub Web
@@ -7,7 +7,7 @@
 // let go (which pauses), and QUIT from the pause. Each step asserts on what
 // reached the screen or the speakers.
 //
-//   node scripts/verify-wasm-marksweep.mjs "$(go env GOROOT)" path/to/marksweep.wasm
+//   node scripts/verify-wasm-lemonsweep.mjs "$(go env GOROOT)" path/to/lemonsweep.wasm
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -38,10 +38,10 @@ globalThis.__limoni_audio = {
 };
 
 // The page's side of the pointer lock: the game asks for it through
-// __marksweep_requestLock and lets it go through document.exitPointerLock.
+// __lemonsweep_requestLock and lets it go through document.exitPointerLock.
 let lockRequests = 0;
 let lockExits = 0;
-globalThis.__marksweep_requestLock = () => lockRequests++;
+globalThis.__lemonsweep_requestLock = () => lockRequests++;
 globalThis.document = { exitPointerLock: () => lockExits++ };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -56,7 +56,7 @@ go.run(instance).then(onExit, onExit);
 
 const since = (mark) => captured.slice(mark);
 const send = (s) => globalThis.__limoni_input?.(s);
-const pointer = (...args) => globalThis.__marksweep_pointer?.(...args);
+const pointer = (...args) => globalThis.__lemonsweep_pointer?.(...args);
 
 await sleep(600);
 globalThis.__limoni_resize?.(120, 36);
@@ -67,7 +67,7 @@ let mark = captured.length;
 send("\r"); // Enter starts a run
 await sleep(700);
 const run = since(mark);
-const wanted = globalThis.__marksweep_wantLock === true;
+const wanted = globalThis.__lemonsweep_wantLock === true;
 const asked = lockRequests > 0;
 
 pointer("lock", true); // the page took the lock

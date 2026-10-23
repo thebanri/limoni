@@ -37,7 +37,7 @@
     }
     /* Each app brings its own colours; the layout stays the same. */
     body.app-lemonsnake { --accent: #9be15d; --accent-2: #ffd84a; --accent-ink: #0c1a06; }
-    body.app-marksweep { --accent: #ff5fd2; --accent-2: #5ad1ff; --accent-ink: #1a0414; }
+    body.app-lemonsweep { --accent: #ff5fd2; --accent-2: #5ad1ff; --accent-ink: #1a0414; }
     body.app-lemondrop { --accent: #ffd84a; --accent-2: #ea5a5a; }
     body.app-playground { --accent: #ffd84a; --accent-2: #5ee3c0; }
     body.castle {
@@ -350,7 +350,7 @@
     <a class="brand" href="./"><img src="img/logo.svg" alt="" width="28" height="28"><span class="word">Limoni</span></a>
     <div class="nav">
       <a href="./" data-app="playground">Playground</a>
-      <a href="?app=marksweep" data-app="marksweep">🧹 Mark &amp; Sweep <span class="new">NEW</span></a>
+      <a href="?app=lemonsweep" data-app="lemonsweep">🧹 Lemon Sweep <span class="new">NEW</span></a>
       <a href="?app=lemonsnake" data-app="lemonsnake">🐍 Lemon Snake</a>
       <a href="?app=lemondrop" data-app="lemondrop">🧱 Lemon Drop</a>
       <a href="?app=castle-lemonstein" data-app="castle-lemonstein">🏰 Castle Lemonstein</a>
@@ -415,10 +415,10 @@
     <section class="more" aria-label="More to try">
       <h2 id="more-title">Games built with Limoni</h2>
       <div class="cards">
-        <a class="card" href="?app=marksweep" data-app="marksweep" style="--card: #ff5fd2">
-          <img src="img/marksweep.png" alt="Mark &amp; Sweep: a Bubble Tea cup and a tview modal coming down a corridor of terminal windows" loading="lazy">
+        <a class="card" href="?app=lemonsweep" data-app="lemonsweep" style="--card: #ff5fd2">
+          <img src="img/lemonsweep.png" alt="Lemon Sweep: a Bubble Tea cup and a tview modal coming down a corridor of terminal windows" loading="lazy">
           <div class="body">
-            <h3>🧹 Mark &amp; Sweep</h3>
+            <h3>🧹 Lemon Sweep</h3>
             <p>You are the garbage collector. Bubble Tea, Ratatui, tview and Ink have come for the heap. Augment cards, broken combos.</p>
             <span class="go">Play →</span>
           </div>
@@ -471,7 +471,7 @@
 
   <script>
     // Five modules share this page: the playground, and four games,
-    // ?app=marksweep, ?app=castle-lemonstein, ?app=lemondrop and
+    // ?app=lemonsweep, ?app=castle-lemonstein, ?app=lemondrop and
     // ?app=lemonsnake, each from its directory under apps/. They are separate builds because each game
     // is a module of its own and ships to nobody who imports Limoni.
     const clock = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
@@ -576,13 +576,13 @@
         scoreboard,
         describe: (run) => `level ${run.level}, ${run.lemons} lemons, ${clock(run.secs)}`,
       },
-      marksweep: {
-        wasm: 'marksweep.wasm',
-        title: 'Mark & Sweep — a first-person roguelite in a terminal made of terminals',
-        heading: 'Mark & Sweep',
+      lemonsweep: {
+        wasm: 'lemonsweep.wasm',
+        title: 'Lemon Sweep — a first-person roguelite in a terminal made of terminals',
+        heading: 'Lemon Sweep',
         text: 'You are the garbage collector. The frameworks have come for the heap.',
         emblem: '🧹',
-        posterTitle: 'Mark & Sweep',
+        posterTitle: 'Lemon Sweep',
         posterText: 'A first-person roguelite in a terminal made of terminals. Bubble Tea, Ratatui, ' +
           'tview, Ink and ncurses come for the heap, each drawn the way its own apps look. ' +
           'Take an augment card every level, stack them into something broken, and sweep three ' +
@@ -597,7 +597,7 @@
           '<span><kbd>Space</kbd> dash</span>' +
           '<span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cards</span>' +
           '<span><kbd>Esc</kbd> pause</span>',
-        running: 'Mark & Sweep running — click the terminal to capture the mouse, Esc to let it go',
+        running: 'Lemon Sweep running — click the terminal to capture the mouse, Esc to let it go',
         fullscreenRows: 44,
         windowRows: 38,
         audio: true,
@@ -804,15 +804,15 @@
 
     // A first-person game turns with the mouse's movement, not its place: the
     // page locks the pointer to the terminal while a run is on and passes the
-    // movement and buttons to Go (apps/marksweep/input_js.go). Go says when it
-    // wants the lock (__marksweep_wantLock) and asks for it right after the
+    // movement and buttons to Go (apps/lemonsweep/input_js.go). Go says when it
+    // wants the lock (__lemonsweep_wantLock) and asks for it right after the
     // click or key that started the run, while the browser still counts that
     // as the player's gesture; a click on the terminal asks again.
     if (app.pointerLock) {
       const el = document.getElementById('terminal');
       const locked = () => document.pointerLockElement === el;
-      const send = (...args) => { if (window.__marksweep_pointer) { window.__marksweep_pointer(...args); } };
-      window.__marksweep_requestLock = () => {
+      const send = (...args) => { if (window.__lemonsweep_pointer) { window.__lemonsweep_pointer(...args); } };
+      window.__lemonsweep_requestLock = () => {
         try {
           const p = el.requestPointerLock();
           if (p && p.catch) { p.catch(() => {}); }
@@ -827,8 +827,8 @@
       el.addEventListener('mousedown', (ev) => {
         if (locked()) {
           send('button', ev.button, true);
-        } else if (window.__marksweep_wantLock) {
-          window.__marksweep_requestLock();
+        } else if (window.__lemonsweep_wantLock) {
+          window.__lemonsweep_requestLock();
         } else {
           return;
         }

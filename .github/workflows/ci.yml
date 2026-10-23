@@ -267,26 +267,26 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemonsnake" build -o /dev/null .
           echo "ok   lemonsnake builds against this checkout as well as against the release"
 
-      # Mark & Sweep, the same way: a frame allocates nothing, with the
+      # Lemon Sweep, the same way: a frame allocates nothing, with the
       # most broken build filling its pools too.
-      - name: apps/marksweep
+      - name: apps/lemonsweep
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          go -C apps/marksweep vet ./...
-          go -C apps/marksweep test ./...
-          test -z "$(gofmt -l apps/marksweep)" || { gofmt -l apps/marksweep; exit 1; }
+          go -C apps/lemonsweep vet ./...
+          go -C apps/lemonsweep test ./...
+          test -z "$(gofmt -l apps/lemonsweep)" || { gofmt -l apps/lemonsweep; exit 1; }
 
           work=$(mktemp -d)
-          cp -r apps/marksweep "$work/marksweep"
-          go -C "$work/marksweep" mod edit -replace github.com/thebanri/limoni="$PWD"
-          go -C "$work/marksweep" mod tidy
-          go -C "$work/marksweep" build ./...
-          go -C "$work/marksweep" test ./...
-          GOOS=js GOARCH=wasm go -C "$work/marksweep" vet ./...
-          GOOS=js GOARCH=wasm go -C "$work/marksweep" build -o /dev/null .
-          echo "ok   marksweep builds against this checkout as well as against the release"
+          cp -r apps/lemonsweep "$work/lemonsweep"
+          go -C "$work/lemonsweep" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/lemonsweep" mod tidy
+          go -C "$work/lemonsweep" build ./...
+          go -C "$work/lemonsweep" test ./...
+          GOOS=js GOARCH=wasm go -C "$work/lemonsweep" vet ./...
+          GOOS=js GOARCH=wasm go -C "$work/lemonsweep" build -o /dev/null .
+          echo "ok   lemonsweep builds against this checkout as well as against the release"
 
       # pikap, the record player. Its MPRIS tests start a dbus-daemon of their
       # own (and skip without one), so they never touch a session bus; the

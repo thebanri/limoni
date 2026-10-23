@@ -326,7 +326,7 @@ var windows = []struct {
 		"$ go test ./...",
 		"ok  limoni          0.412s",
 		"ok  limoni/widgets  1.207s",
-		"$ ./marksweep --heap 64M",
+		"$ ./lemonsweep --heap 64M",
 		"marking... 4242 objects",
 		"sweeping... 0 B/op  $ █",
 	}},
