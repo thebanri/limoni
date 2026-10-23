@@ -139,7 +139,7 @@ type game struct {
 	viewH    int
 	scrW     int // the last frame's size, for clicks on cards
 	scrH     int
-	sens     float64 // radians per pixel of pointer movement
+	sens     int // mouse sensitivity, 1-10 (lookScale)
 
 	// the run
 	endless   bool    // /dev/zero, not the three maps
@@ -248,7 +248,7 @@ func (g *game) countFrame(now time.Time) {
 }
 
 func newGame(seed uint64) *game {
-	g := &game{rnd: rng(seed | 1), volume: 7, lastVol: 7, sens: 0.0032, ret: reticle{size: 1, outline: true}}
+	g := &game{rnd: rng(seed | 1), volume: 7, lastVol: 7, sens: 4, ret: reticle{size: 1, outline: true}}
 	g.reset()
 	g.phase = phTitle
 	return g
@@ -395,7 +395,7 @@ func (g *game) stepPlayer(dt float64) {
 	// by whole cells, so each step is eased in, and at the window's edge,
 	// where it can go no further, the view keeps turning.
 	if g.locked {
-		g.ang += g.lookDX * g.sens
+		g.ang += g.lookDX * 0.0032 * lookScale(g.sens)
 	}
 	g.lookDX = 0
 	k := math.Min(1, dt*25)
@@ -476,6 +476,10 @@ func edgeTurn(x, w int) float64 {
 // lookPerCell is how far the view turns for the mouse moving one column: a
 // half turn across the window.
 func lookPerCell(w int) float64 { return math.Pi / float64(w) }
+
+// lookScale is what a sensitivity setting multiplies mouse turns by: 7 is
+// the turn the game first shipped with, which players found too fast.
+func lookScale(sens int) float64 { return float64(sens) * 0.15 }
 
 // dash spends a charge: a short burst the way the keys point, untouchable
 // all the way and a moment after — through a bite, a bar, a claw slam.

@@ -68,6 +68,9 @@ func main() {
 		if g.best.hasRet {
 			g.ret = g.best.ret
 		}
+		if g.best.sens > 0 {
+			g.sens = g.best.sens
+		}
 		if g.best.volume >= 0 {
 			g.volume = g.best.volume
 			if g.volume > 0 {
@@ -321,7 +324,7 @@ func (g *game) mouse(m limoni.MouseEvent) {
 	// A jump of a third of the window is the pointer coming back in from
 	// somewhere else, not a turn.
 	if dx := int(m.X) - g.mouseX; g.phase == phPlay && g.mouseIn && g.viewW > 0 && 3*abs(dx) < g.viewW {
-		g.lookPend += float64(dx) * lookPerCell(g.viewW)
+		g.lookPend += float64(dx) * lookPerCell(g.viewW) * lookScale(g.sens)
 	}
 	g.mouseX, g.mouseY, g.mouseIn = int(m.X), int(m.Y), true
 	c := canvas{w: g.scrW, h: g.scrH}

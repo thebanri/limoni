@@ -10,6 +10,7 @@ type records struct {
 	endless bests // /dev/zero's, kept apart: its runs are meant to go on
 	maps    [nStages]mapBest
 	volume  int
+	sens    int // 0: not saved
 	ret     reticle
 	hasRet  bool // a crosshair was saved
 }
@@ -69,6 +70,7 @@ type saved struct {
 	Peak   int  `json:"most_shots"`
 	BigHit int  `json:"biggest_hit"`
 	Volume *int `json:"volume,omitempty"`
+	Sens   int  `json:"sensitivity,omitempty"`
 
 	Endless *savedBests `json:"endless,omitempty"`
 	Maps    []savedMap  `json:"maps,omitempty"`
@@ -101,7 +103,7 @@ type savedReticle struct {
 
 func encodeRecords(r records) []byte {
 	v := r.volume
-	s := saved{Runs: r.runs, Secs: r.secs, Level: r.level, Kills: r.kills, Peak: r.peak, BigHit: r.bigHit, Volume: &v}
+	s := saved{Runs: r.runs, Secs: r.secs, Level: r.level, Kills: r.kills, Peak: r.peak, BigHit: r.bigHit, Volume: &v, Sens: r.sens}
 	if e := r.endless; e.runs > 0 {
 		s.Endless = &savedBests{e.runs, e.secs, e.level, e.kills, e.peak, e.bigHit}
 	}
@@ -136,6 +138,9 @@ func decodeRecords(b []byte) records {
 	if s.Volume != nil && *s.Volume >= 0 && *s.Volume <= 10 {
 		r.volume = *s.Volume
 	}
+	if s.Sens >= 1 && s.Sens <= 10 {
+		r.sens = s.Sens
+	}
 	if c := s.Crosshair; c != nil && c.Style >= 0 && c.Style < len(reticleStyles) && c.Color >= 0 && c.Color < len(reticleColors) && c.Size >= 0 && c.Size < len(reticleSizes) {
 		r.ret, r.hasRet = reticle{c.Style, c.Color, c.Size, c.Outline}, true
 	}
@@ -147,12 +152,12 @@ type store interface {
 	save(records)
 }
 
-// persist saves the records with the current volume and crosshair.
+// persist saves the records with the current volume, sensitivity and crosshair.
 func (g *game) persist() {
 	if g.store == nil {
 		return
 	}
-	g.best.volume = g.volume
+	g.best.volume, g.best.sens = g.volume, g.sens
 	g.best.ret, g.best.hasRet = g.ret, true
 	g.store.save(g.best)
 }

@@ -148,7 +148,7 @@ func (g *game) reticleColor() rgb {
 
 // ── settings ─────────────────────────────────────────────────────────────
 
-var settingRows = [...]string{"SOUND", "CROSSHAIR", "COLOR", "SIZE", "OUTLINE", "BACK"}
+var settingRows = [...]string{"SOUND", "SENSITIVITY", "CROSSHAIR", "COLOR", "SIZE", "OUTLINE", "BACK"}
 
 func (g *game) openSettings() {
 	g.setFrom, g.phase, g.setSel = g.phase, phSettings, 0
@@ -166,6 +166,8 @@ func (g *game) adjust(row, dir int) {
 	switch settingRows[row] {
 	case "SOUND":
 		g.setVolume(g.volume + dir)
+	case "SENSITIVITY":
+		g.sens = max(1, min(10, g.sens+dir))
 	case "CROSSHAIR":
 		g.ret.style = wrap(g.ret.style, len(reticleStyles))
 	case "COLOR":

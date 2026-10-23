@@ -1045,10 +1045,14 @@ func (g *game) drawSettings(c canvas) {
 		}
 		val := ""
 		switch name {
-		case "SOUND":
+		case "SOUND", "SENSITIVITY":
+			n := g.volume
+			if name == "SENSITIVITY" {
+				n = g.sens
+			}
 			for k := 0; k < 10; k++ {
 				r, col := '▮', hudCyan
-				if k >= g.volume {
+				if k >= n {
 					r, col = '▯', hex(cardBorder)
 				}
 				if p := c.at(vx+k, yy); p != nil {

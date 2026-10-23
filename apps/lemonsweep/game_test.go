@@ -326,7 +326,7 @@ func TestTheMouseLooks(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		g.step(tick)
 	}
-	want := before + 14*lookPerCell(140)
+	want := before + 14*lookPerCell(140)*lookScale(g.sens) // at the default sensitivity
 	if math.Abs(g.ang-want) > 1e-6 {
 		t.Fatalf("turned to %.4f, want %.4f", g.ang, want)
 	}
@@ -445,7 +445,7 @@ func TestWallTextIsInTheFont(t *testing.T) {
 }
 
 func TestRecordsRoundTrip(t *testing.T) {
-	r := records{bests: bests{runs: 3, secs: 754, level: 31, kills: 2041, peak: 612, bigHit: 1880}, endless: bests{runs: 2, secs: 1500, level: 50, kills: 9000, peak: 700, bigHit: 3000}, volume: 4,
+	r := records{bests: bests{runs: 3, secs: 754, level: 31, kills: 2041, peak: 612, bigHit: 1880}, endless: bests{runs: 2, secs: 1500, level: 50, kills: 9000, peak: 700, bigHit: 3000}, volume: 4, sens: 6,
 		maps: [nStages]mapBest{{runs: 3, swept: 2, fastest: 41, kills: 820}, {runs: 2, swept: 1, fastest: 77, kills: 1100}}}
 	got := decodeRecords(encodeRecords(r))
 	if got != r {
