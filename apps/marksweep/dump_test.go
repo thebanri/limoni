@@ -176,6 +176,62 @@ func TestDumpFrame(t *testing.T) {
 		g.msgT = 0
 		return g
 	}
+	fx := func(acts []augID, steps int, at func(g *game, step int)) func() *game {
+		return func() *game {
+			g := playing()
+			g.pos, g.ang = vec{16, 26}, -math.Pi/2
+			g.bossNext = 99
+			for _, a := range acts {
+				pickN(g, a, 3)
+			}
+			for i, k := range []kindID{kBoba, kCrab, kModal, kJSX, kElder, kBar, kSpinner, kBoba} {
+				j := g.addEnemy(k, vec{12.8 + float64(i)*0.9, 22.9 + float64(i%2)*0.7})
+				g.enemies[j].hp, g.enemies[j].max = 1e6, 1e6
+			}
+			for i := 0; i < steps; i++ {
+				if at != nil {
+					at(g, i)
+				}
+				g.step(1.0 / 30)
+				g.hp = g.st.maxHP
+				g.pos, g.ang = vec{16, 26}, -math.Pi/2
+				for j := range g.enemies {
+					g.enemies[j].knock = vec{}
+				}
+			}
+			g.msgT = 0
+			return g
+		}
+	}
+	shots["fx-gas"] = fx([]augID{augGasLeak, augBurnIn}, 50, func(g *game, i int) {
+		g.pos = vec{14.5 + float64(i)*0.06, 25.5} // walk, for Burn-in
+	})
+	shots["fx-storm"] = func() *game {
+		// Stopped as a bolt strikes, while the field's ring is out.
+		g := fx([]augID{augStorm, augTesla, augIRQ}, 1, nil)()
+		for i := 0; i < 300; i++ {
+			g.step(1.0 / 30)
+			g.hp, g.pos, g.ang = g.st.maxHP, vec{16, 26}, -math.Pi/2
+			bolt := false
+			for _, a := range g.arcs {
+				bolt = bolt || (a.alive && a.za > 3 && a.life > a.max*0.6)
+			}
+			if bolt {
+				break
+			}
+		}
+		g.msgT = 0
+		return g
+	}
+	shots["fx-vortex"] = fx([]augID{augCompaction, augAbsZero, augSegfault, augDaemon}, 33, nil)
+	shots["crosshair"] = func() *game {
+		g := playing()
+		g.pos, g.ang = vec{16, 26}, -math.Pi/2
+		g.bossNext = 99
+		g.addEnemy(kBoba, vec{16, 23.5})
+		g.hitT, g.killT, g.recoil = 0.1, 0, 0.3
+		return g
+	}
 	shots["poster"] = func() *game {
 		g := playing()
 		g.pos, g.ang = vec{16.12, 28.2}, -math.Pi/2

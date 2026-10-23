@@ -109,6 +109,7 @@ type game struct {
 	prevAim float64
 	hitT    float64 // a shot landed: the crosshair's marker
 	shake   float64 // the screen shaking: a kill, a blast, a hit taken
+	aimOn   bool    // an enemy under the crosshair, this frame
 	killT   float64 // ... and killed
 
 	// input
@@ -158,6 +159,8 @@ type game struct {
 	burnAt    vec  // where Burn-in last left fire
 	slamSeen  bool // the claw slam has been explained
 	zones     [maxZones]zone
+	rings     [maxRings]ringFX
+	arcs      [maxArcs]arcFX
 	wave      wave
 	slowT     float64 // mode 2026: time runs slow while above zero
 	peakShot  int     // most shots alive at once, this run
@@ -324,6 +327,7 @@ func (g *game) step(dt float64) {
 	g.stepPowers(dt)
 	g.stepShots(world)
 	g.stepParts(dt)
+	g.stepFX(dt)
 	g.stepBytes(dt)
 	if g.hp <= 0 {
 		g.die()

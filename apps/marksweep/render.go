@@ -55,9 +55,10 @@ type scratch struct {
 	wallTx [maxCols]int
 	wallID [maxCols]byte
 	bbs    []billboard
+	decals []decal
 }
 
-var sc = scratch{bbs: make([]billboard, 0, maxEnemies+maxShots+maxParts+maxBytes)}
+var sc = scratch{bbs: make([]billboard, 0, maxEnemies+maxShots+maxParts+maxBytes), decals: make([]decal, 0, 32)}
 
 func (g *game) render(b *buffer.Buffer) {
 	w, h := int(b.Area.Width), int(b.Area.Height)
@@ -110,10 +111,16 @@ func (g *game) render(b *buffer.Buffer) {
 	if g.phase == phTitle {
 		pos = vec{16, 16}
 	}
+	sc.decals = sc.decals[:0]
+	if g.phase != phTitle {
+		g.gatherDecals(pos)
+	}
+	g.aimOn = false
 	g.drawWorld(&v, pos)
 	if g.phase != phTitle {
 		g.muzzleLight(&v)
 		g.drawSprites(&v, pos)
+		g.drawArcs(&v, pos)
 		g.drawGun(&v)
 		g.drawCrosshair(&v)
 		g.drawThreats(&v, pos)
@@ -289,18 +296,12 @@ func (g *game) floorAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	wx, wy := pos.x+rx*d, pos.y+ry*d
 	fx, fyy := footprint(v, d, 2*d*d/v.f, rx, ry)
 	k := math.Max(seam(wx, fx, 0.03), seam(wy, fyy, 0.03)) / (1 + d*0.12)
-	c := hex(0x0a0d18).mix(hex(0x24365e), float32(k))
-	if w := &g.wave; w.alive {
-		// Ferris's slam: a ring of fire on the floor, as wide as a pixel's
-		// footprint at least, so it holds together far away.
-		dx, dy := wx-w.pos.x, wy-w.pos.y
-		edge := math.Abs(math.Sqrt(dx*dx+dy*dy) - w.r)
-		if wide := math.Max(0.12, 1.5*math.Max(fx, fyy)); edge < wide {
-			c = c.mix(hex(0xff7a2a), float32(1-edge/wide))
-			return c // no fog: it must be seen
-		}
+	c := fogged(hex(0x0a0d18).mix(hex(0x24365e), float32(k)), d)
+	if len(sc.decals) > 0 {
+		// Rings and zones give off their own light: over the fog, not in it.
+		c = g.floorDecals(c, wx, wy, 1.5*math.Max(fx, fyy))
 	}
-	return fogged(c, d)
+	return c
 }
 
 // ── sprites ──────────────────────────────────────────────────────────────
@@ -416,6 +417,10 @@ func (g *game) drawEnemy(v *view, pos vec, e *enemy) {
 		tint = hex(0xffd23a)
 	}
 	g.blitSprite(v, s, left, top, wPx, hPx, depth, flash, tint, tintK)
+	// Under the crosshair: it turns red.
+	if ax, ay := v.w/2, 2*(v.h/2)+1; float64(ax) >= left && float64(ax) < left+wPx && float64(ay) >= top && float64(ay) < top+hPx && depth < sc.zbuf[ax] {
+		g.aimOn = true
+	}
 	// A health bar over anything hurt, and every elite.
 	if (e.hp < e.max || e.elite) && !kd.boss {
 		g.miniBar(v, sx, top/2-1, wPx, depth, e.hp/e.max, e.elite, e.immune)
@@ -594,12 +599,17 @@ func (g *game) drawShot(v *view, pos vec, s *shot) {
 	case shotShrapnel:
 		r, col = '*', hex(0xffb347)
 	case shotShard:
-		r, col = '◆', hex(0x9fe8ff)
-	case shotRang:
-		r, col = '+', hex(0xffb347)
-		if int(s.age*16)%2 == 1 {
-			r = 'x'
+		// An ice lance: a cold streak.
+		tail := s.pos.sub(s.vel.scale(math.Min(0.7, s.age*30) / s.vel.len()))
+		tx, _, trows, tok := v.project(tail, pos)
+		if !tok {
+			tx, trows = sx, rows
 		}
+		g.streak(v, tx, 2*(v.horizon+0.08*trows), sx, 2*(v.horizon+0.08*rows), depth, hex(0x9fe8ff))
+		return
+	case shotRang:
+		g.glowBall(v, sx, 2*(v.horizon+0.08*rows), math.Max(1, 0.11*2*rows), depth, hex(0xffb347))
+		return
 	case shotBar:
 		r, col = '▮', hex(0xf74c00)
 	case shotPearl:
@@ -716,6 +726,11 @@ func (g *game) drawPart(v *view, pos vec, p *particle) {
 		return
 	}
 	fade := float32(p.life / p.max)
+	if p.puff > 0 {
+		cy := 2 * (v.horizon + 0.5*rows - p.z*rows)
+		g.softBlob(v, sx, cy, p.puff*2*rows, depth, p.col, 0.45*fade*(0.5+0.5*fog(depth)))
+		return
+	}
 	if p.num != 0 {
 		// A damage number, centred, over everything but the walls.
 		n := int(p.num)
@@ -791,23 +806,54 @@ func (g *game) drawCrosshair(v *view) {
 		v.c.fg(x, y, "·", hudCyan)
 		return
 	}
-	col := hex(0xffffff)
-	if g.ammo == 0 {
-		col = hudBad
+	// In pixels: four thin arms round a dot, outlined dark so they read
+	// over anything, opened by the kick of a shot; red over an enemy.
+	col := hex(0xf4f6ff)
+	switch {
+	case g.ammo == 0:
+		col = hudBad.mul(0.8)
+	case g.aimOn:
+		col = hex(0xff5a6a)
 	}
-	gap := 1 + int(math.Max(0, g.recoil)*1.6)
-	v.c.fg(x, y, "·", col)
-	v.c.fg(x-gap-1, y, "─", col.mul(0.85))
-	v.c.fg(x+gap+1, y, "─", col.mul(0.85))
+	cx, cy := x, 2*y+1
+	gap := 2 + int(math.Max(0, g.recoil)*4)
+	const arm = 3
+	ink := hex(0x05060a)
+	for k := 0; k < arm; k++ {
+		d := gap + k
+		for _, p := range [4][2]int{{cx - d, cy}, {cx + d, cy}, {cx, cy - d}, {cx, cy + d}} {
+			// The outline first: the pixels to either side of the arm.
+			if p[1] == cy {
+				blendPx(v, p[0], p[1]-1, ink, 0.8)
+				blendPx(v, p[0], p[1]+1, ink, 0.8)
+			} else {
+				blendPx(v, p[0]-1, p[1], ink, 0.8)
+				blendPx(v, p[0]+1, p[1], ink, 0.8)
+			}
+		}
+	}
+	for k := 0; k < arm; k++ {
+		d := gap + k
+		for _, p := range [4][2]int{{cx - d, cy}, {cx + d, cy}, {cx, cy - d}, {cx, cy + d}} {
+			blendPx(v, p[0], p[1], col, 0.95)
+		}
+	}
+	blendPx(v, cx, cy, col, 1)
 	if g.hitT > 0 {
+		// The hit marker: four diagonal strokes, spreading as they fade;
+		// red for a kill.
 		hc := hex(0xffffff)
 		if g.killT > 0 {
-			hc = hudBad
+			hc = hex(0xff3a4a)
 		}
-		v.c.fg(x-1, y-1, "╲", hc)
-		v.c.fg(x+1, y-1, "╱", hc)
-		v.c.fg(x-1, y+1, "╱", hc)
-		v.c.fg(x+1, y+1, "╲", hc)
+		k := float32(math.Min(1, g.hitT/0.12))
+		out := gap + 1 + int((1-float64(k))*2)
+		for s := 0; s < 3; s++ {
+			d := out + s
+			for _, q := range [4][2]int{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
+				blendPx(v, cx+q[0]*d, cy+q[1]*d, hc, k)
+			}
+		}
 	}
 	if !g.locked && g.mouseIn {
 		if t := edgeTurn(g.mouseX, g.viewW); t < 0 {

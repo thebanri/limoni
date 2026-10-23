@@ -330,6 +330,8 @@ type particle struct {
 	num   int32 // a damage number, when not zero
 	crit  bool
 	tiny  bool
+	puff  float64 // a soft blob this wide in the room, not a glyph (fx.go)
+	grow  float64 // and how fast it widens
 }
 
 // addPart puts p in the pool, looking for a free slot from where the last
@@ -375,22 +377,26 @@ func (g *game) burst(e *enemy) {
 	}
 }
 
+// ring is panic()'s blast: a fireball and a scorch spreading on the floor.
 func (g *game) ring(at vec, r float64) {
-	n := int(8 + r*6)
+	g.fireball(at, r, hex(0xffb347))
+}
+
+// fireball is a blast of colour col, r across: a ring on the floor and a
+// ball of puffs.
+func (g *game) fireball(at vec, r float64, col rgb) {
+	g.addRing(at, r*0.3, r*3, 0.35, 0.3, col, false)
+	n := 3 + int(r*2)
 	for i := 0; i < n; i++ {
-		a := float64(i) / float64(n) * 2 * math.Pi
-		g.addPart(particle{pos: at, vel: dir(a).scale(r * 5), z: 0.4, life: 0.2, glyph: '*', col: hex(0xffb347)})
+		a := g.rnd.f() * 2 * math.Pi
+		p := at.add(dir(a).scale(g.rnd.f() * r * 0.4))
+		g.puff(p, g.rnd.between(0.2, 0.5), r*0.25, r*0.9, 0.5, g.rnd.between(0.25, 0.4), col.mix(rgb{1, 1, 1}, 0.25))
 	}
 }
 
+// arc is lightning between two points, at a body's height.
 func (g *game) arc(a, b vec) {
-	d := b.sub(a)
-	n := int(d.len()*3) + 1
-	for i := 0; i <= n; i++ {
-		p := a.add(d.scale(float64(i) / float64(n)))
-		p = p.add(vec{g.rnd.between(-0.12, 0.12), g.rnd.between(-0.12, 0.12)})
-		g.addPart(particle{pos: p, z: 0.45 + g.rnd.between(-0.1, 0.1), life: 0.18, glyph: '~', col: hex(0x8fe9ff)})
-	}
+	g.addArc(a, b, 0.45, 0.45, 0.18, hex(0x8fe9ff))
 }
 
 func (g *game) damageNumber(p vec, h float64, dmg float64, crit bool, el element) {
@@ -416,6 +422,10 @@ func (g *game) stepParts(dt float64) {
 		p.pos = p.pos.add(p.vel.scale(dt))
 		p.vel = p.vel.scale(math.Max(0, 1-dt*3))
 		p.z += p.vz * dt
+		if p.puff > 0 {
+			p.puff += p.grow * dt // a puff floats, and spreads
+			continue
+		}
 		if p.num == 0 {
 			p.vz -= 9 * dt
 			if p.z < 0 {

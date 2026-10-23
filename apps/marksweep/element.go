@@ -106,12 +106,7 @@ func (g *game) thermalBlast(i int) {
 // blast hurts everything within r of at, with a ring of its element's
 // colour; unlike panic() it throws nothing.
 func (g *game) blast(at vec, r, dmg float64, el element) {
-	n := int(8 + r*6)
-	col := hex(elementTint[el])
-	for k := 0; k < n; k++ {
-		a := float64(k) / float64(n) * 2 * math.Pi
-		g.addPart(particle{pos: at, vel: dir(a).scale(r * 5), z: 0.3, life: 0.25, glyph: '*', col: col})
-	}
+	g.fireball(at, r, hex(elementTint[el]))
 	g.soundFrom(sfxBoom, at, 0.4)
 	r2 := r * r
 	for i := range g.enemies {
@@ -169,9 +164,8 @@ func (g *game) arcCarries(j int) {
 // Storm).
 func (g *game) bolt(j int, dmg float64) {
 	e := &g.enemies[j]
-	for z := 0.0; z < 2.6; z += 0.2 {
-		g.addPart(particle{pos: e.pos.add(vec{g.rnd.between(-0.06, 0.06), g.rnd.between(-0.06, 0.06)}), z: z, life: 0.22, glyph: '│', col: hex(0xfff3a0)})
-	}
+	g.addArc(e.pos, e.pos, 4, 0.1, 0.25, hex(0xfff3a0))
+	g.addRing(e.pos, 0.2, 4, 0.3, 0.22, hex(0xffe14a), false)
 	g.soundFrom(sfxZap, e.pos, 0.5)
 	g.hit(j, dmg, true, 1, elShock)
 }
@@ -193,8 +187,8 @@ func (g *game) stepStatus(i int, e *enemy, dt float64) {
 			e.burn = 0
 		}
 		if g.rnd.f() < dt*float64(e.burn)*1.5 {
-			g.addPart(particle{pos: e.pos.add(vec{g.rnd.between(-0.2, 0.2), g.rnd.between(-0.2, 0.2)}), z: kinds[e.k].height * g.rnd.between(0.2, 0.8),
-				vz: 1.2, life: 0.4, glyph: '^', col: hex(0xff8a3a), tiny: true})
+			g.puff(e.pos.add(vec{g.rnd.between(-0.2, 0.2), g.rnd.between(-0.2, 0.2)}), kinds[e.k].height*g.rnd.between(0.2, 0.8),
+				0.09, -0.08, 1.3, 0.4, hex(0xff8a3a).mix(hex(0xffe14a), float32(g.rnd.f())))
 		}
 	}
 	if e.poison > 0 {
@@ -202,7 +196,7 @@ func (g *game) stepStatus(i int, e *enemy, dt float64) {
 			e.poison = 0
 		}
 		if g.rnd.f() < dt*float64(e.poison)*0.8 {
-			g.addPart(particle{pos: e.pos, z: kinds[e.k].height * 0.6, vz: 0.6, life: 0.5, glyph: '°', col: hex(0x9cf05a), tiny: true})
+			g.puff(e.pos.add(vec{g.rnd.between(-0.2, 0.2), g.rnd.between(-0.2, 0.2)}), kinds[e.k].height*0.6, 0.08, 0.12, 0.5, 0.6, hex(0x9cf05a))
 		}
 	}
 	if e.dotT += dt; e.dotT < dotTick {
@@ -264,10 +258,7 @@ func (g *game) onDeath(i int) {
 
 // flame draws fire leaping from a to b.
 func (g *game) flame(a, b vec) {
-	d := b.sub(a)
-	for k := 0; k < 5; k++ {
-		g.addPart(particle{pos: a.add(d.scale(float64(k) / 5)), z: 0.4, vz: 1, life: 0.3, glyph: '^', col: hex(0xffb347)})
-	}
+	g.addArc(a, b, 0.5, 0.5, 0.25, hex(0xff8a3a))
 }
 
 // nearest finds up to len(out) living enemies within reach of from,
@@ -323,7 +314,6 @@ func (g *game) addZone(p vec, r, life float64, el element) {
 }
 
 func (g *game) stepZones(dt float64) {
-	glyph := [nEl]rune{'·', '^', '*', '°', '·', '·'}
 	for z := range g.zones {
 		zn := &g.zones[z]
 		if !zn.alive {
@@ -333,10 +323,7 @@ func (g *game) stepZones(dt float64) {
 			zn.alive = false
 			continue
 		}
-		if g.rnd.f() < dt*12*zn.r {
-			a, d := g.rnd.f()*2*math.Pi, math.Sqrt(g.rnd.f())*zn.r
-			g.addPart(particle{pos: zn.pos.add(dir(a).scale(d)), z: 0.02, vz: 0.8, life: 0.5, glyph: glyph[zn.el], col: hex(elementTint[zn.el]), tiny: true})
-		}
+		g.zoneFX(zn, dt)
 		if zn.tick -= dt; zn.tick > 0 {
 			continue
 		}
@@ -355,6 +342,29 @@ func (g *game) stepZones(dt float64) {
 			case elPoison:
 				g.addPoison(i, 1)
 			}
+		}
+	}
+}
+
+// zoneFX is a zone seen: a gas cloud rolling over its patch, flames off a
+// burning one, mist off a frozen one.
+func (g *game) zoneFX(zn *zone, dt float64) {
+	at := func() vec {
+		a, d := g.rnd.f()*2*math.Pi, math.Sqrt(g.rnd.f())*zn.r
+		return zn.pos.add(dir(a).scale(d))
+	}
+	switch zn.el {
+	case elPoison:
+		if g.rnd.f() < dt*3*zn.r {
+			g.puff(at(), g.rnd.between(0.1, 0.35), g.rnd.between(0.22, 0.38)*zn.r, 0.25, 0.22, 1.6, hex(0x6fbf3a).mix(hex(0xb8ff7a), float32(g.rnd.f()*0.5)))
+		}
+	case elFire:
+		if g.rnd.f() < dt*16*zn.r {
+			g.puff(at(), 0.05, g.rnd.between(0.09, 0.16), -0.1, 1.2, 0.45, hex(0xff6a1a).mix(hex(0xffe14a), float32(g.rnd.f())))
+		}
+	case elIce:
+		if g.rnd.f() < dt*4*zn.r {
+			g.puff(at(), 0.1, 0.3, 0.2, 0.1, 1, hex(0xcff4ff))
 		}
 	}
 }
@@ -406,12 +416,12 @@ func (g *game) zap(p vec, reach float64, n int, dmg float64) {
 // nova is a ring of an element's colour spreading from the player; with
 // stacks, it adds them to everything inside.
 func (g *game) nova(r float64, el element, stacks int) {
-	n := int(10 + r*6)
 	col := hex(elementTint[el])
-	glyph := [nEl]rune{'*', '^', '*', '°', '~', '·'}[el]
-	for k := 0; k < n; k++ {
-		a := float64(k) / float64(n) * 2 * math.Pi
-		g.addPart(particle{pos: g.pos, vel: dir(a).scale(r * 3.2), z: 0.15, life: 0.35, glyph: glyph, col: col})
+	g.addRing(g.pos, 0.3, r/0.3, 0.6, 0.32, col, false)
+	for k := 0; k < 8; k++ {
+		a := float64(k) / 8 * 2 * math.Pi
+		p := g.pos.add(dir(a).scale(r * 0.6))
+		g.puff(p, 0.2, r*0.12, r*0.25, 0.3, 0.5, col.mix(rgb{1, 1, 1}, 0.3))
 	}
 	if stacks == 0 {
 		return

@@ -212,3 +212,76 @@ func TestTheFrameRateIsCounted(t *testing.T) {
 		t.Fatalf("144 frames in a second counted as %d fps", g.fps)
 	}
 }
+
+// everyActive is the heaviest frame the actives make: all twelve at their
+// last rank, burn and poison and chill on the hits, 150 enemies that do not
+// die, the clouds, rings and lightning all out.
+func everyActive() *game {
+	g := playing()
+	g.bossNext = 99
+	for a := augID(0); a < nAug; a++ {
+		if augs[a].act {
+			pickN(g, a, augs[a].max)
+		}
+	}
+	for _, a := range []augID{augIgnite, augChill, augLeak, augStatic, augChain, augREP} {
+		pickN(g, a, augs[a].max)
+	}
+	g.exact = true
+	g.press(actFire)
+	fillArena(g, 150, true)
+	for i := 0; i < 150; i++ {
+		g.step(tick)
+		g.ammo, g.hp = g.st.mag, 1e9
+		g.phase, g.pending = phPlay, 0
+	}
+	return g
+}
+
+func BenchmarkEveryActive(b *testing.B) {
+	g := everyActive()
+	buf := buffer.NewBuffer(cell.Rect{Width: 160, Height: 46})
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		g.step(tick)
+		g.ammo, g.hp = g.st.mag, 1e9
+		g.phase, g.pending = phPlay, 0
+		g.render(buf)
+	}
+}
+
+// The effects live in fixed pools: a frame with every active at work
+// allocates nothing.
+func TestEveryActiveAllocatesNothing(t *testing.T) {
+	g := everyActive()
+	b := buffer.NewBuffer(cell.Rect{Width: 160, Height: 46})
+	g.render(b)
+	n, rings, arcs := 0, 0, 0
+	for _, p := range g.parts {
+		if p.alive && p.puff > 0 {
+			n++
+		}
+	}
+	for _, r := range g.rings {
+		if r.alive {
+			rings++
+		}
+	}
+	for _, a := range g.arcs {
+		if a.alive {
+			arcs++
+		}
+	}
+	if n == 0 || rings == 0 {
+		t.Fatalf("%d puffs, %d rings, %d arcs out: the scene shows no effects", n, rings, arcs)
+	}
+	if avg := testing.AllocsPerRun(30, func() {
+		g.step(tick)
+		g.ammo, g.hp = g.st.mag, 1e9
+		g.phase, g.pending = phPlay, 0
+		g.render(b)
+	}); avg != 0 {
+		t.Errorf("%.2f allocations per frame with every active at work, want 0", avg)
+	}
+}

@@ -155,7 +155,15 @@ dies; the freed bytes only stream home for the picture.
 The HUD floats on panels that darken the picture under them, its numbers in the walls' pixel font. The
 build is listed down the right edge, unframed: ACTIVE 3/6, then a row for each — its name, its ranks as
 pips, and a mark of its element's colour that, on an active, brightens as it readies to act and flashes
-as it does. A reload is a ring filling round the crosshair. The menus are cards over a veiled picture,
+as it does. A reload is a ring filling round the crosshair. The crosshair is drawn in
+pixels — four outlined arms that open with each shot's kick, red over an enemy, a hit marker that
+spreads as it fades (red on a kill).
+
+The elements and the actives are drawn in pixels too (`fx.go`): clouds, flames, mist and fireballs as
+soft blobs that grow and fade; rings and patches painted on the floor itself — a nova spreading, the IRQ
+field round you, a vortex closing in, a burning or poisoned patch, Ferris's slam; lightning as jagged,
+glowing lines, from the sky for a bolt. All in fixed pools: a frame with every active at its last rank,
+150 enemies and every effect out costs about 2.7 ms and allocates nothing (`BenchmarkEveryActive`). The menus are cards over a veiled picture,
 headed in the pixel font, their choices buttons.
 
 The game draws up to 144 frames a second (`-fps` to change it; a frame costs about 1.2 ms with the pools

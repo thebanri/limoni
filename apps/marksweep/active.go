@@ -22,8 +22,9 @@ func (g *game) stepActives(dt float64) {
 		}
 	}
 	if n := g.rank[augDaemon]; n > 0 {
+		// Each daemon an orb of light, its trail behind it.
 		for k := 0; k < n; k++ {
-			g.addPart(particle{pos: g.daemonPos(k, n), z: 0.5, life: 0.1, glyph: '◆', col: hex(0xc07bff)})
+			g.puff(g.daemonPos(k, n), 0.55, 0.13, -0.3, 0, 0.18, hex(0xc07bff).mix(rgb{1, 1, 1}, 0.35))
 		}
 	}
 	g.stepVortex(dt)
@@ -107,7 +108,12 @@ func (g *game) activate(a augID, r int, d float64) float64 {
 		if g.nearest(g.pos, 9, -1, near[:1]) == 0 {
 			return retry
 		}
-		g.addZone(g.enemies[near[0]].pos, 1.3+0.2*lv, 3.5+0.5*lv, elPoison)
+		at, rad := g.enemies[near[0]].pos, 1.3+0.2*lv
+		g.addZone(at, rad, 3.5+0.5*lv, elPoison)
+		for k := 0; k < 6; k++ { // the canister bursts: a first cloud at once
+			a := float64(k) / 6 * 2 * math.Pi
+			g.puff(at.add(dir(a).scale(rad*0.4)), 0.2, rad*0.35, 0.5, 0.2, 1.4, hex(0x6fbf3a))
+		}
 		return math.Max(1.5, 4-0.4*lv)
 
 	case augColdPath: // a lance of ice: it pierces, and chills
@@ -122,13 +128,15 @@ func (g *game) activate(a augID, r int, d float64) float64 {
 
 	case augIRQ: // a field round the player: everything inside is shocked
 		rad := 1.5 + 0.25*lv
-		for k := 0; k < 10; k++ {
-			ang := g.rnd.f() * 2 * math.Pi
-			g.addPart(particle{pos: g.pos.add(dir(ang).scale(rad)), z: 0.1, life: 0.25, glyph: '~', col: hex(0xffe14a), tiny: true})
-		}
+		g.addRing(g.pos, rad, 0, 0.25, 0.3, hex(0xffe14a), false)
+		arcs := 0
 		for i := range g.enemies {
 			if e := &g.enemies[i]; e.alive && e.pos.dist2(g.pos) < rad*rad {
 				e.shockT = 2
+				if arcs < 4 {
+					g.addArc(g.pos, e.pos, 0.3, 0.45, 0.14, hex(0xffe14a))
+					arcs++
+				}
 				g.hit(i, d*0.45, false, 1, elShock)
 			}
 		}
@@ -154,6 +162,7 @@ func (g *game) activate(a augID, r int, d float64) float64 {
 			return retry
 		}
 		g.vortex = vortex{alive: true, pos: g.enemies[near[0]].pos, t: 1.4, r: 3.5 + 0.4*lv, dmg: d * 2.2}
+		g.addRing(g.vortex.pos, g.vortex.r, -g.vortex.r/1.4, 0.5, 1.4, hex(0xc07bff), false)
 		g.soundFrom(sfxCharge, g.vortex.pos, 0.5)
 		return math.Max(3, 7.5-0.8*lv)
 	}
@@ -179,10 +188,12 @@ func (g *game) stepVortex(dt float64) {
 	if !v.alive {
 		return
 	}
-	for k := 0; k < 3; k++ {
+	for k := 0; k < 2; k++ {
+		// Puffs drawn in along a spiral.
 		a, d := g.rnd.f()*2*math.Pi, g.rnd.between(0.5, v.r)
 		p := v.pos.add(dir(a).scale(d))
-		g.addPart(particle{pos: p, vel: v.pos.sub(p).scale(2).add(dir(a + math.Pi/2).scale(2)), z: 0.3, life: 0.3, glyph: '@', col: hex(0xc07bff), tiny: true})
+		g.addPart(particle{pos: p, vel: v.pos.sub(p).scale(2).add(dir(a + math.Pi/2).scale(3)), z: 0.3, life: 0.4,
+			col: hex(0xc07bff).mix(rgb{1, 1, 1}, 0.2), puff: 0.22, grow: -0.3})
 	}
 	for i := range g.enemies {
 		e := &g.enemies[i]
@@ -200,5 +211,6 @@ func (g *game) stepVortex(dt float64) {
 	if v.t -= dt; v.t <= 0 {
 		v.alive = false
 		g.blast(v.pos, 2, v.dmg, elNone)
+		g.fireball(v.pos, 2, hex(0xc07bff))
 	}
 }
