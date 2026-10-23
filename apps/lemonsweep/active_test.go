@@ -103,9 +103,10 @@ func TestEveryActiveActsByItself(t *testing.T) {
 		for _, f := range foes {
 			hurt += 1e6 - g.enemies[f].hp
 		}
-		// A core ability: at least fifteen of the gun's shots' worth.
+		// A core ability: at least fifteen shots' worth of the first gun's
+		// 9 (ten of today's, which come slower and hit harder).
 		t.Logf("%-16s %6.0f (%.0f a shot)", augs[a].name, hurt, g.st.dmg)
-		if hurt < 15*g.st.dmg {
+		if hurt < 15*g.st.dmg*9/baseDmg {
 			t.Errorf("%s did %.1f damage in 8 s, under 15 shots' worth", augs[a].name, hurt)
 		}
 	}

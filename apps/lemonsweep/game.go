@@ -154,7 +154,7 @@ type game struct {
 	kills     int
 	pending   int // level-ups whose cards are still to be chosen
 	rank      [nAug]int
-	over      [nAug]int // picks past an augment's last rank
+	bonus     [nBonus]int // random stats taken when no card was left (bonus.go)
 	st        stats
 	cards     [3]augID
 	nCards    int
@@ -166,6 +166,8 @@ type game struct {
 	bossLive  bool    // a boss is in the arena
 	spawnAcc  float64 // spawn budget not yet spent
 	momentum  float64 // stack overflow: damage built by hits in a row
+	pullT     float64 // Boba Prime's straw: pulling while above zero (bosses.go)
+	pullBy    int     // and which enemy drinks
 	hits      int     // shots' hits, for Thunderstrike's seventh
 	volleys   int     // trigger pulls, for Batch Job's tenth
 	deferT    float64 // defer: shots hit harder while above zero
@@ -445,6 +447,7 @@ func (g *game) stepPlayer(dt float64) {
 		m, speed = g.dashDir, dashSpeed*g.st.dashDist
 	}
 	slide(&g.pos, m.x*speed*dt, m.y*speed*dt, playerR)
+	g.stepPull(dt, dashing)
 	if dashing {
 		g.dashStep()
 		if g.dashT <= 0 {
@@ -716,7 +719,7 @@ func (g *game) enter(i int) {
 	g.parts, g.nParts, g.partAt = [maxParts]particle{}, 0, 0
 	g.nShots, g.shotTop = 0, 0
 	g.zones, g.hazards, g.rings, g.arcs = [maxZones]zone{}, [maxHazards]hazard{}, [maxRings]ringFX{}, [maxArcs]arcFX{}
-	g.wave, g.vortex = wave{}, vortex{}
+	g.wave, g.vortex, g.pullT = wave{}, vortex{}, 0
 	g.pos, g.ang = vec{16, 16.5}, -math.Pi/2
 	g.prevAim = g.ang // or the gun swings at the start of every map
 }

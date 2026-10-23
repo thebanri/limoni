@@ -365,6 +365,27 @@ func TestDumpFrame(t *testing.T) {
 		}
 	}
 	shots["boss-queen"] = boss(kQueen, false, 6)
+	own := func(k kindID, steps int) func() *game { // a boss's own move
+		return func() *game {
+			g := playing()
+			g.pos, g.ang = vec{16, 26}, -math.Pi/2
+			g.bossNext, g.hp = 99, 1e6
+			j := g.addEnemy(k, vec{15, 22.4})
+			g.bossLive = true
+			e := &g.enemies[j]
+			e.sig = true
+			to := g.pos.sub(e.pos)
+			g.enemyFire(j, e, to.scale(1/to.len()), to.len())
+			for i := 0; i < steps; i++ {
+				g.step(1.0 / 30)
+				g.hp = 1e6
+			}
+			return g
+		}
+	}
+	shots["own-grid"] = own(kTextual, 20)
+	shots["own-modal"] = own(kQueen, 20)
+	shots["own-straw"] = own(kBobaPrime, 10)
 	shots["boss-ink"] = boss(kReconciler, true, 12)
 	shots["boss-textual"] = boss(kTextual, false, 12)
 	shots["poster"] = func() *game {

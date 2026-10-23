@@ -108,24 +108,38 @@ func TestCardsAreDifferentAndFollowTheirNeeds(t *testing.T) {
 	}
 }
 
-func TestPastTheLastRankAugmentsOverclock(t *testing.T) {
+// A card at its last rank is not offered again; with every slot full and
+// every card held at its last rank, a level is a random stat, at once.
+func TestMaxedBuildsTakeRandomStats(t *testing.T) {
 	g := playing()
 	pickN(g, augHotPath, augs[augHotPath].max)
-	if g.rank[augHotPath] != augs[augHotPath].max || g.over[augHotPath] != 0 {
-		t.Fatalf("rank %d over %d", g.rank[augHotPath], g.over[augHotPath])
+	if g.offerable(augHotPath) {
+		t.Fatal("a card at its last rank is offered again")
 	}
-	before := g.st.dmg
-	pickN(g, augHotPath, 1)
-	if g.over[augHotPath] != 1 || g.rank[augHotPath] != augs[augHotPath].max {
-		t.Fatalf("the pick past the last rank did not overclock: rank %d over %d", g.rank[augHotPath], g.over[augHotPath])
+	held := 0
+	for a := augID(0); a < nAug && held < 2*slots; a++ {
+		if g.offerable(a) {
+			pickN(g, a, augs[a].max)
+			held++
+		}
 	}
-	if got := g.st.dmg / before; math.Abs(got-1.12) > 1e-9 {
-		t.Fatalf("an overclock multiplied damage by %.3f, want 1.12", got)
+	for a := augID(0); a < nAug; a++ {
+		if g.offerable(a) {
+			t.Fatalf("%s is still offered to a full, maxed build", augs[a].name)
+		}
 	}
-	// It keeps going, without end.
-	pickN(g, augHotPath, 20)
-	if g.over[augHotPath] != 21 {
-		t.Fatalf("over %d after 21 overclocks", g.over[augHotPath])
+	dmg, hp := g.st.dmg, g.st.maxHP
+	g.pending = 1
+	g.openCards()
+	if g.phase != phPlay || g.pending != 0 {
+		t.Fatalf("phase %v, %d pending: want the run going on", g.phase, g.pending)
+	}
+	n := 0
+	for _, b := range g.bonus {
+		n += b
+	}
+	if n != 1 || g.st.dmg == dmg && g.st.maxHP == hp && (g.bonus[bonDamage] > 0 || g.bonus[bonHealth] > 0) {
+		t.Fatalf("%d random stats taken, or not applied: %v", n, g.bonus)
 	}
 }
 

@@ -364,8 +364,8 @@ func (g *game) drawSprites(v *view, pos vec) {
 		}
 	}
 	for i := range g.enemies {
-		if g.enemies[i].alive {
-			add(g.enemies[i].pos, bbEnemy, i)
+		if e := &g.enemies[i]; e.alive && e.under <= 0 { // Ferris under the floor is not seen
+			add(e.pos, bbEnemy, i)
 		}
 	}
 	for i := 0; i < g.shotTop; i++ {
@@ -479,6 +479,10 @@ func (g *game) statusMarks(v *view, sx, y, depth float64, e *enemy) {
 	}
 	if e.shieldT > 0 && n < len(marks) {
 		marks[n], cols[n] = '+', 0xff6ad5
+		n++
+	}
+	if e.guards > 0 && n < len(marks) {
+		marks[n], cols[n] = '#', 0x3d7bff // the Queen's modal holds
 		n++
 	}
 	yy := int(y)

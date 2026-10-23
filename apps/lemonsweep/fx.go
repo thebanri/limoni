@@ -109,6 +109,7 @@ type decal struct {
 	col      rgb
 	k        float32 // how strong
 	noise    bool    // a zone: blotched, and moving
+	hw, hh   float64 // a stripe: half its width and height, instead of r
 }
 
 // gatherDecals collects this frame's rings and zones near enough to see.
@@ -145,6 +146,16 @@ func (g *game) floorDecals(c rgb, wx, wy, foot float64) rgb {
 	for i := range sc.decals {
 		d := &sc.decals[i]
 		dx, dy := wx-d.pos.x, wy-d.pos.y
+		if d.hw > 0 {
+			ex, ey := math.Abs(dx)-d.hw, math.Abs(dy)-d.hh
+			if ex > foot || ey > foot {
+				continue
+			}
+			// Filled, its edge drawn brighter.
+			edge := float32(math.Max(0, 1-math.Min(-ex, -ey)/0.25))
+			c = c.mix(d.col, d.k*(0.5+0.5*edge))
+			continue
+		}
 		r := d.r + foot
 		d2 := dx*dx + dy*dy
 		if d2 > r*r {

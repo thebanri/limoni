@@ -274,7 +274,7 @@ func (g *game) nearest(from vec, reach float64, skip int, out []int16) int {
 		best, bd := -1, reach*reach
 		for i := range g.enemies {
 			e := &g.enemies[i]
-			if !e.alive || i == skip {
+			if !e.alive || i == skip || e.under > 0 {
 				continue
 			}
 			taken := false

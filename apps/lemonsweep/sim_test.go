@@ -51,6 +51,13 @@ func bot(g *game, taste []augID) {
 				break
 			}
 		}
+		// The Queen's modal holds: her buttons are the target.
+		for i := range g.enemies {
+			if e := &g.enemies[i]; e.alive && e.guardOf > 0 && g.sees(e.pos) {
+				near, nd = i, e.pos.dist2(g.pos)
+				break
+			}
+		}
 	}
 	g.held = [nAct]bool{}
 	if near >= 0 {
@@ -99,10 +106,10 @@ func bot(g *game, taste []augID) {
 		// A marked floor: step off it, and dash if it is about to go.
 		for k := range g.hazards {
 			h := &g.hazards[k]
-			if !h.alive || g.pos.dist2(h.pos) > (h.r+0.3)*(h.r+0.3) {
+			if !h.alive || !h.covers(g.pos, 0.3) {
 				continue
 			}
-			out := g.pos.sub(h.pos)
+			out := h.out(g.pos)
 			f, r := dir(g.ang), dir(g.ang+math.Pi/2)
 			fw, rt := out.x*f.x+out.y*f.y, out.x*r.x+out.y*r.y
 			g.held[actFwd], g.held[actBack] = fw > 0, fw < 0
@@ -111,6 +118,14 @@ func bot(g *game, taste []augID) {
 				g.dash()
 			}
 			break
+		}
+		// The straw: walk straight away from it.
+		if g.pullT > 0 {
+			out := g.pos.sub(g.enemies[g.pullBy].pos)
+			f, r := dir(g.ang), dir(g.ang+math.Pi/2)
+			fw, rt := out.x*f.x+out.y*f.y, out.x*r.x+out.y*r.y
+			g.held[actFwd], g.held[actBack] = fw > 0, fw < 0
+			g.held[actRight], g.held[actLeft] = rt > 0, rt < 0
 		}
 		// What the game says to do about a claw slam: dash through it.
 		if w := g.wave; w.alive && !w.hit {

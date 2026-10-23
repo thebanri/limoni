@@ -287,8 +287,9 @@ world leaderboard.
 are a shell, a log viewer, some Go and htop. You are the garbage collector, and Bubble Tea, Ratatui, tview,
 Ink and ncurses have come for the heap, each drawn the way its own apps look: pink rounded boxes and
 spinners, Ferris, double-lined modals that split into their buttons, `</>` that splits in two. Aim with
-the mouse, collect (reload) by hand, and take an augment card every level. Past an augment's last rank it
-overclocks, and shots that split, bounce, explode and arc multiply each other into something broken.
+the mouse (an empty heap reloads by itself), and take an augment card every level; once every card held
+is at its last rank, a level is a random stat. Shots that split, bounce, explode and arc multiply each
+other into something broken, and the RECIPES book says which cards do.
 After ten minutes the pressure builds (armour, insulation, speed), and no build holds it for long. There is
 no leaderboard: records stay on the machine, or in the browser.
 

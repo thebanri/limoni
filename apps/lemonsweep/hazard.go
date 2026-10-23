@@ -18,10 +18,33 @@ type hazard struct {
 	dmg    float64
 	src    kindID
 	how    string
-	owner  int    // the enemy it belongs to, or -1
-	ownerK kindID // and its kind, so a slot taken since is not it
-	foes   bool   // it hurts the enemies too (a bomb)
-	land   bool   // its owner lands there when it goes off (a re-render)
+	owner  int     // the enemy it belongs to, or -1
+	ownerK kindID  // and its kind, so a slot taken since is not it
+	foes   bool    // it hurts the enemies too (a bomb)
+	land   bool    // its owner lands there when it goes off (a re-render)
+	hw, hh float64 // a stripe: half its width and height, instead of a disc of r
+}
+
+// covers reports whether p is inside h, with pad more all round.
+func (h *hazard) covers(p vec, pad float64) bool {
+	d := p.sub(h.pos)
+	if h.hw > 0 {
+		return math.Abs(d.x) < h.hw+pad && math.Abs(d.y) < h.hh+pad
+	}
+	r := h.r + pad
+	return d.x*d.x+d.y*d.y < r*r
+}
+
+// out is the shortest way out of h from p.
+func (h *hazard) out(p vec) vec {
+	d := p.sub(h.pos)
+	if h.hw > 0 {
+		if h.hh < h.hw { // a stripe along x: out across it
+			return vec{0, math.Copysign(1, d.y)}
+		}
+		return vec{math.Copysign(1, d.x), 0}
+	}
+	return d
 }
 
 func (g *game) addHazard(h hazard) {
@@ -59,19 +82,29 @@ func (g *game) stepHazards(dt float64) {
 
 func (g *game) goOff(h *hazard) {
 	col := hex(kinds[h.src].accent)
-	g.fireball(h.pos, h.r, col)
+	if h.hw > 0 {
+		// A stripe goes off along its length.
+		along, n := vec{h.hw, 0}, int(h.hw/0.8)
+		if h.hh > h.hw {
+			along, n = vec{0, h.hh}, int(h.hh/0.8)
+		}
+		for k := -n; k <= n; k += 2 {
+			g.fireball(h.pos.add(along.scale(float64(k)/float64(n))), math.Min(h.hw, h.hh)*1.2, col)
+		}
+	} else {
+		g.fireball(h.pos, h.r, col)
+	}
 	g.soundFrom(sfxBoom, h.pos, 0.6)
 	if e, ok := g.owns(h); ok && h.land {
 		e.pos = h.pos
 		g.addRing(h.pos, 0.3, 6, 0.4, 0.3, col, false)
 	}
-	if g.pos.dist2(h.pos) < h.r*h.r {
+	if h.covers(g.pos, 0) {
 		g.hurt(h.dmg, h.pos, h.src, h.how)
 	}
 	if h.foes {
-		r2 := h.r * h.r
 		for i := range g.enemies {
-			if e := &g.enemies[i]; e.alive && i != h.owner && e.pos.dist2(h.pos) < r2 {
+			if e := &g.enemies[i]; e.alive && i != h.owner && h.covers(e.pos, 0) {
 				g.hit(i, h.dmg, false, 1, elFire)
 			}
 		}
@@ -109,6 +142,10 @@ func (g *game) hazardDecals(ds []decal) []decal {
 		}
 		col := hex(kinds[h.src].accent).mix(hex(0xff3a3a), 0.4)
 		pulse := float32(0.7 + 0.3*math.Sin(g.clock*20))
+		if h.hw > 0 {
+			ds = append(ds, decal{pos: h.pos, hw: h.hw, hh: h.hh, col: col, k: pulse * float32(0.3+0.5*(1-h.t/h.max))})
+			continue
+		}
 		ds = append(ds, decal{pos: h.pos, r: h.r, inner: h.r - 0.14, col: col, k: pulse})
 		if fill := h.r * (1 - h.t/h.max); fill > 0.05 {
 			ds = append(ds, decal{pos: h.pos, r: fill, col: col, k: 0.35})
@@ -120,7 +157,7 @@ func (g *game) hazardDecals(ds []decal) []decal {
 // marked reports whether the player stands where a hazard will go off.
 func (g *game) marked() bool {
 	for i := range g.hazards {
-		if h := &g.hazards[i]; h.alive && g.pos.dist2(h.pos) < h.r*h.r {
+		if h := &g.hazards[i]; h.alive && h.covers(g.pos, 0) {
 			return true
 		}
 	}

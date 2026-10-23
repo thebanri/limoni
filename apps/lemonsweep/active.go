@@ -5,19 +5,21 @@ import "math"
 // The actives are the build's core: abilities that act by themselves, each
 // on its own clock, for a share of the gun's damage — so whatever makes the
 // gun stronger makes them stronger too. A rank makes one sooner, bigger or
-// more of it; an overclock past the last rank makes it hit harder.
+// more of it.
 
 // activeK is how much harder an active hits than the gun's share says:
 // they are the core, and six passives are all the rest a build gets.
-const activeK = 1.25
+// (1.25 of a shot of 9; the shot is 13.5 since it came slower.)
+const activeK = 1.25 * 9 / baseDmg
 
 // Six actives each on a short clock filled the screen with effects. They
-// act actPace times as seldom and hit actPunch times as hard: a little less
-// damage in all, and each one reads. Daemons and Burn-in are not paced —
-// they are touch and trail, not casts.
+// act actPace times as seldom, never sooner than actFloor, and hit
+// actPunch times as hard: far less damage in all, and each one a moment.
+// Daemons and Burn-in are not paced — they are touch and trail, not casts.
 const (
-	actPace  = 1.8
-	actPunch = 1.5
+	actPace  = 3.0
+	actFloor = 1.5 // seconds: the shortest an active's clock gets
+	actPunch = 1.3
 	actRetry = 0.25 // an active that found nothing to act on tries again soon
 )
 
@@ -28,13 +30,13 @@ func (g *game) stepActives(dt float64) {
 		}
 		if g.actT[a] -= dt; g.actT[a] <= 0 {
 			paced := a != augDaemon && a != augBurnIn
-			d := g.st.dmg * g.ov(a) * activeK
+			d := g.st.dmg * activeK
 			if paced {
 				d *= actPunch
 			}
 			t := g.activate(a, g.rank[a], d)
 			if paced && t > actRetry {
-				t *= actPace
+				t = math.Max(t*actPace, actFloor)
 			}
 			g.actT[a], g.actP[a] = t, t
 		}

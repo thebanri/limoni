@@ -105,6 +105,15 @@ type enemy struct {
 	aim     vec     // where a sniper's laser points
 	shieldT float64 // shielded by a Lip Gloss while above zero
 	warden  bool    // the map's last boss: sweeping it opens the next
+
+	// the bosses' own (bosses.go)
+	sig     bool    // the attack wound up is its own move
+	phase2  bool    // under half health
+	under   float64 // Ferris under the floor while above zero: unseen, unhurt
+	guards  int     // the Modal Queen's buttons standing: nothing hurts her
+	guardT  float64 // until her modal closes by itself
+	guardOf int16   // a button guarding a Queen: her index + 1
+	decoy   bool    // a Reconciler's virtual copy
 }
 
 // windUp is how long a ranged enemy shows its attack coming.
@@ -198,11 +207,22 @@ func (g *game) hpScale() float64 {
 // as tough, so a sweep mows lines down rather than picking off a few.
 const crowdN, crowdHP = 1.6, 0.75
 
+// bossHP is the bosses' health against the first tuning: the actives were
+// cut to a few casts a minute, and every boss gained a move of its own.
+const bossHP = 0.6
+
+// crowd is how many enemies come for each one of the first tuning: twice
+// crowdN at the start of a run, where the heap was thin, down to crowdN by
+// five minutes of heat.
+func (g *game) crowd() float64 {
+	return crowdN * (1 + math.Max(0, 1-g.heat()/300))
+}
+
 // budget is how much enemy arrives per second.
 func (g *game) budget() float64 {
 	// Time alone sets it: tied to the level, more enemies meant more
 	// experience meant more enemies, and a good run never stopped growing.
-	b := crowdN * (0.8 + g.heat()/heatPace) * math.Sqrt(g.pressure())
+	b := g.crowd() * (0.8 + g.heat()/heatPace) * math.Sqrt(g.pressure())
 	if g.bossLive {
 		b *= 0.35 // a boss's fight is with the boss, not its crowd
 	}
@@ -307,6 +327,9 @@ func (g *game) addEnemy(k kindID, p vec) int {
 		}
 		kd := &kinds[k]
 		hp := kd.hp * g.hpScale()
+		if kd.boss {
+			hp *= bossHP
+		}
 		*e = enemy{alive: true, k: k, pos: p, hp: hp, max: hp, armor: kd.armor, lastShot: -1,
 			phaseOff: g.rnd.f() * 10, cd: g.rnd.between(1, 2.5)}
 		// Elites from level 12; after eight minutes they are armoured, and
@@ -414,6 +437,13 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		slide(&e.pos, e.knock.x*dt, e.knock.y*dt, kd.r*0.8)
 		return // frozen: no step, no bite, no attack, and its frame held
 	}
+	if e.under > 0 {
+		g.stepBurrow(i, e, dt)
+		return
+	}
+	if kd.boss && !e.decoy {
+		g.stepBoss(e, dt)
+	}
 	e.t += dt
 	to := g.pos.sub(e.pos)
 	d := to.len()
@@ -459,7 +489,7 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	case bSnipe:
 		switch {
 		case e.windT > 0:
-		case d > 11:
+		case d > 11 || !g.sees(e.pos): // out of sight: come round the wall
 			m = w
 		case d < 7:
 			m = backOff(e, w, kd.r, 0.8)
@@ -496,13 +526,16 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		m = w.add(side.scale(math.Sin(e.t*4+e.phaseOff) * 1.2))
 	case bKeepAway:
 		switch {
-		case d > 7:
+		case d > 7 || !g.sees(e.pos): // a wall between: its range is no use, come round
 			m = w
 		case d < 4.5:
 			m = backOff(e, w, kd.r, 0.8)
 		default:
 			m = vec{-w.y, w.x}.scale(0.6 * math.Sin(e.phaseOff))
 		}
+	}
+	if to, ok := g.guarding(e); ok {
+		m = to
 	}
 	// Keep apart from the ones in the same cell, or a swarm becomes a dot.
 	cx, cy := int(e.pos.x), int(e.pos.y)
@@ -568,14 +601,15 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 				reach = 14
 			}
 			if e.cd <= 0 && d < reach && (kd.act == bBlink || g.sees(e.pos)) {
-				e.slam = slams(e)
+				e.sig = sigs(e) && !e.decoy
+				e.slam = !e.sig && slams(e) && !e.decoy
 				if kd.act == bCharge {
 					e.dashDir = n
 					for k := 1; k <= 6; k++ { // its line, on the floor
 						g.addRing(e.pos.add(n.scale(float64(k)*1.0)), 0.22, 0, 0.22, windUp(e.k, false), hex(0x6f8fb8), true)
 					}
 				}
-				e.windT = windUp(e.k, e.slam)
+				e.windT = windUp(e.k, e.slam || e.sig)
 				vol := float32(0.5)
 				if kd.boss {
 					vol = 1
@@ -605,9 +639,24 @@ func (g *game) sees(p vec) bool {
 }
 
 func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
+	if e.sig {
+		e.attacks++
+		g.signature(i, e, n)
+	} else {
+		g.enemyAttack(i, e, n, d)
+	}
+	if e.phase2 && !e.decoy {
+		e.cd *= 0.85 // the second phase: it comes faster
+	}
+}
+
+func (g *game) enemyAttack(i int, e *enemy, n vec, d float64) {
 	kd := &kinds[e.k]
 	a := math.Atan2(n.y, n.x)
 	dmg := kd.dmg * 0.7 * (1 + 0.03*float64(g.level)) * math.Sqrt(g.pressure())
+	if e.decoy {
+		dmg *= 0.5
+	}
 	e.attacks++
 	switch e.k {
 	case kBeetle:
@@ -630,22 +679,23 @@ func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
 		return
 	case kQueen:
 		e.cd = 2.6
-		if e.slam { // her buttons, and a modal
-			for k := 0; k < 4; k++ {
-				g.addEnemy(kButton, e.pos.add(dir(float64(k)*math.Pi/2).scale(1.5)))
-			}
-			g.addEnemy(kModal, e.pos.add(n.scale(1.5)))
-			g.soundFrom(sfxRoar, e.pos, 0.6)
-			return
-		}
-		// A dialog wall: eleven bars side by side, two missing.
+		// A dialog wall: eleven bars side by side, three missing; in her
+		// second phase every other one has a second wall behind it, its
+		// gap elsewhere.
 		side := vec{-n.y, n.x}
-		gap := 1 + g.rnd.intn(8)
-		for k := 0; k < 11; k++ {
-			if k == gap || k == gap+1 {
-				continue
+		walls := 1
+		if e.phase2 && e.attacks%2 == 0 {
+			walls = 2
+		}
+		for wl := 0; wl < walls; wl++ {
+			gap := 1 + g.rnd.intn(7)
+			back := n.scale(kd.r - float64(wl)*1.4)
+			for k := 0; k < 11; k++ {
+				if k >= gap && k <= gap+2 {
+					continue
+				}
+				g.enemyShot(e, e.pos.add(side.scale((float64(k)-5)*0.55)).add(back), a, dmg*0.55, shotBar)
 			}
-			g.enemyShot(e, e.pos.add(side.scale((float64(k)-5)*0.55)).add(n.scale(kd.r)), a, dmg*0.8, shotBar)
 		}
 	case kReconciler:
 		e.cd = 2.4
@@ -654,6 +704,7 @@ func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
 				to := g.pos.add(dir(g.rnd.f() * 2 * math.Pi).scale(2.5))
 				if free(to.x, to.y, kd.r) {
 					g.addHazard(hazard{pos: to, r: 1.7, t: 1.0, dmg: g.contact(e) * 0.8, src: e.k, how: "re-render", owner: i, ownerK: e.k, land: true})
+					g.leaveDecoy(e)
 					break
 				}
 			}
@@ -675,7 +726,11 @@ func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
 			return
 		}
 		// A cascade: blocks falling on the player and round them.
-		for k := 0; k < 5; k++ {
+		blocks := 5
+		if e.phase2 {
+			blocks = 8
+		}
+		for k := 0; k < blocks; k++ {
 			at := g.pos
 			if k > 0 {
 				at = at.add(dir(float64(k)*math.Pi/2 + g.rnd.f()).scale(g.rnd.between(1.8, 3)))
@@ -689,8 +744,12 @@ func (g *game) enemyFire(i int, e *enemy, n vec, d float64) {
 		g.enemyShot(e, e.pos.add(n.scale(kd.r)), a, dmg, shotBar)
 	case kBobaPrime:
 		e.cd = 2.2
-		for i := 0; i < 10; i++ {
-			g.enemyShot(e, e.pos, a+float64(i)*2*math.Pi/10+e.t, dmg, shotPearl)
+		pearls := 10
+		if e.phase2 {
+			pearls = 16
+		}
+		for i := 0; i < pearls; i++ {
+			g.enemyShot(e, e.pos, a+float64(i)*2*math.Pi/float64(pearls)+e.t, dmg, shotPearl)
 		}
 		for i := 0; i < 3; i++ {
 			g.addEnemy(kSpinner, e.pos.add(vec{g.rnd.between(-1, 1), g.rnd.between(-1, 1)}))
@@ -721,13 +780,15 @@ func (g *game) enemyShot(e *enemy, p vec, a, dmg float64, k shotKind) int {
 }
 
 // slams reports whether e's next attack is its other one: Ferris's slam
-// every third, the Queen's summons and the Reconciler's re-render every
-// second, Textual's widgets every third.
+// third in four, the Reconciler's re-render every second, Textual's
+// widgets every third. (A boss's own move is sigs, in bosses.go.)
 func slams(e *enemy) bool {
 	switch e.k {
-	case kFerris, kTextual:
+	case kFerris:
+		return e.attacks%4 == 2
+	case kTextual:
 		return e.attacks%3 == 2
-	case kQueen, kReconciler:
+	case kReconciler:
 		return e.attacks%2 == 1
 	}
 	return false
@@ -798,7 +859,11 @@ func (g *game) damage(i int, dmg float64, crit bool) bool { return g.hit(i, dmg,
 // counts against it (poison: none).
 func (g *game) hit(i int, dmg float64, crit bool, armorK float64, el element) bool {
 	e := &g.enemies[i]
-	if !e.alive {
+	if !e.alive || e.under > 0 {
+		return false
+	}
+	if e.guards > 0 {
+		e.flash = 0.5 // her modal holds: nothing gets through
 		return false
 	}
 	dmg *= g.vuln(e)
@@ -829,6 +894,17 @@ func (g *game) kill(i int) {
 	e := &g.enemies[i]
 	kd := &kinds[e.k]
 	e.alive = false
+	if e.decoy { // virtual: nothing was there
+		g.burst(e)
+		g.soundFrom(sfxPop, e.pos, 0.6)
+		return
+	}
+	if e.guardOf > 0 {
+		g.guardDown(e)
+	}
+	if e.k == kReconciler {
+		g.unmount()
+	}
 	if kd.act == bBomb {
 		g.bombGoesOff(i)
 	}
@@ -842,7 +918,7 @@ func (g *game) kill(i int) {
 	g.burst(e)
 	xp := kd.xp
 	if !kd.boss {
-		xp /= crowdN // a crowd levels the build no faster than the few did
+		xp /= g.crowd() // a crowd levels the build no faster than the few did
 	}
 	g.dropBytes(e.pos, 1.5*xp*(1+boolf(e.elite)*2))
 	g.soundFrom(sfxPop, e.pos, 0.6)

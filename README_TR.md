@@ -270,9 +270,10 @@ tablosu da var.
 duvarlar bir kabuk, bir log görüntüleyici, biraz Go ve htop. Sen çöp toplayıcısın; Bubble Tea, Ratatui,
 tview, Ink ve ncurses heap'e saldırıyor, her biri kendi uygulamalarının göründüğü gibi çizilmiş: pembe
 yuvarlak kutular ve spinner'lar, Ferris, ölünce düğmelerine bölünen çift çizgili modallar, ikiye ayrılan
-`</>`. Mouse ile nişan alırsın, şarjörü (toplamayı) elle yaparsın ve her seviyede bir augment kartı
-seçersin. Bir augment son seviyesini geçince overclock olur; bölünen, seken, patlayan ve sıçrayan mermiler
-birbirini katlayıp bozuk bir şeye dönüşür. On dakikadan sonra baskı başlar (zırh, yalıtım, hız) ve hiçbir
+`</>`. Mouse ile nişan alırsın (boşalan şarjör kendiliğinden dolar) ve her seviyede bir augment kartı
+seçersin; elindeki her kart son seviyesindeyse seviye rastgele bir stat verir. Bölünen, seken, patlayan ve
+sıçrayan mermiler birbirini katlayıp bozuk bir şeye dönüşür; hangi kartların birlikte iyi gittiğini
+RECIPES (tarif kitabı) söyler. On dakikadan sonra baskı başlar (zırh, yalıtım, hız) ve hiçbir
 build ona uzun dayanmaz. Skor tablosu yok: rekorlar makinede ya da tarayıcıda kalır.
 
 ```bash

@@ -172,7 +172,6 @@ func (g *game) advance(i int, s *shot, d vec) {
 			s.vel = s.vel.scale(-1) // straight into a corner
 		}
 		s.bounces--
-		s.dmg *= 1 + g.st.bounceK
 		s.lastHit = -1
 		s.life += 0.3
 		g.sparks(s.pos, 2, 0x5ad1ff)
@@ -195,7 +194,7 @@ func (g *game) advance(i int, s *shot, d vec) {
 			}
 			for j := g.bucket[yy*mapW+xx]; j >= 0; j = g.nextInCel[j] {
 				e := &g.enemies[j]
-				if !e.alive || j == s.lastHit || e.lastShot == s.id {
+				if !e.alive || j == s.lastHit || e.lastShot == s.id || e.under > 0 {
 					continue
 				}
 				r := kinds[e.k].r + 0.07

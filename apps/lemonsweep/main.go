@@ -8,9 +8,9 @@
 // You are Limoni's garbage collector. Bubble Tea, Ratatui, tview, Ink and
 // ncurses have come for the heap, each drawn the way its own apps look.
 // Aim with the mouse, sweep with the button, collect (reload) with R or the
-// right button. Every level brings three augment cards; past an augment's
-// last rank it overclocks. After ten minutes the pressure builds, and no
-// build holds it for long.
+// right button. Every level brings three augment cards; once every card
+// held is at its last rank, a random stat. After ten minutes the pressure
+// builds, and no build holds it for long.
 package main
 
 import (

@@ -4,8 +4,8 @@ import "math"
 
 // Augments are the cards offered at every level. Each is named after
 // something Limoni or Go does, takes up to max ranks, and past its last
-// rank keeps coming back as an overclock: +12% to what it does, without
-// end. The broken builds come from the ones that multiply each other —
+// rank is no longer offered; once nothing can be, a level is a random
+// stat instead (bonus.go). The broken builds come from the ones that multiply each other —
 // shots that split, splits that bounce, bounces that explode, explosions
 // that throw shrapnel — and the pressure (game.pressure) is what ends them.
 
@@ -277,7 +277,6 @@ type stats struct {
 	overflow                             float64
 	sync                                 bool
 	execute                              float64
-	bounceK                              float64 // damage a bounce adds
 	taken                                float64 // what is left of a hit on the player
 
 	// elements: a chance a hit adds a stack, and what the stacks do
@@ -311,38 +310,34 @@ type stats struct {
 	batch                                                    int
 }
 
-// ov is the overclock multiplier of an augment: +12% a pick past its last
 // rank.
-func (g *game) ov(a augID) float64 { return 1 + 0.12*float64(g.over[a]) }
-
-// rk is an augment's rank as a number, overclocks counted as a share of one.
-func (g *game) rk(a augID) float64 { return float64(g.rank[a]) * g.ov(a) }
+// rk is an augment's rank as a number.
+func (g *game) rk(a augID) float64 { return float64(g.rank[a]) }
 
 // The run starts weak on purpose: a plain sweeper and a slow mend, so the
 // first cards are felt. Every level then adds a little damage of its own
 // (perLevel), so the collector grows with the run whatever the cards were,
 // and the build is what carries the late game.
 const (
-	baseDmg  = 9.0
-	baseRate = 5.0
+	baseDmg  = 13.5 // heavier shots, fewer of them: 40 a second, from 45
+	baseRate = 3.0
 	perLevel = 0.025
 )
 
 func (g *game) recalc() {
 	r := &g.rank
 	s := stats{
-		dmg:        baseDmg * (1 + perLevel*float64(g.level-1)) * (1 + 0.2*float64(r[augHotPath])) * g.ov(augHotPath) * g.ov(augREP),
-		fireRate:   baseRate * (1 + 0.15*float64(r[augLoop])) * g.ov(augLoop),
-		reload:     1.35 * pow(0.85, r[augConcGC]) / g.ov(augConcGC),
-		speed:      (1 + 0.09*float64(r[augHotReload])) * (1 + 0.03*float64(g.over[augHotReload])),
+		dmg:        baseDmg * (1 + perLevel*float64(g.level-1)) * (1 + 0.2*float64(r[augHotPath])),
+		fireRate:   baseRate * (1 + 0.15*float64(r[augLoop])),
+		reload:     1.35 * pow(0.85, r[augConcGC]),
+		speed:      (1 + 0.09*float64(r[augHotReload])),
 		dashCD:     pow(0.88, r[augHotReload]),
-		mag:        14 + 5*r[augHeap] + int(float64(14+5*r[augHeap])*0.12*float64(g.over[augHeap])),
+		mag:        14 + 5*r[augHeap],
 		multishot:  1 + r[augREP],
 		bounces:    r[augScroll],
-		bounceK:    0.12 * float64(g.over[augScroll]),
 		pierce:     r[augDiff],
 		chainN:     r[augChain],
-		chainK:     0.35 * g.ov(augChain) * (1 + 0.2*g.rk(augConductor)),
+		chainK:     0.35 * (1 + 0.2*g.rk(augConductor)),
 		chainReach: 4.5 + 0.6*float64(r[augConductor]),
 		crit:       0.08 * float64(r[augEscape]),
 		critMul:    2 + 0.5*float64(r[augEscape]),
@@ -350,14 +345,14 @@ func (g *game) recalc() {
 		maxHP:      100 + 25*float64(r[augShutdown]),
 		onKill:     1.5 * g.rk(augRecover),
 		regen:      regen + 0.6*g.rk(augWatchdog),
-		xpK:        (1 + 0.12*float64(r[augGOGC])) * g.ov(augGOGC) * (1 + 0.08*g.rk(augWeakRefs)),
+		xpK:        (1 + 0.12*float64(r[augGOGC])) * (1 + 0.08*g.rk(augWeakRefs)),
 		shrapnel:   3 * r[augCascade],
 		overflow:   0.03 * g.rk(augOverflow),
 		sync:       r[augSync] > 0,
-		taken:      pow(0.95, r[augCryo]) * pow(0.94, r[augMutex]) / g.ov(augCryo) / g.ov(augMutex),
+		taken:      pow(0.95, r[augCryo]) * pow(0.94, r[augMutex]),
 
 		burnP:      0.15 + 0.15*float64(r[augIgnite]),
-		burnK:      (1 + 0.3*g.rk(augFirewall)) * g.ov(augIgnite),
+		burnK:      (1 + 0.3*g.rk(augFirewall)),
 		burnFor:    3 + float64(r[augFirewall]),
 		wildfire:   2 * r[augWildfire],
 		napalm:     2 * r[augNapalm],
@@ -368,7 +363,7 @@ func (g *game) recalc() {
 
 		chillP:    0.25 + 0.15*float64(r[augChill]),
 		shatter:   0.35 * g.rk(augShatter),
-		freezeFor: (1.2 + 0.3*float64(r[augPermafrost])) * g.ov(augChill),
+		freezeFor: (1.2 + 0.3*float64(r[augPermafrost])),
 		chillFor:  2.5 + 0.5*float64(r[augPermafrost]),
 		frostbite: 0.06 * g.rk(augFrostbite),
 		shards:    3 * r[augShards],
@@ -376,13 +371,13 @@ func (g *game) recalc() {
 		thermal:   r[augThermal] > 0,
 
 		shockAmp: 0.08 * g.rk(augStatic),
-		thunderK: (2.5 + 0.6*float64(r[augThunder])) * g.ov(augThunder),
+		thunderK: (2.5 + 0.6*float64(r[augThunder])),
 		short:    2 * r[augShort],
 		spark:    r[augSparkGap],
 		superArc: r[augSuper] > 0,
 
 		poisonP:  0.2 + 0.12*float64(r[augLeak]),
-		poisonK:  g.ov(augLeak),
+		poisonK:  1,
 		corrode:  float64(r[augCorrode]),
 		plague:   2 * r[augPlague],
 		fumes:    0.12 * g.rk(augFumes),
@@ -428,8 +423,8 @@ func (g *game) recalc() {
 		s.splitGen = 1 + r[augRecursion]
 	}
 	if r[augPanic] > 0 {
-		s.explodeR = (0.9 + 0.25*float64(r[augPanic])) * (1 + 0.05*float64(g.over[augPanic]))
-		s.explodeK = (0.35 + 0.1*float64(r[augPanic])) * g.ov(augPanic)
+		s.explodeR = (0.9 + 0.25*float64(r[augPanic]))
+		s.explodeK = (0.35 + 0.1*float64(r[augPanic]))
 	}
 	// Polyglot: every element carried, the dash's own included.
 	if r[augPolyglot] > 0 {
@@ -445,15 +440,9 @@ func (g *game) recalc() {
 				n++
 			}
 		}
-		s.dmg *= 1 + 0.15*float64(n)*g.ov(augPolyglot)
+		s.dmg *= 1 + 0.15*float64(n)
 	}
-	s.pierce += g.over[augDiff] / 2
-	s.multishot += g.over[augREP] / 3
-	s.crit += 0.02 * float64(g.over[augEscape])
-	s.freeShot = minf(s.freeShot+0.03*float64(g.over[augZeroAlloc]), 0.75)
-	s.splitN += g.over[augFork] / 2
-	s.chainN += g.over[augChain] / 2
-	s.maxHP *= g.ov(augShutdown)
+	g.bonuses(&s)
 	g.st = s
 	if g.ammo > s.mag {
 		g.ammo = s.mag
@@ -500,8 +489,8 @@ func (g *game) offerable(a augID) bool {
 	if a == augThermal && g.rank[augIgnite] == 0 {
 		return false // it needs both
 	}
-	if augs[a].max == 1 && g.rank[a] == 1 {
-		return false // a one-rank card has nothing to overclock
+	if g.rank[a] >= augs[a].max {
+		return false // at its last rank: nothing more to take
 	}
 	return true
 }
@@ -520,15 +509,9 @@ func rarityWeight(r rarity, level int) float64 {
 	return 10
 }
 
-// openCards draws three different cards, weighted by rarity, the ones the
+// openCards draws up to three different cards, weighted by rarity, the ones the
 // player already has a little more often, so builds come together.
 func (g *game) openCards() {
-	g.phase = phCards
-	// A trigger held when the cards come up is not a pick: the button has
-	// to come up first, and the cards stay a moment before a click counts.
-	g.clickOK = !g.held[actFire] || g.fireKey
-	g.cardsAt = g.clock
-	g.release(actFire) // the click that picks a card must not fire
 	g.pending--
 	g.nCards = 0
 	g.cardHov = -1
@@ -551,6 +534,16 @@ func (g *game) openCards() {
 			pick -= w
 		}
 	}
+	if g.nCards == 0 {
+		g.randomStat() // every card held is at its last rank
+		return
+	}
+	g.phase = phCards
+	// A trigger held when the cards come up is not a pick: the button has
+	// to come up first, and the cards stay a moment before a click counts.
+	g.clickOK = !g.held[actFire] || g.fireKey
+	g.cardsAt = g.clock
+	g.release(actFire) // the click that picks a card must not fire
 	g.sound(sfxLevel)
 }
 
@@ -569,9 +562,6 @@ func (g *game) cardWeight(a augID) float64 {
 	}
 	if el := augs[a].el; el != elNone && g.carries(el) {
 		w *= 1.6 // an element carried pulls its cards in
-	}
-	if g.rank[a] >= augs[a].max {
-		w *= 0.7 // overclocks come, a little less often
 	}
 	return w
 }
@@ -592,11 +582,7 @@ func (g *game) take(i int) {
 		return
 	}
 	a := g.cards[i]
-	if g.rank[a] < augs[a].max {
-		g.rank[a]++
-	} else {
-		g.over[a]++
-	}
+	g.rank[a]++
 	oldMax := g.st.maxHP
 	g.recalc()
 	if a == augShutdown {

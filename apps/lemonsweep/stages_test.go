@@ -260,3 +260,25 @@ func TestBossesDoNotStickInWalls(t *testing.T) {
 		}
 	}
 }
+
+// A boss that keeps its distance keeps it in sight: one at its range with
+// a wall between comes round the wall, rather than waiting behind it.
+func TestABossBehindAWallComesRound(t *testing.T) {
+	defer useArena(0)
+	g := playing()
+	g.enter(0)
+	g.pos = vec{16, 12.5} // under the HEAP's long window, row 10
+	i := g.addEnemy(kQueen, vec{16, 6.5})
+	e := &g.enemies[i]
+	e.cd = 1e9
+	if g.sees(e.pos) {
+		t.Fatal("the wall is not between them")
+	}
+	for s := 0; s < 30*20 && !g.sees(e.pos); s++ {
+		g.hurtT = 1
+		g.stepEnemies(tick)
+	}
+	if !g.sees(e.pos) {
+		t.Fatalf("the Queen waited behind the wall, at %v", e.pos)
+	}
+}
