@@ -164,7 +164,7 @@ func (g *game) key(k limoni.KeyEvent) {
 	switch g.phase {
 	case phTitle:
 		if down {
-			g.menuKey(k, isRune, ch, &g.menu, g.titlePick)
+			g.menuKey(k, isRune, ch, &g.menu, len(titleItems), g.titlePick)
 		}
 		return
 	case phPause:
@@ -175,7 +175,7 @@ func (g *game) key(k limoni.KeyEvent) {
 				g.phase = phPlay
 				return
 			}
-			g.menuKey(k, isRune, ch, &g.pause, g.pausePick)
+			g.menuKey(k, isRune, ch, &g.pause, len(pauseItems), g.pausePick)
 		}
 		return
 	case phSettings:
@@ -266,14 +266,14 @@ func moveAction(k limoni.KeyEvent, isRune bool, ch rune) (action, bool) {
 	return 0, false
 }
 
-// menuKey moves through a three-item menu.
-func (g *game) menuKey(k limoni.KeyEvent, isRune bool, ch rune, sel *int, pick func(int)) {
+// menuKey moves through a menu of n items.
+func (g *game) menuKey(k limoni.KeyEvent, isRune bool, ch rune, sel *int, n int, pick func(int)) {
 	switch {
 	case isRune && ch == 'w' || k.Type == limoni.KeyUp:
-		*sel = (*sel + 2) % 3
+		*sel = (*sel + n - 1) % n
 		g.sound(sfxMenu)
 	case isRune && ch == 's' || k.Type == limoni.KeyDown:
-		*sel = (*sel + 1) % 3
+		*sel = (*sel + 1) % n
 		g.sound(sfxMenu)
 	case k.Type == limoni.KeyEnter || k.Type == limoni.KeySpace:
 		pick(*sel)
@@ -286,12 +286,13 @@ func (g *game) menuKey(k limoni.KeyEvent, isRune bool, ch rune, sel *int, pick f
 
 func (g *game) titlePick(i int) {
 	switch i {
-	case 0:
+	case 0, 1:
+		g.endless = i == 1
 		g.reset()
 		g.sound(sfxPick)
-	case 1:
-		g.openSettings()
 	case 2:
+		g.openSettings()
+	case 3:
 		g.quit = true
 	}
 }
@@ -336,12 +337,12 @@ func (g *game) mouse(m limoni.MouseEvent) {
 	case phTitle, phPause:
 		// The buttons follow the mouse; a click on one picks it, a click
 		// anywhere else starts the run or resumes it.
-		sel, pick := &g.menu, g.titlePick
+		sel, pick, n := &g.menu, g.titlePick, len(titleItems)
 		if g.phase == phPause {
-			sel, pick = &g.pause, g.pausePick
+			sel, pick, n = &g.pause, g.pausePick, len(pauseItems)
 		}
 		row := g.mouseY - g.menuY
-		on := row >= 0 && row < 3 && abs(g.mouseX-c.w/2) <= buttonW/2
+		on := row >= 0 && row < n && abs(g.mouseX-c.w/2) <= buttonW/2
 		if on {
 			*sel = row
 		}

@@ -8,7 +8,10 @@ import (
 // Mark & Sweep: you are Limoni's garbage collector, and the frameworks have
 // come for the heap. Mark them with the crosshair, sweep them with the
 // trigger, take a card every level, and build something broken enough to
-// outlast the pressure — which, after ten minutes, nothing does for long.
+// get through three maps: ten minutes on each, then its warden, and the
+// pressure if the warden is not swept soon — which nothing outlasts for
+// long. Or /dev/zero, the endless map, where the pressure comes slower and
+// never stops.
 
 type vec struct{ x, y float64 }
 
@@ -139,6 +142,12 @@ type game struct {
 	sens     float64 // radians per pixel of pointer movement
 
 	// the run
+	endless   bool    // /dev/zero, not the three maps
+	stage     int     // which of the three maps
+	stageT    float64 // seconds on this map
+	clearT    float64 // the warden is swept: the next map when this runs out
+	wardenUp  bool    // the warden is in the arena
+	won       bool    // all three maps swept
 	level     int
 	xp        float64
 	kills     int
@@ -192,6 +201,9 @@ type game struct {
 	nShots    int
 	shotTop   int // shots above this index are all dead
 	bucket    [mapW * mapH]int16
+	flow      [mapW * mapH]uint8 // steps to the player round the walls (flow.go)
+	flowAt    int                // the player's tile when it was counted
+	flowArena *arena             // and the map
 	nextInCel [maxEnemies]int16
 
 	// screens
@@ -239,17 +251,15 @@ func newGame(seed uint64) *game {
 // reset starts a new run.
 func (g *game) reset() {
 	best, store, audio, vol, last, sens, exact, seed := g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd
-	ret := g.ret
+	ret, endless := g.ret, g.endless
 	showFPS, fps, frames, fpsAt := g.showFPS, g.fps, g.frames, g.fpsAt
 	noSound, clock, locked, mx, my, in, hint := g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint
 	*g = game{}
 	g.best, g.store, g.audio, g.volume, g.lastVol, g.sens, g.exact, g.rnd = best, store, audio, vol, last, sens, exact, seed
 	g.noSound, g.clock, g.locked, g.mouseX, g.mouseY, g.mouseIn, g.hint = noSound, clock, locked, mx, my, in, hint
 	g.showFPS, g.fps, g.frames, g.fpsAt = showFPS, fps, frames, fpsAt
-	g.ret = ret
-	g.pos = vec{16, 16.5}
-	g.ang = -math.Pi / 2
-	g.prevAim = g.ang // or the gun swings at the start of every run
+	g.ret, g.endless = ret, endless
+	g.enter(0)
 	g.level = 1
 	g.bossNext = 10
 	g.recalc()
@@ -329,11 +339,22 @@ func (g *game) step(dt float64) {
 		g.slowT -= dt
 		world = dt * 0.35
 	}
-	if g.runTime < 600 && g.runTime+dt >= 600 {
+	if !g.endless && g.stageT < wardenAt && g.stageT+dt >= wardenAt {
+		g.spawnWarden()
+	}
+	before := g.overtime()
+	g.runTime += dt
+	g.stageT += dt
+	if before < 0 && g.overtime() >= 0 {
 		g.say("GC pressure: the heap fights back")
 		g.sound(sfxRoar)
 	}
-	g.runTime += dt
+	if g.clearT > 0 {
+		if g.clearT -= dt; g.clearT <= 0 {
+			g.nextStage()
+			return
+		}
+	}
 	g.stepPlayer(dt)
 	g.stepWeapon(dt)
 	g.spawn(world)
@@ -595,28 +616,152 @@ func (g *game) gain(xp float64) {
 	}
 }
 
+// die ends the run: out of memory, or every map swept.
 func (g *game) die() {
 	g.phase = phDead
-	g.hp = 0
+	if !g.won {
+		g.hp = 0
+	}
 	g.deadAt = g.clock
 	g.held = [nAct]bool{}
-	g.sound(sfxDeath)
+	if g.won {
+		g.sound(sfxPick)
+	} else {
+		g.sound(sfxDeath)
+	}
 	g.killedBy, g.killedHow = g.hurtBy, g.hurtHow
-	g.newBest = g.best.add(runRecord{
+	g.newBest = g.bests().add(runRecord{
 		secs: int(g.runTime), level: g.level, kills: g.kills,
 		peak: g.peakShot, bigHit: int(g.bigHit),
 	})
 	g.persist()
 }
 
-// pressure is how hard the heap pushes back: 1 until ten minutes, then it
-// doubles about every two minutes. No build outlasts it for long.
-func (g *game) pressure() float64 {
-	const start = 600
-	if g.runTime < start {
-		return 1
+// bests is the records this run is up against: the three maps', or
+// /dev/zero's.
+func (g *game) bests() *bests {
+	if g.endless {
+		return &g.best.endless
 	}
-	return math.Pow(1.2, (g.runTime-start)/30)
+	return &g.best.bests
+}
+
+// ── difficulty ───────────────────────────────────────────────────────────
+
+const (
+	wardenAt   = 600.0 // seconds on a map before its warden comes
+	pressureAt = 720.0 // and before the pressure, if the warden still stands
+	endlessAt  = 900.0 // /dev/zero's pressure: later, and a third as steep
+	stageLead  = 300.0 // each map starts as hard as this far into the last
+	heatPace   = 400.0 // seconds of heat that add the enemies' first health and pace again
+)
+
+// heat is how far along the slow climb the run is: the time on this map,
+// and each map before it counted as five of its minutes, so a new map is a
+// breath but not a fresh start. On /dev/zero, the whole run, slower: no
+// map ends there to give the health back.
+func (g *game) heat() float64 {
+	if g.endless {
+		return g.stageT * 0.6
+	}
+	return g.stageT + stageLead*float64(g.stage)
+}
+
+// pressureStart is when on this map the pressure begins.
+func (g *game) pressureStart() float64 {
+	if g.endless {
+		return endlessAt
+	}
+	return pressureAt
+}
+
+// overtime is how far past the pressure's start this map is, in the
+// pressure's own seconds; below zero it has not started. On /dev/zero a
+// run is meant to go on: its pressure climbs at a third of the pace.
+func (g *game) overtime() float64 {
+	o := g.stageT - g.pressureStart()
+	if g.endless {
+		o /= 3
+	}
+	return o
+}
+
+// pressure is how hard the heap pushes back: 1 until the map has gone on
+// too long, then it doubles about every two minutes. No build outlasts it
+// for long.
+func (g *game) pressure() float64 {
+	if o := g.overtime(); o > 0 {
+		return math.Pow(1.2, o/30)
+	}
+	return 1
+}
+
+// ── maps ─────────────────────────────────────────────────────────────────
+
+// enter starts map i of the run, or /dev/zero: the arena, its clock, and
+// nothing left of the last one in it.
+func (g *game) enter(i int) {
+	g.stage = i
+	if g.endless {
+		useArena(len(arenas) - 1)
+	} else {
+		useArena(i)
+	}
+	g.stageT, g.clearT, g.spawnAcc, g.bossLive, g.wardenUp = 0, 0, 0, false, false
+	g.enemies, g.shots, g.bytes = [maxEnemies]enemy{}, [maxShots]shot{}, [maxBytes]orb{}
+	g.parts, g.nParts, g.partAt = [maxParts]particle{}, 0, 0
+	g.nShots, g.shotTop = 0, 0
+	g.zones, g.hazards, g.rings, g.arcs = [maxZones]zone{}, [maxHazards]hazard{}, [maxRings]ringFX{}, [maxArcs]arcFX{}
+	g.wave, g.vortex = wave{}, vortex{}
+	g.pos, g.ang = vec{16, 16.5}, -math.Pi/2
+	g.prevAim = g.ang // or the gun swings at the start of every map
+}
+
+// spawnWarden sends the map's warden: the boss that guards the way to the
+// next map, tougher than one met by level.
+func (g *game) spawnWarden() {
+	k := wardens[g.stage]
+	p := vec{16, 4}
+	if g.pos.y < 16 {
+		p = vec{16, 28}
+	}
+	if i := g.addEnemy(k, p); i >= 0 {
+		e := &g.enemies[i]
+		e.warden = true
+		e.hp *= wardenHP[g.stage]
+		e.max = e.hp
+		g.bossLive, g.wardenUp = true, true
+		g.say(kinds[k].name + " guards the way out of " + cur.name)
+		g.sound(sfxRoar)
+	}
+}
+
+var (
+	wardens  = [nStages]kindID{kQueen, kReconciler, kTextual}
+	wardenHP = [nStages]float64{1, 1.1, 0.7}
+)
+
+// swept is the warden down: the map is done, and the next comes in a
+// moment — time to pick up what it dropped.
+func (g *game) swept() {
+	g.clearT, g.wardenUp = 3, false
+	if g.stage+1 < nStages {
+		g.say(cur.name + " swept: on to " + arenas[g.stage+1].name)
+	} else {
+		g.say("the last warden is swept")
+	}
+}
+
+func (g *game) nextStage() {
+	if g.stage+1 >= nStages {
+		g.won = true
+		g.die()
+		return
+	}
+	g.enter(g.stage + 1)
+	g.hp = g.st.maxHP
+	g.ammo, g.dashN = g.st.mag, g.st.dashN
+	g.sound(sfxPick)
 }
 
 // ── input ────────────────────────────────────────────────────────────────

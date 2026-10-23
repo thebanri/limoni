@@ -104,6 +104,7 @@ type enemy struct {
 	dashDir vec     // and which way
 	aim     vec     // where a sniper's laser points
 	shieldT float64 // shielded by a Lip Gloss while above zero
+	warden  bool    // the map's last boss: sweeping it opens the next
 }
 
 // windUp is how long a ranged enemy shows its attack coming.
@@ -188,19 +189,26 @@ func init() {
 // ── spawning ─────────────────────────────────────────────────────────────
 
 // hpScale is how much tougher everything is now: a little with every
-// level and minute, and then the pressure on top.
+// level and minute of heat, and then the pressure on top.
 func (g *game) hpScale() float64 {
-	return (1 + 0.02*float64(g.level-1)) * (1 + g.runTime/200) * g.pressure()
+	return (1 + 0.02*float64(g.level-1)) * (1 + g.heat()/heatPace) * g.pressure()
 }
 
 // budget is how much enemy arrives per second.
 func (g *game) budget() float64 {
 	// Time alone sets it: tied to the level, more enemies meant more
 	// experience meant more enemies, and a good run never stopped growing.
-	return (0.8 + g.runTime/200) * math.Sqrt(g.pressure())
+	b := (0.8 + g.heat()/heatPace) * math.Sqrt(g.pressure())
+	if g.wardenUp {
+		b *= 0.35 // the warden's fight is with the warden, not its crowd
+	}
+	return b
 }
 
 func (g *game) spawn(dt float64) {
+	if g.clearT > 0 {
+		return // the map is swept: a moment to pick up what it left
+	}
 	g.spawnAcc += g.budget() * dt
 	alive := 0
 	for i := range g.enemies {
@@ -284,20 +292,7 @@ func (g *game) portal() vec {
 
 var portals []vec
 
-func init() {
-	for y := 0; y < mapH; y++ {
-		for x := 0; x < mapW; x++ {
-			if tile(x, y) != 'P' {
-				continue
-			}
-			for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-				if tile(x+d[0], y+d[1]) == '.' {
-					portals = append(portals, vec{float64(x+d[0]) + 0.5 + 0.3*float64(d[0]), float64(y+d[1]) + 0.5 + 0.3*float64(d[1])})
-				}
-			}
-		}
-	}
-}
+func init() { useArena(0) }
 
 // addEnemy puts one in the arena and returns its index, or -1 if full.
 func (g *game) addEnemy(k kindID, p vec) int {
@@ -318,10 +313,10 @@ func (g *game) addEnemy(k kindID, p vec) int {
 			e.max = e.hp
 			e.immune = g.rnd.f() < 0.4
 		}
-		// Past ten minutes the heap fights the build itself: armour that
-		// shrugs off shrapnel and children, and more and more of them
-		// insulated against explosions and arcs.
-		if late := g.runTime - 540; late > 0 {
+		// From a minute before the pressure the heap fights the build
+		// itself: armour that shrugs off shrapnel and children, and more
+		// and more of them insulated against explosions and arcs.
+		if late := g.overtime() + 60; late > 0 {
 			e.armor += late / 60 * 8
 			if e.elite {
 				e.armor += 3
@@ -357,6 +352,7 @@ func (g *game) spawnBoss() {
 // ── behaviour ────────────────────────────────────────────────────────────
 
 func (g *game) stepEnemies(dt float64) {
+	g.flowFrom()
 	for i := range g.bucket {
 		g.bucket[i] = -1
 	}
@@ -415,10 +411,16 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	if e.shieldT > 0 {
 		e.shieldT -= dt
 	}
+	// Its way: straight at the player if nothing is in between, else
+	// round the walls.
+	w := n
+	if d > 1.5 && !g.direct(e.pos) {
+		w = g.flowDir(e.pos, n)
+	}
 	var m vec
 	switch kd.act {
 	case bChase, bHop:
-		m = n
+		m = w
 	case bCharge:
 		switch {
 		case e.dashT > 0:
@@ -427,23 +429,23 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		case e.windT > 0:
 			// standing, showing its line
 		default:
-			m = n
+			m = w
 		}
 	case bSnipe:
 		switch {
 		case e.windT > 0:
 		case d > 11:
-			m = n
+			m = w
 		case d < 7:
-			m = n.scale(-0.8)
+			m = w.scale(-0.8)
 		default:
-			m = vec{-n.y, n.x}.scale(0.5 * math.Sin(e.phaseOff+e.t*0.5))
+			m = vec{-w.y, w.x}.scale(0.5 * math.Sin(e.phaseOff+e.t*0.5))
 		}
 	case bBomb:
 		if e.windT > 0 {
 			break // the fuse is lit: it stands and fizzes
 		}
-		m = n
+		m = w
 		if d < 1.6 {
 			e.windT = 0.9
 			g.addHazard(hazard{pos: e.pos, r: 1.8, t: 0.9, dmg: g.contact(e), src: e.k, how: "blast", owner: i, ownerK: e.k, foes: true})
@@ -452,9 +454,9 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	case bSupport:
 		switch {
 		case d > 9:
-			m = n
+			m = w
 		case d < 6:
-			m = n.scale(-0.9)
+			m = w.scale(-0.9)
 		}
 		if e.cd -= dt; e.cd <= 0 {
 			e.cd = 1.2
@@ -462,19 +464,19 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 		}
 	case bBlink:
 		if e.windT <= 0 {
-			m = n
+			m = w
 		}
 	case bWeave:
-		side := vec{-n.y, n.x}
-		m = n.add(side.scale(math.Sin(e.t*4+e.phaseOff) * 1.2))
+		side := vec{-w.y, w.x}
+		m = w.add(side.scale(math.Sin(e.t*4+e.phaseOff) * 1.2))
 	case bKeepAway:
 		switch {
 		case d > 7:
-			m = n
+			m = w
 		case d < 4.5:
-			m = n.scale(-0.8)
+			m = w.scale(-0.8)
 		default:
-			m = vec{-n.y, n.x}.scale(0.6 * math.Sin(e.phaseOff))
+			m = vec{-w.y, w.x}.scale(0.6 * math.Sin(e.phaseOff))
 		}
 	}
 	// Keep apart from the ones in the same cell, or a swarm becomes a dot.
@@ -836,6 +838,9 @@ func (g *game) kill(i int) {
 		for s := 0; s < 30; s++ {
 			g.dropBytes(e.pos.add(vec{g.rnd.between(-1.5, 1.5), g.rnd.between(-1.5, 1.5)}), kd.xp/30)
 		}
+	}
+	if e.warden {
+		g.swept()
 	}
 }
 

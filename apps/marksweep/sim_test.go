@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// bot plays: it aims at the nearest enemy it can see (a better aim than a
+// bot plays: it aims at a boss in sight, else the nearest enemy (a better aim than a
 // person's, so its runs are an upper bound), fires, collects when the heap
 // is empty, backs off from what is close, dashes when cornered, and takes
 // cards by a simple taste.
@@ -40,6 +40,16 @@ func bot(g *game, taste []augID) {
 		}
 		if d := e.pos.dist2(g.pos); d < nd && g.sees(e.pos) {
 			near, nd = i, d
+		}
+	}
+	// A boss in sight is the target, as it would be a player's, unless
+	// something is about to bite.
+	if nd > 2.5*2.5 {
+		for i := range g.enemies {
+			if e := &g.enemies[i]; e.alive && kinds[e.k].boss && g.sees(e.pos) {
+				near, nd = i, e.pos.dist2(g.pos)
+				break
+			}
 		}
 	}
 	g.held = [nAct]bool{}
@@ -120,8 +130,9 @@ func bot(g *game, taste []augID) {
 }
 
 // TestSimulatedRuns prints how long the bot lasts with a few builds; with
-// SIM unset it plays one short run for crashes only. The assertion that
-// matters: the pressure ends every run, broken or not.
+// SIM unset it plays one short run for crashes only (SIMBUILD=name plays
+// one build). The assertion that matters: every run ends, won on the three
+// maps or ended by the pressure, broken or not.
 func TestSimulatedRuns(t *testing.T) {
 	// Six actives and six passives each, the order the bot prefers them.
 	builds := map[string][]augID{
@@ -136,38 +147,52 @@ func TestSimulatedRuns(t *testing.T) {
 	}
 	limit, seeds := 30.0, uint64(3)
 	if os.Getenv("SIM") != "" {
-		limit, seeds = 25*60, 10
+		limit, seeds = 60*60, 10
 	}
-	for name, taste := range builds {
-		var lasted []float64
-		for seed := uint64(1); seed <= seeds; seed++ {
-			g := newGame(seed * 7919)
-			g.reset()
-			g.exact = true
-			at3 := 0
-			for g.phase != phDead && g.runTime < limit {
-				bot(g, taste)
-				g.step(tick)
-				if at3 == 0 && g.runTime >= 180 {
-					at3 = g.level
-				}
-			}
-			if os.Getenv("SIM") == "" {
+	for _, endless := range []bool{false, true} {
+		for name, taste := range builds {
+			if os.Getenv("SIMBUILD") != "" && os.Getenv("SIMBUILD") != name {
 				continue
 			}
-			lasted = append(lasted, g.runTime)
-			t.Logf("%-8s seed %d: %s at %2d:%02d, level %2d at 3:00, %3d at the end, %5d swept, peak %3d shots, biggest hit %6.0f, pressure x%.1f, by %s %s",
-				name, seed, map[bool]string{true: "died", false: "alive"}[g.phase == phDead],
-				int(g.runTime)/60, int(g.runTime)%60, at3, g.level, g.kills, g.peakShot, g.bigHit, g.pressure(), kinds[g.killedBy].name, g.killedHow)
-			if g.phase != phDead {
-				t.Errorf("%s seed %d still alive after %d minutes: the pressure does not end runs", name, seed, int(limit/60))
+			var lasted []float64
+			won := 0
+			for seed := uint64(1); seed <= seeds; seed++ {
+				g := newGame(seed * 7919)
+				g.endless = endless
+				g.reset()
+				g.exact = true
+				at3 := 0
+				for g.phase != phDead && g.runTime < limit {
+					bot(g, taste)
+					g.step(tick)
+					if at3 == 0 && g.runTime >= 180 {
+						at3 = g.level
+					}
+				}
+				if os.Getenv("SIM") == "" {
+					continue
+				}
+				lasted = append(lasted, g.runTime)
+				end := "died"
+				switch {
+				case g.won:
+					end, won = "WON ", won+1
+				case g.phase != phDead:
+					end = "alive"
+				}
+				t.Logf("%-7s %-8s seed %2d: %s at %2d:%02d on %-12s (map at %2d:%02d), level %2d at 3:00, %3d at the end, %5d swept, biggest hit %6.0f, pressure x%.1f, by %s %s",
+					map[bool]string{true: "endless", false: "maps"}[endless], name, seed, end,
+					int(g.runTime)/60, int(g.runTime)%60, cur.name, int(g.stageT)/60, int(g.stageT)%60, at3, g.level, g.kills, g.bigHit, g.pressure(), kinds[g.killedBy].name, g.killedHow)
+				if g.phase != phDead {
+					t.Errorf("%s seed %d still alive after %d minutes: the pressure does not end runs", name, seed, int(limit/60))
+				}
 			}
-		}
-		if len(lasted) > 0 {
-			slices.Sort(lasted)
-			m := lasted[len(lasted)/2]
-			t.Logf("MEDIAN %-8s %2d:%02d (shortest %2d:%02d, longest %2d:%02d)", name, int(m)/60, int(m)%60,
-				int(lasted[0])/60, int(lasted[0])%60, int(lasted[len(lasted)-1])/60, int(lasted[len(lasted)-1])%60)
+			if len(lasted) > 0 {
+				slices.Sort(lasted)
+				m := lasted[len(lasted)/2]
+				t.Logf("MEDIAN %-7s %-8s %2d:%02d (shortest %2d:%02d, longest %2d:%02d), %d of %d won", map[bool]string{true: "endless", false: "maps"}[endless], name, int(m)/60, int(m)%60,
+					int(lasted[0])/60, int(lasted[0])%60, int(lasted[len(lasted)-1])/60, int(lasted[len(lasted)-1])%60, won, len(lasted))
+			}
 		}
 	}
 }

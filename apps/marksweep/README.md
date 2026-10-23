@@ -4,7 +4,8 @@ A first-person roguelite in a terminal made of terminals, built on [Limoni](../.
 
 You are the garbage collector. The frameworks have come for the heap: **Bubble Tea**, **Ratatui**,
 **tview**, **Ink** and **ncurses**, each a creature made from its own idea. Sweep them, take a card every
-level, build something broken, and outlast the pressure. After ten minutes, nothing does for long.
+level, build something broken, and get through three maps — ten minutes on each, then its warden. Or
+play `/dev/zero`, the endless map, for as long as the build holds.
 
 ```bash
 go install github.com/thebanri/limoni/apps/marksweep@latest
@@ -133,19 +134,36 @@ and ice both. A card can come back. Past its last rank it **overclocks**: +12% t
 end. The broken builds are the ones that multiply each other. fork() children that bounce off walls,
 explode and throw shrapnel fill the arena with more shots than it can hold. The pool simply stays full.
 
-## The pressure
+## Three maps, and /dev/zero
 
-For ten minutes the heap grows with time. Then the pressure starts: enemy health doubles about every
-two minutes, they move faster, every one of them gains armour that grows by the minute, and more and more
+**SWEEP** is a run through three maps, each a part of the machine with its own walls and light:
+**The Heap** (open, a few windows standing in it), **The Stack** (frames in lanes, each with a gap) and
+**Kernel Space** (a grid of pins). The heap grows with time on each. At ten minutes the map's **warden**
+comes — the Modal Queen, Ink's Reconciler, Textual's Cascade — with less of the crowd round it. Sweep it
+and the next map opens a moment later: the build comes along, health is full again, and the new map
+starts as hard as five minutes into the last. Sweep the third and the run is won.
+
+A warden that still stands two minutes on brings the **pressure**: enemy health doubles about every two
+minutes, they move faster, every one of them gains armour that grows by the minute, and more and more
 are insulated. Armour takes a flat amount off every hit, so a cloud of tiny shrapnel stops working just
-when it looked unbeatable. A bot with perfect aim (`sim_test.go`, `SIM=1`, ten seeds a build of six actives and six
-passives) dies at a median of 8 to 11 minutes, whatever it builds. It heeds the warnings — a step aside
-on a wind-up, a dash through a slam or a shot about to land — and nothing else, so the dash cards do
-little for it.
+when it looked unbeatable.
+
+**ENDLESS** is `/dev/zero`: one open map with spawn windows all round, no warden and no end. It climbs
+slower, since no map ends there to give the health back; its pressure comes at fifteen minutes and builds
+at a third of the pace, but it does not stop.
+
+Enemies walk round walls (`flow.go`): a count of steps from the player's tile over the whole map, made
+again when the player moves to another tile; one with a wall in its way follows it downhill.
+
+A bot with perfect aim (`sim_test.go`, `SIM=1`, ten seeds a build of six actives and six passives) gets
+to a median of 26 to 38 minutes on the three maps, and wins about one run in twenty; most runs end at
+the last warden. On `/dev/zero` it lasts 18 to 20 minutes. It heeds the warnings — a step aside on a
+wind-up, a dash through a slam or a shot about to land — and turns to a boss in sight, and nothing else,
+so the dash cards do little for it.
 
 Records (the longest run, the highest level, the most swept, the most shots alive at once, the biggest
-hit) stay where the game is played: `~/.config/marksweep/records.json`, or the browser's localStorage.
-There is no leaderboard.
+hit) stay where the game is played: `~/.config/marksweep/records.json`, or the browser's localStorage,
+the three maps' and `/dev/zero`'s apart. There is no leaderboard.
 
 ## How it is drawn
 
@@ -184,20 +202,21 @@ The elements and the actives are drawn in pixels too (`fx.go`): clouds, flames, 
 soft blobs that grow and fade; rings and patches painted on the floor itself — a nova spreading, the IRQ
 field round you, a vortex closing in, a burning or poisoned patch, Ferris's slam; lightning as jagged,
 glowing lines, from the sky for a bolt. All in fixed pools: a frame with every active at its last rank,
-150 enemies and every effect out costs about 2.7 ms and allocates nothing (`BenchmarkEveryActive`). The menus are cards over a veiled picture,
+150 enemies and every effect out costs about 3.4 ms and allocates nothing (`BenchmarkEveryActive`). The menus are cards over a veiled picture,
 headed in the pixel font, their choices buttons.
 
-The game draws up to 144 frames a second (`-fps` to change it; a frame costs about 1.2 ms with the pools
+The game draws up to 144 frames a second (`-fps` to change it; a frame costs about 1.5 ms with the pools
 full). What reaches the screen is the terminal's to decide: kitty waits 10 ms between its own frames
 unless told otherwise, about 100 a second at most — `repaint_delay 4` and `input_delay 1` in
 `kitty.conf` let it keep up with a 144 Hz screen, and `-window` opens it so.
 
 A frame allocates nothing: the pools, the gun's pixels and the renderer's scratch are sized once. The
 tests hold it to that on every screen, and with the most broken build's pools full (`BenchmarkFullPools`:
-about 1.2 ms a frame, 872 shots, 200 enemies).
+about 1.5 ms a frame, 844 shots, 200 enemies — more than before enemies walked round walls, since
+fewer are stuck out of sight).
 
 ```bash
 go test ./...                                  # rules, allocations, every window size
-SIM=1 go test -run TestSimulatedRuns -v .      # the bot's runs, three builds, three seeds
+SIM=1 go test -run TestSimulatedRuns -v .      # the bot: eight builds, ten seeds, maps and /dev/zero (SIMBUILD=broken: one build)
 DUMP=/tmp/frames go test -run TestDumpFrame .  # every screen as an HTML page of coloured cells
 ```

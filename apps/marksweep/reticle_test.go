@@ -21,6 +21,7 @@ func TestTheCrosshairIsChosenAndKept(t *testing.T) {
 	g.store = st
 	key := func(k limoni.KeyEvent) { g.key(k) }
 	key(limoni.KeyEvent{Type: limoni.KeyDown})
+	key(limoni.KeyEvent{Type: limoni.KeyDown})
 	key(limoni.KeyEvent{Type: limoni.KeyEnter})
 	if g.phase != phSettings {
 		t.Fatalf("SETTINGS opened phase %v", g.phase)
@@ -94,7 +95,7 @@ func TestAClickPicksTheButtonUnderIt(t *testing.T) {
 	g := newGame(1)
 	b := buffer.NewBuffer(cell.Rect{Width: 140, Height: 44})
 	g.render(b)
-	g.mouse(limoni.MouseEvent{X: 70, Y: uint16(g.menuY + 1), Button: limoni.MouseLeft})
+	g.mouse(limoni.MouseEvent{X: 70, Y: uint16(g.menuY + 2), Button: limoni.MouseLeft})
 	if g.phase != phSettings || g.setFrom != phTitle {
 		t.Fatalf("a click on SETTINGS gave phase %v", g.phase)
 	}

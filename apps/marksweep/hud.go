@@ -157,17 +157,30 @@ func (g *game) drawHUD(c canvas, v *view) {
 		y++
 		y = g.drawBuild(c, y, rows, act)
 	}
-	// Top right: what has been swept, and the pressure.
+	// Top right: the map, what has been swept, and what comes next: the
+	// warden, the pressure, or the pressure itself.
 	p := g.pressure()
-	rw := 6 + digits(g.kills) + 3 + 9 + 9
+	next, at := "PRESSURE ", g.pressureStart()
+	if !g.endless && g.stageT < wardenAt {
+		next, at = "WARDEN ", wardenAt
+	}
+	rw := 1 + width(cur.name) + 3 + 6 + digits(g.kills) + 3 + width(next) + 9
+	if !g.endless {
+		rw += 4
+	}
 	rx := w - rw
 	shadePanel(c, rx, 0, rw, 1)
-	x = c.fg(rx+1, 0, "SWEPT ", hudDim)
+	x = c.fg(rx+1, 0, cur.name, hudPink)
+	if !g.endless {
+		x = c.fgNumber(x+1, 0, g.stage+1, hudDim)
+		x = c.fg(x, 0, "/3", hudDim)
+	}
+	x = c.fg(x+3, 0, "SWEPT ", hudDim)
 	x = c.fgNumber(x, 0, g.kills, hudText) + 3
-	x = c.fg(x, 0, "PRESSURE ", hudDim)
+	x = c.fg(x, 0, next, hudDim)
 	if p <= 1 {
 		x = c.fg(x, 0, "in ", hudDim)
-		c.fgClock(x, 0, max(0, 600-int(g.runTime)), hudText)
+		c.fgClock(x, 0, max(0, int(at-g.stageT)), hudText)
 	} else {
 		col := hudWarn
 		if p > 4 {
@@ -659,15 +672,20 @@ func veil(c canvas, k float32, tint rgb) {
 	}
 }
 
+var (
+	titleItems = [...]string{"SWEEP: THREE MAPS", "ENDLESS: /dev/zero", "SETTINGS", "QUIT"}
+	pauseItems = [...]string{"RESUME", "SETTINGS", "QUIT"}
+)
+
 // card draws a framed card w by h at (x, y), in the colour of its frame.
 func card(c canvas, x, y, w, h int, frame rgb) {
 	c.fill(x, y, w, h, ' ', style(hudText, hex(cardBg)))
 	c.box(x, y, w, h, style(frame, hex(cardBg)))
 }
 
-// buttons draws a three-item menu centred at row y: the chosen item a lit
+// buttons draws a menu centred at row y: the chosen item a lit
 // bar with its marks, the others dim. The mouse finds it by menuY.
-func (g *game) buttons(c canvas, y int, items [3]string, sel int, bg rgb) {
+func (g *game) buttons(c canvas, y int, items []string, sel int, bg rgb) {
 	g.menuY = y
 	x0 := (c.w - buttonW) / 2
 	for i, it := range items {
@@ -738,19 +756,28 @@ func (g *game) drawTitle(c canvas) {
 	if tall {
 		y = g.parade(c, y, 12) + 1
 	}
-	g.buttons(c, y, [3]string{"SWEEP", "SETTINGS", "QUIT"}, g.menu, hex(0x03040a))
-	y += 4
-	if g.best.runs > 0 {
+	g.buttons(c, y, titleItems[:], g.menu, hex(0x03040a))
+	y += len(titleItems) + 1
+	for _, b := range [2]struct {
+		label string
+		b     *bests
+	}{{"BEST     ", &g.best.bests}, {"ENDLESS  ", &g.best.endless}} {
+		if b.b.runs == 0 {
+			continue
+		}
 		dim, val := style(hudDim, hex(0x03040a)), style(hudWarn, hex(0x03040a))
-		x := c.w/2 - 17
-		x = c.text(x, y, "BEST  ", dim)
-		x = c.clock(x, y, g.best.secs, val)
+		x := c.w/2 - 20
+		x = c.text(x, y, b.label, dim)
+		x = c.clock(x, y, b.b.secs, val)
 		x = c.text(x, y, "  ·  LV ", dim)
-		x = c.number(x, y, g.best.level, val)
+		x = c.number(x, y, b.b.level, val)
 		x = c.text(x, y, "  ·  ", dim)
-		x = c.number(x, y, g.best.kills, val)
+		x = c.number(x, y, b.b.kills, val)
 		c.text(x, y, " swept", dim)
-		y += 2
+		y++
+	}
+	if g.best.runs+g.best.endless.runs > 0 {
+		y++
 	}
 	c.centered(y, "Enter or click to start · W/S choose · Esc quits", style(hudDim, hex(0x03040a)))
 	if g.hint != "" {
@@ -775,7 +802,7 @@ func (g *game) drawPause(c canvas) {
 	sx = c.text(sx, y+7, "  ·  ", dim)
 	sx = c.number(sx, y+7, g.kills, val)
 	c.text(sx, y+7, " swept", dim)
-	g.buttons(c, y+9, [3]string{"RESUME", "SETTINGS", "QUIT"}, g.pause, bg)
+	g.buttons(c, y+9, pauseItems[:], g.pause, bg)
 	c.centered(y+h-2, "Esc or P resumes", style(hex(cardBorder).mix(hudDim, 0.6), bg))
 }
 
@@ -787,20 +814,32 @@ func (g *game) drawDead(c canvas) {
 	card(c, x, y, w, h, frame)
 	bg := hex(cardBg)
 	dim := style(hudDim, bg)
-	if c.w >= w+2 {
-		c.big((c.w-51)/2, 2*(y+1)+1, "OUT OF MEMORY", 1, hudBad)
-	} else {
-		c.centered(y+2, "OUT OF MEMORY", style(hudBad, bg))
+	head, headW, headCol := "OUT OF MEMORY", 51, hudBad
+	if g.won {
+		head, headW, headCol = "SWEPT CLEAN", 43, hudGood
 	}
-	if g.killedHow != "" {
+	if c.w >= w+2 {
+		c.big((c.w-headW)/2, 2*(y+1)+1, head, 1, headCol)
+	} else {
+		c.centered(y+2, head, style(headCol, bg))
+	}
+	switch {
+	case g.won:
+		c.centered(y+5, "all three maps swept: the heap is yours", dim)
+	case g.killedHow != "":
 		by := kinds[g.killedBy].name
 		tw := 10 + width(by) + 1 + width(g.killedHow)
 		xx := (c.w - tw) / 2
 		xx = c.text(xx, y+5, "killed by ", dim)
 		xx = c.text(xx, y+5, by, style(hex(kinds[g.killedBy].accent), bg))
 		c.text(xx+1, y+5, g.killedHow, dim)
-	} else {
+	default:
 		c.centered(y+5, "the heap was overrun", dim)
+	}
+	best := g.bests()
+	maps := g.stage
+	if g.won {
+		maps = nStages
 	}
 	rows := [...]struct {
 		label string
@@ -808,13 +847,17 @@ func (g *game) drawDead(c canvas) {
 		best  int
 		clock bool
 	}{
-		{"survived", int(g.runTime), g.best.secs, true},
-		{"level", g.level, g.best.level, false},
-		{"swept", g.kills, g.best.kills, false},
-		{"most shots alive", g.peakShot, g.best.peak, false},
-		{"biggest hit", int(g.bigHit), g.best.bigHit, false},
+		{"survived", int(g.runTime), best.secs, true},
+		{"level", g.level, best.level, false},
+		{"swept", g.kills, best.kills, false},
+		{"most shots alive", g.peakShot, best.peak, false},
+		{"biggest hit", int(g.bigHit), best.bigHit, false},
+		{"maps swept", maps, math.MaxInt, false},
 	}
 	for i, r := range rows {
+		if g.endless && r.label == "maps swept" {
+			continue
+		}
 		yy := y + 7 + i
 		lx := c.w/2 - 18
 		c.text(lx, yy, r.label, dim)

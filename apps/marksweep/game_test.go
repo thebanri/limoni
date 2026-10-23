@@ -144,24 +144,37 @@ func pickN(g *game, a augID, n int) {
 
 func TestPressureHoldsThenRunsAway(t *testing.T) {
 	g := playing()
-	for _, s := range []float64{0, 60, 300, 599} {
-		g.runTime = s
+	for _, s := range []float64{0, 60, 300, 599, pressureAt} {
+		g.stageT = s
 		if p := g.pressure(); p != 1 {
-			t.Fatalf("pressure %.2f at %.0f s, want 1 before ten minutes", p, s)
+			t.Fatalf("pressure %.2f at %.0f s, want 1 before it starts", p, s)
 		}
 	}
 	prev := 1.0
-	for s := 600.0; s <= 1500; s += 30 {
-		g.runTime = s
+	for s := pressureAt; s <= 1500; s += 30 {
+		g.stageT = s
 		p := g.pressure()
 		if p < prev {
 			t.Fatalf("pressure fell from %.2f to %.2f at %.0f s", prev, p, s)
 		}
 		prev = p
 	}
-	g.runTime = 900
+	g.stageT = pressureAt + 300
 	if p := g.pressure(); p < 3.5 {
-		t.Fatalf("pressure %.2f at 15 minutes: too gentle to end a broken build", p)
+		t.Fatalf("pressure %.2f five minutes on: too gentle to end a broken build", p)
+	}
+	// /dev/zero's comes later and climbs slower, but climbs.
+	g.endless, g.stageT = true, endlessAt-1
+	if p := g.pressure(); p != 1 {
+		t.Fatalf("endless pressure %.2f at %.0f s, want none yet", p, g.stageT)
+	}
+	g.stageT = endlessAt + 300
+	if p := g.pressure(); p < 1.2 || p > 2 {
+		t.Fatalf("endless pressure %.2f five minutes on, want gentler", p)
+	}
+	g.stageT = endlessAt + 900
+	if p := g.pressure(); p < 3.5 {
+		t.Fatalf("endless pressure %.2f fifteen minutes on: it must still end a run", p)
 	}
 }
 
@@ -422,7 +435,7 @@ func TestWallTextIsInTheFont(t *testing.T) {
 }
 
 func TestRecordsRoundTrip(t *testing.T) {
-	r := records{runs: 3, secs: 754, level: 31, kills: 2041, peak: 612, bigHit: 1880, volume: 4}
+	r := records{bests: bests{runs: 3, secs: 754, level: 31, kills: 2041, peak: 612, bigHit: 1880}, endless: bests{runs: 2, secs: 1500, level: 50, kills: 9000, peak: 700, bigHit: 3000}, volume: 4}
 	got := decodeRecords(encodeRecords(r))
 	if got != r {
 		t.Fatalf("round trip: %+v, want %+v", got, r)

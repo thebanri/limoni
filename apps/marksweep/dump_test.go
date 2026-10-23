@@ -64,7 +64,7 @@ func TestDumpFrame(t *testing.T) {
 		"dead": func() *game {
 			g := scene()
 			g.runTime, g.level, g.kills, g.peakShot, g.bigHit = 754, 31, 2041, 612, 1880
-			g.best = records{runs: 4, secs: 700, level: 35, kills: 1900, peak: 500, bigHit: 2000}
+			g.best = records{bests: bests{runs: 4, secs: 700, level: 35, kills: 1900, peak: 500, bigHit: 2000}}
 			g.die()
 			return g
 		},
@@ -77,7 +77,7 @@ func TestDumpFrame(t *testing.T) {
 		},
 		"title": func() *game {
 			g := newGame(42)
-			g.best = records{runs: 4, secs: 754, level: 35, kills: 2041}
+			g.best = records{bests: bests{runs: 4, secs: 754, level: 35, kills: 2041}, endless: bests{runs: 2, secs: 1250, level: 58, kills: 2900}}
 			g.clock = 3
 			return g
 		},
@@ -95,6 +95,34 @@ func TestDumpFrame(t *testing.T) {
 			g.hp = g.st.maxHP * 0.6
 			return g
 		},
+	}
+	// Each map, a few frameworks in it; /dev/zero as an endless run.
+	for i, name := range []string{"heap", "stack", "kernel", "zero"} {
+		shots["map-"+name] = func() *game {
+			g := playing()
+			if i == len(arenas)-1 {
+				g.endless = true
+				g.reset()
+			} else {
+				g.enter(i)
+			}
+			g.ang = -math.Pi / 2
+			g.stageT, g.runTime, g.kills = 437, 437+float64(i)*640, 380+i*700
+			for k, kd := range []kindID{kBoba, kCrab, kBeetle, kGloss, kSpinner} {
+				g.addEnemy(kd, vec{13.5 + float64(k)*1.4, 11.5 + float64(k%2)})
+			}
+			g.step(1.0 / 30)
+			g.msgT = 0
+			return g
+		}
+	}
+	shots["won"] = func() *game {
+		g := scene()
+		g.runTime, g.level, g.kills, g.peakShot, g.bigHit = 1931, 66, 3120, 640, 2400
+		g.stage, g.won = nStages-1, true
+		g.best = records{bests: bests{runs: 4, secs: 1500, level: 60, kills: 2900, peak: 500, bigHit: 2000}}
+		g.die()
+		return g
 	}
 	shots["ferris"] = func() *game {
 		g := playing()

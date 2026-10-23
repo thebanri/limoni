@@ -99,7 +99,7 @@ const checks = [
   ["alternate screen (?1049h)", title.includes("\x1b[?1049h")],
   ["truecolor SGR (38;2 / 48;2)", /\x1b\[[0-9;]*?[34]8;2;/.test(title)],
   ["the title (the garbage collector, SWEEP, the frameworks)", ["garbage collector", "SWEEP", "Bubble Tea", "Ratatui"].every((s) => title.includes(s))],
-  ["a run after Enter: the HUD (HEAP, SWEPT, PRESSURE)", ["HEAP", "SWEPT", "PRESSURE"].every((s) => run.includes(s))],
+  ["a run after Enter: the HUD (THE HEAP, SWEPT, WARDEN)", ["THE HEAP", "SWEPT", "WARDEN"].every((s) => run.includes(s))],
   ["the run wants the pointer locked, and asked for it", wanted && asked],
   ["a click on the locked pointer fired (a sound, the frame redrawn)", fired && firing.length > 500],
   ["letting the pointer go pauses the run (the pause card: stopped, RESUME)", paused.includes("stopped") && paused.includes("RESUME") && stillRunning],

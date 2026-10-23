@@ -263,12 +263,12 @@ func (g *game) ceilingAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	// Cable trays every second tile, and a light panel every fourth.
 	fx, fyy := footprint(v, d, d*d/(v.f*(wallH-eye)), rx, ry)
 	k := math.Max(seam(wx/2, fx/2, 0.012), seam(wy/2, fyy/2, 0.012)) / (1 + d*0.2)
-	c := hex(0x07090f).mix(hex(0x111727), float32(k))
+	c := hex(cur.ceil).mix(hex(cur.tray), float32(k))
 	ix, iy := int(math.Floor(wx)), int(math.Floor(wy))
 	if ix%4 == 2 && iy%4 == 2 {
 		fx, fyy := wx-float64(ix), wy-float64(iy)
 		if fx > 0.2 && fx < 0.8 && fyy > 0.2 && fyy < 0.8 {
-			c = hex(0x2a3654)
+			c = hex(cur.light)
 		}
 	}
 	return fogged(c, d)
@@ -298,7 +298,7 @@ func (g *game) floorAt(v *view, fy, rx, ry float64, pos vec) rgb {
 	wx, wy := pos.x+rx*d, pos.y+ry*d
 	fx, fyy := footprint(v, d, 2*d*d/v.f, rx, ry)
 	k := math.Max(seam(wx, fx, 0.03), seam(wy, fyy, 0.03)) / (1 + d*0.12)
-	c := fogged(hex(0x0a0d18).mix(hex(0x24365e), float32(k)), d)
+	c := fogged(hex(cur.floor).mix(hex(cur.seam), float32(k)), d)
 	if len(sc.decals) > 0 {
 		// Rings and zones give off their own light: over the fog, not in it.
 		c = g.floorDecals(c, wx, wy, 1.5*math.Max(fx, fyy))
