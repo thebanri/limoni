@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // sig fires boss i's own move at once, as its wind-up would.
 func sig(g *game, i int) {
@@ -184,5 +187,57 @@ func TestBossesHaveASecondPhase(t *testing.T) {
 	g.enemyFire(i, &g.enemies[i], to.scale(1/to.len()), to.len())
 	if g.enemies[i].cd >= 2.2 {
 		t.Fatalf("its attacks come no faster: %.2f", g.enemies[i].cd)
+	}
+}
+
+// A boss shot, blasted or bitten into is not knocked back: it goes where it
+// would have gone untouched.
+func TestBossesAreNotKnockedBack(t *testing.T) {
+	for _, k := range bosses {
+		var at [2]vec
+		for n, knock := range []bool{false, true} {
+			g := playing()
+			i := stillEnemy(g, k, openSpot(t, g, kinds[k].r+0.5), 1e6, 0)
+			e := &g.enemies[i]
+			if knock {
+				e.knock = e.pos.sub(g.pos).scale(10)
+			}
+			for range 5 {
+				g.moveEnemy(i, e, tick)
+			}
+			at[n] = e.pos
+		}
+		if at[0].dist2(at[1]) > 1e-12 {
+			t.Errorf("%s was pushed from %v to %v", kinds[k].name, at[0], at[1])
+		}
+	}
+}
+
+// openSpot is a spot in sight of the player with r of floor all round it.
+func openSpot(t *testing.T, g *game, r float64) vec {
+	t.Helper()
+	for d := 3.0; d < 9; d++ {
+		for a := 0.0; a < 2*math.Pi; a += 0.1 {
+			if p := g.pos.add(dir(a).scale(d)); free(p.x, p.y, r) && g.sees(p) {
+				return p
+			}
+		}
+	}
+	t.Fatal("no roomy spot in sight")
+	return vec{}
+}
+
+// A boss cannot be frozen, is slowed only a little, and carries half the
+// burn and poison, so it is not kited and sniped from range.
+func TestBossesShrugOffStatus(t *testing.T) {
+	g := playing()
+	i := stillEnemy(g, kBobaPrime, openSpot(t, g, kinds[kBobaPrime].r+0.5), 1e6, 0)
+	e := &g.enemies[i]
+	g.addChill(i, 3*freezeAt)
+	g.freeze(i)
+	g.addBurn(i, 3*maxBurn)
+	g.addPoison(i, 3*maxPoison)
+	if e.frozenT > 0 || e.chill != freezeAt-1 || e.burn != maxBurn/2 || e.poison != maxPoison/2 {
+		t.Fatalf("frozen %.1f, chill %d, burn %d, poison %d", e.frozenT, e.chill, e.burn, e.poison)
 	}
 }

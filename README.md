@@ -298,6 +298,10 @@ go install github.com/thebanri/limoni/apps/lemonsweep@latest
 lemonsweep
 ```
 
+`command not found`? `go install` puts programs in `$(go env GOPATH)/bin`, usually `~/go/bin`, which
+macOS does not put on the `PATH`. Run `~/go/bin/lemonsweep`, or add
+`export PATH="$PATH:$(go env GOPATH)/bin"` to `~/.zshrc` and open a new terminal.
+
 Or [play it in the browser](https://thebanri.github.io/limoni/?app=lemonsweep), where the pointer is locked
 for mouse look. A frame allocates nothing, the most broken build's full pools included.
 

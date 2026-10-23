@@ -52,13 +52,21 @@ func (g *game) addBurn(i, n int) {
 			return
 		}
 	}
-	e.burn = min(e.burn+n, maxBurn)
+	e.burn = min(e.burn+n, stackCap(e, maxBurn))
 	e.burnT = g.st.burnFor
 	if g.st.incinerate > 0 && e.burn >= 10 {
 		e.burn = 0
 		r := 1.3 + 0.35*float64(g.st.incinerate)
 		g.blast(e.pos, r, g.st.dmg*(1.5+float64(g.st.incinerate)), elFire)
 	}
+}
+
+// stackCap is how many burn or poison stacks e can carry: a boss, half.
+func stackCap(e *enemy, n int) int {
+	if kinds[e.k].boss {
+		return n / 2
+	}
+	return n
 }
 
 func (g *game) addChill(i, n int) {
@@ -76,10 +84,11 @@ func (g *game) addChill(i, n int) {
 func (g *game) freeze(i int) {
 	e := &g.enemies[i]
 	e.chill = 0
-	e.frozenT = math.Max(g.st.freezeFor, 1.2)
 	if kinds[e.k].boss {
-		e.frozenT *= 0.3 // a boss shakes it off
+		e.chill = freezeAt - 1 // a boss is slowed a little, never stopped
+		return
 	}
+	e.frozenT = math.Max(g.st.freezeFor, 1.2)
 	g.soundFrom(sfxFreeze, e.pos, 0.35)
 	if g.st.thermal && e.burn > 0 {
 		e.burn = 0
@@ -93,7 +102,7 @@ func (g *game) addPoison(i, n int) {
 	if !e.alive || n <= 0 {
 		return
 	}
-	e.poison = min(e.poison+n, maxPoison)
+	e.poison = min(e.poison+n, stackCap(e, maxPoison))
 	e.poisonT = 5
 }
 

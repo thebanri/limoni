@@ -13,6 +13,10 @@ lemonsweep            # up to 144 frames a second; -showfps shows them, -mute fo
 lemonsweep -window    # in kitty: a window of its own, full screen, with no mouse pointer
 ```
 
+`command not found`? `go install` puts programs in `$(go env GOPATH)/bin`, usually `~/go/bin`, which
+macOS does not put on the `PATH`. Run `~/go/bin/lemonsweep`, or add
+`export PATH="$PATH:$(go env GOPATH)/bin"` to `~/.zshrc` and open a new terminal.
+
 ### Mouse lock
 
 A terminal cannot lock the mouse pointer, so on Wayland the game does what every game does: during a

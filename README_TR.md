@@ -281,6 +281,10 @@ go install github.com/thebanri/limoni/apps/lemonsweep@latest
 lemonsweep
 ```
 
+`command not found` mı? `go install` programları `$(go env GOPATH)/bin` klasörüne koyar, genelde
+`~/go/bin`; macOS bu klasörü `PATH`'e eklemez. `~/go/bin/lemonsweep` ile çalıştır ya da `~/.zshrc`
+dosyasına `export PATH="$PATH:$(go env GOPATH)/bin"` ekleyip yeni bir terminal aç.
+
 Ya da [tarayıcıda oyna](https://thebanri.github.io/limoni/?app=lemonsweep); orada mouse ile bakmak için imleç
 kilitlenir. Bir kare, en bozuk build'in dolu havuzları dahil, hiç bellek ayırmaz.
 

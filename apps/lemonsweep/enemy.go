@@ -423,6 +423,9 @@ func (g *game) stepEnemies(dt float64) {
 
 func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	kd := &kinds[e.k]
+	if kd.boss {
+		e.knock = vec{} // not shoved by shots, blasts or its own bite: it keeps coming
+	}
 	if e.flash > 0 {
 		e.flash -= dt * 6
 	}
@@ -455,9 +458,13 @@ func (g *game) moveEnemy(i int, e *enemy, dt float64) {
 	if e.elite {
 		speed *= 1.15
 	}
-	speed *= math.Max(0.3, 1-0.1*float64(e.chill))
-	if e.poison > 0 {
-		speed *= 1 - g.st.neuro
+	if kd.boss {
+		speed *= 1 - math.Min(0.15, 0.1*float64(e.chill)) // so it is not kited and sniped
+	} else {
+		speed *= math.Max(0.3, 1-0.1*float64(e.chill))
+		if e.poison > 0 {
+			speed *= 1 - g.st.neuro
+		}
 	}
 	if e.shieldT > 0 {
 		e.shieldT -= dt
