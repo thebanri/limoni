@@ -77,7 +77,8 @@ func TestDumpFrame(t *testing.T) {
 		},
 		"title": func() *game {
 			g := newGame(42)
-			g.best = records{bests: bests{runs: 4, secs: 754, level: 35, kills: 2041}, endless: bests{runs: 2, secs: 1250, level: 58, kills: 2900}}
+			g.best = records{bests: bests{runs: 9, secs: 1931, level: 66, kills: 3120}, endless: bests{runs: 2, secs: 1250, level: 58, kills: 2900},
+				maps: [nStages]mapBest{{runs: 9, swept: 6, fastest: 41, kills: 820}, {runs: 6, swept: 2, fastest: 77, kills: 1100}, {runs: 2, swept: 1, fastest: 151, kills: 900}}}
 			g.clock = 3
 			return g
 		},
@@ -115,6 +116,21 @@ func TestDumpFrame(t *testing.T) {
 			g.msgT = 0
 			return g
 		}
+	}
+	shots["title-new"] = func() *game {
+		g := newGame(42)
+		g.clock = 3
+		return g
+	}
+	shots["title-endless"] = func() *game {
+		g := shots["title"]()
+		g.menu = 1
+		return g
+	}
+	shots["pause-map"] = func() *game {
+		g := shots["map-stack"]()
+		g.pauseRun()
+		return g
 	}
 	shots["won"] = func() *game {
 		g := scene()

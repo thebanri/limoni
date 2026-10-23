@@ -732,18 +732,28 @@ func (g *game) parade(c canvas, y, px int) int {
 }
 
 func (g *game) drawTitle(c canvas) {
-	veil(c, 0.35, hex(0x03040a))
+	bg := hex(0x03040a)
+	veil(c, 0.35, bg)
 	size := widgets.BigTextHalfHeight
 	tw, th := 96, 4
 	if c.w < 100 {
 		size, tw, th = widgets.BigTextQuadrant, 48, 4
 	}
-	tall := c.h >= 34
-	y := c.h/2 - 9
-	if tall {
-		y = c.h/2 - 14
+	// What fits: the creatures' parade on a tall screen, the maps as cards
+	// on a wide one, as lines on a narrower one.
+	cards := c.w >= 4*mapCardW+3*2 && c.h >= 30
+	need := th + 4 + len(titleItems) + 3 + 3
+	switch {
+	case cards:
+		need += mapCardH + 1
+	case c.w >= 56:
+		need += len(arenas) + 1
 	}
-	y = max(y, 1)
+	tall := need+9 < c.h
+	if tall {
+		need += 9
+	}
+	y := max(1, (c.h-need)/2)
 	// The name, over its shadow.
 	tx := max(0, (c.w-tw)/2)
 	shadow := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hex(0x3a0e34).color()}}
@@ -751,37 +761,148 @@ func (g *game) drawTitle(c canvas) {
 	big := widgets.BigText{Text: "MARK & SWEEP", Size: size, Style: cell.Style{Fg: hudPink.color()}}
 	big.Draw(cell.Context{Area: cell.Rect{X: uint16(tx), Y: uint16(y), Width: uint16(min(tw, c.w)), Height: uint16(th)}}, c.b)
 	y += th + 2
-	c.centered(y, "you are the garbage collector. the frameworks have come for the heap.", style(hudText, hex(0x03040a)))
+	c.centered(y, "you are the garbage collector. the frameworks have come for the heap.", style(hudText, bg))
 	y += 2
 	if tall {
 		y = g.parade(c, y, 12) + 1
 	}
-	g.buttons(c, y, titleItems[:], g.menu, hex(0x03040a))
-	y += len(titleItems) + 1
-	for _, b := range [2]struct {
-		label string
-		b     *bests
-	}{{"BEST     ", &g.best.bests}, {"ENDLESS  ", &g.best.endless}} {
-		if b.b.runs == 0 {
-			continue
+	g.buttons(c, y, titleItems[:], g.menu, bg)
+	y += len(titleItems)
+	c.centered(y, titleAbout[g.menu], style(hudCyan.mul(0.8), bg))
+	y += 2
+	switch {
+	case cards:
+		x0 := (c.w - (4*mapCardW + 3*2)) / 2
+		for i := range arenas {
+			g.mapCard(c, x0+i*(mapCardW+2), y, i)
 		}
-		dim, val := style(hudDim, hex(0x03040a)), style(hudWarn, hex(0x03040a))
-		x := c.w/2 - 20
-		x = c.text(x, y, b.label, dim)
-		x = c.clock(x, y, b.b.secs, val)
+		y += mapCardH + 1
+	case c.w >= 56:
+		for i := range arenas {
+			g.mapLine(c, c.w/2-26, y, i)
+			y++
+		}
+		y++
+	}
+	if b := &g.best.bests; b.runs > 0 {
+		dim, val := style(hudDim, bg), style(hudWarn, bg)
+		x := c.w/2 - 22
+		x = c.text(x, y, "LONGEST RUN ", dim)
+		x = c.clock(x, y, b.secs, val)
 		x = c.text(x, y, "  ·  LV ", dim)
-		x = c.number(x, y, b.b.level, val)
+		x = c.number(x, y, b.level, val)
 		x = c.text(x, y, "  ·  ", dim)
-		x = c.number(x, y, b.b.kills, val)
-		c.text(x, y, " swept", dim)
-		y++
+		x = c.number(x, y, b.kills, val)
+		x = c.text(x, y, " swept", dim)
+		if won := g.best.maps[nStages-1].swept; won > 0 {
+			x = c.text(x, y, "  ·  won ", dim)
+			x = c.number(x, y, won, style(hudGood, bg))
+			c.text(x, y, "×", dim)
+		}
 	}
-	if g.best.runs+g.best.endless.runs > 0 {
-		y++
-	}
-	c.centered(y, "Enter or click to start · W/S choose · Esc quits", style(hudDim, hex(0x03040a)))
+	y += 2
+	c.centered(y, "Enter or click to start · W/S choose · Esc quits", style(hudDim, bg))
 	if g.hint != "" {
-		c.centered(y+2, g.hint, style(hudCyan, hex(0x03040a)))
+		c.centered(y+2, g.hint, style(hudCyan, bg))
+	}
+}
+
+var titleAbout = [len(titleItems)]string{
+	"three maps, ten minutes on each, then its warden",
+	"one open map, no warden and no end: how long?",
+	"sound, and the crosshair",
+	"back to the shell",
+}
+
+const mapCardW, mapCardH = 25, 7
+
+// mapCard draws map i on the title, with what this player has done on it:
+// lit when the chosen mode plays it.
+func (g *game) mapCard(c canvas, x, y, i int) {
+	a := &arenas[i]
+	acc := hex(a.accent)
+	bg := hex(a.floor).mix(hex(cardBg), 0.4)
+	frame := hex(cardBorder)
+	if endless := i == len(arenas)-1; g.menu == 0 && !endless || g.menu == 1 && endless {
+		frame = acc
+	}
+	card(c, x, y, mapCardW, mapCardH, frame)
+	c.fill(x+1, y+1, mapCardW-2, mapCardH-2, ' ', style(hudText, bg))
+	// Its number and name on the top edge.
+	tx := c.text(x+2, y, " ", style(acc, hex(cardBg)))
+	if i < nStages {
+		tx = c.number(tx, y, i+1, style(acc.mul(0.7), hex(cardBg)))
+		tx = c.text(tx, y, " ", style(acc, hex(cardBg)))
+	}
+	tx = c.text(tx, y, a.name, style(acc, hex(cardBg)))
+	c.text(tx, y, " ", style(acc, hex(cardBg)))
+	c.text(x+2, y+1, a.about, style(hudDim, bg))
+	dim, val := style(hudDim, bg), style(hudText, bg)
+	vx := x + 15
+	if i == len(arenas)-1 {
+		e := &g.best.endless
+		if e.runs == 0 {
+			c.text(x+2, y+3, "not played yet", dim)
+			return
+		}
+		c.text(x+2, y+3, "longest", dim)
+		c.clock(vx, y+3, e.secs, style(hudWarn, bg))
+		c.text(x+2, y+4, "level", dim)
+		c.number(vx, y+4, e.level, val)
+		c.text(x+2, y+5, "most swept", dim)
+		c.number(vx, y+5, e.kills, val)
+		return
+	}
+	m := &g.best.maps[i]
+	if m.runs == 0 {
+		c.text(x+2, y+3, "not reached yet", dim)
+		return
+	}
+	c.text(x+2, y+3, "swept", dim)
+	sx := c.number(vx, y+3, m.swept, style(hudGood, bg))
+	sx = c.text(sx, y+3, "/", dim)
+	c.number(sx, y+3, m.runs, val)
+	c.text(x+2, y+4, "warden down", dim)
+	if m.swept > 0 {
+		c.clock(vx, y+4, m.fastest, style(hudWarn, bg))
+	} else {
+		c.text(vx, y+4, "never", dim)
+	}
+	c.text(x+2, y+5, "most swept", dim)
+	c.number(vx, y+5, m.kills, val)
+}
+
+// mapLine is a map's card as one line, for a title too narrow for cards.
+func (g *game) mapLine(c canvas, x, y, i int) {
+	bg := hex(0x03040a)
+	a := &arenas[i]
+	dim, val := style(hudDim, bg), style(hudText, bg)
+	c.text(x, y, a.name, style(hex(a.accent), bg))
+	x += 14
+	if i == len(arenas)-1 {
+		e := &g.best.endless
+		if e.runs == 0 {
+			c.text(x, y, "not played yet", dim)
+			return
+		}
+		x = c.text(x, y, "longest ", dim)
+		x = c.clock(x, y, e.secs, style(hudWarn, bg))
+		x = c.text(x, y, "  ·  LV ", dim)
+		c.number(x, y, e.level, val)
+		return
+	}
+	m := &g.best.maps[i]
+	if m.runs == 0 {
+		c.text(x, y, "not reached yet", dim)
+		return
+	}
+	x = c.text(x, y, "swept ", dim)
+	x = c.number(x, y, m.swept, style(hudGood, bg))
+	x = c.text(x, y, "/", dim)
+	x = c.number(x, y, m.runs, val)
+	if m.swept > 0 {
+		x = c.text(x, y, "  ·  warden down ", dim)
+		c.clock(x, y, m.fastest, style(hudWarn, bg))
 	}
 }
 
@@ -793,8 +914,17 @@ func (g *game) drawPause(c canvas) {
 	bg := hex(cardBg)
 	c.big((c.w-27)/2, 2*(y+1)+1, "SIGSTOP", 1, hudWarn)
 	c.centered(y+5, "the run is stopped, not freed", style(hudDim, bg))
-	// Where the run stands.
+	// Where the run stands: the map, and the run.
 	dim, val := style(hudDim, bg), style(hudText, bg)
+	mx := c.w/2 - 14
+	mx = c.text(mx, y+6, cur.name, style(hex(cur.accent), bg))
+	if g.endless {
+		c.text(mx, y+6, "  ·  endless", dim)
+	} else {
+		mx = c.text(mx, y+6, "  ·  map ", dim)
+		mx = c.number(mx, y+6, g.stage+1, val)
+		c.text(mx, y+6, " of 3", dim)
+	}
 	sx := c.w/2 - 14
 	sx = c.clock(sx, y+7, int(g.runTime), val)
 	sx = c.text(sx, y+7, "  ·  LV ", dim)

@@ -8,9 +8,31 @@ import "encoding/json"
 type records struct {
 	bests
 	endless bests // /dev/zero's, kept apart: its runs are meant to go on
+	maps    [nStages]mapBest
 	volume  int
 	ret     reticle
 	hasRet  bool // a crosshair was saved
+}
+
+// mapBest is one of the three maps' records.
+type mapBest struct {
+	runs    int // times it was played to an end: swept, or died on
+	swept   int // times its warden was swept
+	fastest int // the fewest seconds its warden stood, if swept
+	kills   int // the most swept on it in one run
+}
+
+// add counts a run on the map ending: swept after the warden stood for
+// secs, or not, with kills swept on it.
+func (m *mapBest) add(swept bool, secs, kills int) {
+	m.runs++
+	m.kills = max(m.kills, kills)
+	if swept {
+		if m.swept == 0 || secs < m.fastest {
+			m.fastest = secs
+		}
+		m.swept++
+	}
 }
 
 type bests struct {
@@ -49,6 +71,7 @@ type saved struct {
 	Volume *int `json:"volume,omitempty"`
 
 	Endless *savedBests `json:"endless,omitempty"`
+	Maps    []savedMap  `json:"maps,omitempty"`
 
 	Crosshair *savedReticle `json:"crosshair,omitempty"`
 }
@@ -60,6 +83,13 @@ type savedBests struct {
 	Kills  int `json:"best_kills"`
 	Peak   int `json:"most_shots"`
 	BigHit int `json:"biggest_hit"`
+}
+
+type savedMap struct {
+	Runs    int `json:"runs"`
+	Swept   int `json:"swept"`
+	Fastest int `json:"fastest_warden_seconds"`
+	Kills   int `json:"best_kills"`
 }
 
 type savedReticle struct {
@@ -74,6 +104,11 @@ func encodeRecords(r records) []byte {
 	s := saved{Runs: r.runs, Secs: r.secs, Level: r.level, Kills: r.kills, Peak: r.peak, BigHit: r.bigHit, Volume: &v}
 	if e := r.endless; e.runs > 0 {
 		s.Endless = &savedBests{e.runs, e.secs, e.level, e.kills, e.peak, e.bigHit}
+	}
+	if r.maps != ([nStages]mapBest{}) {
+		for _, m := range r.maps {
+			s.Maps = append(s.Maps, savedMap{m.runs, m.swept, m.fastest, m.kills})
+		}
 	}
 	if r.hasRet {
 		s.Crosshair = &savedReticle{r.ret.style, r.ret.color, r.ret.size, r.ret.outline}
@@ -92,6 +127,11 @@ func decodeRecords(b []byte) records {
 	r := records{bests: bests{s.Runs, s.Secs, s.Level, s.Kills, s.Peak, s.BigHit}, volume: -1}
 	if e := s.Endless; e != nil {
 		r.endless = bests{e.Runs, e.Secs, e.Level, e.Kills, e.Peak, e.BigHit}
+	}
+	for i, m := range s.Maps {
+		if i < nStages && m.Swept >= 0 && m.Runs >= m.Swept {
+			r.maps[i] = mapBest{m.Runs, m.Swept, m.Fastest, m.Kills}
+		}
 	}
 	if s.Volume != nil && *s.Volume >= 0 && *s.Volume <= 10 {
 		r.volume = *s.Volume

@@ -161,9 +161,10 @@ the last warden. On `/dev/zero` it lasts 18 to 20 minutes. It heeds the warnings
 wind-up, a dash through a slam or a shot about to land — and turns to a boss in sight, and nothing else,
 so the dash cards do little for it.
 
-Records (the longest run, the highest level, the most swept, the most shots alive at once, the biggest
-hit) stay where the game is played: `~/.config/marksweep/records.json`, or the browser's localStorage,
-the three maps' and `/dev/zero`'s apart. There is no leaderboard.
+Records stay where the game is played: `~/.config/marksweep/records.json`, or the browser's
+localStorage. The title shows them as a card for each map: how often its warden was swept, the fewest
+seconds one stood, the most swept there in one run; for `/dev/zero` the longest run, its level and its
+count; and under them the longest run of all. There is no leaderboard.
 
 ## How it is drawn
 

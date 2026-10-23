@@ -16,6 +16,8 @@ type arena struct {
 	name                           string
 	rows                           [mapH]string
 	floor, seam, ceil, tray, light uint32
+	accent                         uint32 // its colour on the menus
+	about                          string // a line under its name on the title, 21 at most
 }
 
 // The run goes through the first nStages arenas in turn; the last is
@@ -24,7 +26,8 @@ const nStages = 3
 
 var arenas = [...]arena{
 	{
-		name: "THE HEAP", floor: 0x0a0d18, seam: 0x24365e, ceil: 0x07090f, tray: 0x111727, light: 0x2a3654,
+		name: "THE HEAP", accent: 0x5ad1ff, about: "open, a few windows",
+		floor: 0x0a0d18, seam: 0x24365e, ceil: 0x07090f, tray: 0x111727, light: 0x2a3654,
 		rows: [mapH]string{
 			"zzzzPzzzllllllllPzcccccccczPzzzz",
 			"z..............................z",
@@ -61,7 +64,8 @@ var arenas = [...]arena{
 		},
 	},
 	{
-		name: "THE STACK", floor: 0x110c08, seam: 0x5a3a1c, ceil: 0x0c0806, tray: 0x22170d, light: 0x5a4024,
+		name: "THE STACK", accent: 0xffa94a, about: "frames in lanes",
+		floor: 0x110c08, seam: 0x5a3a1c, ceil: 0x0c0806, tray: 0x22170d, light: 0x5a4024,
 		rows: [mapH]string{
 			"zzzzPzzzcccccccPzcccccccczzzPzzz",
 			"z..............................z",
@@ -98,7 +102,8 @@ var arenas = [...]arena{
 		},
 	},
 	{
-		name: "KERNEL SPACE", floor: 0x140709, seam: 0x5c1c28, ceil: 0x0e0507, tray: 0x26101a, light: 0x5a2232,
+		name: "KERNEL SPACE", accent: 0xff5a6e, about: "a grid of pins",
+		floor: 0x140709, seam: 0x5c1c28, ceil: 0x0e0507, tray: 0x26101a, light: 0x5a2232,
 		rows: [mapH]string{
 			"hhhhPhhhhhhhhhhPhhhhhhhhhhhPhhhh",
 			"h..............................h",
@@ -135,7 +140,8 @@ var arenas = [...]arena{
 		},
 	},
 	{
-		name: "/dev/zero", floor: 0x070b08, seam: 0x1e4a2c, ceil: 0x050806, tray: 0x0f1a12, light: 0x24503a,
+		name: "/dev/zero", accent: 0x6ee07a, about: "open, and no end",
+		floor: 0x070b08, seam: 0x1e4a2c, ceil: 0x050806, tray: 0x0f1a12, light: 0x24503a,
 		rows: [mapH]string{
 			"zzzPzzzzzPzzzzzzzzzzzzPzzzzzPzzz",
 			"z..............................z",

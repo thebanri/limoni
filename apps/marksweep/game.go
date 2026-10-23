@@ -147,6 +147,7 @@ type game struct {
 	stageT    float64 // seconds on this map
 	clearT    float64 // the warden is swept: the next map when this runs out
 	wardenUp  bool    // the warden is in the arena
+	mapKills  int     // kills when this map began
 	won       bool    // all three maps swept
 	level     int
 	xp        float64
@@ -630,6 +631,9 @@ func (g *game) die() {
 		g.sound(sfxDeath)
 	}
 	g.killedBy, g.killedHow = g.hurtBy, g.hurtHow
+	if !g.endless && !g.won && g.clearT <= 0 { // a swept map is counted already
+		g.best.maps[g.stage].add(false, 0, g.kills-g.mapKills)
+	}
 	g.newBest = g.bests().add(runRecord{
 		secs: int(g.runTime), level: g.level, kills: g.kills,
 		peak: g.peakShot, bigHit: int(g.bigHit),
@@ -708,6 +712,7 @@ func (g *game) enter(i int) {
 		useArena(i)
 	}
 	g.stageT, g.clearT, g.spawnAcc, g.bossLive, g.wardenUp = 0, 0, 0, false, false
+	g.mapKills = g.kills
 	g.enemies, g.shots, g.bytes = [maxEnemies]enemy{}, [maxShots]shot{}, [maxBytes]orb{}
 	g.parts, g.nParts, g.partAt = [maxParts]particle{}, 0, 0
 	g.nShots, g.shotTop = 0, 0
@@ -745,6 +750,8 @@ var (
 // moment — time to pick up what it dropped.
 func (g *game) swept() {
 	g.clearT, g.wardenUp = 3, false
+	g.best.maps[g.stage].add(true, int(g.stageT-wardenAt), g.kills-g.mapKills)
+	g.persist()
 	if g.stage+1 < nStages {
 		g.say(cur.name + " swept: on to " + arenas[g.stage+1].name)
 	} else {

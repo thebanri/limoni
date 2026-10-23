@@ -2,7 +2,11 @@ package main
 
 import (
 	"math"
+	"strings"
 	"testing"
+
+	"github.com/thebanri/limoni/core/buffer"
+	"github.com/thebanri/limoni/core/cell"
 )
 
 // Every map is closed, the player starts on floor, bosses arrive on floor,
@@ -153,5 +157,67 @@ func TestEnemiesWalkRoundWalls(t *testing.T) {
 	}
 	if d := g.enemies[i].pos.dist2(g.pos); d > 1 {
 		t.Fatalf("the boba is still %.1f away, at %v", math.Sqrt(d), g.enemies[i].pos)
+	}
+}
+
+// Each map keeps its own records: a sweep counts with how long the warden
+// stood, a death on it counts too, and the fastest stays the fastest.
+func TestMapRecords(t *testing.T) {
+	g := playing()
+	defer useArena(0)
+	g.kills = 100
+	g.enter(0)
+	g.kills += 40
+	g.stageT = wardenAt + 50
+	g.swept()
+	m := g.best.maps[0]
+	if m.runs != 1 || m.swept != 1 || m.fastest != 50 || m.kills != 40 {
+		t.Fatalf("after a sweep: %+v", m)
+	}
+	g.best.maps[0].add(true, 80, 10)
+	if g.best.maps[0].fastest != 50 || g.best.maps[0].kills != 40 {
+		t.Fatalf("a slower sweep changed the best: %+v", g.best.maps[0])
+	}
+	// Dying in the moment after a sweep does not count the map again.
+	g.die()
+	if g.best.maps[0].runs != 2 || g.best.maps[1].runs != 0 {
+		t.Fatalf("a death after the sweep counted: %+v", g.best.maps)
+	}
+	g = playing()
+	g.enter(1)
+	g.kills = 7
+	g.die()
+	if m := g.best.maps[1]; m.runs != 1 || m.swept != 0 || m.kills != 7 {
+		t.Fatalf("a death on map 2: %+v", m)
+	}
+}
+
+// The title shows every map's records, and drawing it allocates nothing.
+func TestTitleShowsTheMaps(t *testing.T) {
+	g := newGame(1)
+	g.best.bests = bests{runs: 4, secs: 1931, level: 66, kills: 3120}
+	g.best.maps = [nStages]mapBest{{runs: 4, swept: 3, fastest: 41, kills: 820}, {runs: 3, swept: 1, fastest: 77, kills: 1100}, {runs: 1, kills: 300}}
+	g.best.endless = bests{runs: 2, secs: 1250, level: 58, kills: 2900}
+	for _, sz := range [][2]uint16{{140, 44}, {110, 32}, {80, 30}} {
+		b := buffer.NewBuffer(cell.Rect{Width: sz[0], Height: sz[1]})
+		g.render(b)
+		screen := snapshot(b)
+		for _, want := range []string{"THE HEAP", "THE STACK", "KERNEL SPACE", "/dev/zero", "warden down", "0:41", "20:50"} {
+			if !strings.Contains(screen, want) {
+				t.Errorf("%dx%d: the title has no %q\n%s", sz[0], sz[1], want, screen)
+			}
+		}
+		if avg := testing.AllocsPerRun(20, func() { g.render(b) }); avg != 0 {
+			t.Errorf("%dx%d: the title allocates %.1f a frame", sz[0], sz[1], avg)
+		}
+	}
+}
+
+// Every map's line under its name fits inside its card.
+func TestMapAboutFitsItsCard(t *testing.T) {
+	for _, a := range arenas {
+		if w := width(a.about); w > mapCardW-4 {
+			t.Errorf("%s: %q is %d wide, the card holds %d", a.name, a.about, w, mapCardW-4)
+		}
 	}
 }
