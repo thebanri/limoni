@@ -60,17 +60,18 @@ func TestWindowInAppleTerminal(t *testing.T) {
 	}
 }
 
-// The game opens its own window unasked in Apple's Terminal and on
-// Windows, but not inside -window's Terminal window or over SSH.
+// The game opens its own window unasked on macOS and Windows, whatever the
+// terminal, but not inside -window's Terminal window or over SSH.
 func TestAutoGUI(t *testing.T) {
+	desktop := runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 	for _, c := range []struct {
 		term, window, ssh string
 		want              bool
 	}{
-		{"Apple_Terminal", "", "", true},
+		{"Apple_Terminal", "", "", desktop},
 		{"Apple_Terminal", "1", "", false},
 		{"Apple_Terminal", "", "10.0.0.2 22 10.0.0.1 22", false},
-		{"iTerm.app", "", "", runtime.GOOS == "windows"},
+		{"iTerm.app", "", "", desktop},
 	} {
 		t.Setenv("TERM_PROGRAM", c.term)
 		t.Setenv("LEMONSWEEP_WINDOW", c.window)

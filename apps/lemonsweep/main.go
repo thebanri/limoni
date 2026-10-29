@@ -49,6 +49,7 @@ func main() {
 		return
 	}
 
+	noWindow := "" // why -gui did not open, for the title screen
 	if *gui || autoGUI() && !flagSet("gui") {
 		g, mix := newSession(*seed, *mute)
 		g.showFPS = *showFPS
@@ -63,7 +64,9 @@ func main() {
 		if *gui {
 			os.Exit(1)
 		}
-		// No window to be had: play in the terminal, stripes and all.
+		// No window to be had: play in the terminal, stripes and all, and
+		// say why on the title, where stderr is hidden under the game.
+		noWindow = "no window (" + err.Error() + "): playing in the terminal"
 	}
 
 	// Apple's Terminal has no synchronized output and falls behind a fast
@@ -102,6 +105,9 @@ func main() {
 			now := time.Now()
 			ptr.drain(g)
 			g.hint = ptr.problem()
+			if noWindow != "" {
+				g.hint = noWindow
+			}
 			g.step(now.Sub(last).Seconds())
 			last = now
 			g.render(f.Buffer)
@@ -531,7 +537,8 @@ func (g *game) pointerButton(button int, down bool) {
 }
 
 // autoGUI reports whether the game should open its own window unasked:
-// in Apple's Terminal, which draws half blocks short, in stripes, and on
+// on macOS, where Apple's Terminal draws half blocks short, in stripes, and
+// is not named inside tmux or some wrappers that run in it, and on
 // Windows, whose terminals never say a key was let go and cannot lock the
 // mouse. Not inside -window's Terminal window, and not over SSH, where
 // there is no desktop to open a window on.
@@ -539,7 +546,7 @@ func autoGUI() bool {
 	if os.Getenv("LEMONSWEEP_WINDOW") != "" || os.Getenv("SSH_CONNECTION") != "" {
 		return false
 	}
-	return os.Getenv("TERM_PROGRAM") == "Apple_Terminal" || runtime.GOOS == "windows"
+	return runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 }
 
 // flagSet reports whether the flag was given on the command line.

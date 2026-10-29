@@ -25,12 +25,12 @@ its terminals do well without it.
 macOS does not put on the `PATH`. Run `~/go/bin/lemonsweep`, or add
 `export PATH="$PATH:$(go env GOPATH)/bin"` to `~/.zshrc` and open a new terminal.
 
-On Windows and in Apple's Terminal `lemonsweep` opens the `-gui` window by itself (`-gui=false` keeps
+On Windows and macOS `lemonsweep` opens the `-gui` window by itself (`-gui=false` keeps
 it in the terminal; over SSH it stays there). Windows' terminals do not tell the game when a key is let go,
 and none can lock the mouse; Apple's Terminal neither holds a frame back until it is complete nor fills a cell with a block
 character: it draws them from the font into a row taller than the font, in stripes. `lemonsweep -window`
 there opens a Terminal window with a line spacing of 0.75, where SF Mono's rows are as tall as its
-glyphs, at 30 frames a second; Ghostty, iTerm2, kitty and WezTerm need nothing.
+glyphs, at 30 frames a second; Ghostty, iTerm2, kitty and WezTerm play well with `-gui=false`.
 
 ### Mouse lock
 
