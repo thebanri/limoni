@@ -37,7 +37,7 @@ func TestDoctorReport(t *testing.T) {
 		"REP measured      works",
 		"family emoji      2 columns (clusters as units)",
 		"TERM              xterm-256color",
-		"images                  half blocks  →  sixel  (changed)",
+		"images                  half blocks  →  kitty  (changed)",
 		"kitty keyboard          no       →  yes  (changed)",
 	} {
 		if !strings.Contains(got, want) {

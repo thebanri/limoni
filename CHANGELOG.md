@@ -8,6 +8,14 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Changed
+
+- Konsole shows pictures with Kitty's protocol when it names itself in its
+  XTVERSION reply. Before, Limoni did not list it as showing pictures, and
+  the handshake chose Sixel because Konsole's DA1 reply lists it. Konsole
+  supports both since 22.04; Kitty's protocol works better of the two.
+  `LIMONI_GRAPHICS` still overrides the choice.
+
 ## [v0.16.0] — 2026-10-27
 
 ### Breaking
