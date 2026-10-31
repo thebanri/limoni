@@ -402,6 +402,22 @@ f.RenderWidget(palette, area)
 
 ---
 
+### `HelpOverlay`
+A keyboard help card built from the `KeybindingManager` — the `?` screen. It lists the shortcuts grouped by `Category`, in the order the categories first appear, with the key on the left and the action on the right, and skips bindings whose `When` reports they are inactive. Groups flow into columns when the area is wide enough; a single column scrolls.
+
+```go
+km := widgets.NewKeybindingManager()
+km.Register(widgets.Keybinding{Key: driver.KeyRune, Ch: 's', Ctrl: true, Label: "Save", Category: "File"})
+km.Register(widgets.Keybinding{Key: driver.KeyRune, Ch: 'q', Ctrl: true, Label: "Quit", Category: "Application"})
+
+help := widgets.NewHelpOverlay(km).WithTitle("Keys")
+f.RenderWidget(help, area)
+```
+
+`WithScopes("dialog")` limits the card to one focus scope; without it the card shows the global bindings only. The card draws in `0 B/op` after its first frame (the layout buffers live in `HelpState`), and exposes every row as a semantic node — the action as its label and the key as its value — so screen readers and `uitest` can find a row by the action it runs.
+
+---
+
 ## 7. 3D Graphics & Canvas
 
 ### `Canvas`

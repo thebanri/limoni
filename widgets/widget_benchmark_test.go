@@ -6,6 +6,7 @@ import (
 
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func prepareBenchmarkEnv() (*buffer.Buffer, cell.Context) {
@@ -348,5 +349,22 @@ func BenchmarkMarkdownBlocksDraw(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		md.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkHelpOverlayDraw(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	km := NewKeybindingManager()
+	for i := 0; i < 12; i++ {
+		km.Register(Keybinding{Key: driver.KeyRune, Ch: rune('a' + i), Ctrl: true, Label: "Action", Category: "Group"})
+	}
+	help := NewHelpOverlay(km)
+	// The first frame fills the state's layout buffers; the benchmark measures
+	// the frames after it, which are the ones a terminal draws.
+	help.Draw(ctx, buf)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		help.Draw(ctx, buf)
 	}
 }

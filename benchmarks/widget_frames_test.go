@@ -33,6 +33,14 @@ func TestInteractiveWidgetsDrawWithoutAllocating(t *testing.T) {
 	toasts := widgets.NewToastManager(widgets.ToastTopRight)
 	toasts.Info("Saved", "3 files")
 	offset := 2
+	// The help card registers focus and, once its bindings do not fit, scroll.
+	helpKeys := widgets.NewKeybindingManager()
+	for i := 0; i < 16; i++ {
+		helpKeys.Register(widgets.Keybinding{Key: driver.KeyRune, Ch: rune('a' + i), Ctrl: true, Label: "Action", Category: "Keys"})
+	}
+	helpCard := widgets.NewHelpOverlay(helpKeys).WithTitle("Keys")
+	helpCard.ID = "help"
+	helpCard.Columns = 1
 
 	cases := []struct {
 		name string
@@ -51,6 +59,7 @@ func TestInteractiveWidgetsDrawWithoutAllocating(t *testing.T) {
 		{"ColorPicker", &widgets.ColorPicker{ID: "cp", State: widgets.NewColorPickerState(10, 20, 30)}},
 		{"CommandPalette open", &widgets.CommandPalette{ID: "cmd", State: palette}},
 		{"Toast", toasts},
+		{"HelpOverlay scrolling", helpCard},
 		{"Markdown scrolling", &widgets.Markdown{ID: "md", Content: "# Title\n\n" + strings.Repeat("line\n", 40), ScrollOffset: &offset}},
 		{"OnClick", component.OnClick(component.Text("press"), func(driver.MouseEvent) {})},
 	}

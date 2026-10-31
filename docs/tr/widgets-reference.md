@@ -308,6 +308,21 @@ f.RenderWidget(dialog, modalArea)
 
 ---
 
+### `HelpOverlay`
+`KeybindingManager`'dan üretilen klavye yardım kartı — TUI'lerin `?` ekranı. Kısayolları `Category`'ye göre, kategorilerin ilk göründüğü sırayla listeler: solda tuş, sağda eylem. `When` şu anda etkin değil diyorsa satır gizlenir, alan genişse gruplar sütunlara akar ve kart kaydırılır.
+
+```go
+km := widgets.NewKeybindingManager()
+km.Register(widgets.Keybinding{Key: driver.KeyRune, Ch: 's', Ctrl: true, Label: "Kaydet", Category: "Dosya"})
+
+help := widgets.NewHelpOverlay(km).WithTitle("Tuşlar")
+f.RenderWidget(help, area)
+```
+
+`WithScopes("dialog")` kartı tek bir odak kapsamına indirir; verilmezse yalnızca global kısayollar gösterilir. İlk kareden sonra çizim `0 B/op` ayırır (düzen tamponları `HelpState` içinde yaşar) ve her satır semantik düğüm olarak yayınlanır: etiket eylem, değer tuştur, böylece ekran okuyucular ve `uitest` bir satırı çalıştırdığı eylemle bulabilir.
+
+---
+
 ## 6. Grafik & 3D Rasterizer
 
 ### `Canvas`
