@@ -82,6 +82,9 @@ func run(argv []string) (int, error) {
 		// top: the program's first pictures go under what it prints there.
 		s.emu.Write([]byte("\x1b[" + strconv.Itoa(at.Y+1) + ";" + strconv.Itoa(at.X+1) + "H"))
 	}
+	if s.ov != nil {
+		go s.watchScroll()
+	}
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
@@ -100,6 +103,7 @@ func run(argv []string) (int, error) {
 		for {
 			n, err := os.Stdin.Read(buf)
 			if n > 0 {
+				s.typed()
 				if _, werr := ptmx.Write(d.filter(buf[:n])); werr != nil {
 					return
 				}

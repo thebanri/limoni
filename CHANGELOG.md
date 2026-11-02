@@ -40,6 +40,13 @@ a patch bump (`v0.x.y`) does not.
   on screen and drew an opaque square. `go install` builds of termimg had
   the square everywhere: they were pinned to a Limoni without the fix.
 
+- termimg: pictures move with the text when the terminal shows its
+  scrollback (the wheel, Shift+PgUp). The terminal tells no program it has
+  scrolled, so the pictures stayed where they were over other lines; termimg
+  now reads the terminal's window, finds how many rows the text moved and
+  moves the pictures by as many, and hides them when it scrolled further
+  than a screen.
+
 - `testkit.DiffSnapshot` compares two snapshots cell by cell and reports the
   column the differing cell starts at, the column a cursor would move to. It
   compared rune by rune, and a cell that holds a multi-rune cluster writes all

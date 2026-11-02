@@ -53,6 +53,7 @@ type session struct {
 	// margins is set while a scroll region may be in force, lrmm while left
 	// and right margins may: lines then scroll through part of the screen.
 	margins, lrmm bool
+	scroll        scrollback
 }
 
 func newSession(out, ptmx *os.File) *session {
@@ -94,6 +95,7 @@ func (s *session) resize() {
 		s.cellW, s.cellH, s.pixels = int(ws.Xpixel)/s.cols, int(ws.Ypixel)/s.rows, true
 	}
 	s.emu.Resize(s.cols, s.rows)
+	s.changed()
 	_ = pty.Setsize(s.ptmx, &pty.Winsize{
 		Cols: uint16(s.cols), Rows: uint16(s.rows),
 		X: uint16(s.cols * s.cellW), Y: uint16(s.rows * s.cellH),
@@ -107,6 +109,7 @@ func (s *session) output(b []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.buf, s.dirty = s.buf[:0], false
+	s.changed()
 	s.parse.feed(s.skipScrolled(b), s)
 	if s.dirty {
 		s.pics.update()
