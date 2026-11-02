@@ -47,7 +47,9 @@ a patch bump (`v0.x.y`) does not.
   moves the pictures by as many. A picture pushed off the top by the next
   one is kept above the screen and comes back into view as the scrollback
   is scrolled up to it, a screen or more away; one jump of more than a
-  screen hides them until they can be placed again.
+  screen hides them until they can be placed again. Pictures nearly as large
+  as the window are followed too: the text that comes into view between them
+  is found among the rows seen when it was output.
 - termimg: a terminal made shorter scrolls its lines up to keep the cursor
   on screen, and the pictures now go up with them; resizing no longer
   leaves the pictures hidden until a key is typed.

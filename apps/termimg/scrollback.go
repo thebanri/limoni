@@ -81,7 +81,9 @@ func (s *session) checkScroll() {
 		return
 	}
 	if !s.scroll.anchored {
-		s.scroll.anchored = s.ov.Anchor(s.emu.CursorPosition().Y)
+		if s.scroll.anchored = s.ov.Anchor(s.emu.CursorPosition().Y, s.pics.lines); s.scroll.anchored {
+			s.pics.lines = 0
+		}
 		return
 	}
 	_ = s.ov.Follow()

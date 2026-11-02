@@ -100,6 +100,9 @@ func (s *session) resize() {
 	}
 	s.keepCursor(s.rows)
 	s.emu.Resize(s.cols, s.rows)
+	if s.ov != nil {
+		s.ov.Forget() // the terminal lays its lines out anew
+	}
 	s.resized()
 	_ = pty.Setsize(s.ptmx, &pty.Winsize{
 		Cols: uint16(s.cols), Rows: uint16(s.rows),
@@ -270,6 +273,9 @@ func (s *session) csi(seq []byte) bool {
 		}
 	case final == 'J' && string(body) == "3": // ED 3: the terminal empties its scrollback
 		s.pics.gone = nil
+		if s.ov != nil {
+			s.ov.Forget()
+		}
 		s.dirty = true
 	case final == 'r' && (len(body) == 0 || body[0] < '<'): // DECSTBM, not a private one
 		// shortcut: a reset (RIS, DECSTR) leaves margins set, which only

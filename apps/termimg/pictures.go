@@ -82,6 +82,9 @@ type pictures struct {
 	// keeps no scrollback of its own beyond the lines a write scrolls, which
 	// update counts and drops.
 	gone []*picture
+	// lines counts the lines scrolled off the top since the overlay last
+	// read the window at the bottom (Overlay.Anchor), which takes it.
+	lines int
 }
 
 // maxGone and maxAbove bound the pictures kept above the screen, in number
@@ -94,6 +97,7 @@ const (
 // scrolled moves the pictures above the screen up by n rows, and drops
 // those too far up to be reached or too many.
 func (p *pictures) scrolled(n int) {
+	p.lines += n
 	keep := p.gone[:0]
 	for _, pic := range p.gone {
 		if pic.top -= n; pic.top+pic.rows > -maxAbove {
