@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/vt v0.0.0-20260927004216-9c77d672503d
 	github.com/creack/pty v1.1.24
-	github.com/thebanri/limoni v0.16.1-0.20261102210636-656e4da87e75
+	github.com/thebanri/limoni v0.16.1-0.20261102213920-1ff04f5a7fc1
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0
 )

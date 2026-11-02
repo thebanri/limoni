@@ -75,6 +75,10 @@ a patch bump (`v0.x.y`) does not.
   screen hides them until they can be placed again. Pictures nearly as large
   as the window are followed too: the text that comes into view between them
   is found among the rows seen when it was output.
+  Where that cannot be told for certain (a run of the same output, or
+  nothing beside the pictures to go by), they are hidden rather than put in
+  the wrong place; a window made taller or shorter keeps them, one made
+  wider or narrower lays its text out anew and drops those above the screen.
 - termimg: a terminal made shorter scrolls its lines up to keep the cursor
   on screen, and the pictures now go up with them; resizing no longer
   leaves the pictures hidden until a key is typed.

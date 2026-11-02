@@ -89,6 +89,7 @@ func (s *session) resize() {
 	if err != nil || ws.Col == 0 || ws.Row == 0 {
 		return
 	}
+	newWidth := int(ws.Col) != s.cols
 	s.cols, s.rows = int(ws.Col), int(ws.Row)
 	s.cellW, s.cellH, s.pixels = 10, 20, false
 	if s.ov != nil {
@@ -100,8 +101,10 @@ func (s *session) resize() {
 	}
 	s.keepCursor(s.rows)
 	s.emu.Resize(s.cols, s.rows)
-	if s.ov != nil {
-		s.ov.Forget() // the terminal lays its lines out anew
+	if s.ov != nil && newWidth {
+		// The terminal lays its lines out anew at another width; at
+		// another height they stay, scrolled as keepCursor counts.
+		s.ov.Forget()
 	}
 	s.resized()
 	_ = pty.Setsize(s.ptmx, &pty.Winsize{

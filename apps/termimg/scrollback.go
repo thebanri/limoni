@@ -77,14 +77,19 @@ func (s *session) resized() {
 }
 
 func (s *session) checkScroll() {
-	if len(s.shown) == 0 || time.Since(s.scroll.wrote) < settle {
+	if time.Since(s.scroll.wrote) < settle {
 		return
 	}
+	// The window is read at the bottom even with no picture yet: the text
+	// around the first one is remembered before a large one pushes it off.
 	if !s.scroll.anchored {
-		if s.scroll.anchored = s.ov.Anchor(s.emu.CursorPosition().Y, s.pics.lines); s.scroll.anchored {
+		at := s.emu.CursorPosition()
+		if s.scroll.anchored = s.ov.Anchor(at.X, at.Y, s.pics.lines); s.scroll.anchored {
 			s.pics.lines = 0
 		}
 		return
 	}
-	_ = s.ov.Follow()
+	if len(s.shown) > 0 {
+		_ = s.ov.Follow()
+	}
 }
