@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -31,11 +32,7 @@ import (
 func main() {
 	argv := os.Args[1:]
 	if len(argv) == 0 {
-		sh := os.Getenv("SHELL")
-		if sh == "" {
-			sh = "/bin/sh"
-		}
-		argv = []string{sh}
+		argv = []string{shell()}
 	}
 	code, err := run(argv)
 	if err != nil {
@@ -53,16 +50,8 @@ func run(argv []string) (int, error) {
 	s := newSession(os.Stdout, ptmx)
 	defer s.close()
 
-	cmd := exec.Command(argv[0], argv[1:]...)
-	// backdrop-shell's start-up hook would start it again on this new pty,
-	// and its emulated screen would swallow the sixel: tell it this pty is
-	// already one of its own. TERMIMG is how a program learns it runs under
-	// termimg; backdrop-shell sets LIMONI_BACKDROP_SHELL too, without pictures.
-	cmd.Env = append(os.Environ(), "LIMONI_BACKDROP_SHELL="+tty.Name(), "TERMIMG=1")
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
-	err = cmd.Start()
-	tty.Close()
+	ttyName := tty.Name()
+	cmd, err := startOn(tty, argv)
 	if err != nil {
 		return 1, err
 	}
@@ -115,26 +104,64 @@ func run(argv []string) (int, error) {
 	}()
 
 	buf := make([]byte, 64<<10)
-	for {
-		n, err := ptmx.Read(buf)
-		// A program writing fast comes in reads of 4 KB; taken together, a
-		// screenful and more of them can skip the shadow screen (skipScrolled).
-		for err == nil && n < len(buf) && readable(ptmx) {
-			var m int
-			m, err = ptmx.Read(buf[n:])
-			n += m
-		}
-		if n > 0 {
-			if werr := s.output(buf[:n]); werr != nil {
-				break
+	pump := func() {
+		for {
+			n, err := ptmx.Read(buf)
+			// A program writing fast comes in reads of 4 KB; taken together, a
+			// screenful and more of them can skip the shadow screen (skipScrolled).
+			for err == nil && n < len(buf) && readable(ptmx) {
+				var m int
+				m, err = ptmx.Read(buf[n:])
+				n += m
+			}
+			if n > 0 {
+				if werr := s.output(buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return // EIO once the program has gone
 			}
 		}
-		if err != nil {
-			break // EIO once the program has gone
-		}
 	}
+	pump()
+	code, err := exitCode(cmd.Wait())
 
-	err = cmd.Wait()
+	// The pictures live as long as termimg: a command that printed one and
+	// ended (gowall --preview) would take it along at once. The user's shell
+	// takes over on the same screen instead, and exit leaves.
+	if isShell(argv[0]) || !s.keeps() {
+		return code, err
+	}
+	_ = s.output([]byte("termimg: the pictures stay while this shell runs; exit leaves\r\n"))
+	tty, err = os.OpenFile(ttyName, os.O_RDWR, 0)
+	if err != nil {
+		return code, nil
+	}
+	sh, err := startOn(tty, []string{shell()})
+	if err != nil {
+		return code, nil
+	}
+	pump()
+	return exitCode(sh.Wait())
+}
+
+// startOn starts argv on the pty's tty, and closes it: the program keeps it.
+func startOn(tty *os.File, argv []string) (*exec.Cmd, error) {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	// backdrop-shell's start-up hook would start it again on this new pty,
+	// and its emulated screen would swallow the sixel: tell it this pty is
+	// already one of its own. TERMIMG is how a program learns it runs under
+	// termimg; backdrop-shell sets LIMONI_BACKDROP_SHELL too, without pictures.
+	cmd.Env = append(os.Environ(), "LIMONI_BACKDROP_SHELL="+tty.Name(), "TERMIMG=1")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	err := cmd.Start()
+	tty.Close()
+	return cmd, err
+}
+
+func exitCode(err error) (int, error) {
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		return exit.ExitCode(), nil
@@ -143,6 +170,25 @@ func run(argv []string) (int, error) {
 		err = nil
 	}
 	return 0, err
+}
+
+// shell is the user's shell.
+func shell() string {
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
+	}
+	return "/bin/sh"
+}
+
+// isShell says whether name is a shell: its exit is the user leaving, and
+// no other shell is started after it (the Xwayland relaunch runs one too).
+func isShell(name string) bool {
+	switch base := filepath.Base(name); base {
+	case "sh", "bash", "zsh", "fish", "dash", "ksh", "mksh", "tcsh", "csh", "nu", "elvish", "xonsh":
+		return true
+	default:
+		return base == filepath.Base(shell())
+	}
 }
 
 // readable says whether f has something to read at once.

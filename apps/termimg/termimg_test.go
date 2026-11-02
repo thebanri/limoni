@@ -430,3 +430,15 @@ func TestAShorterScreenScrollsThePicturesUp(t *testing.T) {
 		t.Fatalf("cursor at %v, want 2,5", at)
 	}
 }
+
+func TestIsShell(t *testing.T) {
+	t.Setenv("SHELL", "/usr/local/bin/myshell")
+	for name, want := range map[string]bool{
+		"fish": true, "/usr/bin/zsh": true, "sh": true, "/usr/local/bin/myshell": true,
+		"gowall": false, "/usr/bin/fastfetch": false, "chafa": false,
+	} {
+		if got := isShell(name); got != want {
+			t.Errorf("isShell(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

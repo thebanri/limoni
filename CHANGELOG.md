@@ -79,6 +79,11 @@ a patch bump (`v0.x.y`) does not.
   nothing beside the pictures to go by), they are hidden rather than put in
   the wrong place; a window made taller or shorter keeps them, one made
   wider or narrower lays its text out anew and drops those above the screen.
+- termimg: `termimg command` kept the pictures only as long as the command
+  ran, so one that printed a picture and ended (`gowall --preview`) showed
+  it for a moment. When pictures are left on the screen, the user's shell
+  now takes over in the same window, and `exit` leaves; a command that is a
+  shell itself still ends termimg.
 - termimg: a terminal made shorter scrolls its lines up to keep the cursor
   on screen, and the pictures now go up with them; resizing no longer
   leaves the pictures hidden until a key is typed.

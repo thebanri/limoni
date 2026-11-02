@@ -129,6 +129,13 @@ func (s *session) keepCursor(rows int) {
 	s.emu.Write(cup(b, at.X, at.Y-n))
 }
 
+// keeps says whether pictures are in the overlay, on the screen or above it.
+func (s *session) keeps() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ov != nil && (len(s.pics.byID) > 0 || len(s.pics.gone) > 0)
+}
+
 // output handles a read of the program's output.
 func (s *session) output(b []byte) error {
 	s.mu.Lock()
