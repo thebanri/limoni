@@ -33,8 +33,9 @@ type sample struct {
 }
 
 // Anchor reads the window with the terminal at the bottom, as Follow will
-// compare it; cursor is the row of cells the cursor is in.
-func (o *Overlay) Anchor(cursor int) bool {
+// compare it; cursor is the row of cells the cursor is in, and scrolled the
+// lines output has scrolled off the top since the Anchor before.
+func (o *Overlay) Anchor(cursor, scrolled int) bool {
 	if o.dy != 0 || o.hidden {
 		return false
 	}
@@ -42,9 +43,15 @@ func (o *Overlay) Anchor(cursor int) bool {
 	if ok {
 		a.cursor = cursor
 		o.anchor, o.last = &a, &a
+		o.hist.shift(scrolled)
+		o.hist.remember(&a, 0, cursor)
 	}
 	return ok
 }
+
+// Forget drops the rows remembered: the terminal laid its text out anew
+// (a resize) or emptied its scrollback.
+func (o *Overlay) Forget() { o.hist = nil }
 
 // Follow reads the window again and moves the pictures down by the rows it
 // has scrolled since Anchor, or hides them when that cannot be told.
@@ -60,9 +67,14 @@ func (o *Overlay) Follow() error {
 		return nil
 	}
 	k, found := follow(o.anchor, o.last, &b, o.dy/o.cellH)
+	if !found && o.hidden {
+		// Nothing covers the text now: look for it among the rows seen.
+		k, found = o.hist.recall(&b)
+	}
 	if !found {
 		return o.hide(true)
 	}
+	o.hist.remember(&b, k, -1)
 	b.offset, b.cursor = k, -1
 	if c := o.anchor.cursor + k; o.anchor.cursor >= 0 && c < len(b.rows) {
 		b.cursor = c
@@ -172,6 +184,11 @@ func (o *Overlay) read() (sample, bool) {
 			}
 			s.rows[r] = append(s.rows[r], reply[32:32+4*w]...)
 			y := o.padY + r*o.cellH + q*o.cellH/4
+			if o.hidden {
+				// Nothing covers the terminal: its text under the pictures
+				// is what tells where a picture as wide as the window goes.
+				continue
+			}
 			for _, win := range o.wins {
 				pic := image.Rect(win.x-x0, win.y+o.dy, win.x-x0+win.key.w, win.y+o.dy+win.key.h)
 				if y >= pic.Min.Y && y < pic.Max.Y {

@@ -44,6 +44,7 @@ type Overlay struct {
 	// bottom, how far the pictures are moved down to follow it, and whether
 	// they are hidden because it shows nothing that matches.
 	anchor, last *sample
+	hist         history
 	dy           int
 	hidden       bool
 	// probe is a second connection for reading the window: the first one's
