@@ -9,10 +9,10 @@ import (
 func TestKeybindingManager_New(t *testing.T) {
 	km := NewKeybindingManager()
 	if km == nil {
-		t.Fatal("NewKeybindingManager nil dönmemeli")
+		t.Fatal("NewKeybindingManager should not return nil")
 	}
 	if len(km.AllBindings()) != 0 {
-		t.Fatalf("yeni yöneticide %d kısayol var; 0 bekleniyordu", len(km.AllBindings()))
+		t.Fatalf("new manager has %d bindings; want 0", len(km.AllBindings()))
 	}
 }
 
@@ -22,7 +22,7 @@ func TestKeybindingManager_Register(t *testing.T) {
 	km.Register(Keybinding{Key: driver.KeyEsc, Label: "Kapat", Category: "Genel"})
 
 	if len(km.AllBindings()) != 2 {
-		t.Fatalf("AllBindings uzunluğu = %d; 2 bekleniyordu", len(km.AllBindings()))
+		t.Fatalf("len(AllBindings) = %d; want 2", len(km.AllBindings()))
 	}
 }
 
@@ -36,24 +36,24 @@ func TestKeybindingManager_Handle_Rune(t *testing.T) {
 
 	// Matching key
 	if !km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p', Ctrl: true}) {
-		t.Fatal("eşleşen kısayol true dönmeli")
+		t.Fatal("a matching binding should return true")
 	}
 	if !ran {
-		t.Fatal("handler çalışmalı")
+		t.Fatal("handler should run")
 	}
 
 	// Wrong character
 	ran = false
 	if km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'x', Ctrl: true}) {
-		t.Fatal("eşleşmeyen karakter false dönmeli")
+		t.Fatal("a non-matching rune should return false")
 	}
 	if ran {
-		t.Fatal("eşleşmeyen karakter handler'ı çalıştırmamalı")
+		t.Fatal("a non-matching rune should not run the handler")
 	}
 
 	// Ctrl eksik
 	if km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'p'}) {
-		t.Fatal("Ctrl'suz tuş eşleşmemeli")
+		t.Fatal("the key without Ctrl should not match")
 	}
 }
 
@@ -66,15 +66,15 @@ func TestKeybindingManager_Handle_SpecialKey(t *testing.T) {
 	})
 
 	if !km.Handle(driver.KeyEvent{Type: driver.KeyEsc}) {
-		t.Fatal("Esc eşleşmeli")
+		t.Fatal("Esc should match")
 	}
 	if !ran {
-		t.Fatal("handler çalışmalı")
+		t.Fatal("handler should run")
 	}
 
 	// A different key must not match
 	if km.Handle(driver.KeyEvent{Type: driver.KeyEnter}) {
-		t.Fatal("Enter Esc kısayoluyla eşleşmemeli")
+		t.Fatal("Enter should not match the Esc binding")
 	}
 }
 
@@ -87,19 +87,19 @@ func TestKeybindingManager_Handle_Shift(t *testing.T) {
 	})
 
 	if !km.Handle(driver.KeyEvent{Type: driver.KeyTab, Shift: true}) {
-		t.Fatal("Shift+Tab eşleşmeli")
+		t.Fatal("Shift+Tab should match")
 	}
 	if !ran {
-		t.Fatal("handler çalışmalı")
+		t.Fatal("handler should run")
 	}
 
 	// Tab without Shift must not match
 	ran = false
 	if km.Handle(driver.KeyEvent{Type: driver.KeyTab}) {
-		t.Fatal("Shift'siz Tab eşleşmemeli")
+		t.Fatal("Tab without Shift should not match")
 	}
 	if ran {
-		t.Fatal("Shift'siz Tab handler'ı çalıştırmamalı")
+		t.Fatal("Tab without Shift should not run the handler")
 	}
 }
 
@@ -117,10 +117,10 @@ func TestKeybindingManager_Handle_FirstMatchWins(t *testing.T) {
 
 	km.Handle(driver.KeyEvent{Type: driver.KeyRune, Ch: 'a'})
 	if !firstRan {
-		t.Fatal("ilk kayıtlı handler çalışmalı")
+		t.Fatal("the first registered handler should run")
 	}
 	if secondRan {
-		t.Fatal("ilk eşleşme kazandığı için ikinci handler çalışmamalı")
+		t.Fatal("the first match wins, so the second handler should not run")
 	}
 }
 
@@ -129,7 +129,7 @@ func TestKeybindingManager_Handle_NoMatch(t *testing.T) {
 	km.Register(Keybinding{Key: driver.KeyRune, Ch: 'q', Ctrl: true})
 
 	if km.Handle(driver.KeyEvent{Type: driver.KeyArrowUp}) {
-		t.Fatal("kayıtlı olmayan tuş false dönmeli")
+		t.Fatal("an unregistered key should return false")
 	}
 }
 
@@ -145,10 +145,10 @@ func TestKeybindingManager_ToCommandItems(t *testing.T) {
 
 	items := km.ToCommandItems()
 	if len(items) != 1 {
-		t.Fatalf("ToCommandItems uzunluğu = %d; 1 bekleniyordu", len(items))
+		t.Fatalf("len(ToCommandItems) = %d; want 1", len(items))
 	}
 	if items[0].Label != "Komut Paletini Aç/Kapa" {
-		t.Fatalf("Label = %q; 'Komut Paletini Aç/Kapa' bekleniyordu", items[0].Label)
+		t.Fatalf("Label = %q; want 'Komut Paletini Aç/Kapa'", items[0].Label)
 	}
 	if items[0].Category != "Genel" {
 		t.Fatalf("Category = %q; 'Genel' bekleniyordu", items[0].Category)
@@ -157,7 +157,7 @@ func TestKeybindingManager_ToCommandItems(t *testing.T) {
 		t.Fatalf("Detail = %q; 'Ctrl+P' bekleniyordu", items[0].Detail)
 	}
 	if items[0].Handler == nil {
-		t.Fatal("Handler nil olmamalı")
+		t.Fatal("Handler should not be nil")
 	}
 }
 
