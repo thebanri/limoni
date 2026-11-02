@@ -56,8 +56,9 @@ func run(argv []string) (int, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	// backdrop-shell's start-up hook would start it again on this new pty,
 	// and its emulated screen would swallow the sixel: tell it this pty is
-	// already one of its own.
-	cmd.Env = append(os.Environ(), "LIMONI_BACKDROP_SHELL="+tty.Name())
+	// already one of its own. TERMIMG is how a program learns it runs under
+	// termimg; backdrop-shell sets LIMONI_BACKDROP_SHELL too, without pictures.
+	cmd.Env = append(os.Environ(), "LIMONI_BACKDROP_SHELL="+tty.Name(), "TERMIMG=1")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
 	err = cmd.Start()
