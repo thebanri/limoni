@@ -50,7 +50,6 @@ func run(argv []string) (int, error) {
 	s := newSession(os.Stdout, ptmx)
 	defer s.close()
 
-	ttyName := tty.Name()
 	cmd, err := startOn(tty, argv)
 	if err != nil {
 		return 1, err
@@ -83,6 +82,7 @@ func run(argv []string) (int, error) {
 		}
 	}()
 
+	keys := make(chan struct{}, 1)
 	go func() {
 		var d da1
 		if _, err := ptmx.Write(d.filter(typed)); err != nil {
@@ -92,6 +92,10 @@ func run(argv []string) (int, error) {
 		for {
 			n, err := os.Stdin.Read(buf)
 			if n > 0 {
+				select {
+				case keys <- struct{}{}:
+				default:
+				}
 				s.typed()
 				if _, werr := ptmx.Write(d.filter(buf[:n])); werr != nil {
 					return
@@ -128,22 +132,19 @@ func run(argv []string) (int, error) {
 	code, err := exitCode(cmd.Wait())
 
 	// The pictures live as long as termimg: a command that printed one and
-	// ended (gowall --preview) would take it along at once. The user's shell
-	// takes over on the same screen instead, and exit leaves.
+	// ended (gowall --preview) would take it along at once. They stay, on
+	// the screen as the command left it, until a key is pressed; a shell's
+	// exit is the user leaving already.
 	if isShell(argv[0]) || !s.keeps() {
 		return code, err
 	}
-	_ = s.output([]byte("termimg: the pictures stay while this shell runs; exit leaves\r\n"))
-	tty, err = os.OpenFile(ttyName, os.O_RDWR, 0)
-	if err != nil {
-		return code, nil
+	for len(keys) > 0 { // keys typed while the command ran were its own
+		<-keys
 	}
-	sh, err := startOn(tty, []string{shell()})
-	if err != nil {
-		return code, nil
-	}
-	pump()
-	return exitCode(sh.Wait())
+	_ = s.output([]byte("\x1b[2mtermimg: a key closes the pictures\x1b[m"))
+	<-keys
+	_ = s.output([]byte("\r\x1b[K"))
+	return code, err
 }
 
 // startOn starts argv on the pty's tty, and closes it: the program keeps it.
@@ -181,7 +182,7 @@ func shell() string {
 }
 
 // isShell says whether name is a shell: its exit is the user leaving, and
-// no other shell is started after it (the Xwayland relaunch runs one too).
+// termimg does not wait for a key after it (the Xwayland relaunch runs one).
 func isShell(name string) bool {
 	switch base := filepath.Base(name); base {
 	case "sh", "bash", "zsh", "fish", "dash", "ksh", "mksh", "tcsh", "csh", "nu", "elvish", "xonsh":

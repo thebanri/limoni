@@ -81,9 +81,9 @@ a patch bump (`v0.x.y`) does not.
   wider or narrower lays its text out anew and drops those above the screen.
 - termimg: `termimg command` kept the pictures only as long as the command
   ran, so one that printed a picture and ended (`gowall --preview`) showed
-  it for a moment. When pictures are left on the screen, the user's shell
-  now takes over in the same window, and `exit` leaves; a command that is a
-  shell itself still ends termimg.
+  it for a moment. When pictures are left on the screen, they now stay, on
+  the screen as the command left it, until a key is pressed; a command that
+  is a shell itself still ends termimg at once.
 - termimg: a terminal made shorter scrolls its lines up to keep the cursor
   on screen, and the pictures now go up with them; resizing no longer
   leaves the pictures hidden until a key is typed.
