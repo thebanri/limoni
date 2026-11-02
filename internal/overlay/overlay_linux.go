@@ -43,9 +43,9 @@ type Overlay struct {
 	// The terminal's scrollback (scroll.go): the window as it was at the
 	// bottom, how far the pictures are moved down to follow it, and whether
 	// they are hidden because it shows nothing that matches.
-	anchor *sample
-	dy     int
-	hidden bool
+	anchor, last *sample
+	dy           int
+	hidden       bool
 	// probe is a second connection for reading the window: the first one's
 	// replies are taken by its reader once attached. damage is a third, for
 	// Redrawn's events.

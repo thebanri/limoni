@@ -14,11 +14,11 @@ import (
 // What can be seen is the terminal's window: Anchor reads a few lines of
 // pixels in every row of cells while the terminal is at the bottom, and
 // Follow reads them again and looks for the number of rows the old ones
-// have moved down by. The pictures move down with them; if no number fits
-// (scrolled further than a screen, or the window shows something else),
-// they are hidden until it does again.
-// shortcut: a picture that had scrolled off the top before Anchor is not
-// brought back by scrolling up to it.
+// have moved down by: against the last view it followed, a step up or down
+// at a time, so the pictures can be followed further than a screen, and
+// against the bottom after a jump. The pictures move down with them; if no
+// number fits (a jump of more than a screen, or the window shows something
+// else), they are hidden until one does again.
 
 // sampleLines are where in a row of cells its lines are read, in quarters.
 var sampleLines = [...]int{1, 2, 3}
@@ -28,6 +28,8 @@ type sample struct {
 	rows   [][]byte   // per row of cells: its lines, 4 bytes a pixel
 	skip   [][][2]int // per row: byte ranges under a picture, not compared
 	cursor int        // the row whose content may blink, -1 for none
+	offset int        // rows scrolled up from the bottom when it was read
+	w, h   int        // the window's size then
 }
 
 // Anchor reads the window with the terminal at the bottom, as Follow will
@@ -39,7 +41,7 @@ func (o *Overlay) Anchor(cursor int) bool {
 	a, ok := o.read()
 	if ok {
 		a.cursor = cursor
-		o.anchor = &a
+		o.anchor, o.last = &a, &a
 	}
 	return ok
 }
@@ -50,14 +52,22 @@ func (o *Overlay) Follow() error {
 	if o.anchor == nil || o.cellH == 0 {
 		return nil
 	}
+	if w, h := o.windowSize(); w != o.anchor.w || h != o.anchor.h {
+		return nil // being resized: the text is laid out anew, and Reset follows
+	}
 	b, ok := o.read()
 	if !ok || len(b.rows) != len(o.anchor.rows) {
 		return nil
 	}
-	k, found := shiftOf(o.anchor, &b, o.dy/o.cellH)
+	k, found := follow(o.anchor, o.last, &b, o.dy/o.cellH)
 	if !found {
 		return o.hide(true)
 	}
+	b.offset, b.cursor = k, -1
+	if c := o.anchor.cursor + k; o.anchor.cursor >= 0 && c < len(b.rows) {
+		b.cursor = c
+	}
+	o.last = &b
 	if dy := k * o.cellH; dy != o.dy {
 		o.dy = dy
 		for _, w := range o.wins {
@@ -67,6 +77,18 @@ func (o *Overlay) Follow() error {
 	return o.hide(false)
 }
 
+// follow finds how many rows up from the bottom b shows: from last, the
+// view followed before, a step up or down, or from the bottom itself.
+func follow(bottom, last, b *sample, prefer int) (int, bool) {
+	if k, ok := shiftOf(last, b, 0); ok {
+		return last.offset + k, true
+	}
+	if k, ok := shiftOf(b, last, -1); ok && last.offset >= k {
+		return last.offset - k, true
+	}
+	return shiftOf(bottom, b, prefer)
+}
+
 // Moved says whether the pictures are not where Show put them: moved with
 // the scrollback, or hidden.
 func (o *Overlay) Moved() bool { return o.dy != 0 || o.hidden }
@@ -74,14 +96,14 @@ func (o *Overlay) Moved() bool { return o.dy != 0 || o.hidden }
 // Hide takes the pictures away until Reset: output came while the terminal
 // showed its scrollback, and where they go is not known.
 func (o *Overlay) Hide() error {
-	o.anchor = nil
+	o.anchor, o.last = nil, nil
 	return o.hide(true)
 }
 
 // Reset puts the pictures back where Show put them: the terminal is at the
 // bottom again (a key was typed).
 func (o *Overlay) Reset() error {
-	o.anchor = nil
+	o.anchor, o.last = nil, nil
 	if o.dy != 0 {
 		o.dy = 0
 		for _, w := range o.wins {
@@ -124,6 +146,7 @@ func (o *Overlay) read() (sample, bool) {
 	}
 	n := o.gridH / o.cellH
 	s := sample{rows: make([][]byte, n), skip: make([][][2]int, n), cursor: -1}
+	s.w, s.h = o.windowSize()
 	// Every line is asked for at once and the replies read after: one wait
 	// for the server instead of one a line, so a scroll is followed at once.
 	for r := range n {

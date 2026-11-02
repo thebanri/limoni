@@ -81,3 +81,42 @@ func TestShiftOfAllowsTheGPUsRounding(t *testing.T) {
 		t.Fatalf("shiftOf = %d, %v; want 1, true", k, ok)
 	}
 }
+
+// lines are the numbered lines of a long output, n rows up from its bottom.
+func lines(rows, n int) *sample {
+	var text []string
+	for i := 100 - rows - n; i < 100-n; i++ {
+		text = append(text, string(rune('A'+i%26))+string(rune('a'+i/26))+"  ")
+	}
+	s := screen(text...)
+	s.offset = n
+	return s
+}
+
+func TestFollowGoesFurtherThanAScreenAStepAtATime(t *testing.T) {
+	const rows = 6
+	bottom := lines(rows, 0)
+	last := bottom
+	for _, n := range []int{3, 6, 9, 12, 9, 4, 0} { // up two screens and back
+		b := lines(rows, n)
+		k, ok := follow(bottom, last, b, last.offset)
+		if !ok || k != n {
+			t.Fatalf("from %d to %d rows up: follow = %d, %v", last.offset, n, k, ok)
+		}
+		b.offset = k
+		last = b
+	}
+}
+
+func TestFollowFindsTheBottomAfterAJump(t *testing.T) {
+	const rows = 6
+	bottom := lines(rows, 0)
+	far := lines(rows, 30) // a page up and more, out of reach
+	if _, ok := follow(bottom, bottom, far, 0); ok {
+		t.Fatal("a jump past a screen should not be followed")
+	}
+	// From there, back at a view near the bottom.
+	if k, ok := follow(bottom, far, lines(rows, 2), 0); !ok || k != 2 {
+		t.Fatalf("follow = %d, %v; want 2, true", k, ok)
+	}
+}
