@@ -34,6 +34,12 @@ a patch bump (`v0.x.y`) does not.
 
 ### Fixed
 
+- termimg: the clear parts of a picture take a translucent terminal's
+  opacity when termimg starts with the terminal's window (`alacritty -e
+  termimg`, or its own Xwayland relaunch): it read the window before it was
+  on screen and drew an opaque square. `go install` builds of termimg had
+  the square everywhere: they were pinned to a Limoni without the fix.
+
 - `testkit.DiffSnapshot` compares two snapshots cell by cell and reports the
   column the differing cell starts at, the column a cursor would move to. It
   compared rune by rune, and a cell that holds a multi-rune cluster writes all

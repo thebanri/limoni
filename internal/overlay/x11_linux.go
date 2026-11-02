@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 // xconn is the few X11 requests the overlay needs, spoken over the local
@@ -130,6 +131,9 @@ func (x *xconn) geometry(win uint32) (depth byte, w, h int, err error) {
 }
 
 // alphaAt reads the alpha of one pixel of a 32-bit window, 255 if it cannot.
+// A window not yet on screen answers GetImage with BadMatch: termimg started
+// with its terminal (alacritty -e termimg, or its own Xwayland relaunch)
+// asks before the window is mapped, so it asks again for up to a second.
 // shortcut: the bottom right corner is taken for background; text drawn
 // there would read as opaque, which is how pictures were shown before.
 func (x *xconn) alphaAt(win uint32, px, py int) byte {
@@ -138,11 +142,14 @@ func (x *xconn) alphaAt(win uint32, px, py int) byte {
 	le.PutUint16(b[6:], uint16(py))
 	le.PutUint16(b[8:], 1)
 	le.PutUint16(b[10:], 1)
-	r, err := x.roundTrip(opGetImage, imageFormatZPixmap, b)
-	if err != nil || len(r) < 36 {
-		return 0xff
+	for range 20 {
+		r, err := x.roundTrip(opGetImage, imageFormatZPixmap, b)
+		if err == nil && len(r) >= 36 {
+			return r[35] // BGRA, little-endian
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
-	return r[35] // BGRA, little-endian
+	return 0xff
 }
 
 // windows reads a property holding 32-bit values (window ids, a pid).
