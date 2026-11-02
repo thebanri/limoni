@@ -13,7 +13,7 @@ func TestFlexLayoutHorizontalRatios(t *testing.T) {
 
 	rects := lay.Split(area)
 	if len(rects) != 3 {
-		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 3, Alınan: %d", len(rects))
+		t.Fatalf("wrong number of parts. Want: 3, got: %d", len(rects))
 	}
 
 	// Ratios: 1/5 (20%), 2/5 (40%), 2/5 (40%)
@@ -23,13 +23,13 @@ func TestFlexLayoutHorizontalRatios(t *testing.T) {
 
 	for i, r := range rects {
 		if r.Width != expectedWidths[i] {
-			t.Errorf("İndeks %d genişliği hatalı. Beklenen: %d, Alınan: %d", i, expectedWidths[i], r.Width)
+			t.Errorf("index %d: wrong width. Want: %d, got: %d", i, expectedWidths[i], r.Width)
 		}
 		if r.X != expectedX[i] {
-			t.Errorf("İndeks %d X konumu hatalı. Beklenen: %d, Alınan: %d", i, expectedX[i], r.X)
+			t.Errorf("index %d: wrong X. Want: %d, got: %d", i, expectedX[i], r.X)
 		}
 		if r.Height != 10 {
-			t.Errorf("Yükseklik değişmemeliydi")
+			t.Errorf("height should not have changed")
 		}
 	}
 }
@@ -74,7 +74,7 @@ func TestFlexLayoutVerticalMixed(t *testing.T) {
 
 	rects := lay.Split(area)
 	if len(rects) != 3 {
-		t.Fatalf("Bölünen parça sayısı hatalı")
+		t.Fatalf("wrong number of parts")
 	}
 
 	expectedHeights := []uint16{10, 10, 30}
@@ -82,13 +82,13 @@ func TestFlexLayoutVerticalMixed(t *testing.T) {
 
 	for i, r := range rects {
 		if r.Height != expectedHeights[i] {
-			t.Errorf("İndeks %d yüksekliği hatalı. Beklenen: %d, Alınan: %d", i, expectedHeights[i], r.Height)
+			t.Errorf("index %d: wrong height. Want: %d, got: %d", i, expectedHeights[i], r.Height)
 		}
 		if r.Y != expectedY[i] {
-			t.Errorf("İndeks %d Y konumu hatalı. Beklenen: %d, Alınan: %d", i, expectedY[i], r.Y)
+			t.Errorf("index %d: wrong Y. Want: %d, got: %d", i, expectedY[i], r.Y)
 		}
 		if r.Width != 80 {
-			t.Errorf("Genişlik değişmemeliydi")
+			t.Errorf("width should not have changed")
 		}
 	}
 }
@@ -105,10 +105,10 @@ func TestFlexLayoutGap(t *testing.T) {
 	expectedX := []uint16{0, 7, 14} // (0 + 5 + 2 = 7), (7 + 5 + 2 = 14)
 	for i, r := range rects {
 		if r.Width != 5 {
-			t.Errorf("Genişlik 5 olmalıydı, alınan: %d", r.Width)
+			t.Errorf("width should be 5, got: %d", r.Width)
 		}
 		if r.X != expectedX[i] {
-			t.Errorf("İndeks %d X konumu hatalı. Beklenen: %d, Alınan: %d", i, expectedX[i], r.X)
+			t.Errorf("index %d: wrong X. Want: %d, got: %d", i, expectedX[i], r.X)
 		}
 	}
 }
@@ -122,7 +122,7 @@ func TestFlexLayoutExceededScaling(t *testing.T) {
 	rects := lay.Split(area)
 	// Expected: each shrinks to a width of 5
 	if rects[0].Width != 5 || rects[1].Width != 5 {
-		t.Errorf("Aşım oranlaması başarısız. Alınan genişlikler: %d ve %d", rects[0].Width, rects[1].Width)
+		t.Errorf("overflow scaling failed. Got widths: %d and %d", rects[0].Width, rects[1].Width)
 	}
 }
 
@@ -151,17 +151,17 @@ func TestFlexLayoutMinMaxConstraints(t *testing.T) {
 
 	rects := lay.Split(area)
 	if len(rects) != 3 {
-		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 3, Alınan: %d", len(rects))
+		t.Fatalf("wrong number of parts. Want: 3, got: %d", len(rects))
 	}
 
 	if rects[0].Width != 28 {
-		t.Errorf("Min(15) genişliği hatalı. Beklenen: 28, Alınan: %d", rects[0].Width)
+		t.Errorf("Min(15): wrong width. Want: 28, got: %d", rects[0].Width)
 	}
 	if rects[1].Width != 10 {
-		t.Errorf("Max(10) genişliği hatalı. Beklenen: 10, Alınan: %d", rects[1].Width)
+		t.Errorf("Max(10): wrong width. Want: 10, got: %d", rects[1].Width)
 	}
 	if rects[2].Width != 12 {
-		t.Errorf("Fill() genişliği hatalı. Beklenen: 12, Alınan: %d", rects[2].Width)
+		t.Errorf("Fill(): wrong width. Want: 12, got: %d", rects[2].Width)
 	}
 }
 
@@ -171,14 +171,14 @@ func TestFlexLayoutFitContent(t *testing.T) {
 
 	rects := lay.Split(area, 25, 45)
 	if len(rects) != 2 {
-		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 2, Alınan: %d", len(rects))
+		t.Fatalf("wrong number of parts. Want: 2, got: %d", len(rects))
 	}
 
 	if rects[0].Width != 25 {
-		t.Errorf("FitContent 1 genişliği hatalı. Beklenen: 25, Alınan: %d", rects[0].Width)
+		t.Errorf("FitContent 1: wrong width. Want: 25, got: %d", rects[0].Width)
 	}
 	if rects[1].Width != 45 {
-		t.Errorf("FitContent 2 genişliği hatalı. Beklenen: 45, Alınan: %d", rects[1].Width)
+		t.Errorf("FitContent 2: wrong width. Want: 45, got: %d", rects[1].Width)
 	}
 }
 
@@ -192,17 +192,17 @@ func TestFlexLayoutFitContentMixed(t *testing.T) {
 
 	rects := lay.Split(area, 15)
 	if len(rects) != 3 {
-		t.Fatalf("Bölünen parça sayısı hatalı. Beklenen: 3, Alınan: %d", len(rects))
+		t.Fatalf("wrong number of parts. Want: 3, got: %d", len(rects))
 	}
 
 	if rects[0].Width != 15 {
-		t.Errorf("FitContent genişliği hatalı. Beklenen: 15, Alınan: %d", rects[0].Width)
+		t.Errorf("FitContent: wrong width. Want: 15, got: %d", rects[0].Width)
 	}
 	if rects[1].Width != 20 {
-		t.Errorf("Fixed genişliği hatalı. Beklenen: 20, Alınan: %d", rects[1].Width)
+		t.Errorf("Fixed: wrong width. Want: 20, got: %d", rects[1].Width)
 	}
 	if rects[2].Width != 65 {
-		t.Errorf("Fill genişliği hatalı. Beklenen: 65, Alınan: %d", rects[2].Width)
+		t.Errorf("Fill: wrong width. Want: 65, got: %d", rects[2].Width)
 	}
 }
 
