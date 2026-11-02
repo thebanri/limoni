@@ -51,6 +51,11 @@ a patch bump (`v0.x.y`) does not.
   scrolling map costs a placement per tile, as before, and nothing is
   deleted until everything is placed. Frames still draw with 0
   allocations.
+- Konsole shows pictures with Kitty's protocol when it names itself in its
+  XTVERSION reply. Before, Limoni did not list it as showing pictures, and
+  the handshake chose Sixel because Konsole's DA1 reply lists it. Konsole
+  supports both since 22.04; Kitty's protocol works better of the two.
+  `LIMONI_GRAPHICS` still overrides the choice.
 
 ### Fixed
 

@@ -261,7 +261,7 @@ var knownTerminals = map[string]struct {
 	"ghostty":  {trueColor: true, rep: true, links: true, pointer: true, notify: NotifyOSC9, images: graphics.ProtocolKitty},
 	"contour":  {trueColor: true, rep: true, links: true},
 	"iterm2":   {trueColor: true, rep: true, links: true, notify: NotifyOSC9, images: graphics.ProtocolIterm2},
-	"konsole":  {trueColor: true, rep: true, links: true},
+	"konsole":  {trueColor: true, rep: true, links: true, images: graphics.ProtocolKitty}, // Kitty graphics and Sixel since 22.04; Kitty works better
 	"xterm.js": {trueColor: true, rep: true},
 	// tmux interprets REP itself before redrawing on the outer terminal, so
 	// REP is safe whatever runs outside it. Colour depth depends on tmux's
