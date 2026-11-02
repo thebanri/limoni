@@ -106,6 +106,7 @@ type appConfig struct {
 	automationPath   string
 	automationPolicy AutomationPolicy
 	inlineHeight     uint16
+	inlineFit        bool
 	noMouse          bool
 	mouseMode        MouseMode
 	suspendOnCtrlZ   bool
@@ -190,6 +191,17 @@ func WithOverlayPictures() AppOption {
 func WithInline(height uint16) AppOption {
 	return func(c *appConfig) {
 		c.inlineHeight = height
+	}
+}
+
+// WithInlineFit renders in place like WithInline, in a band as tall as the
+// rows the frame draws in, up to max: an input with nothing under it is one
+// row, and grows while there is more to show. Frame.Commit prints above it.
+// This is the shape of a chat or an agent in the terminal.
+func WithInlineFit(max uint16) AppOption {
+	return func(c *appConfig) {
+		c.inlineHeight = max
+		c.inlineFit = true
 	}
 }
 
@@ -289,6 +301,7 @@ func RunWithContext(ctx context.Context, appFn func(f *Frame, ev *Event) bool, o
 	if err != nil {
 		return err
 	}
+	term.SetInlineFit(cfg.inlineFit)
 	defer term.Close()
 	app := &App{term: term, cfg: cfg, wakeup: make(chan struct{}, 1)}
 	return app.Run(ctx, appFn)

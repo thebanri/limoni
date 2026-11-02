@@ -312,6 +312,7 @@ type Program struct {
 
 	notifications chan Notification
 	handovers     chan Handover
+	commits       commits
 }
 
 // Draw renders the current model view through an existing Limoni terminal.
@@ -524,7 +525,8 @@ func (p *Program) update(ctx context.Context, message Msg) (quit bool) {
 	for _, command := range result.Commands {
 		p.schedule(ctx, command)
 	}
-	if result.Redraw {
+	p.queueCommits(result.Commit)
+	if result.Redraw || len(result.Commit) > 0 {
 		p.RequestRedraw()
 	} else {
 		select {
@@ -577,6 +579,7 @@ func (p *Program) reportPanic(value any) {
 // View calls the model's View method for hosts that own a terminal frame.
 func (p *Program) View(frame *terminal.Frame) {
 	if p != nil && p.model != nil {
+		p.commitPending(frame)
 		p.modelMu.Lock()
 		defer p.modelMu.Unlock()
 		p.model.View(frame)

@@ -90,6 +90,16 @@ f.RenderWidget(md, area)
 > [!NOTE]
 > `Markdown` automatically inherits the container or theme background color, preventing transparent text cut-outs across terminals with translucent profiles.
 
+A reply that streams into an inline application need not be redrawn whole on every token. `widgets.SettledMarkdown` splits it into the blocks that can no longer change and the rest; commit the first to the scrollback and draw only the rest in the band. `Markdown.Rows(width, links)` says how tall a text is drawn.
+
+```go
+m.live += token
+done, m.live = widgets.SettledMarkdown(m.live)
+if done != "" {
+    result.Commit = append(result.Commit, widgets.NewMarkdown(done))
+}
+```
+
 ---
 
 ### `RichText`, `Text` & `Span`
@@ -342,6 +352,17 @@ Source code with line numbers and syntax highlighting for Go, Python, JavaScript
 ```go
 code := widgets.NewCodeViewState(src, widgets.LanguageForFile("main.go"))
 f.RenderWidget(widgets.CodeView{State: code}, area)
+```
+
+---
+
+### `DiffView`
+A line diff between two versions of a source (Myers), highlighted as in `CodeView`: a gutter of line numbers, `+` and `-` lines on green and red, context lines around each change and a gap row where lines were left out. The diff is computed in `SetSources`; `Draw` only paints, without allocating. `State.Offset` and `HOffset` scroll it.
+
+```go
+diff := widgets.NewDiffViewState(before, after, widgets.LanguageForFile("main.go"), 3) // 3 lines of context; -1 keeps all
+added, removed := diff.Stats()
+f.RenderWidget(widgets.DiffView{State: diff}, area)
 ```
 
 ---

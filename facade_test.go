@@ -349,6 +349,9 @@ func TestAppOptionsSetWhatTheyName(t *testing.T) {
 	if cfg := configOf(WithSuspend()); !cfg.suspendOnCtrlZ {
 		t.Error("WithSuspend did not enable Ctrl+Z")
 	}
+	if cfg := configOf(WithInlineFit(9)); cfg.inlineHeight != 9 || !cfg.inlineFit {
+		t.Errorf("WithInlineFit(9) → height %d, fit %v", cfg.inlineHeight, cfg.inlineFit)
+	}
 	if cfg := configOf(WithInline(7)); cfg.inlineHeight != 7 {
 		t.Errorf("WithInline(7) → height %d", cfg.inlineHeight)
 	}

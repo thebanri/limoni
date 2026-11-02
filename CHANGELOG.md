@@ -18,6 +18,26 @@ a patch bump (`v0.x.y`) does not.
 
 - `graphics.AppendKittyPlaceID` places a Kitty picture under a placement
   id, and `graphics.AppendKittyDeletePlacement` deletes one placement.
+- `Terminal.Commit` / `Frame.Commit` and `UpdateResult.Commit`: an inline
+  application prints a widget above its band, into the terminal's
+  scrollback, where it stays after exit and is never drawn again. A chat or
+  an agent commits finished messages and redraws only what still changes.
+  A height of zero is as tall as the widget needs (`Markdown.Rows`, else
+  `SizeHint`). On a full-screen terminal it returns `ErrNotInline`; a
+  Program's commits are dropped there.
+- `limoni.WithInlineFit(max)` / `Terminal.SetInlineFit`: an inline band as
+  tall as the rows the frame draws in, up to `max`.
+- `widgets.SettledMarkdown`: splits a streaming reply into the blocks that
+  can no longer change and the rest, so the first can be committed. An open
+  code fence settles in batches of eight lines and is reopened with its
+  language.
+- `widgets.DiffView` / `DiffViewState`: a highlighted line diff (Myers)
+  with context lines and gaps, 0 allocs per draw.
+- `testkit.Terminal.Committed` and `uitest.Page.WaitForScreen`: tests see
+  the committed rows above the frame in `Screen`, and wait for text there.
+- `limoni new -template agent`: a coding agent on the Claude API, inline,
+  with streamed replies committed to the scrollback and edits shown as
+  diffs to approve; `-demo` runs a scripted agent without a key.
 
 ### Changed
 
@@ -60,6 +80,11 @@ a patch bump (`v0.x.y`) does not.
   of its runes, so one cell that differed after an emoji or an accented letter
   was reported as a handful of cells that shifted the rest of the row. This is
   the message a failing `AssertSnapshot` prints.
+- An inline band survives a terminal that reflows on a width change
+  (kitty, and others): the cursor waits at the end of the band's last row,
+  where the reflow leaves it findable, and the next frame climbs back by
+  the rows the band takes at the new width. Each inline row also erases
+  what an earlier, wider frame left to its right.
 
 ## [v0.16.0] — 2026-10-27
 

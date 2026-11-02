@@ -33,6 +33,21 @@ type Terminal struct {
 	// inline, when greater than zero, draws the application in a band of that many
 	// rows on the normal screen instead of the alternate screen.
 	inline uint16
+	// inlineFit makes an inline band only as tall as the rows a frame used,
+	// up to inline (SetInlineFit); inlineRows is how many rows the band has
+	// on screen now.
+	inlineFit  bool
+	inlineRows uint16
+	// inlineExt holds, once a frame is drawn, how many columns each band row
+	// took (buffer.InlineExtents); inlineParked says the cursor then sits at
+	// the end of the band's last row rather than on its first, where a
+	// terminal's reflow on a width change leaves it findable.
+	inlineExt    []uint16
+	inlineParked bool
+	// commits holds rows Commit encoded during a draw, written above the
+	// band when the frame is.
+	commits []byte
+	drawing bool
 
 	// frame is the context handed to widgets during drawing, for drawing and registering click areas.
 	frame *Frame
@@ -138,6 +153,7 @@ func New(b *driver.Backend) (*Terminal, error) {
 		detected: detected,
 		bgOff:    backdropOff(),
 	}
+	t.frame.commit = t.Commit
 	if err := t.recordCastFromEnv(); err != nil {
 		return nil, err
 	}
@@ -205,6 +221,7 @@ func (t *Terminal) Close() error {
 		t.cast = nil
 	}
 	if t.driver != nil {
+		t.unparkInline()
 		t.RestoreModes()
 		if len(t.kitty.ids) > 0 {
 			_, _ = t.driver.Write(t.kitty.freeAll(nil))
@@ -358,6 +375,7 @@ func (t *Terminal) Suspend() error {
 	}
 	// The shell should not inherit a resize arrow or the kitty keyboard
 	// flags; the next mouse move and the next frame set them again.
+	t.unparkInline()
 	t.RestoreModes()
 	t.hideOverlay()
 	if err := t.driver.Suspend(); err != nil {
@@ -458,7 +476,9 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 
 	// Hand the frame context (Frame) to the application to draw its components
 	if fn != nil {
+		t.drawing = true
 		fn(t.frame)
+		t.drawing = false
 	}
 	t.frame.endAreas()
 	if t.backdropActive() {
@@ -494,7 +514,12 @@ func (t *Terminal) present(t0 time.Time) error {
 	// If no cell changed and there is no native image, transition or debug layer,
 	// skip the synchronised update, the image pass and the diff altogether.
 	sizeChanged := t.front.Area.Width != t.back.Area.Width || t.front.Area.Height != t.back.Area.Height
-	if !sizeChanged && !t.front.IsDirty && !t.transitionActive && !t.debugMode &&
+	bandRows := t.inline
+	if t.inline > 0 && t.inlineFit {
+		bandRows = usedRows(t.front, t.inline)
+	}
+	bandMoved := t.inline > 0 && (len(t.commits) > 0 || bandRows != t.inlineRows)
+	if !sizeChanged && !bandMoved && !t.front.IsDirty && !t.transitionActive && !t.debugMode &&
 		len(t.frame.imageRegions) == 0 && t.lastImageCount == 0 {
 		t.lastFrameDuration = time.Since(t0)
 		t.copyWidgetStats()
@@ -517,6 +542,14 @@ func (t *Terminal) present(t0 time.Time) error {
 	// instead of sending an empty ?2026h/?2026l pair on every tick.
 	bodyStart := len(t.writeBuf)
 
+	// The cursor waits at the end of the band; its first row is as many rows
+	// up as the band takes at this width, which after a width change is not
+	// the height it was drawn with: the terminal wrapped or joined its rows.
+	if t.inline > 0 && t.inlineParked {
+		t.writeBuf = buffer.InlineUp(t.writeBuf, buffer.InlineVisualRows(t.inlineExt, t.front.Area.Width))
+		t.inlineParked = false
+	}
+
 	// On a full redraw, ESC[2J must not erase native images already sent.
 	// Sizes are matched here, and the clear is moved ahead of the image pass.
 	needsFullClear := sizeChanged
@@ -529,28 +562,31 @@ func (t *Terminal) present(t0 time.Time) error {
 			t.writeBuf = append(t.writeBuf, "\x1b[2J"...)
 		}
 	}
+	if t.inline > 0 && (sizeChanged || bandMoved) {
+		// Erase the band, print the committed rows where it was, and make
+		// room for it again below them: the rows scroll into the scrollback
+		// as a program's output would, and the band follows them down.
+		t.writeBuf = append(t.writeBuf, "\r\x1b[J"...)
+		t.writeBuf = append(t.writeBuf, t.commits...)
+		t.writeBuf = buffer.InlineReserve(t.writeBuf, bandRows)
+		t.commits = t.commits[:0]
+		if bandRows != t.inlineRows {
+			t.inlineRows = bandRows
+			// The driver moves past the band on exit, so it must know its size.
+			t.driver.SetInline(bandRows)
+		}
+	}
 
 	// ── STEP 1: the cells ──
 	var diffErr error
-	diffOpts := buffer.DiffOptions{
-		TrueColor:  t.caps.TrueColor,
-		Colors256:  t.caps.Colors256,
-		EraseChar:  t.caps.EraseChar,
-		RepeatChar: t.caps.RepeatChar,
-		Hyperlinks: t.caps.Hyperlinks,
-		// A terminal that confirmed mode 2027 needs no cursor re-anchoring
-		// after each grapheme cluster.
-		ClusterWidths: t.caps.ClusterWidths,
-		ScrollRegions: t.caps.ScrollRegions,
-		InsertDelete:  t.caps.ScrollRegions,
-		// Draw already wrapped the frame in ?2026 above; wrapping again inside
-		// the encoder would nest the sequence.
-		SyncOutput: false,
-	}
+	diffOpts := t.diffOptions()
+	diffOpts.InlineRows = bandRows
 	if t.inline > 0 {
 		// Inline frames are emitted relative to the cursor, because the row the
 		// application starts on moves whenever the terminal scrolls.
-		t.writeBuf, diffErr = buffer.DiffInline(t.front, t.back, t.writeBuf, diffOpts)
+		t.writeBuf, diffErr = buffer.DiffInlineParked(t.front, t.back, t.writeBuf, diffOpts)
+		t.inlineExt = buffer.InlineExtents(t.inlineExt, t.front, bandRows)
+		t.inlineParked = true
 	} else {
 		t.writeBuf, diffErr = buffer.DiffWithOptions(t.front, t.back, t.writeBuf, diffOpts)
 	}
@@ -1058,4 +1094,6 @@ func (t *Terminal) Layers() []Layer {
 // alternate-screen switch; limoni.WithInline wires both.
 func (t *Terminal) SetInline(height uint16) {
 	t.inline = height
+	t.inlineRows = height
+	t.inlineParked = false
 }

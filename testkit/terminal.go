@@ -21,9 +21,10 @@ import (
 // It deliberately does not start a backend, raw mode, event loop, or output
 // writer.
 type Terminal struct {
-	buffer  *buffer.Buffer
-	frame   *terminal.Frame
-	capture func(ev driver.MouseEvent)
+	buffer    *buffer.Buffer
+	frame     *terminal.Frame
+	capture   func(ev driver.MouseEvent)
+	committed []string
 }
 
 // NewTerminal creates an in-memory terminal with its origin at (0, 0).
@@ -35,10 +36,50 @@ func NewTerminal(width, height uint16) *Terminal {
 	// can show a picture asked the environment again on every frame, and on
 	// Windows each lookup allocates.
 	frame.ImageProtocol = uint8(graphics.DetectProtocol())
-	return &Terminal{
+	t := &Terminal{
 		buffer: buffer.NewBuffer(area),
 		frame:  frame,
 	}
+	frame.SetCommitHandler(t.commit)
+	return t
+}
+
+// commit keeps what Frame.Commit prints, drawn at the terminal's width, as
+// an inline terminal would keep it above its band.
+func (t *Terminal) commit(height uint16, w widgets.Widget) error {
+	if w == nil {
+		return nil
+	}
+	width := t.buffer.Area.Width
+	if height == 0 {
+		if r, ok := w.(interface {
+			Rows(width uint16, links bool) int
+		}); ok {
+			height = uint16(min(r.Rows(width, false), 0xFFFF))
+		} else {
+			_, height = w.SizeHint(cell.NewRect(0, 0, width, 0xFFFF))
+		}
+	}
+	if height == 0 {
+		return nil
+	}
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, width, height))
+	var style cell.Style
+	style.Reset()
+	w.Draw(cell.NewContext(buf.Area, style), buf)
+	for _, row := range strings.Split(buf.Snapshot(), "\n") {
+		t.committed = append(t.committed, strings.TrimRight(row, " "))
+	}
+	return nil
+}
+
+// Committed returns the rows Frame.Commit has printed so far, one per line:
+// what an inline application leaves in the scrollback above its band.
+func (t *Terminal) Committed() string {
+	if t == nil {
+		return ""
+	}
+	return strings.Join(t.committed, "\n")
 }
 
 // Draw clears the test terminal and renders one deterministic frame.

@@ -156,6 +156,9 @@ type Frame struct {
 	imageClosure    func(cell.Rect, image.Image, int, bool) bool
 	focusClosure    func(string)
 	setFocusClosure func(string)
+
+	// commit is the terminal's Commit; nil for a frame with no terminal.
+	commit func(height uint16, w widgets.Widget) error
 }
 
 // DispatchClick dispatches a click to the topmost enabled target region and

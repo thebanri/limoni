@@ -224,7 +224,16 @@ func (a *runApp) typeText(text string) error {
 func (a *runApp) screen() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.term.Snapshot(), nil
+	return withCommitted(a.term), nil
+}
+
+// withCommitted is the screen of an inline application: what it committed
+// above the frame, then the frame.
+func withCommitted(term *testkit.Terminal) string {
+	if c := term.Committed(); c != "" {
+		return c + "\n" + term.Snapshot()
+	}
+	return term.Snapshot()
 }
 
 func (a *runApp) styleAt(x, y uint16) (cell.Style, bool) {
@@ -342,7 +351,7 @@ func (a *programApp) screen() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.term.Draw(a.program.View)
-	return a.term.Snapshot(), nil
+	return withCommitted(a.term), nil
 }
 
 func (a *programApp) styleAt(x, y uint16) (cell.Style, bool) {
@@ -414,10 +423,12 @@ func (p *Page) Tree() []accessibility.Node {
 	return nodes
 }
 
-// Screen returns the rendered text grid, for what the tree cannot express.
-// It does not wait: a check on its text sees the frame as it is now. For a
-// widget's text, state or style use a locator and Expect, which retry until
-// the application has caught up.
+// Screen returns the rendered text grid, for what the tree cannot express,
+// below the rows an inline application committed (Frame.Commit), as a
+// terminal shows them. It does not wait: a check on its text sees the frame
+// as it is now. For a widget's text, state or style use a locator and
+// Expect, which retry until the application has caught up; for text on the
+// screen, WaitForScreen.
 func (p *Page) Screen() string {
 	p.t.Helper()
 	text, err := p.app.screen()
@@ -425,6 +436,24 @@ func (p *Page) Screen() string {
 		p.t.Fatalf("uitest: %v", err)
 	}
 	return text
+}
+
+// WaitForScreen waits until text appears on the screen (see Screen), and
+// fails the test if it has not within the page's timeout. Committed rows
+// are not in the semantic tree, so this is how a test reads them.
+func (p *Page) WaitForScreen(text string) {
+	p.t.Helper()
+	deadline := time.Now().Add(p.timeout)
+	for {
+		screen, err := p.app.screen()
+		if err == nil && strings.Contains(screen, text) {
+			return
+		}
+		if !time.Now().Before(deadline) {
+			p.t.Fatalf("uitest: %q never appeared on the screen (err %v):\n%s", text, err, screen)
+		}
+		time.Sleep(pollInterval)
+	}
 }
 
 // Press sends one key press to whatever has focus. key is a single character

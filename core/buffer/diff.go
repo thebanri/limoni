@@ -51,6 +51,9 @@ type DiffOptions struct {
 	// (VT220) when text was inserted or deleted in it, as typing in the
 	// middle of a line does, instead of rewriting the tail.
 	InsertDelete bool
+	// InlineRows draws only the first rows of an inline frame (DiffInline);
+	// zero draws them all.
+	InlineRows uint16
 }
 
 // minEraseRun and minRepeatRun are the lengths at which a control sequence

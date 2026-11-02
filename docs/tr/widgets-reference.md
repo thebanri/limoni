@@ -87,6 +87,16 @@ md := limoni.NewMarkdown(icerik).
 f.RenderWidget(md, area)
 ```
 
+Inline bir uygulamaya akan bir yanıtın her parçada baştan çizilmesi gerekmez. `widgets.SettledMarkdown` onu artık değişmeyecek bloklarla geri kalanına ayırır; ilkini scrollback'e commit et, bantta yalnızca kalanı çiz. `Markdown.Rows(genislik, baglantilar)` metnin çizilince kaç satır tuttuğunu söyler.
+
+```go
+m.canli += parca
+biten, m.canli = widgets.SettledMarkdown(m.canli)
+if biten != "" {
+    sonuc.Commit = append(sonuc.Commit, widgets.NewMarkdown(biten))
+}
+```
+
 ---
 
 ## 2. Listeler & Veri Tabloları
@@ -263,6 +273,17 @@ Satır numaralı, sözdizimi renklendirmeli kod görünümü: Go, Python, JavaSc
 ```go
 kod := widgets.NewCodeViewState(kaynak, widgets.LanguageForFile("main.go"))
 f.RenderWidget(widgets.CodeView{State: kod}, alan)
+```
+
+---
+
+### `DiffView`
+Bir kaynağın iki sürümü arasındaki satır farkı (Myers), `CodeView` gibi renklendirilmiş: satır numaralı bir kenar, yeşil ve kırmızı zeminde `+` ve `-` satırları, her değişikliğin çevresinde bağlam satırları ve atlanan satırların yerinde bir boşluk satırı. Fark `SetSources`'ta hesaplanır; `Draw` yalnızca boyar, bellek ayırmaz. `State.Offset` ve `HOffset` ile kaydırılır.
+
+```go
+fark := widgets.NewDiffViewState(once, sonra, widgets.LanguageForFile("main.go"), 3) // 3 satır bağlam; -1 hepsini tutar
+eklenen, silinen := fark.Stats()
+f.RenderWidget(widgets.DiffView{State: fark}, alan)
 ```
 
 ---
