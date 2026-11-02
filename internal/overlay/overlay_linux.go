@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/thebanri/limoni/graphics"
 )
@@ -45,8 +46,13 @@ type Overlay struct {
 	// they are hidden because it shows nothing that matches.
 	anchor, last *sample
 	hist         history
-	dy           int
-	hidden       bool
+	cx, cy       int // the cursor's cell, as Anchor was told
+	// was is where the pictures were before they last moved or hid, at
+	// movedAt: that place may show them still (see covering).
+	was     int
+	movedAt time.Time
+	dy      int
+	hidden  bool
 	// probe is a second connection for reading the window: the first one's
 	// replies are taken by its reader once attached. damage is a third, for
 	// Redrawn's events.

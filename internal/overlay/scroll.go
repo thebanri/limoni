@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"time"
 )
 
 // A terminal shows its scrollback by itself (the wheel, Shift+PgUp) and
@@ -27,24 +28,24 @@ var sampleLines = [...]int{1, 2, 3}
 type sample struct {
 	rows   [][]byte   // per row of cells: its lines, 4 bytes a pixel
 	skip   [][][2]int // per row: byte ranges under a picture, not compared
-	cursor int        // the row whose content may blink, -1 for none
 	offset int        // rows scrolled up from the bottom when it was read
 	w, h   int        // the window's size then
 }
 
 // Anchor reads the window with the terminal at the bottom, as Follow will
-// compare it; cursor is the row of cells the cursor is in, and scrolled the
-// lines output has scrolled off the top since the Anchor before.
-func (o *Overlay) Anchor(cursor, scrolled int) bool {
+// compare it; cx, cy are the cell the cursor is in, which may blink and is
+// left out of every look, and scrolled the lines output has scrolled off the
+// top since the Anchor before.
+func (o *Overlay) Anchor(cx, cy, scrolled int) bool {
 	if o.dy != 0 || o.hidden {
 		return false
 	}
+	o.cx, o.cy = cx, cy
 	a, ok := o.read()
 	if ok {
-		a.cursor = cursor
 		o.anchor, o.last = &a, &a
 		o.hist.shift(scrolled)
-		o.hist.remember(&a, 0, cursor)
+		o.hist.remember(&a, 0)
 	}
 	return ok
 }
@@ -74,13 +75,11 @@ func (o *Overlay) Follow() error {
 	if !found {
 		return o.hide(true)
 	}
-	o.hist.remember(&b, k, -1)
-	b.offset, b.cursor = k, -1
-	if c := o.anchor.cursor + k; o.anchor.cursor >= 0 && c < len(b.rows) {
-		b.cursor = c
-	}
+	o.hist.remember(&b, k)
+	b.offset = k
 	o.last = &b
 	if dy := k * o.cellH; dy != o.dy {
+		o.moved()
 		o.dy = dy
 		for _, w := range o.wins {
 			o.x.move(w.id, w.x, w.y+dy)
@@ -117,6 +116,7 @@ func (o *Overlay) Hide() error {
 func (o *Overlay) Reset() error {
 	o.anchor, o.last = nil, nil
 	if o.dy != 0 {
+		o.moved()
 		o.dy = 0
 		for _, w := range o.wins {
 			o.x.move(w.id, w.x, w.y)
@@ -128,6 +128,9 @@ func (o *Overlay) Reset() error {
 func (o *Overlay) hide(hidden bool) error {
 	if hidden == o.hidden {
 		return o.x.flush()
+	}
+	if hidden {
+		o.moved()
 	}
 	o.hidden = hidden
 	for _, w := range o.wins {
@@ -157,7 +160,7 @@ func (o *Overlay) read() (sample, bool) {
 		return sample{}, false
 	}
 	n := o.gridH / o.cellH
-	s := sample{rows: make([][]byte, n), skip: make([][][2]int, n), cursor: -1}
+	s := sample{rows: make([][]byte, n), skip: make([][][2]int, n)}
 	s.w, s.h = o.windowSize()
 	// Every line is asked for at once and the replies read after: one wait
 	// for the server instead of one a line, so a scroll is followed at once.
@@ -184,16 +187,20 @@ func (o *Overlay) read() (sample, bool) {
 			}
 			s.rows[r] = append(s.rows[r], reply[32:32+4*w]...)
 			y := o.padY + r*o.cellH + q*o.cellH/4
-			if o.hidden {
-				// Nothing covers the terminal: its text under the pictures
-				// is what tells where a picture as wide as the window goes.
-				continue
+			at := 4 * w * i
+			if c, ok := cursorSkip(y, o.cx, o.cy, o.cellW, o.cellH, o.padX, o.padY, x0, w); ok {
+				s.skip[r] = append(s.skip[r], [2]int{at + c[0], at + c[1]})
 			}
-			for _, win := range o.wins {
-				pic := image.Rect(win.x-x0, win.y+o.dy, win.x-x0+win.key.w, win.y+o.dy+win.key.h)
-				if y >= pic.Min.Y && y < pic.Max.Y {
-					at := 4 * w * i
-					s.skip[r] = append(s.skip[r], [2]int{at + 4*max(0, min(pic.Min.X, w)), at + 4*max(0, min(pic.Max.X, w))})
+			// Where the pictures are covers the text; where they were a
+			// moment ago still shows them until the terminal draws there
+			// again. Hidden and settled, nothing covers the terminal: its
+			// text is what tells where a picture as wide as the window goes.
+			for _, dy := range o.covering() {
+				for _, win := range o.wins {
+					pic := image.Rect(win.x-x0, win.y+dy, win.x-x0+win.key.w, win.y+dy+win.key.h)
+					if y >= pic.Min.Y && y < pic.Max.Y {
+						s.skip[r] = append(s.skip[r], [2]int{at + 4*max(0, min(pic.Min.X, w)), at + 4*max(0, min(pic.Max.X, w))})
+					}
 				}
 			}
 		}
@@ -204,16 +211,16 @@ func (o *Overlay) read() (sample, bool) {
 // shiftOf finds k, the rows a's lines have moved down by in b: every row of
 // a that is still on screen matches row k below it in b, where neither is
 // under a picture. prefer, the shift already in force, is kept if it still
-// fits; another needs two rows that are not blank to fit, and to be the only
-// one that does, as blank rows fit anywhere.
+// fits: when nothing beside the pictures has moved, or nothing is there to
+// say it has (a blank screen shows nothing they could be out of place
+// against). Another needs two rows that are not blank, and to be the only
+// one that fits, as blank rows fit anywhere; where none is, the pictures
+// are hidden rather than put in a wrong place.
 func shiftOf(a, b *sample, prefer int) (int, bool) {
 	var found []int
 	for k := range len(a.rows) {
 		fits, informative := true, 0
 		for i := 0; i+k < len(b.rows) && fits; i++ {
-			if i == a.cursor {
-				continue
-			}
 			var info bool
 			fits, info = sameRow(a.rows[i], b.rows[i+k], a.skip[i], b.skip[i+k])
 			if info {
@@ -329,4 +336,42 @@ func (o *Overlay) Redrawn() <-chan struct{} {
 		}
 	}()
 	return ch
+}
+
+// stale is how long a picture's old place may still show it after it moved
+// or was hidden, before the terminal has drawn there again.
+const stale = 150 * time.Millisecond
+
+// moved notes that the pictures leave where they are now.
+func (o *Overlay) moved() {
+	if !o.hidden {
+		o.was, o.movedAt = o.dy, time.Now()
+	}
+}
+
+// covering is the shifts at which the pictures cover the terminal now:
+// where they are, unless hidden, and where they were a moment ago.
+func (o *Overlay) covering() []int {
+	var dys []int
+	if !o.hidden {
+		dys = append(dys, o.dy)
+	}
+	if time.Since(o.movedAt) < stale && (o.hidden || o.was != o.dy) {
+		dys = append(dys, o.was)
+	}
+	return dys
+}
+
+// cursorSkip is the byte range a line of the window at y leaves out for the
+// cursor in cell cx, cy, read from x0 on: its cell and the one either side,
+// and half a row above and below, as where a terminal starts its cells is
+// a guess (Show centres them; Alacritty pads only the bottom and right).
+func cursorSkip(y, cx, cy, cellW, cellH, padX, padY, x0, w int) ([2]int, bool) {
+	top := padY + cy*cellH - cellH/2
+	if cellW == 0 || y < top || y >= top+2*cellH {
+		return [2]int{}, false
+	}
+	from := max(0, min(w, padX+(cx-1)*cellW-x0))
+	to := max(0, min(w, padX+(cx+2)*cellW-x0))
+	return [2]int{4 * from, 4 * to}, from < to
 }

@@ -44,14 +44,13 @@ func (h *history) shift(n int) {
 	*h = moved
 }
 
-// remember keeps the rows of s, a view k rows up from the bottom, but for
-// the row of cells the cursor may blink in.
-func (h *history) remember(s *sample, k, cursor int) {
+// remember keeps the rows of s, a view k rows up from the bottom.
+func (h *history) remember(s *sample, k int) {
 	if *h == nil {
 		*h = history{}
 	}
 	for r := range s.rows {
-		if r == cursor || r-k <= -maxHistory {
+		if r-k <= -maxHistory {
 			continue
 		}
 		line, skip := mid(s, r)
@@ -61,7 +60,9 @@ func (h *history) remember(s *sample, k, cursor int) {
 
 // recall finds the view b among the rows seen before: the k that puts
 // every row of b on the one remembered there, with two rows that are not
-// blank among them, and no other k that does.
+// blank among them, and no other k that does. Output that repeats (the
+// same command run again) fits in more than one place, and is not taken:
+// the pictures are hidden rather than put beside the wrong copy.
 func (h history) recall(b *sample) (int, bool) {
 	first := -1
 	for r := range b.rows {
@@ -100,8 +101,7 @@ func (h history) recall(b *sample) (int, bool) {
 			}
 		}
 		if fits && informative >= 2 {
-			found++
-			at = k
+			found, at = found+1, k
 		}
 	}
 	return at, found == 1

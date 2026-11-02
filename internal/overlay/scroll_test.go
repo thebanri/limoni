@@ -2,12 +2,15 @@
 
 package overlay
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // screen builds a sample whose rows are the given text, a pixel a byte,
 // with characters a code apart five levels apart: more than near allows.
 func screen(lines ...string) *sample {
-	s := &sample{cursor: -1}
+	s := &sample{}
 	for _, l := range lines {
 		row := make([]byte, 0, 4*len(l))
 		for _, c := range []byte(l) {
@@ -64,12 +67,19 @@ func TestShiftOfKeepsTheShiftInForceOnABlankScreen(t *testing.T) {
 	}
 }
 
-func TestShiftOfSkipsTheCursorRow(t *testing.T) {
-	bottom := screen("ab  ", "cd  ", "ef  ", "$_  ")
-	bottom.cursor = 3
-	now := screen("ab  ", "cd  ", "ef  ", "$   ") // the cursor blinked off
-	if k, ok := shiftOf(bottom, now, 0); !ok || k != 0 {
-		t.Fatalf("shiftOf = %d, %v; want 0, true", k, ok)
+func TestCursorSkipCoversTheCursorWherePaddingPutsIt(t *testing.T) {
+	// 10x23 cells, the grid guessed 6 pixels down (centred), cursor in
+	// cell 0 of row 44: Alacritty draws it at y 1012..1035, the guess at
+	// 1018..1041. Both, and the row above's lowest line, are left out.
+	for _, y := range []int{1012, 1020, 1034, 1040} {
+		if r, ok := cursorSkip(y, 0, 44, 10, 23, 0, 6, 0, 1910); !ok || r != [2]int{0, 80} {
+			t.Errorf("y %d: %v, %v; want [0 80], true", y, r, ok)
+		}
+	}
+	for _, y := range []int{990, 1060} {
+		if _, ok := cursorSkip(y, 0, 44, 10, 23, 0, 6, 0, 1910); ok {
+			t.Errorf("y %d is a row away and was left out", y)
+		}
 	}
 }
 
@@ -118,5 +128,26 @@ func TestFollowFindsTheBottomAfterAJump(t *testing.T) {
 	// From there, back at a view near the bottom.
 	if k, ok := follow(bottom, far, lines(rows, 2), 0); !ok || k != 2 {
 		t.Fatalf("follow = %d, %v; want 2, true", k, ok)
+	}
+}
+
+func TestCoveringKeepsTheOldPlaceForAMoment(t *testing.T) {
+	o := &Overlay{dy: 40}
+	if got := o.covering(); !slices.Equal(got, []int{40}) {
+		t.Fatalf("settled: %v, want [40]", got)
+	}
+	o.moved()
+	o.dy = 60
+	if got := o.covering(); !slices.Equal(got, []int{60, 40}) {
+		t.Fatalf("just moved: %v, want [60 40]", got)
+	}
+	o.moved()
+	o.hidden = true
+	if got := o.covering(); !slices.Equal(got, []int{60}) {
+		t.Fatalf("just hidden: %v, want [60], where they still show", got)
+	}
+	o.movedAt = o.movedAt.Add(-stale)
+	if got := o.covering(); len(got) != 0 {
+		t.Fatalf("hidden and settled: %v, want nothing", got)
 	}
 }

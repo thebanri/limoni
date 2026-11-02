@@ -32,7 +32,7 @@ func (o *Overlay) Trim() error { return nil }
 func (o *Overlay) Close() error { return nil }
 
 // Anchor has nothing to read.
-func (o *Overlay) Anchor(int, int) bool { return false }
+func (o *Overlay) Anchor(int, int, int) bool { return false }
 
 // Forget does nothing.
 func (o *Overlay) Forget() {}
