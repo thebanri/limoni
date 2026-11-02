@@ -37,6 +37,18 @@ type Overlay struct {
 	// bg is what transparent pixels are composed over, premultiplied: the
 	// terminal's background, as see-through as the terminal draws it.
 	bg color.RGBA
+	// padX, padY are where the cell grid starts in the terminal's window and
+	// gridW, gridH its size, as Show last placed it.
+	padX, padY, gridW, gridH int
+	// The terminal's scrollback (scroll.go): the window as it was at the
+	// bottom, how far the pictures are moved down to follow it, and whether
+	// they are hidden because it shows nothing that matches.
+	anchor *sample
+	dy     int
+	hidden bool
+	// probe is a second connection for reading the window: the first one's
+	// replies are taken by its reader once attached.
+	probe *xconn
 }
 
 // maxPixBytes bounds the pictures kept in the X server. Past it the least
@@ -175,6 +187,7 @@ func (o *Overlay) Show(pics []Picture, gridW, gridH int) error {
 		pics = nil // the terminal's window is gone, and the pictures with it
 	}
 	padX, padY := max(0, (winW-gridW)/2), max(0, (winH-gridH)/2)
+	o.padX, o.padY, o.gridW, o.gridH = padX, padY, gridW, gridH
 	for _, p := range pics {
 		if p.W <= 0 || p.H <= 0 || p.Img == nil {
 			continue
@@ -193,12 +206,14 @@ func (o *Overlay) Show(pics []Picture, gridW, gridH int) error {
 			}
 		}
 		if win == nil {
-			win = &window{id: o.x.createWindow(o.pixmap(k), x, y, fw, fh), key: k, x: x, y: y}
+			win = &window{id: o.x.createWindow(o.pixmap(k), x, y+o.dy, fw, fh), key: k, x: x, y: y}
 			o.wins = append(o.wins, win)
-			o.x.mapWindow(win.id)
+			if !o.hidden {
+				o.x.mapWindow(win.id)
+			}
 		} else if win.x != x || win.y != y {
 			win.x, win.y = x, y
-			o.x.move(win.id, x, y)
+			o.x.move(win.id, x, y+o.dy)
 		}
 		win.stamp = o.stamp
 		o.pix[k].stamp = o.stamp
@@ -271,6 +286,9 @@ func (o *Overlay) evict() {
 // Close removes every window; the X server would on disconnect anyway, with
 // the pictures it holds.
 func (o *Overlay) Close() error {
+	if o.probe != nil {
+		o.probe.c.Close()
+	}
 	err := o.Show(nil, 0, 0)
 	if cerr := o.x.c.Close(); err == nil {
 		err = cerr

@@ -45,6 +45,7 @@ const (
 	opChangeWindowAttributes = 2
 	opDestroyWindow          = 4
 	opMapWindow              = 8
+	opUnmapWindow            = 10
 	opConfigureWindow        = 12
 	opGetGeometry            = 14
 	opInternAtom             = 16
@@ -437,3 +438,4 @@ func (x *xconn) move(win uint32, posX, posY int) {
 
 func (x *xconn) mapWindow(win uint32)     { x.send(opMapWindow, 0, x.u32(win)) }
 func (x *xconn) destroyWindow(win uint32) { x.send(opDestroyWindow, 0, x.u32(win)) }
+func (x *xconn) unmapWindow(win uint32)   { x.send(opUnmapWindow, 0, x.u32(win)) }

@@ -30,3 +30,18 @@ func (o *Overlay) Trim() error { return nil }
 
 // Close does nothing.
 func (o *Overlay) Close() error { return nil }
+
+// Anchor has nothing to read.
+func (o *Overlay) Anchor(int) bool { return false }
+
+// Follow does nothing.
+func (o *Overlay) Follow() error { return nil }
+
+// Moved is always false.
+func (o *Overlay) Moved() bool { return false }
+
+// Hide does nothing.
+func (o *Overlay) Hide() error { return nil }
+
+// Reset does nothing.
+func (o *Overlay) Reset() error { return nil }
