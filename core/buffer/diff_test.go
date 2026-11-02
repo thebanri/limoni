@@ -16,11 +16,11 @@ func TestDiffNoChanges(t *testing.T) {
 	out := make([]byte, 0, 1024)
 	out, err := Diff(front, back, out, true, true)
 	if err != nil {
-		t.Fatalf("Diff hatası: %v", err)
+		t.Fatalf("Diff failed: %v", err)
 	}
 
 	if len(out) != 0 {
-		t.Errorf("Değişiklik yokken çıktı üretilmemeliydi. Çıktı: %q", string(out))
+		t.Errorf("Expected no output when nothing changed, got: %q", string(out))
 	}
 }
 
@@ -38,12 +38,12 @@ func TestDiffCharacterChange(t *testing.T) {
 	// Expected: cursor positioning "\x1b[1;2HA" (y+1=1, x+1=2), then "A"
 	expected := "\x1b[1;2HA"
 	if !bytes.Equal(out, []byte(expected)) {
-		t.Errorf("Beklenen çıktı: %q, Alınan: %q", expected, string(out))
+		t.Errorf("Expected output: %q, got: %q", expected, string(out))
 	}
 
 	// Check the back buffer was updated
 	if back.Get(1, 0).Content != 'A' {
-		t.Errorf("Back tamponu güncellenmedi")
+		t.Errorf("Back buffer was not updated")
 	}
 }
 
@@ -65,16 +65,16 @@ func TestDiffStyleTransitions(t *testing.T) {
 
 	// Expected: cursor (\x1b[1;1H) + Fg RGB (\x1b[38;2;255;0;0m) + Bold (\x1b[1m) + 'B' + Reset style at frame end (\x1b[0m)
 	if !bytes.Contains(out, []byte("B")) {
-		t.Errorf("Çıktıda karakter bulunamadı: %q", string(out))
+		t.Errorf("Output is missing the character: %q", string(out))
 	}
 	if !bytes.Contains(out, []byte("\x1b[38;2;255;0;0m")) {
-		t.Errorf("Çıktıda renk kodu bulunamadı: %q", string(out))
+		t.Errorf("Output is missing the color code: %q", string(out))
 	}
 	if !bytes.Contains(out, []byte("\x1b[1m")) {
-		t.Errorf("Çıktıda Bold kodu bulunamadı: %q", string(out))
+		t.Errorf("Output is missing the Bold code: %q", string(out))
 	}
 	if !bytes.HasSuffix(out, []byte("\x1b[0m")) {
-		t.Errorf("Kare sonunda stil sıfırlama kodu bulunamadı: %q", string(out))
+		t.Errorf("Output is missing the style reset code at the end of the frame: %q", string(out))
 	}
 }
 
@@ -100,7 +100,7 @@ func TestDiffModifierRemoval(t *testing.T) {
 	// Full output: \x1b[1;1H\x1b[1mA\x1b[0mB
 	expected := "\x1b[1;1H\x1b[1mA\x1b[0mB"
 	if !bytes.Equal(out, []byte(expected)) {
-		t.Errorf("Beklenen çıktı: %q, Alınan: %q", expected, string(out))
+		t.Errorf("Expected output: %q, got: %q", expected, string(out))
 	}
 }
 
@@ -232,29 +232,29 @@ func TestDiffWideCharacters(t *testing.T) {
 
 	// Check the front buffer's cells
 	if front.Get(0, 0).Content != '🔴' {
-		t.Errorf("Beklenen emoji U+1F534, alınan: %c", front.Get(0, 0).Content)
+		t.Errorf("Expected emoji U+1F534, got: %c", front.Get(0, 0).Content)
 	}
 	if front.Get(1, 0).Content != cell.RuneContinuation {
-		t.Errorf("Beklenen continuation karakteri U+FFFE, alınan: %x", front.Get(1, 0).Content)
+		t.Errorf("Expected continuation character U+FFFE, got: %x", front.Get(1, 0).Content)
 	}
 	if front.Get(2, 0).Content != 'A' {
-		t.Errorf("Beklenen karakter A, alınan: %c", front.Get(2, 0).Content)
+		t.Errorf("Expected character A, got: %c", front.Get(2, 0).Content)
 	}
 
 	out := make([]byte, 0, 1024)
 	out, err := Diff(front, back, out, true, true)
 	if err != nil {
-		t.Fatalf("Diff hatası: %v", err)
+		t.Fatalf("Diff failed: %v", err)
 	}
 
 	// 🔴 (U+1F534) takes 4 bytes in UTF-8; A takes 1.
 	// The continuation cell (index 1) must not be written in the diff output,
 	// so only 🔴 and A are written.
 	if !bytes.Contains(out, []byte("🔴")) {
-		t.Errorf("Çıktı emojiyi içermeliydi: %q", string(out))
+		t.Errorf("Output should contain the emoji: %q", string(out))
 	}
 	if !bytes.Contains(out, []byte("A")) {
-		t.Errorf("Çıktı 'A' karakterini içermeliydi: %q", string(out))
+		t.Errorf("Output should contain the character 'A': %q", string(out))
 	}
 }
 
