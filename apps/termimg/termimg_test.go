@@ -357,3 +357,76 @@ func TestSkipScrolledWaits(t *testing.T) {
 		t.Error("skipped past a C1 control")
 	}
 }
+
+func TestPicturesScrolledOffTheTopAreKept(t *testing.T) {
+	emu, p := newPictures(20, 6)
+	emu.SetScrollbackSize(1024) // as the session sets it: it counts the lines scrolled
+	img := image.NewRGBA(image.Rect(0, 0, 40, 40))
+	p.add(img, 0, 1, 4, 2, false) // rows 1 and 2
+	only(t, p)
+
+	emu.WriteString("\x1b[6;1H\n\n\n\n\n") // five lines: the picture is 2 rows above the screen
+	p.update()
+	if len(p.byID) != 0 || len(p.gone) != 1 {
+		t.Fatalf("%d on screen, %d above; want 0 and 1", len(p.byID), len(p.gone))
+	}
+	if top := p.gone[0].top; top != -4 {
+		t.Fatalf("top %d, want -4", top)
+	}
+
+	emu.WriteString("\n\n\n")
+	p.update()
+	if top := p.gone[0].top; top != -7 {
+		t.Fatalf("after three more lines: top %d, want -7", top)
+	}
+
+	emu.WriteString("\x1b[1;1Hwritten over the top row")
+	p.update()
+	if top := p.gone[0].top; top != -7 {
+		t.Fatalf("writing on the screen moved it: top %d, want -7", top)
+	}
+}
+
+func TestPicturesWrittenOverAreNotKept(t *testing.T) {
+	emu, p := newPictures(20, 6)
+	emu.SetScrollbackSize(1024)
+	p.add(image.NewRGBA(image.Rect(0, 0, 40, 40)), 0, 1, 4, 2, false)
+	only(t, p)
+	emu.WriteString("\x1b[2;1H    ") // its first row covered
+	p.update()
+	if len(p.byID) != 0 || len(p.gone) != 0 {
+		t.Fatalf("%d on screen, %d above; want none", len(p.byID), len(p.gone))
+	}
+}
+
+func TestScrollOffMovesThePicturesAbove(t *testing.T) {
+	_, p := newPictures(20, 6)
+	p.add(image.NewRGBA(image.Rect(0, 0, 40, 40)), 0, 3, 4, 2, false)
+	p.gone = []*picture{{rows: 2, top: -3}}
+	p.scrollOff(10)
+	if len(p.byID) != 0 || len(p.gone) != 2 || p.gone[0].top != -13 || p.gone[1].top != -7 {
+		t.Fatalf("%d on screen, above: %+v", len(p.byID), p.gone)
+	}
+}
+
+func TestAShorterScreenScrollsThePicturesUp(t *testing.T) {
+	emu, p := newPictures(20, 10)
+	emu.SetScrollbackSize(1024)
+	s := &session{emu: emu, pics: *p}
+	s.pics.add(image.NewRGBA(image.Rect(0, 0, 40, 40)), 0, 2, 4, 3, false) // rows 2-4
+	emu.WriteString("\x1b[10;1H$ ")                                        // the prompt on the bottom row
+	s.keepCursor(6)
+	emu.Resize(20, 6)
+	s.pics.update()
+	if len(s.pics.byID) != 1 {
+		t.Fatalf("%d pictures, want 1", len(s.pics.byID))
+	}
+	for _, pic := range s.pics.byID {
+		if pic.top != -2 {
+			t.Fatalf("top %d, want -2: four rows went up with the cursor", pic.top)
+		}
+	}
+	if at := emu.CursorPosition(); at.Y != 5 || at.X != 2 {
+		t.Fatalf("cursor at %v, want 2,5", at)
+	}
+}

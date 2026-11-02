@@ -76,6 +76,45 @@ type pictures struct {
 	emu  *vt.Emulator
 	byID map[int]*picture
 	last int
+	// gone are the pictures scrolled off the top of the screen, newest
+	// last: the terminal keeps them in its scrollback, where the overlay
+	// follows it (top counts the rows above the screen). The shadow screen
+	// keeps no scrollback of its own beyond the lines a write scrolls, which
+	// update counts and drops.
+	gone []*picture
+}
+
+// maxGone and maxAbove bound the pictures kept above the screen, in number
+// and in rows: each holds its picture in the X server.
+const (
+	maxGone  = 16
+	maxAbove = 1000
+)
+
+// scrolled moves the pictures above the screen up by n rows, and drops
+// those too far up to be reached or too many.
+func (p *pictures) scrolled(n int) {
+	keep := p.gone[:0]
+	for _, pic := range p.gone {
+		if pic.top -= n; pic.top+pic.rows > -maxAbove {
+			keep = append(keep, pic)
+		}
+	}
+	clear(p.gone[len(keep):])
+	p.gone = keep[max(0, len(keep)-maxGone):]
+}
+
+// scrollOff takes the main screen's pictures off it, n rows up: output
+// that only scrolled through the shadow screen (skipScrolled) clears it
+// instead of scrolling it.
+func (p *pictures) scrollOff(n int) {
+	for id, pic := range p.byID {
+		if !pic.alt && pic.top+pic.rows-n <= 0 {
+			p.gone = append(p.gone, pic)
+			delete(p.byID, id)
+		}
+	}
+	p.scrolled(n)
 }
 
 // add marks a picture of cols×rows cells at col, top (rows above the screen
@@ -149,6 +188,12 @@ type seen struct{ y, x0, n int }
 // screen) above the first broken row, dropping those broken in their first.
 // Marks left under the cut are blanked, so its id can be used again.
 func (p *pictures) update() {
+	// The lines scrolled off the top since the last look.
+	scrolled := p.emu.ScrollbackLen()
+	if scrolled > 0 {
+		p.emu.ClearScrollback()
+		p.scrolled(scrolled)
+	}
 	if len(p.byID) == 0 {
 		return
 	}
@@ -184,8 +229,13 @@ func (p *pictures) update() {
 		if pic.alt != alt {
 			continue
 		}
+		top := pic.top
 		if !pic.locate(found[id], h) {
 			delete(p.byID, id)
+			if !pic.alt && top+pic.rows-scrolled <= 0 { // scrolled off, not written over
+				pic.top = top - scrolled
+				p.gone = append(p.gone, pic)
+			}
 		}
 	}
 	for id, rows := range found {

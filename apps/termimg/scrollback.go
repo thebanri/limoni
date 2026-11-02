@@ -62,6 +62,14 @@ func (s *session) changed() {
 func (s *session) typed() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.resized()
+}
+
+// resized notes a new size, or a key typed: the pictures go back where the
+// output put them, and the window is read again once it has settled.
+// shortcut: a terminal resized while it shows its scrollback keeps showing
+// it, and the pictures are put as if it were at the bottom.
+func (s *session) resized() {
 	if s.ov != nil && s.ov.Moved() {
 		_ = s.ov.Reset()
 	}

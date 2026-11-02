@@ -44,8 +44,13 @@ a patch bump (`v0.x.y`) does not.
   scrollback (the wheel, Shift+PgUp). The terminal tells no program it has
   scrolled, so the pictures stayed where they were over other lines; termimg
   now reads the terminal's window, finds how many rows the text moved and
-  moves the pictures by as many, and hides them when it scrolled further
-  than a screen.
+  moves the pictures by as many. A picture pushed off the top by the next
+  one is kept above the screen and comes back into view as the scrollback
+  is scrolled up to it, a screen or more away; one jump of more than a
+  screen hides them until they can be placed again.
+- termimg: a terminal made shorter scrolls its lines up to keep the cursor
+  on screen, and the pictures now go up with them; resizing no longer
+  leaves the pictures hidden until a key is typed.
 
 - `testkit.DiffSnapshot` compares two snapshots cell by cell and reports the
   column the differing cell starts at, the column a cursor would move to. It

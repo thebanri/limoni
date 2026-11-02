@@ -66,7 +66,11 @@ func newSession(out, ptmx *os.File) *session {
 	}
 	s.cols, s.rows = 80, 24
 	s.emu = vt.NewEmulator(s.cols, s.rows)
-	s.emu.SetScrollbackSize(1) // only the screen is looked at
+	// Only the screen is looked at; the scrollback counts the lines a write
+	// scrolls off it (pictures.update), and is emptied after every look.
+	// shortcut: a write that scrolls more lines than this between two looks
+	// leaves the pictures above the screen too low; raise it if one shows.
+	s.emu.SetScrollbackSize(1024)
 	// The shadow screen answers queries too; the real terminal already has.
 	go io.Copy(io.Discard, s.emu)
 	s.pics = pictures{emu: s.emu, byID: map[int]*picture{}}
@@ -94,14 +98,29 @@ func (s *session) resize() {
 	} else if ws.Xpixel > 0 && ws.Ypixel > 0 {
 		s.cellW, s.cellH, s.pixels = int(ws.Xpixel)/s.cols, int(ws.Ypixel)/s.rows, true
 	}
+	s.keepCursor(s.rows)
 	s.emu.Resize(s.cols, s.rows)
-	s.changed()
+	s.resized()
 	_ = pty.Setsize(s.ptmx, &pty.Winsize{
 		Cols: uint16(s.cols), Rows: uint16(s.rows),
 		X: uint16(s.cols * s.cellW), Y: uint16(s.rows * s.cellH),
 	})
 	s.pics.update()
 	s.show()
+}
+
+// keepCursor scrolls the shadow screen up as a terminal does when it gets
+// shorter than the row the cursor is on: the lines above go to its
+// scrollback, and the pictures with them, rather than the bottom being cut.
+func (s *session) keepCursor(rows int) {
+	at := s.emu.CursorPosition()
+	n := at.Y - rows + 1
+	if n <= 0 || s.emu.IsAltScreen() {
+		return
+	}
+	b := cup(nil, 0, s.emu.Height()-1)
+	b = append(b, bytes.Repeat([]byte{'\n'}, n)...)
+	s.emu.Write(cup(b, at.X, at.Y-n))
 }
 
 // output handles a read of the program's output.
@@ -185,7 +204,12 @@ func (s *session) skipScrolled(b []byte) []byte {
 			i += n - 1
 		}
 	}
+	// What was on the screen scrolls off its top: as many lines as came
+	// with the cursor on the bottom row.
+	at := s.emu.CursorPosition()
+	s.pics.scrollOff(max(0, bytes.Count(b[:cut], []byte("\n"))-(s.rows-1-at.Y)))
 	s.emu.Write(pen)
+	s.emu.ClearScrollback() // the clear is not a scroll
 	s.buf = append(s.buf, b[:cut]...)
 	s.dirty = true
 	return b[cut:]
@@ -244,6 +268,9 @@ func (s *session) csi(seq []byte) bool {
 				s.lrmm = s.lrmm || final == 'h'
 			}
 		}
+	case final == 'J' && string(body) == "3": // ED 3: the terminal empties its scrollback
+		s.pics.gone = nil
+		s.dirty = true
 	case final == 'r' && (len(body) == 0 || body[0] < '<'): // DECSTBM, not a private one
 		// shortcut: a reset (RIS, DECSTR) leaves margins set, which only
 		// costs speed until the next DECSTBM.
@@ -377,15 +404,11 @@ func (s *session) show() {
 		return
 	}
 	s.shown = s.shown[:0]
-	alt := s.emu.IsAltScreen()
-	for _, pic := range s.pics.byID {
-		if pic.alt != alt {
-			continue
-		}
+	add := func(pic *picture) {
 		img := pic.img
 		if h := pic.rows*s.cellH - pic.dy - pic.oy; h < img.Bounds().Dy() {
 			if h <= 0 {
-				continue
+				return
 			}
 			img = pic.cropped(h)
 		}
@@ -394,6 +417,21 @@ func (s *session) show() {
 			X:   pic.col*s.cellW + pic.dx + pic.ox, Y: pic.top*s.cellH + pic.dy + pic.oy,
 			W: img.Bounds().Dx(), H: img.Bounds().Dy(),
 		})
+	}
+	alt := s.emu.IsAltScreen()
+	for _, pic := range s.pics.byID {
+		if pic.alt == alt {
+			add(pic)
+		}
+	}
+	if !alt {
+		// Above the screen, where the overlay brings them in as the
+		// terminal shows its scrollback; X takes positions in 16 bits.
+		for _, pic := range s.pics.gone {
+			if pic.top*s.cellH > -30000 {
+				add(pic)
+			}
+		}
 	}
 	if len(s.kitty.virtual) > 0 {
 		s.shown = s.placeholders(s.shown)
