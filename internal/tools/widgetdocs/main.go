@@ -26,8 +26,8 @@ func firstSentence(s string) string {
 }
 
 func main() {
-	src := flag.String("src", "widgets", "widgets paketinin dizini")
-	out := flag.String("out", filepath.Join("docs", "widget-gallery.md"), "üretilecek markdown dosyası")
+	src := flag.String("src", "widgets", "directory of the widgets package")
+	out := flag.String("out", filepath.Join("docs", "widget-gallery.md"), "markdown file to generate")
 	flag.Parse()
 
 	fset := token.NewFileSet()
@@ -104,10 +104,10 @@ func main() {
 	sort.Strings(names)
 
 	var sb strings.Builder
-	sb.WriteString("# Widget Galerisi ve API Referansı\n\n")
-	sb.WriteString("Bu dosya `widgets` paketindeki kaynak koddan üretilmiştir; her bileşen `Widget`\n")
-	sb.WriteString("arayüzünü (`Draw(cell.Context, *buffer.Buffer)`) uygular.\n\n")
-	sb.WriteString("| Widget | Alıcı tipi | Alan sayısı |\n| --- | --- | --- |\n")
+	sb.WriteString("# Widget Gallery and API Reference\n\n")
+	sb.WriteString("This file is generated from the source of the `widgets` package; every widget implements\n")
+	sb.WriteString("the `Widget` interface (`Draw(cell.Context, *buffer.Buffer)`).\n\n")
+	sb.WriteString("| Widget | Receiver type | Fields |\n| --- | --- | --- |\n")
 	for _, n := range names {
 		sb.WriteString(fmt.Sprintf("| [%s](#%s) | `%s` | %d |\n", n, strings.ToLower(n), drawRecv[n], len(structs[n].fields)))
 	}
@@ -118,12 +118,12 @@ func main() {
 		if w.doc != "" {
 			sb.WriteString(w.doc + "\n\n")
 		}
-		sb.WriteString(fmt.Sprintf("`RenderWidget` çağrısında kullanılacak tip: `%s`\n\n", drawRecv[n]))
+		sb.WriteString(fmt.Sprintf("Type to pass to `RenderWidget`: `%s`\n\n", drawRecv[n]))
 		if len(w.fields) == 0 {
-			sb.WriteString("_Alanı yok._\n\n")
+			sb.WriteString("_No fields._\n\n")
 			continue
 		}
-		sb.WriteString("| Alan | Tip | Açıklama |\n| --- | --- | --- |\n")
+		sb.WriteString("| Field | Type | Description |\n| --- | --- | --- |\n")
 		for _, f := range w.fields {
 			doc := strings.ReplaceAll(f.doc, "|", "\\|")
 			sb.WriteString(fmt.Sprintf("| `%s` | `%s` | %s |\n", f.name, f.typ, doc))
@@ -133,7 +133,7 @@ func main() {
 	if err := os.WriteFile(*out, []byte(sb.String()), 0o644); err != nil {
 		panic(err)
 	}
-	fmt.Printf("%s: %d widget yazıldı\n", *out, len(names))
+	fmt.Printf("%s: wrote %d widgets\n", *out, len(names))
 }
 
 func printType(sb *strings.Builder, e ast.Expr) {
