@@ -4,6 +4,7 @@ package overlay
 
 import (
 	"image"
+	"io"
 	"os"
 	"slices"
 )
@@ -123,19 +124,31 @@ func (o *Overlay) read() (sample, bool) {
 	}
 	n := o.gridH / o.cellH
 	s := sample{rows: make([][]byte, n), skip: make([][][2]int, n), cursor: -1}
-	req := o.probe.u32(o.x.term, 0, 0, 0xffffffff)
-	le.PutUint16(req[4:], uint16(x0))
-	le.PutUint16(req[8:], uint16(w))
-	le.PutUint16(req[10:], 1)
+	// Every line is asked for at once and the replies read after: one wait
+	// for the server instead of one a line, so a scroll is followed at once.
+	for r := range n {
+		for _, q := range sampleLines {
+			req := o.probe.u32(o.x.term, 0, 0, 0xffffffff)
+			le.PutUint16(req[4:], uint16(x0))
+			le.PutUint16(req[6:], uint16(o.padY+r*o.cellH+q*o.cellH/4))
+			le.PutUint16(req[8:], uint16(w))
+			le.PutUint16(req[10:], 1)
+			o.probe.send(opGetImage, imageFormatZPixmap, req)
+		}
+	}
+	if o.probe.flush() != nil {
+		return sample{}, false
+	}
+	ok := true
 	for r := range n {
 		for i, q := range sampleLines {
-			y := o.padY + r*o.cellH + q*o.cellH/4
-			le.PutUint16(req[6:], uint16(y))
-			reply, err := o.probe.roundTrip(opGetImage, imageFormatZPixmap, req)
+			reply, err := o.probe.reply(opGetImage)
 			if err != nil || len(reply) < 32+4*w {
-				return sample{}, false
+				ok = false // the rest are read all the same, to keep the replies in step
+				continue
 			}
 			s.rows[r] = append(s.rows[r], reply[32:32+4*w]...)
+			y := o.padY + r*o.cellH + q*o.cellH/4
 			for _, win := range o.wins {
 				pic := image.Rect(win.x-x0, win.y+o.dy, win.x-x0+win.key.w, win.y+o.dy+win.key.h)
 				if y >= pic.Min.Y && y < pic.Max.Y {
@@ -145,7 +158,7 @@ func (o *Overlay) read() (sample, bool) {
 			}
 		}
 	}
-	return s, true
+	return s, ok
 }
 
 // shiftOf finds k, the rows a's lines have moved down by in b: every row of
@@ -221,4 +234,59 @@ func near(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+// Redrawn returns a channel that receives when the terminal draws its
+// window again (the DAMAGE extension), so a scroll is followed as it
+// happens rather than at the next look; nil without the extension. The
+// channel is closed with the overlay.
+func (o *Overlay) Redrawn() <-chan struct{} {
+	x, err := dialX(os.Getenv("DISPLAY"))
+	if err != nil {
+		return nil
+	}
+	name := "DAMAGE"
+	q := make([]byte, 4+pad4(len(name)))
+	le.PutUint16(q, uint16(len(name)))
+	copy(q[4:], name)
+	r, err := x.roundTrip(opQueryExtension, 0, q)
+	if err != nil || r[8] == 0 {
+		x.c.Close()
+		return nil
+	}
+	major, event := r[9], r[10]
+	if _, err := x.roundTrip(major, damageQueryVersion, x.u32(1, 1)); err != nil {
+		x.c.Close()
+		return nil
+	}
+	// NonEmpty: one event, then none until the damage is subtracted.
+	dmg := x.id()
+	x.send(major, damageCreate, append(x.u32(dmg, o.x.term), damageNonEmpty, 0, 0, 0))
+	if x.flush() != nil {
+		x.c.Close()
+		return nil
+	}
+	o.damage = x
+	ch := make(chan struct{}, 1)
+	go func() {
+		defer close(ch)
+		b := make([]byte, 32)
+		for {
+			if _, err := io.ReadFull(x.c, b); err != nil {
+				return
+			}
+			if b[0]&0x7f != event {
+				continue
+			}
+			x.send(major, damageSubtract, x.u32(dmg, 0, 0))
+			if x.flush() != nil {
+				return
+			}
+			select {
+			case ch <- struct{}{}:
+			default: // one waiting is enough
+			}
+		}
+	}()
+	return ch
 }

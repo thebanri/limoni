@@ -45,3 +45,6 @@ func (o *Overlay) Hide() error { return nil }
 
 // Reset does nothing.
 func (o *Overlay) Reset() error { return nil }
+
+// Redrawn has nothing to watch.
+func (o *Overlay) Redrawn() <-chan struct{} { return nil }

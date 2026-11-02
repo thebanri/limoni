@@ -56,6 +56,11 @@ const (
 	opClearArea              = 61
 	opPutImage               = 72
 	opGetImage               = 73
+	opQueryExtension         = 98
+	damageQueryVersion       = 0
+	damageCreate             = 1
+	damageSubtract           = 3
+	damageNonEmpty           = 3
 	cwBackPixmap             = 1
 	cwEventMask              = 0x800
 	structureNotifyMask      = 1 << 17
@@ -104,6 +109,12 @@ func (x *xconn) roundTrip(op, detail byte, body []byte) ([]byte, error) {
 	if err := x.flush(); err != nil {
 		return nil, err
 	}
+	return x.reply(op)
+}
+
+// reply reads the reply to the oldest request still unanswered, skipping
+// events; an X error for it comes back as an error.
+func (x *xconn) reply(op byte) ([]byte, error) {
 	head := make([]byte, 32)
 	for {
 		if _, err := io.ReadFull(x.c, head); err != nil {

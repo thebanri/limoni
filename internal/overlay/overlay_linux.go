@@ -47,8 +47,9 @@ type Overlay struct {
 	dy     int
 	hidden bool
 	// probe is a second connection for reading the window: the first one's
-	// replies are taken by its reader once attached.
-	probe *xconn
+	// replies are taken by its reader once attached. damage is a third, for
+	// Redrawn's events.
+	probe, damage *xconn
 }
 
 // maxPixBytes bounds the pictures kept in the X server. Past it the least
@@ -286,8 +287,10 @@ func (o *Overlay) evict() {
 // Close removes every window; the X server would on disconnect anyway, with
 // the pictures it holds.
 func (o *Overlay) Close() error {
-	if o.probe != nil {
-		o.probe.c.Close()
+	for _, c := range []*xconn{o.probe, o.damage} {
+		if c != nil {
+			c.c.Close()
+		}
 	}
 	err := o.Show(nil, 0, 0)
 	if cerr := o.x.c.Close(); err == nil {
