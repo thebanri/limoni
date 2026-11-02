@@ -246,6 +246,24 @@ jobs:
           GOOS=js GOARCH=wasm go -C "$work/lemondrop" build -o /dev/null .
           echo "ok   lemondrop builds against this checkout as well as against the release"
 
+      # Raindrop, rain on a puddle where an entropy pool says, the same way.
+      - name: apps/raindrop
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go -C apps/raindrop vet ./...
+          go -C apps/raindrop test ./...
+          test -z "$(gofmt -l apps/raindrop)" || { gofmt -l apps/raindrop; exit 1; }
+
+          work=$(mktemp -d)
+          cp -r apps/raindrop "$work/raindrop"
+          go -C "$work/raindrop" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/raindrop" mod tidy
+          go -C "$work/raindrop" build ./...
+          go -C "$work/raindrop" test ./...
+          echo "ok   raindrop builds against this checkout as well as against the release"
+
       # Lemon Snake, the same way: a frame, through the diff, allocates
       # nothing, dialogs included.
       - name: apps/lemonsnake
@@ -327,6 +345,23 @@ jobs:
           go -C "$work/termimg" test -race ./...
           echo "ok   termimg builds and passes against this checkout"
 
+      # squeeze, several coding agents raced on one task. Like termimg it is
+      # built only against this checkout: it draws diffs with DiffView, which
+      # no release has yet. Once one does, build it against the release too.
+      - name: apps/squeeze
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(gofmt -l apps/squeeze)" || { gofmt -l apps/squeeze; exit 1; }
+          work=$(mktemp -d)
+          cp -r apps/squeeze "$work/squeeze"
+          go -C "$work/squeeze" mod edit -replace github.com/thebanri/limoni="$PWD"
+          go -C "$work/squeeze" mod tidy
+          go -C "$work/squeeze" vet ./...
+          go -C "$work/squeeze" test ./...
+          echo "ok   squeeze builds and passes against this checkout"
+
       # backdrop-shell, the user's shell in front of a backdrop scene. Besides
       # the usual checks, its installer runs for real in a throwaway HOME:
       # enable must hook the shells, and uninstall must leave every start-up
@@ -386,7 +421,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dir in apps/globe apps/castle-lemonstein apps/lemondrop apps/pikap apps/scoreboard assets tools/limonivet; do
+          for dir in apps/globe apps/castle-lemonstein apps/lemondrop apps/pikap apps/raindrop apps/squeeze apps/termimg apps/scoreboard assets tools/limonivet; do
             test -f "$dir/go.mod" || { echo "FAIL $dir has no go.mod, so it ships to importers"; exit 1; }
           done
           echo "ok   apps, assets and tools are modules of their own"
