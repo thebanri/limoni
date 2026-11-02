@@ -21,13 +21,12 @@ type SnapshotDiff struct {
 // DiffSnapshot compares two snapshots cell by cell and returns the cells that
 // differ, in row then column order.
 //
-// A snapshot row is not one rune per column: a cell that holds a grapheme
-// cluster writes every rune of the cluster, and a cell that holds a wide rune
-// writes a continuation space for the column it covers. The rows are walked by
-// cluster so that one cell is one entry, and Column is the screen column the
-// cell starts at, the one a cursor would move to: a row that holds an emoji or
-// a CJK cell before the difference no longer reports a column past the cell, and
-// one cell that differs is reported once instead of shifting the rest of the row.
+// Snapshot writes exactly one cluster per cell — a cell that holds a wide rune
+// is followed by the continuation space for the column it covers — so the rows
+// are walked by cluster and one cluster is one column: Column is the column the
+// cell starts at, the one a cursor would move to. Compared rune by rune, a cell
+// that holds a multi-rune cluster shifted the rest of the row, so one cell that
+// differed was reported as several, at columns that hold no such cell.
 func DiffSnapshot(expected, actual string) []SnapshotDiff {
 	want, got := strings.Split(expected, "\n"), strings.Split(actual, "\n")
 	rows := max(len(want), len(got))
@@ -46,18 +45,17 @@ func DiffSnapshot(expected, actual string) []SnapshotDiff {
 	return diffs
 }
 
-// snapshotCells splits one snapshot row into one entry per screen column, so the
-// index into the result is the column itself: a cell that takes two columns
-// leaves the column it covers empty, and a cluster keeps its whole text in the
-// column it starts at.
+// snapshotCells splits one snapshot row into one entry per cell, so the index
+// into the result is the column itself. A cell that holds a multi-rune cluster
+// keeps its whole text in the one entry, the way Snapshot wrote it; a cluster
+// that takes no column belongs to the cell beside it, since it holds no cell of
+// its own.
 func snapshotCells(row string) []string {
 	cells := make([]string, 0, len(row))
 	var pending string
 	for rest := row; rest != ""; {
 		cluster, width, next := cell.NextCluster(rest)
 		if width <= 0 {
-			// A cluster that takes no column belongs to the cell beside it, and a
-			// cluster that starts the row belongs to the first cell of it.
 			if n := len(cells); n > 0 {
 				cells[n-1] += cluster
 			} else {
@@ -68,9 +66,6 @@ func snapshotCells(row string) []string {
 		}
 		cells = append(cells, pending+cluster)
 		pending = ""
-		for i := 1; i < width; i++ {
-			cells = append(cells, "")
-		}
 		rest = next
 	}
 	if pending != "" && len(cells) > 0 {
@@ -79,11 +74,11 @@ func snapshotCells(row string) []string {
 	return cells
 }
 
-// cellText returns the text a column holds. A column a wide cell covers, and a
-// column past the end of a shorter row, hold a blank: the snapshots pad the
-// cells they do not have, so the row a message names is the row that was drawn.
+// cellText returns the text a column holds, a blank past the end of a shorter
+// row: the snapshots pad the cells they do not have, so the row a message names
+// is the row that was drawn.
 func cellText(cells []string, column int) string {
-	if column >= len(cells) || cells[column] == "" {
+	if column >= len(cells) {
 		return " "
 	}
 	return cells[column]

@@ -8,10 +8,11 @@ import (
 	"github.com/thebanri/limoni/core/cell"
 )
 
-// A snapshot row is not a rune per column: a cell that holds a grapheme cluster
-// writes every rune of the cluster, and a cell that holds a wide rune writes a
-// continuation space. Every test here checks the column a reader counts to, the
-// one a terminal cursor would move to, not the rune index.
+// A snapshot row is one cluster per cell: a cell that holds a grapheme cluster
+// writes every rune of the cluster, and a cell that holds a wide rune is
+// followed by the continuation space for the column it covers. Every test here
+// checks the column a reader counts to, the one a terminal cursor would move
+// to, not the rune index.
 
 // differAt is the single cell two snapshots differ in, or a failure when the
 // comparison reported another number of cells.
@@ -24,11 +25,26 @@ func differAt(t *testing.T, expected, actual string) SnapshotDiff {
 	return diffs[0]
 }
 
+// drawnSnapshot is a real frame: the text the way Buffer.Snapshot writes it,
+// continuation spaces included, which is what AssertSnapshot compares.
+func drawnSnapshot(t *testing.T, width uint16, text string) string {
+	t.Helper()
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, width, 1))
+	buf.SetString(0, 0, text, cell.Style{})
+	return buf.Snapshot()
+}
+
 func TestDiffSnapshotColumnsCountCellsNotRunes(t *testing.T) {
-	// 和 starts at the second cell, which is column 2 on screen.
-	diff := differAt(t, "日本", "日X")
+	// 本 starts at the third cell, which is column 2 on screen. The snapshots
+	// are the real shape, the continuation space included: "日 本   ".
+	lost := drawnSnapshot(t, 6, "日本")
+	got := drawnSnapshot(t, 6, "日X")
+	if lost != "日 本   " || got != "日 X   " {
+		t.Fatalf("snapshots = %q and %q, want the six cells with the continuation spaces", lost, got)
+	}
+	diff := differAt(t, lost, got)
 	if diff.Column != 2 {
-		t.Errorf("column = %d, want 2 (the rune index is 1)", diff.Column)
+		t.Errorf("column = %d, want 2", diff.Column)
 	}
 	if diff.Expected != "本" || diff.Actual != "X" {
 		t.Errorf("expected %q actual %q, want %q and %q", diff.Expected, diff.Actual, "本", "X")
@@ -61,10 +77,11 @@ func TestDiffSnapshotColumnsAfterACluster(t *testing.T) {
 }
 
 func TestDiffSnapshotReportsAnEmojiCellOnce(t *testing.T) {
-	// A family emoji is five runes in one cell that takes two columns. A frame
-	// that lost it has two spaces there, and the cell after it is still column 2.
+	// A family emoji is five runes in one cell that takes two columns, and its
+	// continuation space is in the snapshot after it. A frame that lost it has
+	// two blank cells there, and x is still in the fourth cell, at column 3.
 	family := "👨‍👩‍👧"
-	diff := differAt(t, "   x", family+" x")
+	diff := differAt(t, "   x", family+"  x")
 	if diff.Column != 0 {
 		t.Errorf("column = %d, want 0", diff.Column)
 	}
@@ -74,17 +91,22 @@ func TestDiffSnapshotReportsAnEmojiCellOnce(t *testing.T) {
 }
 
 func TestDiffSnapshotReadsTheBufferSnapshotItIsGiven(t *testing.T) {
-	// The end to end shape: a buffer holding a cluster and a wide rune, and the
-	// same frame written out with those cells blank.
-	buf := buffer.NewBuffer(cell.NewRect(0, 0, 4, 1))
-	buf.SetString(0, 0, "e\u0301x", cell.Style{})
-
-	diff := differAt(t, " x  ", buf.Snapshot())
-	if diff.Column != 0 {
-		t.Errorf("column = %d, want 0", diff.Column)
+	// The end to end shape: a cluster, a wide rune and the cell after them, and
+	// the one cell that differs between two real frames. This is the test that
+	// catches the column moving when a cell takes more than one rune or column:
+	// rune by rune q sat at index 4, and counting the wide rune's width as well
+	// put it at 4 too, when it is in column 3.
+	lost := drawnSnapshot(t, 6, "e\u0301日x")
+	got := drawnSnapshot(t, 6, "e\u0301日q")
+	if lost != "e\u0301日 x  " || got != "e\u0301日 q  " {
+		t.Fatalf("snapshots = %q and %q, want the six cells with the continuation space", lost, got)
 	}
-	if diff.Actual != "e\u0301" {
-		t.Errorf("actual = %q, want %q", diff.Actual, "e\u0301")
+	diff := differAt(t, lost, got)
+	if diff.Column != 3 {
+		t.Errorf("column = %d, want 3", diff.Column)
+	}
+	if diff.Expected != "x" || diff.Actual != "q" {
+		t.Errorf("expected %q actual %q, want %q and %q", diff.Expected, diff.Actual, "x", "q")
 	}
 }
 

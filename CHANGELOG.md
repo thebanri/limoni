@@ -35,12 +35,11 @@ a patch bump (`v0.x.y`) does not.
 ### Fixed
 
 - `testkit.DiffSnapshot` compares two snapshots cell by cell and reports the
-  screen column the differing cell starts at, the column a cursor would move
-  to. It compared rune by rune, and a snapshot row is not one rune per column:
-  a cell holding a multi-rune cluster writes all of its runes, so one cell that
-  differed after an emoji was reported as a handful of cells that shifted the
-  rest of the row, and a wide (CJK) cell was reported one column to the left.
-  This is the message a failing `AssertSnapshot` prints.
+  column the differing cell starts at, the column a cursor would move to. It
+  compared rune by rune, and a cell that holds a multi-rune cluster writes all
+  of its runes, so one cell that differed after an emoji or an accented letter
+  was reported as a handful of cells that shifted the rest of the row. This is
+  the message a failing `AssertSnapshot` prints.
 
 ## [v0.16.0] — 2026-10-27
 
