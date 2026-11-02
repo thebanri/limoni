@@ -1,0 +1,104 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/thebanri/limoni/uitest"
+)
+
+// scripted is an Agent that plays one turn: a reply in two blocks, a tool
+// call, an edit, and a last line that says what the user answered.
+type scripted struct{ approved chan bool }
+
+func (s scripted) Send(ctx context.Context, prompt string) <-chan Event {
+	out := make(chan Event)
+	go func() {
+		defer close(out)
+		for _, e := range []Event{
+			{Text: "Looking at **main.go** for: " + prompt + "\n\n"},
+			{Text: "Found it."},
+			{Tool: "Read main.go"},
+		} {
+			if !emit(ctx, out, e) {
+				return
+			}
+		}
+		approve := make(chan bool, 1)
+		if !emit(ctx, out, Event{Edit: &Edit{Path: "main.go", Old: "a\nb\n", New: "a\nc\n", Approve: approve}}) {
+			return
+		}
+		select {
+		case ok := <-approve:
+			s.approved <- ok
+			if ok {
+				emit(ctx, out, Event{Text: "All done."})
+			}
+		case <-ctx.Done():
+		}
+	}()
+	return out
+}
+
+// silent never answers until it is stopped.
+type silent struct{}
+
+func (silent) Send(ctx context.Context, _ string) <-chan Event {
+	out := make(chan Event)
+	go func() { <-ctx.Done(); close(out) }()
+	return out
+}
+
+// The app runs through its real message loop, without a terminal. The
+// conversation is committed above the band, as a terminal shows it, so the
+// test reads it from the screen; the band's widgets are in the semantic tree.
+func TestAnEditIsShownAndApplied(t *testing.T) {
+	agent := scripted{approved: make(chan bool, 1)}
+	page := uitest.Program(t, 60, band, newModel(agent))
+
+	page.Type("rename b")
+	page.Press("enter")
+	page.WaitForScreen("› rename b")
+	page.WaitForScreen("Looking at main.go for: rename b")
+	page.WaitForScreen("● Read main.go")
+	page.Expect(page.GetByID("edit")).ToContainValue("Edit main.go  +1 −1")
+	page.WaitForScreen("2 - b")
+	page.WaitForScreen("2 + c")
+
+	page.Press("y")
+	if !<-agent.approved {
+		t.Fatal("the agent was told no")
+	}
+	page.WaitForScreen("✓ Edited main.go")
+	page.WaitForScreen("All done.")
+	page.Expect(page.GetByID("status")).ToContainValue("Ready.")
+}
+
+func TestEscStopsTheAgent(t *testing.T) {
+	page := uitest.Program(t, 60, band, newModel(silent{}))
+
+	page.Type("are you there?")
+	page.Press("enter")
+	page.Expect(page.GetByID("status")).ToContainValue("Working")
+	page.Press("esc")
+	page.Expect(page.GetByID("status")).ToContainValue("Stopped.")
+}
+
+// In a 12-row terminal the band is 10 rows. With an edit waiting, the input
+// and the status line are still there; in a band too short for the diff, the
+// edit is not drawn but the status line still asks.
+func TestAShortTerminalKeepsTheInputAndStatus(t *testing.T) {
+	for _, rows := range []uint16{12, 5} {
+		agent := scripted{approved: make(chan bool, 1)}
+		page := uitest.Program(t, 60, bandFor(rows), newModel(agent))
+		page.Type("rename b")
+		page.Press("enter")
+		page.Expect(page.GetByID("status")).ToContainValue("Apply this edit?")
+		page.Expect(page.GetByID("message")).ToBeVisible()
+		page.Press("y")
+		page.Expect(page.GetByID("status")).ToContainValue("Ready.")
+	}
+	if got := bandFor(12); got != 10 {
+		t.Fatalf("bandFor(12) = %d, want 10", got)
+	}
+}

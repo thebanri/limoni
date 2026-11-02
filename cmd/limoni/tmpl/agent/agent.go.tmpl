@@ -1,0 +1,189 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/anthropics/anthropic-sdk-go/v2"
+	"github.com/anthropics/anthropic-sdk-go/v2/shared/constant"
+)
+
+// Event is one thing the agent did during a turn: a piece of its reply, a
+// tool it used, an edit it wants made, or the error that ended the turn.
+type Event struct {
+	Text string // a piece of the reply, Markdown
+	Tool string // a tool call, one line: "Read main.go"
+	Edit *Edit  // an edit that waits for the user's answer
+	Err  error
+}
+
+// Edit is a change to one file, shown as a diff until the user answers on
+// Approve: true applies it.
+type Edit struct {
+	Path     string
+	Old, New string // the whole file before and after
+	Approve  chan<- bool
+}
+
+// Agent answers a prompt with events, closing the channel when the turn
+// is over. Cancelling ctx (the user pressed Esc) ends the turn early.
+type Agent interface {
+	Send(ctx context.Context, prompt string) <-chan Event
+}
+
+// claudeModel is the model the agent runs on. effort trades depth for
+// speed and cost: low, medium, high, xhigh or max.
+const (
+	claudeModel = "claude-opus-5-5"
+	effort      = anthropic.BetaOutputConfigEffortHigh
+)
+
+const systemPrompt = `You are a coding agent working in the user's current directory, shown in a terminal.
+Look before you change anything: list_files and read_file show you the project.
+edit_file changes a file; the user sees a diff and approves or rejects each edit.
+Keep replies short. They are rendered as Markdown.`
+
+// claude is an Agent on the Claude API. It keeps the conversation, tool
+// calls and their results included, so each prompt continues the last.
+type claude struct {
+	client  anthropic.Client
+	tools   *tools
+	history []anthropic.BetaMessageParam
+}
+
+// newClaude uses the credentials the Anthropic SDK finds: ANTHROPIC_API_KEY,
+// or a profile from `ant auth login`.
+func newClaude(t *tools) *claude { return &claude{client: anthropic.NewClient(), tools: t} }
+
+func (c *claude) Send(ctx context.Context, prompt string) <-chan Event {
+	out := make(chan Event)
+	c.history = append(c.history, anthropic.NewBetaUserMessage(anthropic.NewBetaTextBlock(prompt)))
+	go func() {
+		defer close(out)
+		if err := c.turn(ctx, out); err != nil && ctx.Err() == nil {
+			emit(ctx, out, Event{Err: usage(err)})
+		}
+	}()
+	return out
+}
+
+// turn streams replies and runs the tools they ask for until Claude stops
+// asking.
+func (c *claude) turn(ctx context.Context, out chan<- Event) error {
+	for {
+		stream := c.client.Beta.Messages.NewStreaming(ctx, anthropic.BetaMessageNewParams{
+			Model:        claudeModel,
+			MaxTokens:    64000,
+			System:       []anthropic.BetaTextBlockParam{{Text: systemPrompt}},
+			Messages:     c.history,
+			Tools:        c.tools.definitions(),
+			OutputConfig: anthropic.BetaOutputConfigParam{Effort: effort},
+			// A request the safety classifiers decline is served by the
+			// model the API picks for it instead of ending the turn.
+			Fallbacks: anthropic.BetaFallbacksParamUnion{OfDefault: constant.ValueOf[constant.Default]()},
+			Betas:     []anthropic.AnthropicBeta{anthropic.AnthropicBetaServerSideFallback2026_07_01},
+		})
+		var msg anthropic.BetaMessage
+		for stream.Next() {
+			event := stream.Current()
+			if err := msg.Accumulate(event); err != nil {
+				return err
+			}
+			if delta, ok := event.AsAny().(anthropic.BetaRawContentBlockDeltaEvent); ok {
+				if text, ok := delta.Delta.AsAny().(anthropic.BetaTextDelta); ok && !emit(ctx, out, Event{Text: text.Text}) {
+					return ctx.Err()
+				}
+			}
+		}
+		if err := stream.Err(); err != nil {
+			return err
+		}
+		c.history = append(c.history, msg.ToParam())
+
+		switch msg.StopReason {
+		case anthropic.BetaStopReasonToolUse:
+		case anthropic.BetaStopReasonRefusal:
+			return errors.New("Claude declined this request")
+		case anthropic.BetaStopReasonMaxTokens:
+			return errors.New("the reply reached its length limit")
+		default:
+			return nil
+		}
+		// Every tool_use gets its tool_result, even when cancelled: a
+		// conversation with a call left unanswered is refused next turn.
+		var results []anthropic.BetaContentBlockParamUnion
+		for _, block := range msg.Content {
+			if use, ok := block.AsAny().(anthropic.BetaToolUseBlock); ok {
+				text, isErr := c.tools.run(ctx, out, use.Name, []byte(use.JSON.Input.Raw()))
+				results = append(results, anthropic.NewBetaToolResultBlock(use.ID, text, isErr))
+			}
+		}
+		c.history = append(c.history, anthropic.NewBetaUserMessage(results...))
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+	}
+}
+
+// emit sends e unless the turn was cancelled first.
+func emit(ctx context.Context, out chan<- Event, e Event) bool {
+	select {
+	case out <- e:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// demo is an Agent that needs no API key: it answers every prompt with the
+// same reply and one edit, so the interface can be tried (go run . -demo).
+// Nothing is written to disk.
+type demo struct{ pause time.Duration }
+
+func (d demo) Send(ctx context.Context, prompt string) <-chan Event {
+	out := make(chan Event)
+	go func() {
+		defer close(out)
+		words := []string{"You", " asked:", " *" + prompt + "*.", "\n\n", "This", " is", " the", " **demo**", " agent.",
+			" Run", " without", " `-demo`", " to", " talk", " to", " Claude.", "\n\n"}
+		for _, w := range words {
+			if !emit(ctx, out, Event{Text: w}) {
+				return
+			}
+			select {
+			case <-time.After(d.pause):
+			case <-ctx.Done():
+				return
+			}
+		}
+		emit(ctx, out, Event{Tool: "Read greet.go"})
+		approve := make(chan bool, 1)
+		old := "package main\n\nfunc greet() string {\n\treturn \"hello\"\n}\n"
+		edit := &Edit{Path: "greet.go", Old: old, New: strings.Replace(old, `"hello"`, fmt.Sprintf("%q", "hello, "+prompt), 1), Approve: approve}
+		if !emit(ctx, out, Event{Edit: edit}) {
+			return
+		}
+		select {
+		case ok := <-approve:
+			reply := "Left it as it was."
+			if ok {
+				reply = "Done (in the demo, nothing was written)."
+			}
+			emit(ctx, out, Event{Text: reply})
+		case <-ctx.Done():
+		}
+	}()
+	return out
+}
+
+// usage turns a missing credential into what to do about it.
+func usage(err error) error {
+	var apiErr *anthropic.Error
+	if errors.As(err, &apiErr) && apiErr.StatusCode == 401 {
+		return fmt.Errorf("%w\n\nSet ANTHROPIC_API_KEY or run `ant auth login`, or try `go run . -demo`", err)
+	}
+	return err
+}

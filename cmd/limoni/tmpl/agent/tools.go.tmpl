@@ -1,0 +1,144 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"os"
+	"strings"
+
+	"github.com/anthropics/anthropic-sdk-go/v2"
+)
+
+// maxRead is the largest file read_file returns; a bigger one would fill
+// the conversation.
+const maxRead = 256 << 10
+
+// tools are what the agent can do, inside one directory: os.Root refuses
+// paths that leave it, symbolic links included.
+type tools struct{ root *os.Root }
+
+func (t *tools) definitions() []anthropic.BetaToolUnionParam {
+	tool := func(name, desc string, props map[string]any, required ...string) anthropic.BetaToolUnionParam {
+		return anthropic.BetaToolUnionParam{OfTool: &anthropic.BetaToolParam{
+			Name:        name,
+			Description: anthropic.String(desc),
+			InputSchema: anthropic.BetaToolInputSchemaParam{Properties: props, Required: required},
+			// Inputs stream as they are written rather than in one burst at
+			// the end; run checks them, since the API no longer does.
+			EagerInputStreaming: anthropic.Bool(true),
+		}}
+	}
+	str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
+	return []anthropic.BetaToolUnionParam{
+		tool("list_files", "List the files and directories in a directory of the project.",
+			map[string]any{"path": str(`Directory relative to the project root; "." for the root.`)}, "path"),
+		tool("read_file", "Read a text file of the project.",
+			map[string]any{"path": str("File path relative to the project root.")}, "path"),
+		tool("edit_file", "Replace old_string with new_string in a file. old_string must occur exactly once; "+
+			"an empty old_string creates a new file holding new_string. The user approves each edit.",
+			map[string]any{
+				"path":       str("File path relative to the project root."),
+				"old_string": str("The exact text to replace, with enough context to be unique."),
+				"new_string": str("The text to put in its place."),
+			}, "path", "old_string", "new_string"),
+	}
+}
+
+// input is every tool's arguments; which are required is checked per tool.
+type input struct {
+	Path      *string `json:"path"`
+	OldString *string `json:"old_string"`
+	NewString *string `json:"new_string"`
+}
+
+// run runs one tool call and returns its result and whether it failed.
+// Edits are sent on out and wait for the user's answer.
+func (t *tools) run(ctx context.Context, out chan<- Event, name string, raw []byte) (string, bool) {
+	var in input
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil || in.Path == nil {
+		return "INVALID_JSON: the input was not complete, valid JSON with a path; send the call again", true
+	}
+	path := *in.Path
+	switch name {
+	case "list_files":
+		emit(ctx, out, Event{Tool: "List " + path})
+		entries, err := fs.ReadDir(t.root.FS(), path)
+		if err != nil {
+			return err.Error(), true
+		}
+		var b strings.Builder
+		for _, e := range entries {
+			b.WriteString(e.Name())
+			if e.IsDir() {
+				b.WriteByte('/')
+			}
+			b.WriteByte('\n')
+		}
+		return b.String(), false
+	case "read_file":
+		emit(ctx, out, Event{Tool: "Read " + path})
+		data, err := t.read(path)
+		if err != nil {
+			return err.Error(), true
+		}
+		return data, false
+	case "edit_file":
+		if in.OldString == nil || in.NewString == nil {
+			return "INVALID_JSON: edit_file needs old_string and new_string; send the call again", true
+		}
+		return t.edit(ctx, out, path, *in.OldString, *in.NewString)
+	}
+	return "unknown tool " + name, true
+}
+
+func (t *tools) read(path string) (string, error) {
+	info, err := t.root.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.Size() > maxRead {
+		return "", fmt.Errorf("%s is %d bytes, more than read_file returns (%d)", path, info.Size(), maxRead)
+	}
+	data, err := t.root.ReadFile(path)
+	return string(data), err
+}
+
+// edit shows the change as a diff and makes it if the user approves.
+func (t *tools) edit(ctx context.Context, out chan<- Event, path, oldText, newText string) (string, bool) {
+	before, err := t.read(path)
+	switch {
+	case oldText == "" && err == nil:
+		return path + " already exists; to change it, give old_string", true
+	case oldText == "" && os.IsNotExist(err):
+		before = ""
+	case err != nil:
+		return err.Error(), true
+	case strings.Count(before, oldText) != 1:
+		return fmt.Sprintf("old_string occurs %d times in %s; it must occur exactly once", strings.Count(before, oldText), path), true
+	}
+	after := newText
+	if oldText != "" {
+		after = strings.Replace(before, oldText, newText, 1)
+	}
+
+	approve := make(chan bool, 1)
+	if !emit(ctx, out, Event{Edit: &Edit{Path: path, Old: before, New: after, Approve: approve}}) {
+		return "cancelled by the user", true
+	}
+	select {
+	case ok := <-approve:
+		if !ok {
+			return "the user rejected this edit", true
+		}
+	case <-ctx.Done():
+		return "cancelled by the user", true
+	}
+	if err := t.root.WriteFile(path, []byte(after), 0o644); err != nil {
+		return err.Error(), true
+	}
+	return "edited " + path, false
+}

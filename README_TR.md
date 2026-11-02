@@ -64,7 +64,7 @@ func main() {
 Hemen çalışan ve testi hazır yazılmış bir proje de oluşturabilirsin:
 
 ```bash
-go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam    # -template counter|dashboard|form|chat|ssh
+go run github.com/thebanri/limoni/cmd/limoni@latest new uygulamam    # -template counter|dashboard|form|chat|agent|ssh
 cd uygulamam && go mod tidy && go run .
 go test ./...                                                         # her şablon bir uitest testiyle gelir
 ```

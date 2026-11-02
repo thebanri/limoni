@@ -33,6 +33,8 @@ var projectTemplates = []projectTemplate{
 		Readme: "A form with two text inputs, a checkbox and a submit button, navigated with Tab. `submit` holds the validation."},
 	{Name: "chat", Summary: "a chat interface: a streamed Markdown reply, a multi-line input, Esc to stop",
 		Readme: "A chat interface: the transcript is Markdown, replies stream in a piece at a time, Shift+Enter starts a new line and Esc stops a reply. It answers with a demo until you connect a model: write a `Replier` in `reply.go` around your model's streaming API."},
+	{Name: "agent", Summary: "a coding agent on Claude, inline: streamed replies into the scrollback, edits as diffs to approve",
+		Readme: "A coding agent in the terminal. Claude lists, reads and edits the files of the directory it runs in (`tools.go`); each edit is shown as a diff and waits for y or n. It runs inline: finished messages go into the terminal's scrollback with `UpdateResult.Commit`, and the band redraws only what is still changing. `agent.go` holds the loop on the Claude API; it needs `ANTHROPIC_API_KEY` or `ant auth login`, and `go run . -demo` runs a scripted agent without one."},
 	{Name: "ssh", Summary: "serve an app over SSH, one limoni.App per connection",
 		Readme: "Serves an application over SSH: `go run .`, then `ssh -p 2222 localhost`. Each connection gets its own `limoni.App`; your application is in `session.go`. **It accepts anyone and makes a new host key each run** — add authentication and a persistent key before exposing it."},
 }

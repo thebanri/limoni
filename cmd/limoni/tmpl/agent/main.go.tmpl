@@ -1,0 +1,291 @@
+// [[.Name]] is a coding agent in the terminal, built with Limoni: Claude
+// reads and edits the files of the directory it runs in, and every edit is
+// shown as a diff for you to approve.
+//
+// It runs inline, like a shell command: finished messages go into the
+// terminal's own scrollback, and only what is still changing — the reply
+// being written, an edit waiting for an answer, the input — is redrawn.
+//
+//	go run .          # needs ANTHROPIC_API_KEY, or `ant auth login`
+//	go run . -demo    # a scripted agent, no key needed
+//
+//	Enter sends · Shift+Enter or Alt+Enter starts a new line
+//	y / n answers an edit · Esc stops the agent, or quits when it is idle
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/driver"
+	"github.com/thebanri/limoni/widgets"
+)
+
+// band is the most rows the application draws in; it is as tall as what it
+// shows, up to this. bandFor lowers it on a short terminal.
+const band = 24
+
+// bandFor is the band for a terminal of the given height: at most band, and
+// two rows shorter than the terminal so some scrollback stays above it. Four
+// rows (a three-row input and the status line) is the least that works.
+func bandFor(rows uint16) uint16 {
+	if rows == 0 {
+		return band // size unknown
+	}
+	return min(band, max(rows-2, 4), rows)
+}
+
+type model struct {
+	agent Agent
+
+	input  *widgets.TextAreaState
+	reply  *widgets.Markdown // the part of the reply that may still change
+	live   string
+	scroll int
+
+	events <-chan Event
+	cancel context.CancelFunc
+
+	edit *Edit // waiting for y or n
+	diff *widgets.DiffViewState
+
+	status string
+}
+
+func newModel(agent Agent) *model {
+	m := &model{agent: agent, input: widgets.NewTextAreaState(), status: "Ready."}
+	m.reply = widgets.NewMarkdown("").WithID("reply").WithScrollOffset(&m.scroll)
+	return m
+}
+
+// eventMsg is the agent's next event; ok is false once the turn is over.
+type eventMsg struct {
+	event Event
+	ok    bool
+}
+
+func next(events <-chan Event) limoni.Cmd {
+	return func(ctx context.Context) limoni.Msg {
+		select {
+		case e, ok := <-events:
+			return eventMsg{e, ok}
+		case <-ctx.Done():
+			return eventMsg{}
+		}
+	}
+}
+
+func (m *model) Init() []limoni.Cmd { return nil }
+
+func (m *model) Update(msg limoni.Msg) limoni.UpdateResult {
+	switch msg := msg.(type) {
+	case eventMsg:
+		return m.receive(msg)
+	case limoni.KeyPressMsg:
+		return m.key(msg.Key)
+	case limoni.ResizeMsg:
+		return limoni.UpdateResult{Redraw: true}
+	}
+	return limoni.UpdateResult{}
+}
+
+func (m *model) key(key limoni.KeyEvent) limoni.UpdateResult {
+	plain := !key.Shift && !key.Alt && !key.Ctrl
+	switch {
+	case m.edit != nil && plain && (key.Ch == 'y' || key.Ch == 'n'):
+		return m.answer(key.Ch == 'y')
+	case key.Type == limoni.KeyEsc && m.events != nil:
+		m.cancel()
+		m.status = "Stopped."
+		if m.edit != nil {
+			// Nothing was reading the turn while the edit waited: read on
+			// to its end.
+			m.edit, m.diff = nil, nil
+			return limoni.UpdateResult{Redraw: true, Commands: []limoni.Cmd{next(m.events)}}
+		}
+	case key.Type == limoni.KeyEsc:
+		return limoni.UpdateResult{Quit: true}
+	case key.Type == limoni.KeyEnter && plain:
+		return m.send()
+	case m.edit == nil:
+		m.input.HandleKey(key) // Shift/Alt+Enter is a newline here
+	}
+	return limoni.UpdateResult{Redraw: true}
+}
+
+// send starts a turn with what is in the input.
+func (m *model) send() limoni.UpdateResult {
+	prompt := strings.TrimSpace(m.input.Value())
+	if prompt == "" || m.events != nil {
+		return limoni.UpdateResult{}
+	}
+	m.input.SetValue("")
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	m.events = m.agent.Send(ctx, prompt)
+	m.status = "Working… Esc stops."
+	return limoni.UpdateResult{
+		Redraw:   true,
+		Commands: []limoni.Cmd{next(m.events)},
+		Commit: []limoni.Widget{
+			widgets.NewLabel(""),
+			&limoni.Paragraph{Text: "› " + prompt, Style: limoni.Style{Fg: limoni.Hex("#FFCC00"), Modifier: limoni.ModifierBold}},
+			widgets.NewLabel(""),
+		},
+	}
+}
+
+// answer applies or rejects the edit on screen, and goes on with the turn.
+func (m *model) answer(yes bool) limoni.UpdateResult {
+	edit, diff := m.edit, m.diff
+	m.edit, m.diff = nil, nil
+	edit.Approve <- yes
+	m.status = "Working… Esc stops."
+	line := "  ✗ Rejected " + edit.Path
+	style := limoni.Style{Fg: limoni.Hex("#E06C75")}
+	if yes {
+		line, style = "  ✓ Edited "+edit.Path, limoni.Style{Fg: limoni.Hex("#98C379")}
+	}
+	commit := []limoni.Widget{&limoni.Paragraph{Text: line, Style: style}}
+	if yes {
+		commit = append(commit, widgets.DiffView{State: diff}, widgets.NewLabel(""))
+	}
+	return limoni.UpdateResult{Redraw: true, Commit: commit, Commands: []limoni.Cmd{next(m.events)}}
+}
+
+// receive takes one event of the turn.
+func (m *model) receive(msg eventMsg) limoni.UpdateResult {
+	if m.events == nil {
+		return limoni.UpdateResult{}
+	}
+	result := limoni.UpdateResult{Redraw: true}
+	e := msg.event
+	switch {
+	case !msg.ok:
+		m.cancel()
+		m.events, m.cancel, m.edit, m.diff = nil, nil, nil, nil
+		if m.status != "Stopped." {
+			m.status = "Ready."
+		}
+		m.flush(&result)
+		return result
+	case e.Text != "":
+		// Blocks that can no longer change go into the scrollback; the
+		// band keeps the one still being written.
+		m.live += e.Text
+		var done string
+		done, m.live = widgets.SettledMarkdown(m.live)
+		if done != "" {
+			result.Commit = append(result.Commit, widgets.NewMarkdown(done))
+		}
+	case e.Tool != "":
+		m.flush(&result)
+		result.Commit = append(result.Commit, &limoni.Paragraph{Text: "  ● " + e.Tool, Style: limoni.Style{Modifier: limoni.ModifierDim}})
+	case e.Edit != nil:
+		m.flush(&result)
+		m.edit = e.Edit
+		m.diff = widgets.NewDiffViewState(e.Edit.Old, e.Edit.New, widgets.LanguageForFile(e.Edit.Path), 3)
+		m.status = "Apply this edit? y / n · Esc stops."
+		return result // the next event waits for the answer
+	case e.Err != nil:
+		m.flush(&result)
+		result.Commit = append(result.Commit, &limoni.Paragraph{Text: "Error: " + e.Err.Error(), Style: limoni.Style{Fg: limoni.Hex("#E06C75")}})
+	}
+	result.Commands = []limoni.Cmd{next(m.events)}
+	return result
+}
+
+// flush commits the rest of the reply, finished or not.
+func (m *model) flush(result *limoni.UpdateResult) {
+	if strings.TrimSpace(m.live) != "" {
+		result.Commit = append(result.Commit, widgets.NewMarkdown(m.live+"\n"))
+	}
+	m.live = ""
+}
+
+func (m *model) View(f *limoni.Frame) {
+	area := f.Area()
+	w := area.Width
+
+	// The input and the status line come first; what is left goes to the
+	// edit (its title, question and diff), then to the live reply.
+	inputRows := uint16(min(strings.Count(m.input.Value(), "\n")+1, 6)) + 2
+	inputRows = min(inputRows, max(area.Height, 2)-1) // a very short band: the box shrinks, the status stays
+	room := area.Height - min(inputRows+1, area.Height)
+	// With fewer than two spare rows the edit is not drawn at all; the
+	// status line still asks for y or n.
+	showEdit := m.edit != nil && room >= 2
+	var diffRows uint16
+	if showEdit {
+		room -= 2
+		diffRows = uint16(min(m.diff.Rows(), int(room)))
+		room -= diffRows
+	}
+	y := area.Y
+
+	if m.live != "" && room > 0 {
+		m.reply.Content = m.live
+		rows := uint16(min(m.reply.Rows(w, f.Hyperlinks), int(room)))
+		m.scroll = 1 << 30 // Markdown clamps it: the newest rows stay in view
+		f.RenderWidget(m.reply, limoni.NewRect(area.X, y, w, rows))
+		y += rows
+	}
+	if showEdit {
+		added, removed := m.diff.Stats()
+		f.RenderWidget(&limoni.Paragraph{ID: "edit", Text: fmt.Sprintf("Edit %s  +%d −%d", m.edit.Path, added, removed),
+			Style: limoni.Style{Modifier: limoni.ModifierBold}}, limoni.NewRect(area.X, y, w, 1))
+		f.RenderWidget(widgets.DiffView{ID: "diff", State: m.diff}, limoni.NewRect(area.X, y+1, w, diffRows))
+		y += diffRows + 1
+		f.RenderWidget(&limoni.Paragraph{Text: "Apply? y / n", Style: limoni.Style{Fg: limoni.Hex("#FFCC00")}},
+			limoni.NewRect(area.X, y, w, 1))
+		y++
+	}
+	f.RenderWidget(&limoni.Block{
+		Borders:       limoni.BorderAll,
+		BorderSymbols: limoni.SymbolsRounded,
+		BorderStyle:   limoni.Style{Fg: limoni.Hex("#FFCC00"), Modifier: limoni.ModifierDim},
+		Child: &widgets.TextArea{
+			ID: "message", State: m.input, Focused: m.edit == nil,
+			Placeholder: "Ask for a change — Enter sends, Shift+Enter for a new line",
+		},
+	}, limoni.NewRect(area.X, y, w, inputRows))
+	f.RenderWidget(&limoni.Paragraph{ID: "status", Text: m.status, Style: limoni.Style{Modifier: limoni.ModifierDim}},
+		limoni.NewRect(area.X, y+inputRows, w, 1))
+}
+
+func main() {
+	useDemo := flag.Bool("demo", false, "use a scripted agent instead of Claude")
+	flag.Parse()
+	if err := run(*useDemo); err != nil {
+		fmt.Fprintln(os.Stderr, "[[.Name]]:", err)
+		os.Exit(1)
+	}
+}
+
+func run(useDemo bool) error {
+	var agent Agent = demo{pause: 40 * time.Millisecond}
+	if !useDemo {
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+		agent = newClaude(&tools{root: root})
+	}
+	// The band is fixed when the terminal is set up, so read the height
+	// first. If the window is resized afterwards the band keeps its size:
+	// taller is fine, shorter than the band is not handled (restart).
+	_, rows, _ := driver.NewBackend(os.Stdin, os.Stdout).Size()
+	term, err := limoni.NewInline(bandFor(rows))
+	if err != nil {
+		return err
+	}
+	defer term.Close()
+	term.SetInlineFit(true)
+	return limoni.NewProgram(newModel(agent)).RunTerminal(context.Background(), term, term.Driver())
+}
