@@ -8,6 +8,12 @@ a patch bump (`v0.x.y`) does not.
 
 ## [Unreleased]
 
+### Breaking
+
+- `testkit.SnapshotDiff.Expected` and `.Actual` are `string`, not `rune`. A
+  cell holds a grapheme cluster as readily as a rune, and a message that
+  printed only the first rune of the cell did not say what differed.
+
 ### Added
 
 - `graphics.AppendKittyPlaceID` places a Kitty picture under a placement
@@ -25,6 +31,15 @@ a patch bump (`v0.x.y`) does not.
   scrolling map costs a placement per tile, as before, and nothing is
   deleted until everything is placed. Frames still draw with 0
   allocations.
+
+### Fixed
+
+- `testkit.DiffSnapshot` compares two snapshots cell by cell and reports the
+  column the differing cell starts at, the column a cursor would move to. It
+  compared rune by rune, and a cell that holds a multi-rune cluster writes all
+  of its runes, so one cell that differed after an emoji or an accented letter
+  was reported as a handful of cells that shifted the rest of the row. This is
+  the message a failing `AssertSnapshot` prints.
 
 ## [v0.16.0] — 2026-10-27
 
