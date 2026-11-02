@@ -19,6 +19,7 @@ the `Widget` interface (`Draw(cell.Context, *buffer.Buffer)`).
 | [CommandPalette](#commandpalette) | `CommandPalette` | 10 |
 | [DevTools](#devtools) | `DevTools` | 2 |
 | [Dialog](#dialog) | `Dialog` | 15 |
+| [DiffView](#diffview) | `DiffView` | 8 |
 | [FilePicker](#filepicker) | `FilePicker` | 10 |
 | [Gauge](#gauge) | `Gauge` | 7 |
 | [HelpOverlay](#helpoverlay) | `*HelpOverlay` | 10 |
@@ -319,6 +320,23 @@ Type to pass to `RenderWidget`: `Dialog`
 | `FocusedButton` | `int` |  |
 | `OnButtonHover` | `func(...)` |  |
 | `State` | `*DialogState` | State keeps the buttons' IDs, labels and mouse handlers between frames. |
+
+## DiffView
+
+DiffView shows a DiffViewState: a gutter of line numbers, a + or - for each line added or removed, those lines on a green or red background, and the code highlighted as in CodeView.
+
+Type to pass to `RenderWidget`: `DiffView`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ID` | `string` |  |
+| `State` | `*DiffViewState` |  |
+| `Theme` | `*CodeTheme` | Theme styles each token kind; nil is DefaultCodeTheme. |
+| `HideLineNumbers` | `bool` | HideLineNumbers drops the gutter. |
+| `Style` | `cell.Style` |  |
+| `GutterStyle` | `cell.Style` |  |
+| `AddedStyle` | `cell.Style` | AddedStyle and RemovedStyle are merged over added and removed lines; zero is a dark green and a dark red background. |
+| `RemovedStyle` | `cell.Style` | AddedStyle and RemovedStyle are merged over added and removed lines; zero is a dark green and a dark red background. |
 
 ## FilePicker
 
