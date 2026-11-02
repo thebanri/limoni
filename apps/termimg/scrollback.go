@@ -20,11 +20,23 @@ type scrollback struct {
 	anchored bool      // the window was read after it
 }
 
-// watchScroll follows the terminal's scrollback until the session closes.
+// watchScroll follows the terminal's scrollback until the session closes:
+// at once when the terminal draws its window again, and on a tick, which
+// is all there is without the DAMAGE extension and when output settles.
 func (s *session) watchScroll() {
+	s.mu.Lock()
+	redrawn := s.ov.Redrawn()
+	s.mu.Unlock()
 	t := time.NewTicker(scrollWatch)
 	defer t.Stop()
-	for range t.C {
+	for {
+		select {
+		case <-t.C:
+		case _, ok := <-redrawn:
+			if !ok {
+				redrawn = nil
+			}
+		}
 		s.mu.Lock()
 		closed := s.ov == nil
 		if !closed {
