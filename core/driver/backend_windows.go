@@ -202,10 +202,8 @@ func (b *Backend) startEventLoop() {
 // Size returns the size of the console buffer.
 func (b *Backend) Size() (uint16, uint16, error) {
 	if b.portableIO != nil {
-		w, h, err := b.portableIO.Size()
-		if err == nil && w > 0 && h > 0 {
-			b.width, b.height = w, h
-		}
+		// The size is what SetSize was told, as on Unix: a remote session
+		// reports resizes through it, and the IO's own Size may be stale.
 		if b.width == 0 || b.height == 0 {
 			return 80, 24, nil
 		}
