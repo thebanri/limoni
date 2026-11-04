@@ -312,6 +312,8 @@ pikap ~/Music    # or play files
 
 - [**residual**](https://git.merith.xyz/residual/) — a work-in-progress Alpine-based OS with a
   from-scratch Go userspace.
+- [**TuiSense**](https://github.com/Phobby/TuiSense) — controller management and diagnostics in the
+  terminal (DualSense first), with a rotating 3D controller.
 
 ---
 

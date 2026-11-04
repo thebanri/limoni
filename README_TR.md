@@ -296,6 +296,8 @@ pikap ~/Music    # ya da dosyaları çal
 
 - [**residual**](https://git.merith.xyz/residual/) — Go ile sıfırdan yazılmış kullanıcı alanına sahip,
   Alpine tabanlı, geliştirilmekte olan bir işletim sistemi.
+- [**TuiSense**](https://github.com/Phobby/TuiSense) — terminalde oyun kolu yönetimi ve tanılama
+  (önce DualSense), dönen bir 3D kol ile.
 
 ---
 
