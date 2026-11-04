@@ -80,6 +80,7 @@ type LogViewState struct {
 	height    int // rows drawn last frame, for paging
 	followOff int // the Offset Follow set last frame; a different one means the wheel moved it
 	lastSel   int // Selected as of last frame; a different one means a click selected a line
+	followed  bool // Follow as of last frame; turned on since, it is a request to follow, not a scroll
 	nodes     []accessibility.Node
 	plain     []plainLine // lines with escapes, stripped, by index modulo len
 }
@@ -250,9 +251,10 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Follow put it last frame, the reader scrolled: stop following. A click
 	// sets Selected directly; a line the reader picked must not scroll away
 	// under them either.
-	if s.Follow && (s.Offset != s.followOff || (s.Selected >= 0 && s.Selected != s.lastSel)) {
+	if s.Follow && s.followed && (s.Offset != s.followOff || (s.Selected >= 0 && s.Selected != s.lastSel)) {
 		s.Follow = false
 	}
+	s.followed = s.Follow
 	if s.Follow {
 		s.Offset = maxOffset
 		s.followOff = maxOffset

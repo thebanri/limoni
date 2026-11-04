@@ -94,6 +94,23 @@ func TestLogViewScrollingUpStopsFollowing(t *testing.T) {
 	if got := rowAt(buf, 0); got != "line 8" {
 		t.Fatalf("after one notch up the first row is %q, want line 8", got)
 	}
+
+	// End after the wheel follows again: the wheel's offset is not a new
+	// scroll that turns following straight back off.
+	st.HandleKey(driver.KeyEvent{Type: driver.KeyEnd}, src.Len())
+	src.add("line 12", LevelInfo)
+	buf = drawLog(lv, 20, 3)
+	if !st.Follow || rowAt(buf, 2) != "line 12" {
+		t.Fatalf("End after the wheel: follow=%v last=%q", st.Follow, rowAt(buf, 2))
+	}
+	// So does an application that turns Follow on itself, as zest's F does.
+	st.Offset--
+	drawLog(lv, 20, 3)
+	st.Follow = true
+	src.add("line 13", LevelInfo)
+	if buf = drawLog(lv, 20, 3); !st.Follow || rowAt(buf, 2) != "line 13" {
+		t.Fatalf("Follow set after the wheel: follow=%v last=%q", st.Follow, rowAt(buf, 2))
+	}
 }
 
 func TestLogViewSelectionPaging(t *testing.T) {

@@ -68,6 +68,9 @@ a patch bump (`v0.x.y`) does not.
 
 ### Fixed
 
+- `LogView`: End (or setting `Follow` again) after scrolling with the mouse
+  wheel follows the log once more. The wheel's offset was taken for a new
+  scroll on the next frame and turned following straight back off.
 - termimg: the clear parts of a picture take a translucent terminal's
   opacity when termimg starts with the terminal's window (`alacritty -e
   termimg`, or its own Xwayland relaunch): it read the window before it was
