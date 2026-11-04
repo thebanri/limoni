@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/thebanri/limoni/core/accessibility"
@@ -80,6 +81,32 @@ type LogViewState struct {
 	followOff int // the Offset Follow set last frame; a different one means the wheel moved it
 	lastSel   int // Selected as of last frame; a different one means a click selected a line
 	nodes     []accessibility.Node
+	plain     []plainLine // lines with escapes, stripped, by index modulo len
+}
+
+// plainLine caches a line with its escape sequences removed, so a coloured
+// line is stripped once when it comes on screen, not every frame.
+type plainLine struct {
+	i         int
+	raw, text string
+}
+
+// plainText returns line i without escape sequences.
+func (s *LogViewState) plainText(i int, raw string) string {
+	if strings.IndexByte(raw, esc) < 0 {
+		return raw
+	}
+	if want := 2*s.height + 2; len(s.plain) < want {
+		s.plain = make([]plainLine, want)
+		for k := range s.plain {
+			s.plain[k].i = -1
+		}
+	}
+	e := &s.plain[i%len(s.plain)]
+	if e.i != i || e.raw != raw {
+		*e = plainLine{i: i, raw: raw, text: stripANSI(raw)}
+	}
+	return e.text
 }
 
 // NewLogViewState returns a state that follows new lines and selects nothing.
@@ -164,7 +191,14 @@ func (s *LogViewState) reveal(i int) {
 // the lines on screen are touched; coloured by level when the source knows
 // levels; with an optional line-number gutter and highlighted search text.
 //
-// Drawing does not allocate as long as the source's Line does not.
+// Lines may carry the ANSI escapes a program printed: SGR colours and
+// attributes are drawn (a reset returns to the line's own style), every other
+// sequence is skipped. Search highlights, the semantic tree and horizontal
+// scroll all work on the text without them.
+//
+// Drawing does not allocate as long as the source's Line does not, except
+// that a line with escapes is stripped once, for the semantic tree, when it
+// first comes on screen (one string the length of the line).
 type LogView struct {
 	ID     string
 	Label  string // name in the semantic tree; defaults to "Log"
@@ -287,6 +321,12 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			continue
 		}
 		line := lv.Source.Line(i)
+		text := line
+		if lv.State != nil {
+			text = lv.State.plainText(i, line)
+		} else {
+			text = stripANSI(line)
+		}
 
 		style := base
 		if levels != nil {
@@ -315,10 +355,17 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 
-		visible, skipped := skipColumns(line, s.HOffset)
-		buf.SetStringWithin(textX, y, visible, style, textW)
+		var skipped int
+		if len(text) != len(line) {
+			drawANSI(buf, textX, y, textW, line, s.HOffset, style)
+			_, skipped = skipColumns(text, s.HOffset)
+		} else {
+			var visible string
+			visible, skipped = skipColumns(line, s.HOffset)
+			buf.SetStringWithin(textX, y, visible, style, textW)
+		}
 		if lv.Highlight != "" {
-			lv.drawHighlights(buf, textX, y, textW, line, skipped, style.Merge(hlStyle))
+			lv.drawHighlights(buf, textX, y, textW, text, skipped, style.Merge(hlStyle))
 		}
 
 		if ctx.RegisterClickAction != nil && lv.State != nil {
@@ -331,7 +378,7 @@ func (lv *LogView) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				st = accessibility.StateSelected
 			}
 			lv.State.nodes = append(lv.State.nodes, accessibility.Node{
-				Role: accessibility.RoleListItem, Label: line, State: st,
+				Role: accessibility.RoleListItem, Label: text, State: st,
 				Bounds:   cell.Rect{X: area.X, Y: y, Width: area.Width, Height: 1},
 				Position: i + 1, SetSize: total,
 			})
@@ -447,7 +494,7 @@ func (lv *LogView) AccessibilityNode(bounds cell.Rect, focused bool) accessibili
 		rows = lv.State.nodes
 		if sel := lv.State.Selected; sel >= 0 && sel < total {
 			state |= accessibility.StateSelected
-			value = lv.Source.Line(sel)
+			value = lv.State.plainText(sel, lv.Source.Line(sel))
 			position = sel + 1
 		}
 		if lv.State.Follow {

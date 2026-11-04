@@ -236,6 +236,22 @@ func BenchmarkLogViewDraw(b *testing.B) {
 	}
 }
 
+// BenchmarkLogViewDrawANSI follows a log of lines with colour escapes, as a
+// task's captured output has: new lines arrive between frames.
+func BenchmarkLogViewDrawANSI(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	src := &testLog{}
+	for i := 0; i < 100000; i++ {
+		src.add("\x1b[32mINFO\x1b[0m request \x1b[1;38;2;200;120;0mserved\x1b[22;39m status=200 path=/api/v1/items", LevelInfo)
+	}
+	w := &LogView{ID: "log", Source: src, State: NewLogViewState(), LineNumbers: true, Highlight: "served"}
+	w.Draw(ctx, buf)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}
+
 func BenchmarkButtonDraw(b *testing.B) {
 	buf, ctx := prepareBenchmarkEnv()
 	pressed := 0

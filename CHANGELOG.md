@@ -16,6 +16,15 @@ a patch bump (`v0.x.y`) does not.
 
 ### Added
 
+- `LogView` draws the ANSI escapes a program printed: SGR colours (16, 256
+  and truecolour, in `;` and `:` forms) and attributes are drawn, a reset
+  returns to the line's own level style, and every other sequence (cursor
+  moves, erases, OSC titles and links) is skipped. Highlights, sideways
+  scroll and the semantic tree work on the text without escapes. Before,
+  the ESC byte was dropped and `[31m` showed as text. Still 0 allocs per
+  frame; a coloured line is stripped once, for the semantic tree, when it
+  first comes on screen.
+
 - `graphics.AppendKittyPlaceID` places a Kitty picture under a placement
   id, and `graphics.AppendKittyDeletePlacement` deletes one placement.
 - `Terminal.Commit` / `Frame.Commit` and `UpdateResult.Commit`: an inline
