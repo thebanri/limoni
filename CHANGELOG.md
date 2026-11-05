@@ -68,6 +68,9 @@ a patch bump (`v0.x.y`) does not.
 
 ### Fixed
 
+- `LogView`: with nothing selected, Down (or `j`) selects the first line on
+  screen, as Up (or `k`) selects the last. It selected the second line and
+  skipped the first.
 - `LogView`: End (or setting `Follow` again) after scrolling with the mouse
   wheel follows the log once more. The wheel's offset was taken for a new
   scroll on the next frame and turned following straight back off.

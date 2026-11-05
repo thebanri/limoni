@@ -130,8 +130,9 @@ func (s *LogViewState) HandleKey(key driver.KeyEvent, total int) bool {
 		}
 		from := s.Selected
 		if from < 0 {
-			// Nothing selected yet: start from the edge of what is on screen.
-			from = s.Offset
+			// Nothing selected yet: start just outside the edge of what is on
+			// screen, so Down selects the first line shown and Up the last.
+			from = s.Offset - 1
 			if delta < 0 {
 				from = s.Offset + s.height
 			}
