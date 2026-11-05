@@ -139,6 +139,18 @@ func parseCSI(buf []byte) (Event, int) {
 		return Event{}, 0
 	}
 
+	// The Linux console sends F1–F5 as ESC [ [ A to ESC [ [ E. Read as a
+	// control sequence, the second '[' is skipped and F1–F4 come out as the
+	// arrow keys.
+	if buf[2] == '[' {
+		if len(buf) < 4 {
+			return Event{}, 0
+		}
+		if c := buf[3]; c >= 'A' && c <= 'E' {
+			return Event{Type: EventKey, Key: KeyEvent{Type: KeyF1 + KeyType(c-'A')}}, 4
+		}
+	}
+
 	// Find the final byte. Keys and replies end in a letter or '~'.
 	endIdx := -1
 	for i := 2; i < len(buf); i++ {

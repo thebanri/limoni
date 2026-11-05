@@ -326,6 +326,39 @@ func TestParseFunctionKeys(t *testing.T) {
 	}
 }
 
+// The Linux console (TERM=linux) sends F1–F5 as ESC [ [ A … E. They are
+// function keys, not the arrows ESC [ A … D are, and a key typed right after
+// one is still read.
+func TestParseLinuxConsoleFunctionKeys(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want KeyType
+	}{
+		{"\x1b[[A", KeyF1},
+		{"\x1b[[B", KeyF2},
+		{"\x1b[[C", KeyF3},
+		{"\x1b[[D", KeyF4},
+		{"\x1b[[E", KeyF5},
+	} {
+		for end := 1; end < len(c.in); end++ {
+			if ev, consumed := ParseEvent([]byte(c.in[:end])); ev != (Event{}) || consumed != 0 {
+				t.Errorf("partial %q: ev=%+v consumed=%d, want no event or consumption", c.in[:end], ev, consumed)
+			}
+		}
+		buf := []byte(c.in + "x")
+		ev, consumed := ParseEvent(buf)
+		want := Event{Type: EventKey, Key: KeyEvent{Type: c.want}}
+		if ev != want || consumed != len(c.in) {
+			t.Errorf("%q: ev=%+v consumed=%d, want ev=%+v consumed=%d", c.in, ev, consumed, want, len(c.in))
+			continue
+		}
+		ev, consumed = ParseEvent(buf[consumed:])
+		if want := (Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: 'x'}}); ev != want || consumed != 1 {
+			t.Errorf("%q, following key: ev=%+v consumed=%d, want ev=%+v consumed=1", c.in, ev, consumed, want)
+		}
+	}
+}
+
 // Alt + key combinations via ESC prefix (\x1b + rune).
 func TestParseAltKeyCombinations(t *testing.T) {
 	cases := []struct {
