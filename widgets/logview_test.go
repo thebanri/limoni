@@ -113,6 +113,42 @@ func TestLogViewScrollingUpStopsFollowing(t *testing.T) {
 	}
 }
 
+// With nothing selected, the first key picks a line at the edge of the
+// screen: Down the first line shown, Up the last, without skipping one or
+// scrolling.
+func TestLogViewFirstKeySelectsAnEdgeLine(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		key  driver.KeyEvent
+		want int
+	}{
+		{"Down", driver.KeyEvent{Type: driver.KeyArrowDown}, 90},
+		{"j", driver.KeyEvent{Type: driver.KeyRune, Ch: 'j'}, 90},
+		{"Up", driver.KeyEvent{Type: driver.KeyArrowUp}, 99},
+		{"k", driver.KeyEvent{Type: driver.KeyRune, Ch: 'k'}, 99},
+	} {
+		src := numberedLog(100)
+		st := NewLogViewState()
+		lv := &LogView{Source: src, State: st}
+		drawLog(lv, 20, 10) // following: lines 91 to 100 on screen
+		st.HandleKey(c.key, src.Len())
+		if st.Selected != c.want || st.Offset != 90 {
+			t.Errorf("%s: selected %d at offset %d, want %d at offset 90", c.name, st.Selected, st.Offset, c.want)
+		}
+	}
+
+	// At the top of the log, Down selects the first line.
+	src := numberedLog(100)
+	st := NewLogViewState()
+	st.Follow = false
+	lv := &LogView{Source: src, State: st}
+	drawLog(lv, 20, 10)
+	st.HandleKey(driver.KeyEvent{Type: driver.KeyArrowDown}, src.Len())
+	if st.Selected != 0 || st.Offset != 0 {
+		t.Errorf("Down at the top: selected %d at offset %d, want 0 at offset 0", st.Selected, st.Offset)
+	}
+}
+
 func TestLogViewSelectionPaging(t *testing.T) {
 	src := numberedLog(100)
 	st := NewLogViewState()
