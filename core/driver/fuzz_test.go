@@ -9,6 +9,7 @@ func FuzzParseEvent(f *testing.F) {
 	f.Add([]byte("\x1b["))
 	f.Add([]byte("\x1b[A"))
 	f.Add([]byte("\x1b[1;5A"))
+	f.Add([]byte("\x1b[[A"))
 	f.Add([]byte("\x1b[<0;10;20M"))
 	f.Add([]byte("\x1b[200~pasted text\x1b[201~"))
 	f.Add([]byte("\x1b[?2026h"))
