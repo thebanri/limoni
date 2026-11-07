@@ -204,7 +204,7 @@ func (t *Terminal) StyleSnapshot() string {
 // AssertSnapshot returns a descriptive error when the text snapshot differs.
 func (t *Terminal) AssertSnapshot(expected string) error {
 	if got := t.Snapshot(); got != expected {
-		return fmt.Errorf("snapshot mismatch:\n%s", FormatSnapshotDiff(DiffSnapshot(expected, got)))
+		return fmt.Errorf("snapshot mismatch:\n%s", snapshotMismatch(expected, got))
 	}
 	return nil
 }

@@ -66,9 +66,8 @@ func TestAssertSnapshotIsNotDefeatedByPadding(t *testing.T) {
 
 	// Expected text with its trailing spaces trimmed is not the frame: the
 	// snapshot keeps every cell, and the comparison does not forgive padding.
-	if err := term.AssertSnapshot("hello\nworld"); err == nil {
-		t.Error("a snapshot without the trailing cells was accepted")
-	}
+	wantError(t, term.AssertSnapshot("hello\nworld"), "snapshot mismatch",
+		`row=0 col=5 expected="" actual=" "`, `row=1 col=5 expected="" actual=" "`)
 
 	// A shorter expected string lacks the row that was drawn, and the message
 	// names the row and the cells in it, not just "mismatch".
@@ -79,6 +78,19 @@ func TestAssertSnapshotIsNotDefeatedByPadding(t *testing.T) {
 
 	// Extra text in a padding cell is a difference, not padding.
 	wantError(t, term.AssertSnapshot("hello!\nworld "), "row=0 col=5", `expected="!"`, `actual=" "`)
+}
+
+func TestAssertSnapshotNamesTheCellsOnlyPaddingSeparates(t *testing.T) {
+	term := NewTerminal(6, 2)
+	term.Draw(func(frame *terminal.Frame) {
+		frame.Buffer.SetString(0, 0, "hello", cell.Style{})
+		frame.Buffer.SetString(0, 1, "world", cell.Style{})
+	})
+
+	wantError(t, term.AssertSnapshot("hello  \nworld  "),
+		`row=0 col=6 expected=" " actual=""`, `row=1 col=6 expected=" " actual=""`)
+
+	wantError(t, term.AssertSnapshot("hello \nworld \n"), "snapshot mismatch", "no cell differs")
 }
 
 func TestAssertFocused(t *testing.T) {
