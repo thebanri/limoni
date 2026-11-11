@@ -65,9 +65,17 @@ a patch bump (`v0.x.y`) does not.
   the handshake chose Sixel because Konsole's DA1 reply lists it. Konsole
   supports both since 22.04; Kitty's protocol works better of the two.
   `LIMONI_GRAPHICS` still overrides the choice.
+- `ProgressBar` and `Sparkline` draw in the frame's theme (#97). With their
+  styles unset, a progress bar's filled cells take the theme's `primary`
+  role and its empty cells `muted`, and a sparkline's bars take `primary`.
+  An explicit style still wins. A `Sparkline` without a `Color` now draws
+  its bars in `Style`'s foreground when it has one, as its comment said;
+  before, that foreground was ignored.
 
 ### Fixed
 
+- `ProgressBar` with `ShowPercent` no longer allocates for its label on
+  every frame.
 - `LogView`: with nothing selected, Down (or `j`) selects the first line on
   screen, as Up (or `k`) selects the last. It selected the second line and
   skipped the first.
