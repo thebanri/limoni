@@ -78,7 +78,7 @@ f.RenderWidget(viewer, f.Area())
 
 Gölgelendirme ne olursa olsun her yüz üçgenlere bölünür, kamera yaklaşınca atılmak yerine near plane'de kırpılır, arka yüz elemesi ve derinlik testi yapılır. Geçici tamponlar modelin boyutuna ulaştıktan sonra çizim bellek ayırmaz.
 
-`Pixels` ile model hücre başına 8×16 piksel olarak bir RGBA resme çizilip terminalin görüntü protokolüyle gönderilir; protokol yoksa noktalara döner. Duran model bir kez kodlanır. Hareket eden model her karede kodlanır ve bu protokolün maliyeti kadardır: kitty ile 60×24'lük bir alan için kare başına yaklaşık 7 ms ve 2.7 MB (`BenchmarkViewer3DPixelsKitty` ile ölçüldü).
+`Pixels` ile model, terminalin piksel cinsinden hücre boyutunda (`Terminal`'in sürücüden doldurduğu `cell.Context.CellPixelW` × `CellPixelH`; çerçeve bunu bilmiyorsa hücre başına 8×16) bir RGBA resme çizilip terminalin görüntü protokolüyle gönderilir; protokol yoksa noktalara döner. Hücre boyutunda çizilen resim büyütülmeden, piksel piksel gösterilir ve 1:2 olmayan hücrelerde de oranını korur. Duran model bir kez kodlanır. Hareket eden model her karede kodlanır ve bu protokolün maliyeti kadardır: kitty ile 8×16'lık hücrelerden oluşan 60×24'lük bir alan için kare başına yaklaşık 7 ms ve 2.7 MB (`BenchmarkViewer3DPixelsKitty` ile ölçüldü); daha büyük hücrelerde kodlanacak piksel sayısı, dolayısıyla maliyet de artar.
 
 ### 3D Gölgelendirme Modelleri
 

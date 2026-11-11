@@ -38,6 +38,15 @@ type Context struct {
 	// Style, for the same reason.
 	ImageProtocol uint8
 
+	// CellPixelW and CellPixelH are the size of a terminal cell in pixels,
+	// the size the terminal encodes pictures at, so a widget that renders a
+	// picture can render it at the resolution it is shown at. Zero means the
+	// frame does not know (a testkit terminal): a widget then picks a size
+	// of its own. A cell wider or taller than 255 pixels reads as 255. Like
+	// ImageProtocol, they sit in the padding after Style, which they fill:
+	// Context stays at 128 bytes.
+	CellPixelW, CellPixelH uint8
+
 	// RegisterClick is a callback bridge populated by the terminal layer
 	// allowing widgets to register clickable regions during rendering.
 	//

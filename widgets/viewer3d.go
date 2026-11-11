@@ -190,7 +190,9 @@ type Viewer3D struct {
 	// Pixels renders the model as a picture, sent with the terminal's image
 	// protocol (kitty, iTerm2, Sixel), instead of as Braille dots: full
 	// resolution and colour per pixel. Where the terminal has no image
-	// protocol it draws dots as usual. Encoding a picture every frame the
+	// protocol it draws dots as usual. The picture is rendered at the
+	// terminal's cell size in pixels where the frame knows it, and at 8×16
+	// a cell where it does not. Encoding a picture every frame the
 	// model moves costs what the protocol costs — a PNG or Sixel encode and
 	// hundreds of kilobytes of allocation — so it is opt-in; a still model
 	// is encoded once.
@@ -342,14 +344,15 @@ func (v *Viewer3D) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	var virtualW, virtualH float64
 	redraw := true
 	if pixels {
-		key := v.viewKey(area, dist, scaleFactor, shading, texture)
+		cw, ch := viewerCellPixels(ctx)
+		key := v.viewKey(area, cw, ch, dist, scaleFactor, shading, texture)
 		if key == v.lastKey && v.pixels[v.frame%2].img != nil {
 			// Nothing that shows has changed: send the same picture, which
 			// the terminal already has, instead of encoding a new one.
 			redraw = false
 		} else {
 			v.lastKey = key
-			pw, ph := int(area.Width)*viewerCellPixelsW, int(area.Height)*viewerCellPixelsH
+			pw, ph := int(area.Width)*cw, int(area.Height)*ch
 			// Two buffers in turn, so each new picture is a different image
 			// to the terminal; the one reused was sent two frames ago and
 			// its cached encoding is stale.
@@ -413,19 +416,32 @@ type raster3D interface {
 	DrawLine(x1, y1, x2, y2 int, style cell.Style)
 }
 
-// Pixels per terminal cell when the model is rendered as a picture. The
-// terminal scales the picture to the area, so this sets the detail, not the
-// size; 8×16 is the common cell and keeps the aspect of the Braille grid.
+// Pixels per terminal cell when the model is rendered as a picture and the
+// frame does not know the terminal's. The terminal scales the picture to the
+// area, so this sets the detail, not the size; 8×16 is the common cell and
+// keeps the aspect of the Braille grid.
 const (
 	viewerCellPixelsW = 8
 	viewerCellPixelsH = 16
 )
+
+// viewerCellPixels is the size of a cell in the picture: the terminal's, so
+// the picture is neither blurred by scaling it up nor stretched where the
+// cell is not 1:2, else 8×16. A size given in one direction only is not
+// used: the two have to agree for the model to keep its aspect.
+func viewerCellPixels(ctx cell.Context) (int, int) {
+	if ctx.CellPixelW == 0 || ctx.CellPixelH == 0 {
+		return viewerCellPixelsW, viewerCellPixelsH
+	}
+	return int(ctx.CellPixelW), int(ctx.CellPixelH)
+}
 
 // viewerKey is everything that decides what a picture shows. The model is
 // compared by its slices, not their contents: changing vertices in place
 // needs a new slice, or a change to any other field, to be redrawn.
 type viewerKey struct {
 	area              cell.Rect
+	cellW, cellH      int
 	rotX, rotY, rotZ  float64
 	dist, scale       float64
 	shading           string
@@ -448,10 +464,10 @@ func (v *Viewer3D) angles() (float64, float64) {
 	return v.RotX, v.RotY
 }
 
-func (v *Viewer3D) viewKey(area cell.Rect, dist, scale float64, shading string, texture image.Image) viewerKey {
+func (v *Viewer3D) viewKey(area cell.Rect, cellW, cellH int, dist, scale float64, shading string, texture image.Image) viewerKey {
 	rotX, rotY := v.angles()
 	k := viewerKey{
-		area: area, rotX: rotX, rotY: rotY, rotZ: v.RotZ, dist: dist, scale: scale, shading: shading,
+		area: area, cellW: cellW, cellH: cellH, rotX: rotX, rotY: rotY, rotZ: v.RotZ, dist: dist, scale: scale, shading: shading,
 		nVertices: len(v.Model.Vertices), nFaces: len(v.Model.Faces), texture: imageIdentity(texture),
 		light: v.Light, wireframe: v.Wireframe, wireStyle: v.WireframeStyle,
 	}
