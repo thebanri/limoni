@@ -125,6 +125,10 @@ type Frame struct {
 	// draw context; see cell.Context.ImageProtocol.
 	ImageProtocol uint8
 
+	// CellPixelW and CellPixelH mirror the size of a terminal cell in
+	// pixels into every draw context; see cell.Context.CellPixelW.
+	CellPixelW, CellPixelH uint8
+
 	// areas is the stack of BeginArea rectangles; the last is in force.
 	areas []cell.Rect
 
@@ -976,6 +980,7 @@ func (f *Frame) RenderWidget(w widgets.Widget, area cell.Rect) {
 	ctx := cell.NewContext(area, defStyle)
 	ctx.Hyperlinks = f.Hyperlinks
 	ctx.ImageProtocol = f.ImageProtocol
+	ctx.CellPixelW, ctx.CellPixelH = f.CellPixelW, f.CellPixelH
 	if f.themeSet {
 		// Built once: a closure made here was an allocation per widget per
 		// frame whenever a theme was set.

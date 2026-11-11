@@ -270,8 +270,8 @@ func (r *imageRecorder) ctx(area cell.Rect) cell.Context {
 }
 
 // With Pixels and an image protocol, the model becomes a picture at 8×16
-// pixels a cell, lit like the dots would be, and the cells under it are
-// reserved for it.
+// pixels a cell (the context gives no cell size), lit like the dots would
+// be, and the cells under it are reserved for it.
 func TestViewer3DPixels(t *testing.T) {
 	area := cell.NewRect(2, 1, 20, 10)
 	buf := buffer.NewBuffer(cell.NewRect(0, 0, 30, 12))
@@ -330,6 +330,70 @@ func TestViewer3DPixels(t *testing.T) {
 	v.Draw(rec.ctx(area), buf)
 	if rec.n != 0 || buf.CellAt(5, 5).Content == cell.RuneImage {
 		t.Error("drew a picture without an image protocol")
+	}
+}
+
+// Where the context knows the terminal's cell size, the picture is rendered
+// at it: shown pixel for pixel instead of scaled up from 8×16, and in
+// proportion on cells that are not 1:2.
+func TestViewer3DPixelsAtTheCellSize(t *testing.T) {
+	area := cell.NewRect(2, 1, 20, 10)
+	buf := buffer.NewBuffer(cell.NewRect(0, 0, 30, 12))
+	rec := &imageRecorder{}
+	v := &Viewer3D{Model: graphics.NewSphere(1, 24, 24), Shading: ShadingLambert, Scale: 1.5, Pixels: true,
+		FaceColors: []cell.Color{cell.NewColorRGB(200, 200, 200)}}
+	v.proto, v.protoKnown = graphics.ProtocolKitty, true
+	draw := func(cw, ch uint8) *image.RGBA {
+		t.Helper()
+		ctx := rec.ctx(area)
+		ctx.CellPixelW, ctx.CellPixelH = cw, ch
+		v.Draw(ctx, buf)
+		img, ok := rec.img.(*image.RGBA)
+		if !ok {
+			t.Fatalf("registered %T", rec.img)
+		}
+		return img
+	}
+
+	img := draw(10, 22)
+	if img.Rect.Dx() != 200 || img.Rect.Dy() != 220 {
+		t.Fatalf("20×10 cells of 10×22 pixels rendered at %v, want 200×220", img.Rect)
+	}
+	// The sphere is as wide as it is tall: the pixels are square, so a cell
+	// taller than 1:2 does not stretch it.
+	extent := func(n int, at func(i int) color.RGBA) int {
+		lo, hi := -1, -1
+		for i := 0; i < n; i++ {
+			if at(i).A != 0 {
+				if lo < 0 {
+					lo = i
+				}
+				hi = i
+			}
+		}
+		return hi - lo + 1
+	}
+	wide := extent(200, func(x int) color.RGBA { return img.RGBAAt(x, 110) })
+	tall := extent(220, func(y int) color.RGBA { return img.RGBAAt(100, y) })
+	if wide < 50 || tall < 50 || wide-tall > 2 || tall-wide > 2 {
+		t.Errorf("the sphere is %d pixels wide and %d tall", wide, tall)
+	}
+
+	// A new cell size (the font changed) is a new picture, at the new size.
+	first := rec.img
+	if img := draw(16, 32); img == first || img.Rect.Dx() != 320 || img.Rect.Dy() != 320 {
+		t.Errorf("16×32 cells rendered at %v (new picture: %v), want 320×320", img.Rect, img != first)
+	}
+	// A size known in one direction only is not used.
+	if img := draw(16, 0); img.Rect.Dx() != 160 || img.Rect.Dy() != 160 {
+		t.Errorf("a cell 16 pixels wide of unknown height rendered at %v, want the 8×16 fallback", img.Rect)
+	}
+
+	ctx := rec.ctx(area)
+	ctx.CellPixelW, ctx.CellPixelH = 10, 22
+	v.Draw(ctx, buf)
+	if n := testing.AllocsPerRun(10, func() { v.RotY++; v.Draw(ctx, buf) }); n != 0 {
+		t.Errorf("%.0f allocs per moving pixel frame at the terminal's cell size", n)
 	}
 }
 
