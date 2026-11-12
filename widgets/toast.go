@@ -43,6 +43,11 @@ type ToastItem struct {
 }
 
 // ToastManager manages a stack of auto-dismissing toast notifications.
+//
+// Under a frame theme, the cards are drawn on its surface role with the
+// message in muted, and each level's border and badge take the primary,
+// success, warning or error role. Without a theme they keep their own
+// dark colours.
 type ToastManager struct {
 	Toasts        []*ToastItem
 	Position      ToastPosition
@@ -188,19 +193,23 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		borderColor := cell.NewColorRGB(52, 152, 219)
 		badgeBg := cell.NewColorRGB(20, 45, 70)
 		levelText := " ℹ INFO "
+		role := "primary"
 		switch t.Level {
 		case ToastSuccess:
 			borderColor = cell.NewColorRGB(46, 204, 113)
 			badgeBg = cell.NewColorRGB(15, 50, 30)
 			levelText = " ✓ SUCCESS "
+			role = "success"
 		case ToastWarning:
 			borderColor = cell.NewColorRGB(241, 196, 15)
 			badgeBg = cell.NewColorRGB(60, 50, 15)
 			levelText = " ⚠ WARNING "
+			role = "warning"
 		case ToastError:
 			borderColor = cell.NewColorRGB(231, 76, 60)
 			badgeBg = cell.NewColorRGB(65, 20, 20)
 			levelText = " ✕ ERROR "
+			role = "error"
 		}
 
 		toastArea := cell.NewRect(startX, startY, toastWidth, toastHeight)
@@ -208,9 +217,23 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			Bg: cell.NewColorRGB(18, 22, 32),
 			Fg: cell.NewColorRGB(240, 245, 255),
 		}
+		titleFg := cell.NewColorRGB(255, 255, 255)
+		mutedFg := cell.NewColorRGB(160, 175, 195)
+		closeFg := cell.NewColorRGB(160, 170, 185)
+		if ctx.ThemeStyle != nil {
+			bgStyle = bgStyle.Merge(ctx.ThemeStyle("surface"))
+			titleFg = bgStyle.Fg
+			if fg := ctx.ThemeStyle("muted").Fg; fg.Type() != cell.ColorDefault {
+				mutedFg, closeFg = fg, fg
+			}
+			if fg := ctx.ThemeStyle(role).Fg; fg.Type() != cell.ColorDefault {
+				borderColor = fg
+				badgeBg = toastBadgeBg(bgStyle.Bg, fg)
+			}
+		}
 		borderStyle := cell.Style{
 			Fg: borderColor,
-			Bg: cell.NewColorRGB(18, 22, 32),
+			Bg: bgStyle.Bg,
 		}
 
 		// Draw Drop Shadow (ensure within buffer bounds)
@@ -231,16 +254,16 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		buf.SetString(startX+2, startY, levelText, cell.Style{Fg: borderColor, Bg: badgeBg, Modifier: cell.ModifierBold})
 
 		// Close button "[✕]" on top-right
-		closeStyle := cell.Style{Fg: cell.NewColorRGB(160, 170, 185), Bg: bgStyle.Bg}
+		closeStyle := cell.Style{Fg: closeFg, Bg: bgStyle.Bg}
 		buf.SetString(startX+toastWidth-3, startY, "✕", closeStyle)
 
 		// Title Line
-		titleStyle := cell.Style{Fg: cell.NewColorRGB(255, 255, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
+		titleStyle := cell.Style{Fg: titleFg, Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
 		maxTextW := int(toastWidth) - 4
 		setEllipsized(buf, startX+2, startY+1, t.Title, titleStyle, maxTextW, "…")
 
 		// Message Line
-		msgStyle := cell.Style{Fg: cell.NewColorRGB(160, 175, 195), Bg: bgStyle.Bg}
+		msgStyle := cell.Style{Fg: mutedFg, Bg: bgStyle.Bg}
 		setEllipsized(buf, startX+2, startY+2, t.Message, msgStyle, maxTextW, "…")
 
 		// Progress / Remaining Time Indicator on Bottom Border
@@ -275,6 +298,16 @@ func (tm *ToastManager) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			ctx.RegisterClick(toastArea, t.dismiss)
 		}
 	}
+}
+
+// toastBadgeBg tints the card's background with a fifth of the level's
+// colour, as the fixed badge colours do. Only RGB colours blend; a palette
+// colour leaves the badge on the card's background.
+func toastBadgeBg(bg, accent cell.Color) cell.Color {
+	if bg.Type() != cell.ColorRGB || accent.Type() != cell.ColorRGB {
+		return bg
+	}
+	return blendWithColor(bg, accent, 0.2)
 }
 
 // HandleMouse processes mouse clicks on toast notification cards and close buttons.
