@@ -83,6 +83,13 @@ a patch bump (`v0.x.y`) does not.
   An explicit style still wins. A `Sparkline` without a `Color` now draws
   its bars in `Style`'s foreground when it has one, as its comment said;
   before, that foreground was ignored.
+- `BarChart` and `LineChart` draw in the frame's theme (#97). A bar or a
+  series without a colour takes the theme's `primary` role, and a chart
+  without a `LabelStyle` or `AxisStyle` draws its labels and axes in
+  `muted`. A colour or style the user set still wins, and without a theme
+  the charts keep their own cyan and grey. The legend dots of `LineChart`
+  and `PieChart` now sit on the chart's background; under a theme they
+  left a gap in the surface colour.
 
 ### Fixed
 

@@ -10,8 +10,10 @@ import (
 
 // LineDataset holds one line graph series with its color and data points.
 type LineDataset struct {
-	Name  string
-	Data  []float64
+	Name string
+	Data []float64
+	// Color is the series' line and legend dot. When it is unset, they use
+	// the frame theme's primary role.
 	Color cell.Color
 }
 
@@ -26,7 +28,9 @@ type LineChart struct {
 	ShowGrid   bool
 	ShowLegend bool
 	Style      cell.Style
-	AxisStyle  cell.Style
+	// AxisStyle is the axis lines and labels. When it is unset, they use
+	// the frame theme's muted role.
+	AxisStyle cell.Style
 	// Marker picks the characters the lines are drawn with (Braille by default).
 	Marker Marker
 }
@@ -41,7 +45,17 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	baseStyle := ctx.Style.Merge(lc.Style)
 	axisStyle := baseStyle.Merge(lc.AxisStyle)
 	if lc.AxisStyle == (cell.Style{}) {
-		axisStyle = baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(120, 135, 155)})
+		if ctx.ThemeStyle != nil {
+			axisStyle = baseStyle.Merge(ctx.ThemeStyle("muted"))
+		} else {
+			axisStyle = baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(120, 135, 155)})
+		}
+	}
+	// A series without a colour takes the theme's primary role; without a
+	// theme, the legend dot and the line keep their own cyans.
+	var themeColor cell.Color
+	if ctx.ThemeStyle != nil {
+		themeColor = ctx.ThemeStyle("primary").Fg
 	}
 
 	// Calculate Min & Max Y
@@ -93,9 +107,12 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for _, ds := range lc.Datasets {
 			dsColor := ds.Color
 			if dsColor == 0 {
+				dsColor = themeColor
+			}
+			if dsColor == 0 {
 				dsColor = cell.NewColorRGB(0, 200, 255)
 			}
-			dotStyle := cell.Style{Fg: dsColor, Modifier: cell.ModifierBold}
+			dotStyle := baseStyle.Merge(cell.Style{Fg: dsColor, Modifier: cell.ModifierBold})
 			buf.SetString(legendCursor, area.Y, "● ", dotStyle)
 			legendCursor += 2
 			buf.SetString(legendCursor, area.Y, ds.Name+"  ", baseStyle)
@@ -147,6 +164,9 @@ func (lc LineChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 
 		dsColor := ds.Color
+		if dsColor == 0 {
+			dsColor = themeColor
+		}
 		if dsColor == 0 {
 			dsColor = cell.NewColorRGB(0, 220, 255)
 		}
