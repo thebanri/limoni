@@ -90,6 +90,12 @@ a patch bump (`v0.x.y`) does not.
   the charts keep their own cyan and grey. The legend dots of `LineChart`
   and `PieChart` now sit on the chart's background; under a theme they
   left a gap in the surface colour.
+- `Popup` and `StatusBar` draw in the frame's theme (#97). A popup menu's
+  border without a `BorderStyle` takes the theme's `border` role, as
+  `Block` does, and with `Style` unset its selected item takes `focus` and
+  its disabled items `muted`. A status bar's keys without a `KeyStyle` or
+  `Style` take `primary`. An explicit style still wins, and without a
+  theme both draw as before.
 
 ### Fixed
 
