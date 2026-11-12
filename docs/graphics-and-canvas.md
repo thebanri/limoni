@@ -78,7 +78,7 @@ f.RenderWidget(viewer, f.Area())
 
 Every face is fanned into triangles, cut at the near plane rather than dropped when the camera gets close, back-face culled and depth tested, whatever the shading. Drawing does not allocate once the scratch buffers have grown to the model.
 
-With `Pixels`, the model is rendered at 8×16 pixels a cell into an RGBA picture and sent with the terminal's image protocol; without one it falls back to dots. A still model is encoded once. A moving one is encoded every frame, which costs what the protocol costs: about 7 ms and 2.7 MB per frame for a 60×24 area with kitty, measured with `BenchmarkViewer3DPixelsKitty`.
+With `Pixels`, the model is rendered into an RGBA picture at the terminal's cell size in pixels (`cell.Context.CellPixelW` × `CellPixelH`, which `Terminal` fills from the driver; 8×16 a cell where the frame does not know it) and sent with the terminal's image protocol; without one it falls back to dots. Rendered at the cell size, the picture is shown pixel for pixel rather than scaled up, and keeps its proportions on cells that are not 1:2. A still model is encoded once. A moving one is encoded every frame, which costs what the protocol costs: about 7 ms and 2.7 MB per frame for a 60×24 area of 8×16 cells with kitty, measured with `BenchmarkViewer3DPixelsKitty`; larger cells have more pixels to encode and cost more.
 
 ### 3D Render Shading Models
 

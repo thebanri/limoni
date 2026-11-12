@@ -47,8 +47,20 @@ a patch bump (`v0.x.y`) does not.
 - `limoni new -template agent`: a coding agent on the Claude API, inline,
   with streamed replies committed to the scrollback and edits shown as
   diffs to approve; `-demo` runs a scripted agent without a key.
+- `cell.Context.CellPixelW` / `CellPixelH` (and the same on `Frame`): the
+  size of a terminal cell in pixels, which `Terminal` reads from the driver
+  when the window size changes. Zero means unknown. They sit in the padding
+  after `Style`, so `Context` stays at 128 bytes.
 
 ### Changed
+
+- `Viewer3D{Pixels: true}` renders the model at the terminal's cell size in
+  pixels instead of a fixed 8×16, which stays the fallback where the frame
+  does not know it. On a HiDPI screen with 16×32 cells the picture was
+  scaled up and blurry, and on cells that are not 1:2 (10×22) it was
+  stretched; it is now shown pixel for pixel. A change of cell size, as when
+  the font changes, renders a new picture. Still 0 allocs per moving frame
+  in the widget (#58).
 
 - With Kitty's protocol, only the placements that changed are sent. Each
   placement keeps an id tied to its cells; a frame places a new picture
@@ -65,9 +77,17 @@ a patch bump (`v0.x.y`) does not.
   the handshake chose Sixel because Konsole's DA1 reply lists it. Konsole
   supports both since 22.04; Kitty's protocol works better of the two.
   `LIMONI_GRAPHICS` still overrides the choice.
+- `ProgressBar` and `Sparkline` draw in the frame's theme (#97). With their
+  styles unset, a progress bar's filled cells take the theme's `primary`
+  role and its empty cells `muted`, and a sparkline's bars take `primary`.
+  An explicit style still wins. A `Sparkline` without a `Color` now draws
+  its bars in `Style`'s foreground when it has one, as its comment said;
+  before, that foreground was ignored.
 
 ### Fixed
 
+- `ProgressBar` with `ShowPercent` no longer allocates for its label on
+  every frame.
 - Control characters read outside the kitty keyboard protocol are keys, not
   text. Ctrl+Space (NUL) is Space with Ctrl, Ctrl+\ ] ^ _ (and Ctrl+/, which
   most terminals send as Ctrl+_) are those runes with Ctrl, and an ESC prefix

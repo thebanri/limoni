@@ -3,6 +3,7 @@ package terminal
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/thebanri/limoni/animation"
@@ -103,6 +104,9 @@ type Terminal struct {
 	reportVersion uint64
 	// drawn is set once a frame has been written to the terminal.
 	drawn bool
+	// cellPixelW and cellPixelH are a cell's size in pixels for the draw
+	// contexts (see readCellPixels).
+	cellPixelW, cellPixelH uint8
 	// pointerShape is the OSC 22 shape last written; empty is the default.
 	pointerShape string
 	// kittyPushed is set while the kitty keyboard flags pushed by
@@ -154,10 +158,29 @@ func New(b *driver.Backend) (*Terminal, error) {
 		bgOff:    backdropOff(),
 	}
 	t.frame.commit = t.Commit
+	t.readCellPixels()
 	if err := t.recordCastFromEnv(); err != nil {
 		return nil, err
 	}
 	return t, nil
+}
+
+// readCellPixels reads a cell's size in pixels from the driver, for the
+// widgets that render pictures at it. The size follows the font, and a font
+// change changes the rows and columns too, so it is read when they change
+// rather than on every frame. It is the size the pictures are encoded at,
+// fallback included, so a picture rendered at it is shown pixel for pixel.
+func (t *Terminal) readCellPixels() {
+	w, h, _ := t.driver.CellPixelSize()
+	t.cellPixelW, t.cellPixelH = pixelsByte(w), pixelsByte(h)
+}
+
+// pixelsByte fits a cell dimension into the byte cell.Context keeps it in.
+func pixelsByte(px uint16) uint8 {
+	if px > math.MaxUint8 {
+		return math.MaxUint8
+	}
+	return uint8(px)
 }
 
 // RestoreModes undoes what the application changed on the terminal beyond
@@ -462,6 +485,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 		if t.cast != nil {
 			t.cast.resize(w, h)
 		}
+		t.readCellPixels()
 	}
 
 	// Clear the active drawing buffer
@@ -470,6 +494,7 @@ func (t *Terminal) Draw(fn func(f *Frame)) error {
 	t.frame.Reset()
 	t.frame.Hyperlinks = t.caps.Hyperlinks
 	t.frame.ImageProtocol = uint8(t.caps.GraphicsProto)
+	t.frame.CellPixelW, t.frame.CellPixelH = t.cellPixelW, t.cellPixelH
 	if t.frame.FocusManager != nil {
 		t.frame.FocusManager.Clear()
 	}

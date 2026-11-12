@@ -14,7 +14,9 @@ type Sparkline struct {
 	Style cell.Style
 	// FocusedStyle is the style applied when focused.
 	FocusedStyle cell.Style
-	// Color sets the colour of the bars. Default uses the style's foreground colour.
+	// Color sets the colour of the bars. When it is unset, the bars take
+	// Style's foreground, then the frame theme's primary role, then the
+	// foreground the frame draws in.
 	Color cell.Color
 }
 
@@ -61,7 +63,13 @@ func (s Sparkline) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if ctx.IsFocused(s.ID) && s.FocusedStyle.Fg.Type() != cell.ColorDefault {
 		barColor = s.FocusedStyle.Fg
 	} else if barColor.Type() == cell.ColorDefault {
-		barColor = ctx.Style.Fg
+		barColor = s.Style.Fg
+		if barColor.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+			barColor = ctx.ThemeStyle("primary").Fg
+		}
+		if barColor.Type() == cell.ColorDefault {
+			barColor = ctx.Style.Fg
+		}
 	}
 
 	for i, val := range data {
