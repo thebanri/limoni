@@ -88,6 +88,12 @@ a patch bump (`v0.x.y`) does not.
 
 - `ProgressBar` with `ShowPercent` no longer allocates for its label on
   every frame.
+- Control characters read outside the kitty keyboard protocol are keys, not
+  text. Ctrl+Space (NUL) is Space with Ctrl, Ctrl+\ ] ^ _ (and Ctrl+/, which
+  most terminals send as Ctrl+_) are those runes with Ctrl, and an ESC prefix
+  adds Alt to the same key: `ESC DEL` is Alt+Backspace, not the rune DEL. A
+  text input typed NUL and 0x1C–0x1F into its text, and Alt+Backspace never
+  reached a binding for it.
 - `LogView`: with nothing selected, Down (or `j`) selects the first line on
   screen, as Up (or `k`) selects the last. It selected the second line and
   skipped the first.
