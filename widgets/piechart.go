@@ -159,7 +159,7 @@ func (pc PieChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				break
 			}
 
-			dotStyle := cell.Style{Fg: sa.color, Modifier: cell.ModifierBold}
+			dotStyle := baseStyle.Merge(cell.Style{Fg: sa.color, Modifier: cell.ModifierBold})
 			buf.SetString(legendX, ly, "● ", dotStyle)
 
 			text := sa.label

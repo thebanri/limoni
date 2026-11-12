@@ -35,8 +35,12 @@ type BarChart struct {
 	ShowValues     bool
 	ValueFormatter func(val float64) string
 	Style          cell.Style
-	LabelStyle     cell.Style
-	DefaultColor   cell.Color
+	// LabelStyle is the category labels and values. When it is unset, they
+	// use the frame theme's muted role.
+	LabelStyle cell.Style
+	// DefaultColor is the colour of a bar that sets none. When it is unset,
+	// bars use the frame theme's primary role.
+	DefaultColor cell.Color
 }
 
 var verticalBlockSymbols = []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
@@ -51,9 +55,16 @@ func (bc BarChart) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	baseStyle := ctx.Style.Merge(bc.Style)
 	labelStyle := baseStyle.Merge(bc.LabelStyle)
 	if bc.LabelStyle == (cell.Style{}) {
-		labelStyle = baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(180, 190, 205)})
+		if ctx.ThemeStyle != nil {
+			labelStyle = baseStyle.Merge(ctx.ThemeStyle("muted"))
+		} else {
+			labelStyle = baseStyle.Merge(cell.Style{Fg: cell.NewColorRGB(180, 190, 205)})
+		}
 	}
 	defaultColor := bc.DefaultColor
+	if defaultColor == 0 && ctx.ThemeStyle != nil {
+		defaultColor = ctx.ThemeStyle("primary").Fg
+	}
 	if defaultColor == 0 {
 		defaultColor = cell.NewColorRGB(0, 200, 255)
 	}
