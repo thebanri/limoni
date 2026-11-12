@@ -90,9 +90,22 @@ a patch bump (`v0.x.y`) does not.
   the charts keep their own cyan and grey. The legend dots of `LineChart`
   and `PieChart` now sit on the chart's background; under a theme they
   left a gap in the surface colour.
+- `Select` and `Slider` draw in the frame's theme (#97). A focused field
+  or thumb without a `FocusedStyle` takes the theme's `focus` role, as
+  `Button` and the text inputs do, and so does the selected option of an
+  open `Select` without a `SelectedStyle`. A slider's track and filled
+  part without styles take `muted` and `primary`. An explicit style still
+  wins, and without a theme they draw as before.
 
 ### Fixed
 
+- `Slider`: its `Style` and `FocusedStyle` reached the track, the filled
+  part and the thumb only when the frame had no style of its own, so
+  inside a styled block or a themed frame they were dropped and a slider
+  with a `FocusedStyle` showed no focus.
+- `Select`: under a frame style, the option under the mouse lost its
+  highlight; without a `HoverStyle` it now looks selected, as it did
+  without one.
 - `ProgressBar` with `ShowPercent` no longer allocates for its label on
   every frame.
 - `LogView`: with nothing selected, Down (or `j`) selects the first line on

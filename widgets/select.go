@@ -125,13 +125,18 @@ func (s *SelectState) HandleKey(ev driver.KeyEvent, optionCount int) bool {
 
 // Select is a keyboard- and mouse-interactive dropdown field.
 type Select struct {
-	ID            string
-	Options       []string
-	State         *SelectState
-	Style         cell.Style
-	FocusedStyle  cell.Style // unset: reverse bold
-	OptionStyle   cell.Style
+	ID      string
+	Options []string
+	State   *SelectState
+	Style   cell.Style
+	// FocusedStyle unset: the frame theme's focus role when Style is unset
+	// too, and reverse bold otherwise.
+	FocusedStyle cell.Style
+	OptionStyle  cell.Style
+	// SelectedStyle is the selected option in the open list. When it is
+	// unset, it uses the frame theme's focus role.
 	SelectedStyle cell.Style
+	// HoverStyle is the option under the mouse; unset, it looks selected.
 	HoverStyle    cell.Style
 	BorderStyle   cell.Style
 	DisableScroll bool // Turns off changing the option with the mouse wheel
@@ -152,7 +157,11 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	fieldStyle := ctx.Style.Merge(s.Style)
 	if ctx.IsFocused(s.ID) {
-		fieldStyle = fieldStyle.Merge(focusStyle(s.FocusedStyle))
+		focusedStyle := s.FocusedStyle
+		if focusedStyle == (cell.Style{}) && s.Style == (cell.Style{}) && ctx.ThemeStyle != nil {
+			focusedStyle = ctx.ThemeStyle("focus")
+		}
+		fieldStyle = fieldStyle.Merge(focusStyle(focusedStyle))
 	}
 	for x := uint16(0); x < ctx.Area.Width; x++ {
 		px := ctx.Area.X + x
@@ -185,6 +194,9 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	optionStyle := ctx.Style.Merge(s.OptionStyle)
 	selectedStyle := ctx.Style.Merge(s.SelectedStyle)
+	if s.SelectedStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+		selectedStyle = selectedStyle.Merge(ctx.ThemeStyle("focus"))
+	}
 
 	maxVisible := int(ctx.Area.Height) - 1
 	if maxVisible <= 0 {
@@ -215,9 +227,12 @@ func (s Select) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			style = selectedStyle
 		}
 		if i == s.State.Hovered {
-			style = ctx.Style.Merge(s.HoverStyle)
-			if style == (cell.Style{}) {
-				style = selectedStyle
+			// Unset, a hovered option looks selected. Checked on the field:
+			// merged with a frame style, it was never empty, and a hovered
+			// option lost its highlight.
+			style = selectedStyle
+			if s.HoverStyle != (cell.Style{}) {
+				style = ctx.Style.Merge(s.HoverStyle)
 			}
 		}
 
