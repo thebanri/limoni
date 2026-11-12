@@ -90,6 +90,12 @@ a patch bump (`v0.x.y`) does not.
   the charts keep their own cyan and grey. The legend dots of `LineChart`
   and `PieChart` now sit on the chart's background; under a theme they
   left a gap in the surface colour.
+- `ToastManager` draws its cards in the frame's theme (#97): the card on
+  the `surface` role, the message and the close mark in `muted`, and the
+  border, badge and time-left bar of info, success, warning and error
+  toasts in `primary`, `success`, `warning` and `error`. The badge keeps a
+  tint of its colour over the card. Without a theme, toasts keep their own
+  dark colours.
 
 ### Fixed
 
