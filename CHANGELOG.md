@@ -90,9 +90,19 @@ a patch bump (`v0.x.y`) does not.
   the charts keep their own cyan and grey. The legend dots of `LineChart`
   and `PieChart` now sit on the chart's background; under a theme they
   left a gap in the surface colour.
+- `Dialog` draws in the frame's theme (#97). With its styles unset, the
+  body takes the theme's `surface` role, the title and message its text
+  colour and the sub-message `muted`; the border runs from the `border`
+  role to the `focus` colour, which also fills the focused button, and the
+  other buttons sit on the surface tinted towards the border colour. An
+  explicit style still wins, and without a theme the dialog keeps its own
+  dark slate and red-to-magenta border.
 
 ### Fixed
 
+- `Dialog` draws a border in an ANSI colour in that colour. The colour's
+  code was read as RGB channels, so `BorderStyle{Fg: cell.NewColorANSI(2)}`
+  faded from near black to magenta instead of drawing green.
 - `ProgressBar` with `ShowPercent` no longer allocates for its label on
   every frame.
 - `LogView`: with nothing selected, Down (or `j`) selects the first line on

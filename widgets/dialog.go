@@ -22,16 +22,28 @@ type DialogButton struct {
 }
 
 // Dialog is a premium, modern glassmorphism dialog widget with glowing gradient borders and blended shadows.
+//
+// Under a frame theme, the parts whose styles are unset take its roles: the
+// body is drawn on surface with the title and message in its text colour and
+// the sub-message in muted, the border runs from the border role to the focus
+// colour, the buttons sit on the surface tinted towards the border colour, and
+// the focused button is filled with the focus colour. Without a theme the
+// dialog keeps its own dark colours.
 type Dialog struct {
-	ID                 string
-	Title              string
-	Message            string
-	SubMessage         string
-	Buttons            []DialogButton
-	Style              cell.Style
-	HeaderStyle        cell.Style
-	BorderStyle        cell.Style
-	ButtonStyle        cell.Style
+	ID         string
+	Title      string
+	Message    string
+	SubMessage string
+	Buttons    []DialogButton
+	// Style's background fills the body and its foreground draws the
+	// message.
+	Style       cell.Style
+	HeaderStyle cell.Style
+	// BorderStyle's foreground starts the border's gradient.
+	BorderStyle cell.Style
+	ButtonStyle cell.Style
+	// ButtonFocusedStyle draws the focused button; its background also ends
+	// the border's gradient.
 	ButtonFocusedStyle cell.Style
 	BorderSymbols      BorderSymbols
 	Shadow             bool
@@ -126,6 +138,67 @@ func isDialogButtonID(focused, id string, i int) bool {
 	return ok && rest == strconv.Itoa(i)
 }
 
+// dialogPalette is the colours a Dialog draws in where its styles are unset.
+type dialogPalette struct {
+	bg, fg, title, body, sub cell.Color
+	// The border's gradient runs from borderFrom to borderTo.
+	borderFrom, borderTo cell.Color
+	buttonFg, buttonBg   cell.Color
+	// focusBg fills the focused button; unset, it takes the border's colour
+	// halfway along.
+	focusFg, focusBg cell.Color
+}
+
+// dialogDefaultPalette is a dark slate dialog with a red-to-magenta border.
+var dialogDefaultPalette = dialogPalette{
+	bg:         cell.NewColorRGB(18, 20, 24),
+	fg:         cell.NewColorRGB(220, 225, 235),
+	title:      cell.NewColorRGB(255, 255, 255),
+	body:       cell.NewColorRGB(240, 245, 255),
+	sub:        cell.NewColorRGB(140, 145, 160),
+	borderFrom: cell.NewColorRGB(255, 80, 80),
+	borderTo:   cell.NewColorRGB(255, 0, 255),
+	buttonFg:   cell.NewColorRGB(180, 185, 200),
+	buttonBg:   cell.NewColorRGB(35, 40, 50),
+	focusFg:    cell.NewColorRGB(255, 255, 255),
+}
+
+// dialogColors returns the dialog's own colours, or under a frame theme those
+// of its roles. A role without a colour leaves the dialog's own in place.
+func dialogColors(ctx cell.Context) dialogPalette {
+	p := dialogDefaultPalette
+	if ctx.ThemeStyle == nil {
+		return p
+	}
+	surface := ctx.ThemeStyle("surface")
+	p.bg = colorOr(surface.Bg, p.bg)
+	p.fg = colorOr(surface.Fg, p.fg)
+	p.title, p.body, p.buttonFg = p.fg, p.fg, p.fg
+	p.sub = colorOr(ctx.ThemeStyle("muted").Fg, p.sub)
+	p.borderFrom = colorOr(ctx.ThemeStyle("border").Fg, p.borderFrom)
+	if focus := ctx.ThemeStyle("focus").Fg; focus.Type() != cell.ColorDefault {
+		p.borderTo = focus
+		p.focusFg, p.focusBg = p.bg, focus
+	}
+	// Buttons sit on the surface tinted a quarter of the way to the border
+	// colour: enough to stand out, little enough to keep the text's contrast
+	// (a high-contrast theme's white on black). Only RGB colours blend;
+	// others leave the buttons on the surface.
+	p.buttonBg = p.bg
+	if p.bg.Type() == cell.ColorRGB && p.borderFrom.Type() == cell.ColorRGB {
+		p.buttonBg = blendWithColor(p.bg, p.borderFrom, 0.25)
+	}
+	return p
+}
+
+// colorOr is c, or fallback when c is unset.
+func colorOr(c, fallback cell.Color) cell.Color {
+	if c.Type() == cell.ColorDefault {
+		return fallback
+	}
+	return c
+}
+
 // dialogButton is one button's layout for a frame.
 type dialogButton struct {
 	label, id string
@@ -148,15 +221,11 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		DrawShadow(buf, ctx.Area, 2, 1)
 	}
 
-	// 1. GLASSMORPHISM BODY (Solid dark slate background fill strictly within ctx.Area)
-	bgCol := cell.NewColorRGB(18, 20, 24)
-	if di.Style.Bg.Type() != cell.ColorDefault {
-		bgCol = di.Style.Bg
-	}
-	fgCol := cell.NewColorRGB(220, 225, 235)
-	if di.Style.Fg.Type() != cell.ColorDefault {
-		fgCol = di.Style.Fg
-	}
+	pal := dialogColors(ctx)
+
+	// 1. GLASSMORPHISM BODY (Solid background fill strictly within ctx.Area)
+	bgCol := colorOr(di.Style.Bg, pal.bg)
+	fgCol := colorOr(di.Style.Fg, pal.fg)
 	baseStyle := cell.Style{Fg: fgCol, Bg: bgCol}
 
 	// Opaque backdrop for native image protocols (Kitty, Sixel, iTerm2):
@@ -182,14 +251,8 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// 2. GLOWING GRADIENT BORDERS
-	startCol := di.BorderStyle.Fg
-	if startCol.Type() == cell.ColorDefault {
-		startCol = cell.NewColorRGB(255, 80, 80) // Neon Red/Orange
-	}
-	endCol := di.ButtonFocusedStyle.Bg
-	if endCol.Type() == cell.ColorDefault {
-		endCol = cell.NewColorRGB(255, 0, 255) // Neon Magenta
-	}
+	startCol := colorOr(di.BorderStyle.Fg, pal.borderFrom)
+	endCol := colorOr(di.ButtonFocusedStyle.Bg, pal.borderTo)
 
 	sym := di.BorderSymbols
 	if sym.TopLeft == 0 {
@@ -197,6 +260,11 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	getGradientColor := func(factor float64) cell.Color {
+		// Only RGB colours blend: an ANSI colour's RGB channels are not its
+		// colour, so a border with one is drawn in startCol throughout.
+		if startCol.Type() != cell.ColorRGB || endCol.Type() != cell.ColorRGB {
+			return startCol
+		}
 		if factor < 0 {
 			factor = 0
 		} else if factor > 1.0 {
@@ -285,7 +353,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		titleLen := cell.StringWidth(titleText)
 		titleX := x + 1 + uint16((innerW-titleLen)/2)
 		headerTitleStyle := cell.Style{
-			Fg:       cell.NewColorRGB(255, 255, 255),
+			Fg:       pal.title,
 			Bg:       bgCol,
 			Modifier: cell.ModifierBold,
 		}
@@ -306,10 +374,13 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		for dx := uint16(1); dx < boxW-1; dx++ {
 			col := x + dx
 			factor := float64(dx) / float64(boxW)
-			gColor := getGradientColor(factor)
+			sepCol := getGradientColor(factor)
+			if sepCol.Type() == cell.ColorRGB && bgCol.Type() == cell.ColorRGB {
+				sepCol = blendWithColor(sepCol, bgCol, 0.5)
+			}
 			buf.SetCellDirect(col, sepY, cell.Cell{
 				Content: '─',
-				Style:   cell.Style{Fg: blendWithColor(gColor, bgCol, 0.5), Bg: bgCol},
+				Style:   cell.Style{Fg: sepCol, Bg: bgCol},
 			})
 		}
 	}
@@ -368,10 +439,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 			btnW := displayWidth(btnText)
 
-			bStyle := cell.Style{
-				Fg: cell.NewColorRGB(180, 185, 200),
-				Bg: cell.NewColorRGB(35, 40, 50),
-			}
+			bStyle := cell.Style{Fg: pal.buttonFg, Bg: pal.buttonBg}
 			if di.ButtonStyle.Fg.Type() != cell.ColorDefault {
 				bStyle.Fg = di.ButtonStyle.Fg
 			}
@@ -382,11 +450,13 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 				bStyle = btn.Style
 			}
 			if isFocused {
-				factor := 0.5
-				btnGlow := getGradientColor(factor)
+				focusBg := pal.focusBg
+				if focusBg.Type() == cell.ColorDefault {
+					focusBg = getGradientColor(0.5)
+				}
 				bStyle = cell.Style{
-					Fg:       cell.NewColorRGB(255, 255, 255),
-					Bg:       btnGlow,
+					Fg:       pal.focusFg,
+					Bg:       focusBg,
 					Modifier: cell.ModifierBold,
 				}
 				if di.ButtonFocusedStyle.Fg.Type() != cell.ColorDefault {
@@ -463,10 +533,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		return
 	}
 
-	bodyStyle := cell.Style{
-		Fg: cell.NewColorRGB(240, 245, 255),
-		Bg: bgCol,
-	}
+	bodyStyle := cell.Style{Fg: pal.body, Bg: bgCol}
 	if di.Style.Fg.Type() != cell.ColorDefault {
 		bodyStyle.Fg = di.Style.Fg
 	}
@@ -486,7 +553,7 @@ func (di Dialog) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			curY++
 		}
 		subStyle := cell.Style{
-			Fg:       cell.NewColorRGB(140, 145, 160),
+			Fg:       pal.sub,
 			Bg:       bgCol,
 			Modifier: cell.ModifierItalic,
 		}
