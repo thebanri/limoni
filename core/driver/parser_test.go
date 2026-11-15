@@ -94,6 +94,24 @@ func TestParseUTF8AndAsciiControlKeys(t *testing.T) {
 			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: 'z', Ctrl: true}},
 			wantConsumed: 1,
 		},
+		{
+			name:         "Ctrl+Space (NUL) is a key, not text",
+			in:           []byte{0},
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeySpace, Ctrl: true}},
+			wantConsumed: 1,
+		},
+		{
+			name:         "Ctrl+\\ (ASCII 28)",
+			in:           []byte{28},
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: '\\', Ctrl: true}},
+			wantConsumed: 1,
+		},
+		{
+			name:         "Ctrl+_ / Ctrl+/ (ASCII 31)",
+			in:           []byte{31},
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: '_', Ctrl: true}},
+			wantConsumed: 1,
+		},
 	}
 
 	for _, c := range cases {
@@ -389,6 +407,24 @@ func TestParseAltKeyCombinations(t *testing.T) {
 			name:         "Alt+Enter (LF)",
 			in:           []byte("\x1b\n"),
 			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyEnter, Alt: true}},
+			wantConsumed: 2,
+		},
+		{
+			name:         "Alt+Backspace (ESC DEL)",
+			in:           []byte("\x1b\x7f"),
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyBackspace, Alt: true}},
+			wantConsumed: 2,
+		},
+		{
+			name:         "Alt+Ctrl+A (ESC ^A)",
+			in:           []byte("\x1b\x01"),
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyRune, Ch: 'a', Alt: true, Ctrl: true}},
+			wantConsumed: 2,
+		},
+		{
+			name:         "Alt+Esc (ESC ESC)",
+			in:           []byte("\x1b\x1b"),
+			wantEvent:    Event{Type: EventKey, Key: KeyEvent{Type: KeyEsc, Alt: true}},
 			wantConsumed: 2,
 		},
 		{
