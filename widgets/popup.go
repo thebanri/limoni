@@ -133,11 +133,15 @@ type Popup struct {
 	Style cell.Style
 	// ItemStyle sets the normal style of the menu items.
 	ItemStyle cell.Style
-	// SelectedStyle is the style of a menu item under the mouse or selected with the keyboard.
+	// SelectedStyle is the style of a menu item under the mouse or selected
+	// with the keyboard. When it and Style are unset, it uses the frame
+	// theme's focus role.
 	SelectedStyle cell.Style
-	// DisabledStyle is the style of disabled menu items.
+	// DisabledStyle is the style of disabled menu items. When it and Style
+	// are unset, it uses the frame theme's muted role.
 	DisabledStyle cell.Style
-	// BorderStyle sets the style of the menu border.
+	// BorderStyle sets the style of the menu border. When it is unset, the
+	// border uses the frame theme's border role.
 	BorderStyle cell.Style
 	// BorderSymbols sets the menu border symbols.
 	BorderSymbols BorderSymbols
@@ -228,6 +232,9 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Draw the menu border
 	borderStyle := ctx.Style.Merge(p.BorderStyle)
+	if p.BorderStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+		borderStyle = borderStyle.Merge(ctx.ThemeStyle("border"))
+	}
 	sym := p.BorderSymbols
 	if sym.TopLeft == 0 {
 		sym = SymbolsRounded
@@ -262,6 +269,17 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 
+	selectedStyle := menuBgStyle.Merge(p.SelectedStyle)
+	disabledStyle := menuBgStyle.Merge(p.DisabledStyle)
+	if p.Style == (cell.Style{}) && ctx.ThemeStyle != nil {
+		if p.SelectedStyle == (cell.Style{}) {
+			selectedStyle = selectedStyle.Merge(ctx.ThemeStyle("focus"))
+		}
+		if p.DisabledStyle == (cell.Style{}) {
+			disabledStyle = disabledStyle.Merge(ctx.ThemeStyle("muted"))
+		}
+	}
+
 	// Draw the menu items
 	for i, item := range p.Items {
 		itemY := menuY + uint16(i) + 1 // Border allowance
@@ -269,9 +287,9 @@ func (p Popup) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 		itemStyle := menuBgStyle.Merge(p.ItemStyle)
 		if item.Disabled {
-			itemStyle = menuBgStyle.Merge(p.DisabledStyle)
+			itemStyle = disabledStyle
 		} else if isSelected {
-			itemStyle = menuBgStyle.Merge(p.SelectedStyle)
+			itemStyle = selectedStyle
 		}
 
 		// Fill the item background

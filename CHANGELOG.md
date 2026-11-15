@@ -102,6 +102,12 @@ a patch bump (`v0.x.y`) does not.
   open `Select` without a `SelectedStyle`. A slider's track and filled
   part without styles take `muted` and `primary`. An explicit style still
   wins, and without a theme they draw as before.
+- `Popup` and `StatusBar` draw in the frame's theme (#97). A popup menu's
+  border without a `BorderStyle` takes the theme's `border` role, as
+  `Block` does, and with `Style` unset its selected item takes `focus` and
+  its disabled items `muted`. A status bar's keys without a `KeyStyle` or
+  `Style` take `primary`. An explicit style still wins, and without a
+  theme both draw as before.
 
 ### Fixed
 
