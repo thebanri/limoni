@@ -115,6 +115,13 @@ a patch bump (`v0.x.y`) does not.
   other buttons sit on the surface tinted towards the border colour. An
   explicit style still wins, and without a theme the dialog keeps its own
   dark slate and red-to-magenta border.
+- `Calendar` and `Autocomplete` draw in the frame's theme (#97). With a
+  calendar's `Style` unset, the month line and today take the theme's
+  `primary` role and the weekday names `muted`, unless their own styles
+  are set, and the selected day without a `SelectedStyle` is reversed in
+  the `focus` colour. So is an autocomplete's highlighted suggestion
+  without a `SelectedStyle` or `SuggestionStyle`. An explicit style still
+  wins, and without a theme both draw as before.
 
 ### Fixed
 

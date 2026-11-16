@@ -120,6 +120,10 @@ type Calendar struct {
 	// the style over the day, for marking days with events.
 	DayStyle func(day time.Time) (style cell.Style, ok bool)
 
+	// Style is the whole calendar's. Under a frame theme, while it is unset,
+	// the parts whose own styles are unset take the theme's roles: the month
+	// line and today primary, the weekday names muted, and the selected day
+	// the focus colour, reversed.
 	Style         cell.Style
 	HeaderStyle   cell.Style
 	WeekdayStyle  cell.Style
@@ -148,6 +152,24 @@ func (c Calendar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		ctx.RegisterFocus(c.ID)
 	}
 	base := ctx.Style.Merge(c.Style)
+	header, weekday, today, selected := c.HeaderStyle, c.WeekdayStyle, c.TodayStyle, c.SelectedStyle
+	if c.Style == (cell.Style{}) && ctx.ThemeStyle != nil {
+		if header == (cell.Style{}) {
+			header = ctx.ThemeStyle("primary")
+		}
+		if weekday == (cell.Style{}) {
+			weekday = ctx.ThemeStyle("muted")
+		}
+		if today == (cell.Style{}) {
+			today = ctx.ThemeStyle("primary")
+		}
+		if selected == (cell.Style{}) {
+			selected = ctx.ThemeStyle("focus")
+		}
+	}
+	if c.SelectedStyle == (cell.Style{}) {
+		selected = selected.Reverse()
+	}
 	first := c.shownMonth()
 	y := area.Y
 	bottom := area.Y + area.Height
@@ -165,7 +187,7 @@ func (c Calendar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if int(area.Width) > w {
 			x += uint16((min(int(area.Width), 20) - w) / 2)
 		}
-		style := base.Merge(c.HeaderStyle)
+		style := base.Merge(header)
 		x += buf.SetStringWithin(x, y, name, style, area.X+area.Width-x)
 		if x < area.X+area.Width {
 			buf.SetCell(x, y, cell.Cell{Content: ' ', Style: style})
@@ -186,7 +208,7 @@ func (c Calendar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if c.WeekdayNames != nil {
 			names = c.WeekdayNames
 		}
-		style := base.Merge(c.WeekdayStyle)
+		style := base.Merge(weekday)
 		for col := 0; col < 7; col++ {
 			x := area.X + uint16(col*3)
 			if x >= area.X+area.Width {
@@ -222,14 +244,10 @@ func (c Calendar) Draw(ctx cell.Context, buf *buffer.Buffer) {
 			}
 		}
 		if !c.Today.IsZero() && sameDay(date, c.Today) {
-			style = style.Merge(c.TodayStyle)
+			style = style.Merge(today)
 		}
 		if c.State != nil && sameDay(date, c.State.Selected) {
-			sel := c.SelectedStyle
-			if sel == (cell.Style{}) {
-				sel = cell.Style{}.Reverse()
-			}
-			style = style.Merge(sel)
+			style = style.Merge(selected)
 		}
 		tens := ' '
 		if day >= 10 {
