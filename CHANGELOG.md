@@ -108,6 +108,13 @@ a patch bump (`v0.x.y`) does not.
   its disabled items `muted`. A status bar's keys without a `KeyStyle` or
   `Style` take `primary`. An explicit style still wins, and without a
   theme both draw as before.
+- `Dialog` draws in the frame's theme (#97). With its styles unset, the
+  body takes the theme's `surface` role, the title and message its text
+  colour and the sub-message `muted`; the border runs from the `border`
+  role to the `focus` colour, which also fills the focused button, and the
+  other buttons sit on the surface tinted towards the border colour. An
+  explicit style still wins, and without a theme the dialog keeps its own
+  dark slate and red-to-magenta border.
 
 ### Fixed
 
@@ -118,6 +125,9 @@ a patch bump (`v0.x.y`) does not.
 - `Select`: under a frame style, the option under the mouse lost its
   highlight; without a `HoverStyle` it now looks selected, as it did
   without one.
+- `Dialog` draws a border in an ANSI colour in that colour. The colour's
+  code was read as RGB channels, so `BorderStyle{Fg: cell.NewColorANSI(2)}`
+  faded from near black to magenta instead of drawing green.
 - `ProgressBar` with `ShowPercent` no longer allocates for its label on
   every frame.
 - Control characters read outside the kitty keyboard protocol are keys, not
