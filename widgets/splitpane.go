@@ -142,8 +142,13 @@ type SplitPane struct {
 	// (or tall) while the divider moves, as far as the space allows.
 	MinFirst, MinSecond uint16
 
-	DividerStyle        cell.Style
-	FocusedDividerStyle cell.Style // unset: reverse bold
+	// DividerStyle draws the divider. Unset, under a frame theme, it takes
+	// the theme's border role, as a Block's border does.
+	DividerStyle cell.Style
+	// FocusedDividerStyle draws the divider while the pane is focused.
+	// Unset, it is reverse bold; under a frame theme, while DividerStyle is
+	// unset too, it takes the theme's focus role.
+	FocusedDividerStyle cell.Style
 	// DividerRune replaces │ (side by side) or ─ (stacked).
 	DividerRune rune
 }
@@ -197,8 +202,16 @@ func (p SplitPane) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	style := ctx.Style.Merge(p.DividerStyle)
+	themed := p.DividerStyle == (cell.Style{}) && ctx.ThemeStyle != nil
+	if themed {
+		style = style.Merge(ctx.ThemeStyle("border"))
+	}
 	if ctx.IsFocused(p.ID) {
-		style = style.Merge(focusStyle(p.FocusedDividerStyle))
+		focused := p.FocusedDividerStyle
+		if focused == (cell.Style{}) && themed {
+			focused = ctx.ThemeStyle("focus")
+		}
+		style = style.Merge(focusStyle(focused))
 	}
 	glyph := p.DividerRune
 	if glyph == 0 {

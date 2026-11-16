@@ -130,6 +130,15 @@ a patch bump (`v0.x.y`) does not.
   the `focus` colour. So is an autocomplete's highlighted suggestion
   without a `SelectedStyle` or `SuggestionStyle`. An explicit style still
   wins, and without a theme both draw as before.
+- `FilePicker` and `SplitPane` draw in the frame's theme (#97). With a
+  picker's `Style` unset, directories take the theme's `primary` role, the
+  path row and file sizes `muted` (the path `error` after a failed
+  `Load`), unless their own styles are set, and the selected entry without
+  a `SelectedStyle` is reversed in the `focus` colour, its size included.
+  A split pane's divider without a `DividerStyle` takes `border`, as
+  `Block` does, and `focus` while the pane is focused and no
+  `FocusedDividerStyle` is set. An explicit style still wins, and without
+  a theme both draw as before.
 
 ### Fixed
 
