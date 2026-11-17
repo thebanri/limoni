@@ -88,3 +88,36 @@ func TestKeyBeforeRacersExistKeepsSelectionValid(t *testing.T) {
 		t.Errorf("sel = %d with no racers", u.sel)
 	}
 }
+
+// Special keys held with Ctrl or Shift reach the agent as a terminal sends
+// them: x/vt alone sends nothing for them. Shift+Enter is a new line, not
+// the prompt sent.
+func TestModifiedKeysReachTheAgent(t *testing.T) {
+	root, base := newRepo(t)
+	log := filepath.Join(t.TempDir(), "a.log")
+	u := newUI(root, base, "task", []agentDef{fakeAgent("claude", log)})
+	u.wake, u.notify = func() {}, func(string, string) {}
+	term := testkit.NewTerminal(100, 30)
+	term.Draw(func(f *limoni.Frame) { u.frame(f, nil) })
+	defer u.racers[0].stop()
+	time.Sleep(700 * time.Millisecond)
+	u.attached = true
+	for _, k := range []driver.KeyEvent{
+		{Type: driver.KeyArrowLeft, Ctrl: true},
+		{Type: driver.KeyDelete, Ctrl: true},
+		{Type: driver.KeyF5, Shift: true},
+		{Type: driver.KeyBackspace, Ctrl: true},
+		{Type: driver.KeyArrowLeft}, // and a plain key as before
+		{Type: driver.KeyEnter, Shift: true},
+	} {
+		u.key(k)
+	}
+	time.Sleep(500 * time.Millisecond)
+	got, _ := os.ReadFile(log)
+	if want := "\x1b[1;5D\x1b[3;5~\x1b[15;2~\x08\x1b[D\x1b\r"; string(got) != want {
+		t.Errorf("agent got %q, want %q", got, want)
+	}
+	if u.racers[0].typed.Load() == 0 {
+		t.Error("Shift+Enter counted as sending the prompt")
+	}
+}

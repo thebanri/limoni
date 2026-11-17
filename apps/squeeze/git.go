@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // git runs git in dir and returns its output, or an error that carries
@@ -40,10 +41,12 @@ func excludeSqueeze(root string) error {
 	}
 	path := filepath.Join(common, "info", "exclude")
 	data, _ := os.ReadFile(path)
+	missing := map[string]bool{"/.squeeze/": true, "/" + notesDir + "/": true}
 	for _, line := range strings.Split(string(data), "\n") {
-		if strings.TrimSpace(line) == "/.squeeze/" {
-			return nil
-		}
+		delete(missing, strings.TrimSpace(line))
+	}
+	if len(missing) == 0 {
+		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -51,7 +54,12 @@ func excludeSqueeze(root string) error {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		data = append(data, '\n')
 	}
-	return os.WriteFile(path, append(data, "/.squeeze/\n"...), 0o644)
+	for _, p := range []string{"/.squeeze/", "/" + notesDir + "/"} {
+		if missing[p] {
+			data = append(data, p+"\n"...)
+		}
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 // addWorktree makes a worktree at path on a new branch from base.
@@ -153,4 +161,26 @@ func removeBranches(root string) {
 	for _, b := range strings.Fields(out) {
 		_, _ = git(root, "branch", "-D", b)
 	}
+}
+
+// lock keeps a second squeeze out of a repository while one races there: it
+// would take over the worktrees the first one's agents are working in.
+func lock(root string) (unlock func(), err error) {
+	if err := excludeSqueeze(root); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(root, ".squeeze", "pid")
+	if data, err := os.ReadFile(path); err == nil {
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err := syscall.Kill(pid, 0); pid > 0 && (err == nil || errors.Is(err, syscall.EPERM)) {
+			return nil, fmt.Errorf("another squeeze (pid %d) is racing in this repository; quit it first (or remove %s if it is not squeeze)", pid, path)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		return nil, err
+	}
+	return func() { _ = os.Remove(path) }, nil
 }

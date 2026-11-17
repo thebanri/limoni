@@ -16,6 +16,7 @@ type scanState uint8
 const (
 	scGround scanState = iota
 	scEsc              // after ESC
+	scCSI              // inside CSI, until its final byte
 	scOSC              // inside OSC, collecting the payload
 	scOSCEsc           // ESC inside OSC: ST ends it
 	scStr              // DCS/APC/PM/SOS, which BEL does not end
@@ -24,26 +25,57 @@ const (
 
 const maxOSC = 1024 // longer payloads keep their first bytes; only the head is read
 
-// scan feeds output to the signal detector. Called from the read loop only.
-func (r *racer) scan(p []byte) {
+// scan feeds output to the signal detector, and returns it for the emulator
+// without the non-ASCII bytes of OSC payloads: x/vt (x/ansi v0.11.9 too)
+// takes 0x9C inside one as ST, so a UTF-8 title such as Claude Code's
+// "✳ …" (E2 9C B3) ends early and the rest is printed onto the screen.
+// The emulator does nothing with those bytes; the signals were read here.
+// Called from the read loop only; the result is valid until the next call.
+func (r *racer) scan(p []byte) []byte {
+	out := r.clean[:0]
 	for _, c := range p {
+		if r.sc != scOSC || c < 0x80 {
+			out = append(out, c)
+		}
 		r.step(c)
 	}
+	r.clean = out
+	return out
 }
 
 func (r *racer) step(c byte) {
 	switch r.sc {
 	case scGround:
-		switch c {
-		case 0x07:
+		switch {
+		case c == 0x07:
 			r.signal("")
-		case 0x1b:
+		case c == 0x1b:
 			r.sc = scEsc
+		case c > 0x20 && c != 0x7f:
+			r.drew = true
+		}
+	case scCSI:
+		switch {
+		case c >= 0x40 && c <= 0x7e:
+			r.sc = scGround
+			if c == 'h' || c == 'l' {
+				r.decMode(c == 'h')
+			}
+		case c == 0x18, c == 0x1a:
+			r.sc = scGround
+		case c == 0x1b:
+			r.sc = scEsc
+		default:
+			if len(r.csi) < 32 {
+				r.csi = append(r.csi, c)
+			}
 		}
 	case scEsc:
 		switch c {
 		case ']':
 			r.sc, r.osc = scOSC, r.osc[:0]
+		case '[':
+			r.sc, r.csi = scCSI, r.csi[:0]
 		case 'P', '_', '^', 'X':
 			r.sc = scStr
 		case 0x1b:
@@ -83,12 +115,42 @@ func (r *racer) step(c byte) {
 	}
 }
 
+// mouseModes are the DEC modes that turn mouse reporting on: X10, normal,
+// button-event and any-event tracking. x/vt keeps them to itself, so they
+// are followed here, to know whether the wheel belongs to the agent.
+var mouseModes = map[string]uint32{"9": 1, "1000": 2, "1002": 4, "1003": 8}
+
+// decMode notes a CSI ? … h or l that sets or resets mouse modes.
+func (r *racer) decMode(set bool) {
+	params, ok := strings.CutPrefix(string(r.csi), "?")
+	if !ok {
+		return
+	}
+	m := r.mouse.Load()
+	for _, p := range strings.Split(params, ";") {
+		if bit := mouseModes[p]; set {
+			m |= bit
+		} else {
+			m &^= bit
+		}
+	}
+	r.mouse.Store(m)
+}
+
 func (r *racer) endOSC() {
 	r.sc = scGround
 	code, rest, _ := strings.Cut(string(r.osc), ";")
 	switch code {
 	case "9":
-		if !strings.HasPrefix(rest, "4;") { // 9;4 is a progress bar, not a notification
+		switch {
+		case rest == workingMark:
+			r.working()
+		case rest == promptMark:
+			r.working()
+			r.promptSent()
+		case strings.HasPrefix(rest, subMark):
+			r.subEvent(strings.TrimPrefix(rest, subMark))
+		case !strings.HasPrefix(rest, "4;"): // 9;4 is a progress bar, not a notification
 			r.signal(rest)
 		}
 	case "777":
@@ -122,9 +184,41 @@ func (r *racer) signal(text string) {
 	r.asked.Store(true)
 }
 
-// userInput records that the user sent the agent keys or a paste: whatever it
-// asked for is being answered.
-func (r *racer) userInput() {
+// echo is how long after a key the agent's output counts as the key's echo
+// rather than work: typing into a prompt redraws it, and is not the agent
+// working. A var so tests can change it.
+var echo = 300 * time.Millisecond
+
+// userInput records that the user sent the agent a key, a paste or a click.
+// Submitting (Enter) to an agent without hooks answers whatever it asked
+// and sets it working; anything else is typing, whose echo is not work. A
+// hooked agent says itself when it works.
+func (r *racer) userInput(submit bool) {
+	now := time.Now().UnixNano()
+	if !submit || r.hooked {
+		r.typed.Store(now)
+		return
+	}
+	r.typed.Store(0)
+	r.asked.Store(false)
+	r.lastOut.Store(now)
+}
+
+// printed records output that printed something: activity, unless it is
+// the echo of a key. It does not answer an ask: agents redraw while they
+// wait (Claude Code's suggestions, agy's status line).
+func (r *racer) printed() {
+	if now := time.Now().UnixNano(); now-r.typed.Load() >= int64(echo) {
+		r.lastOut.Store(now)
+	}
+}
+
+// workingMark is what squeeze's hooks send, as an OSC 9, when the agent
+// starts working again (see claudeHooks, writeAgyHooks).
+const workingMark = "squeeze:working"
+
+// working records the agent's own word that it is working.
+func (r *racer) working() {
 	r.asked.Store(false)
 	r.lastOut.Store(time.Now().UnixNano())
 }

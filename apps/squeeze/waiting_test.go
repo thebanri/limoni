@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/thebanri/limoni/core/driver"
 )
 
 // fake starts a racer whose agent runs script (sh) and then waits for a line.
@@ -60,8 +62,94 @@ func TestUserInputClearsWaiting(t *testing.T) {
 	if r.state(time.Now()) != waiting {
 		t.Fatal("bell did not make it wait")
 	}
-	r.userInput()
+	r.userInput(true)
 	if r.state(time.Now()) != working || r.ask() != "" {
 		t.Error("input did not clear waiting")
+	}
+}
+
+// The clock counts working time: it stops when the agent waits, from the
+// last thing it printed, and goes on when it works again.
+func TestTheClockStopsWhileWaiting(t *testing.T) {
+	r := fake(t, `printf 'x\007'`)
+	u := newUI(t.TempDir(), "", "task", nil)
+	u.notify, u.wake = func(string, string) {}, func() {}
+	u.racers = []*racer{r}
+	time.Sleep(300 * time.Millisecond)
+	u.stopped(time.Now())
+	first := r.elapsed(time.Now())
+	if first > 200*time.Millisecond {
+		t.Errorf("worked %v, want about the time to print one character", first)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if got := r.elapsed(time.Now()); got != first {
+		t.Errorf("the clock went on while waiting: %v, then %v", first, got)
+	}
+	r.userInput(true)
+	u.stopped(time.Now())
+	time.Sleep(200 * time.Millisecond)
+	if got := r.elapsed(time.Now()); got < first+150*time.Millisecond {
+		t.Errorf("the clock did not go on after input: %v", got)
+	}
+}
+
+// Typing to an agent that waits is not the agent working, though the
+// terminal echoes every key; Enter sets it working.
+func TestTypingIsNotWork(t *testing.T) {
+	r := fake(t, `printf 'x\007'`)
+	time.Sleep(1200 * time.Millisecond) // past the second in which a printed screen is the ask's own
+	for _, ch := range "hello" {
+		k, _ := toEmulator(driver.KeyForRune(ch))
+		r.emu.SendKey(k)
+		r.userInput(false)
+		time.Sleep(50 * time.Millisecond)
+	}
+	time.Sleep(400 * time.Millisecond)
+	if got := r.state(time.Now()); got != waiting {
+		t.Errorf("after typing: %v, want waiting", got)
+	}
+	k, _ := toEmulator(driver.KeyEvent{Type: driver.KeyEnter})
+	r.emu.SendKey(k)
+	r.userInput(true)
+	if got := r.state(time.Now()); got != working {
+		t.Errorf("after Enter: %v, want working", got)
+	}
+}
+
+// Output does not answer an agent that asked for the user: agents redraw
+// while they wait. Its own word that it works again (squeeze's hooks) does.
+func TestOnlyTheAgentsWordEndsAnAsk(t *testing.T) {
+	r := fake(t, `printf 'x\007'; sleep .5; printf 'a suggestion'; sleep .5; printf '\033]9;squeeze:working\007'`)
+	time.Sleep(800 * time.Millisecond)
+	if got := r.state(time.Now()); got != waiting {
+		t.Errorf("after a redraw: %v, want waiting", got)
+	}
+	time.Sleep(600 * time.Millisecond)
+	if got := r.state(time.Now()); got != working {
+		t.Errorf("after the working mark: %v, want working", got)
+	}
+	if r.ask() != "" {
+		t.Errorf("ask = %q after the working mark", r.ask())
+	}
+}
+
+// A hooked agent that waits stays waiting through typing, Enter and clicks
+// (a click into its screen to start typing used to set Claude Code
+// working); its hook's word sets it working.
+func TestAHookedAgentWorksOnlyOnItsWord(t *testing.T) {
+	r := fake(t, `printf 'x\007'; read a; sleep .5; printf '\033]9;squeeze:working\007'`)
+	r.hooked = true
+	time.Sleep(300 * time.Millisecond)
+	for _, submit := range []bool{false, true} {
+		r.userInput(submit)
+		if got := r.state(time.Now()); got != waiting {
+			t.Errorf("after userInput(%v): %v, want waiting", submit, got)
+		}
+	}
+	k, _ := toEmulator(driver.KeyEvent{Type: driver.KeyEnter})
+	r.emu.SendKey(k)
+	time.Sleep(900 * time.Millisecond)
+	if got := r.state(time.Now()); got != working {
+		t.Errorf("after the working mark: %v, want working", got)
 	}
 }

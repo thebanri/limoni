@@ -6,6 +6,8 @@
 //	squeeze                          # write the task, pick the agents
 //	squeeze "add a --json flag"      # race every installed agent on it
 //	squeeze -agents claude,claude,agy "fix the flaky test"
+//	squeeze -check "go test ./..." "fix the flaky test"
+//	squeeze -notes "find the leak"   # the agents share what they learn
 //	squeeze clean                    # remove the worktrees and branches races left
 package main
 
@@ -18,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/thebanri/limoni"
+	"github.com/thebanri/limoni/core/driver"
 )
 
 func main() {
@@ -29,7 +32,9 @@ func main() {
 
 func run(args []string) error {
 	fs := flag.NewFlagSet("squeeze", flag.ContinueOnError)
-	agentList := fs.String("agents", "", "agents to race, comma separated (claude, codex, agy, gemini); default: every one installed")
+	agentList := fs.String("agents", "", "agents to race, comma separated (claude, codex, agy, opencode, gemini; a name twice races two); default: every one installed")
+	notes := fs.Bool("notes", false, "let the agents on a job share notes: each writes "+notesDir+"/<its name>.md in its worktree, and squeeze copies it to the others")
+	checkCmd := fs.String("check", "", "a shell command run in each worktree whenever its agent stops, e.g. \"go test ./...\"; it passes if it exits 0")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -42,6 +47,11 @@ func run(args []string) error {
 		return errors.New("run squeeze inside a git repository: each agent works in a worktree of it")
 	}
 	root = strings.TrimSpace(root)
+	unlock, err := lock(root)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if fs.Arg(0) == "clean" {
 		return clean(root)
 	}
@@ -57,8 +67,17 @@ func run(args []string) error {
 		}
 	}
 	u := newUI(root, strings.TrimSpace(base), strings.Join(fs.Args(), " "), agents)
+	u.check, u.notes = *checkCmd, *notes
+	u.offer(builtins)
+	u.open = func(url string) {
+		if err := openURL(url); err != nil {
+			u.say("Could not open " + url + ": " + err.Error())
+		} else {
+			u.say("Opened " + url)
+		}
+	}
 	if dirty, _ := git(root, "status", "--porcelain", "--untracked-files=no"); strings.TrimSpace(dirty) != "" {
-		u.status = "Your uncommitted changes are not in the agents' worktrees: they start from HEAD."
+		u.say("Your uncommitted changes are not in the agents' worktrees: they start from HEAD.")
 	}
 
 	term, err := limoni.New()
@@ -69,6 +88,7 @@ func run(args []string) error {
 	app := limoni.NewApp(term, limoni.WithCatchCtrlC(true), limoni.WithFPS(2), limoni.WithTitle("squeeze"))
 	u.wake = app.Wakeup
 	u.notify = func(title, body string) { app.Notify(title, body) }
+	u.copy = func(text string) { _ = driver.WriteClipboard(term.Driver(), text) }
 	err = app.Run(context.Background(), u.frame)
 	for _, r := range u.racers {
 		r.stop()
