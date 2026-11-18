@@ -44,6 +44,7 @@ type conPTY struct {
 
 	closeOnce sync.Once
 	codeOnce  sync.Once
+	procOnce  sync.Once
 	code      int
 }
 
@@ -156,9 +157,20 @@ func (t *conPTY) ExitCode() int {
 		} else {
 			t.code = int(code)
 		}
-		_ = windows.CloseHandle(t.proc)
+		t.closeProc()
 	})
 	return t.code
+}
+
+// closeProc closes the child handle once. ExitCode needs it to read the exit
+// status; a scene never calls ExitCode, so its Close releases it instead.
+func (t *conPTY) closeProc() {
+	t.procOnce.Do(func() {
+		if t.proc != 0 {
+			_ = windows.CloseHandle(t.proc)
+			t.proc = 0
+		}
+	})
 }
 
 // Name is the console's name: it has no window, and a wrapper inside another
@@ -240,6 +252,14 @@ func startSceneTTYPlatform(argv, env []string, w, h int) (sceneTTY, error) {
 type windowsSceneTTY struct{ *conPTY }
 
 func (t *windowsSceneTTY) Pause(paused bool) {}
+
+// Close releases the console and the child handle. A scene is never asked for
+// its exit code, so ExitCode cannot be the one to close that handle.
+func (t *windowsSceneTTY) Close() error {
+	err := t.conPTY.Close()
+	t.closeProc()
+	return err
+}
 
 func (t *windowsSceneTTY) Kill() {
 	if t.proc != 0 {

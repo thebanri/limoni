@@ -108,7 +108,9 @@ var procGetConsoleWindow = windows.NewLazySystemDLL("kernel32.dll").NewProc("Get
 // ttyName names the terminal behind f. There is no /proc on Windows; the
 // console window is the terminal's identity instead, and a window opened from
 // inside a wrapper has a console of its own, with a window of its own on
-// screen — unlike the hidden one a pseudo console has.
+// screen - unlike the hidden one a pseudo console has. Windows Terminal and
+// VS Code host every shell in a pseudo console, so all of them get the same
+// name here; the environment variable is what the nested check rests on.
 func ttyName(f *os.File) string {
 	if !isTerminal(f) {
 		return ""

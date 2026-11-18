@@ -150,8 +150,9 @@ func sceneProgramIn(dir, name string) string {
 	return ""
 }
 
-// behind t, if that program changed since the last call: one ioctl when it did
-// not.
+// update renames the wrapper after the foreground program of the terminal
+// behind t, if that program changed since the last call: one ioctl when it
+// did not.
 func (p *procName) update(t shellTTY) {
 	u, ok := t.(*unixTTY)
 	if !ok {
@@ -185,27 +186,20 @@ func (p *procName) setLocked(name string) {
 }
 
 // pauseProcess stops or resumes p and everything it started, so that a scene
-// nobody can see costs nothing.
+// nobody can see costs nothing. The signals come from pty_unix.go, which uses
+// them for the scene's own terminal too.
 func pauseProcess(p *os.Process, paused bool) {
 	if p == nil {
 		return
 	}
-	sig := syscall.SIGSTOP
-	if !paused {
-		sig = syscall.SIGCONT
-	}
-	_ = syscall.Kill(-p.Pid, sig)
+	pausePID(p.Pid, paused)
 }
 
-// terminateProcess asks p and its group to end, and kills them a second later
-// if they are still there. A stopped process acts on SIGTERM only once it runs,
-// hence the SIGCONT.
+// terminateProcess asks p and its group to end. The SIGTERM, SIGCONT and
+// delayed SIGKILL live in pty_unix.go alongside the scene terminal's Kill.
 func terminateProcess(p *os.Process) {
 	if p == nil {
 		return
 	}
-	_ = syscall.Kill(-p.Pid, syscall.SIGTERM)
-	_ = syscall.Kill(-p.Pid, syscall.SIGCONT)
-	pgid := p.Pid
-	time.AfterFunc(time.Second, func() { _ = syscall.Kill(-pgid, syscall.SIGKILL) })
+	terminatePID(p.Pid)
 }

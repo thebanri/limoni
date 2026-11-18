@@ -11,10 +11,17 @@ import (
 )
 
 // tempControlDir keeps each test's sockets out of the real user's runtime
-// directory, on every platform.
+// directory, on every platform. The name is short: controlDir() falls back
+// to the shared temporary directory when XDG_RUNTIME_DIR is too long, and
+// then tests could dial each other's sockets.
 func tempControlDir(t *testing.T) {
 	t.Helper()
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	dir, err := os.MkdirTemp("", "bd-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Setenv("XDG_RUNTIME_DIR", dir)
 }
 
 func TestControlSocketReload(t *testing.T) {

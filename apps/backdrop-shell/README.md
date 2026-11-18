@@ -87,6 +87,8 @@ A few things are different, by necessity:
 - Ending a scene stops the program itself. Ending everything it started would
   need a job object, which this build does not use yet.
 - The terminal tab is not renamed after the foreground program.
+- `clip` reads its input in the console's code page, so non-ASCII text copied
+  from a selection may arrive on the clipboard garbled.
 
 ## Turn it off, turn it on, remove it
 

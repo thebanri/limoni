@@ -231,14 +231,14 @@ func (s *session) wheel(up bool) {
 
 // copySelection puts the selected text on the clipboard.
 //
-// On this machine, it goes through the system's own clipboard tool -
+// On this machine, it goes through the system's own clipboard tool —
 // wl-copy on Wayland, xclip or xsel on X11, pbcopy on macOS, clip on
-// Windows - onto both the clipboard (Ctrl+V) and the primary selection
-// (middle-click elsewhere), as a terminal's own selection does. That works in every terminal and for any
-// length: OSC 52 is ignored by some terminals, and copying fastfetch's
-// output that way failed in Alacritty while it worked in kitty. Over SSH, or
-// with no tool, the text goes to the terminal with OSC 52, the only way it
-// can reach the machine the user sits at.
+// Windows — onto both the clipboard (Ctrl+V) and the primary selection
+// (middle-click elsewhere), as a terminal's own selection does. That works
+// in every terminal and for any length: OSC 52 is ignored by some terminals,
+// and copying fastfetch's output that way failed in Alacritty while it
+// worked in kitty. Over SSH, or with no tool, the text goes to the terminal
+// with OSC 52, the only way it can reach the machine the user sits at.
 func (s *session) copySelection() {
 	text := s.selectedText()
 	if text == "" {

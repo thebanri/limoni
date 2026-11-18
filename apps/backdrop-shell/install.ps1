@@ -43,16 +43,19 @@ if (-not $bindir) { $bindir = Join-Path (& go env GOPATH) 'bin' }
 New-Item -ItemType Directory -Force -Path $bindir | Out-Null
 $bin = Join-Path $bindir 'backdrop-shell.exe'
 
-# This is the Windows port: build the checkout the script lives in. The
-# upstream install target is Unix-only and would not have this code.
+# From a checkout, build what is in it, since the scenes may be newer than
+# the last release. Otherwise install the released app, as install.sh does.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not (Test-Path -LiteralPath (Join-Path $here 'main.go'))) {
-    Fail 'Run this script from a checkout of backdrop-shell that has main.go.'
+if (Test-Path -LiteralPath (Join-Path $here 'main.go')) {
+    Say "Building from $here"
+    Push-Location $here
+    try { & go build -o $bin . } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { Fail 'the build failed' }
+} else {
+    Say 'Installing github.com/thebanri/limoni/apps/backdrop-shell@latest'
+    & go install github.com/thebanri/limoni/apps/backdrop-shell@latest
+    if ($LASTEXITCODE -ne 0) { Fail 'the install failed' }
 }
-Say "Building from $here"
-Push-Location $here
-try { & go build -o $bin . } finally { Pop-Location }
-if ($LASTEXITCODE -ne 0) { Fail 'the build failed' }
 if (-not (Test-Path -LiteralPath $bin)) { Fail "the build finished but $bin is not there" }
 Say "Installed $bin"
 

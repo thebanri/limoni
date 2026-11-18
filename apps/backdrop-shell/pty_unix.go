@@ -112,26 +112,33 @@ func (t *unixSceneTTY) Close() error {
 	return err
 }
 
-func (t *unixSceneTTY) Pause(paused bool) {
-	if t.cmd.Process == nil {
-		return
-	}
+// pausePID stops or resumes the group led by pid. Both the scene terminal
+// here and a live region's process use it, so the signals are in one place.
+func pausePID(pid int, paused bool) {
 	sig := syscall.SIGSTOP
 	if !paused {
 		sig = syscall.SIGCONT
 	}
-	_ = syscall.Kill(-t.cmd.Process.Pid, sig)
+	_ = syscall.Kill(-pid, sig)
 }
 
-// Kill asks the program and its group to end, and kills them a second later if
-// they are still there. A stopped process acts on SIGTERM only once it runs,
+// terminatePID asks the group led by pid to end, and kills it a second later
+// if it is still there. A stopped process acts on SIGTERM only once it runs,
 // hence the SIGCONT.
-func (t *unixSceneTTY) Kill() {
-	if t.cmd.Process == nil {
-		return
-	}
-	pid := t.cmd.Process.Pid
+func terminatePID(pid int) {
 	_ = syscall.Kill(-pid, syscall.SIGTERM)
 	_ = syscall.Kill(-pid, syscall.SIGCONT)
 	time.AfterFunc(time.Second, func() { _ = syscall.Kill(-pid, syscall.SIGKILL) })
+}
+
+func (t *unixSceneTTY) Pause(paused bool) {
+	if t.cmd.Process != nil {
+		pausePID(t.cmd.Process.Pid, paused)
+	}
+}
+
+func (t *unixSceneTTY) Kill() {
+	if t.cmd.Process != nil {
+		terminatePID(t.cmd.Process.Pid)
+	}
 }
