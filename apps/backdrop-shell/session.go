@@ -2,25 +2,19 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"os"
-	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
 	"github.com/thebanri/limoni/backdrop"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
-	"github.com/thebanri/limoni/core/driver"
 	"github.com/thebanri/limoni/core/terminal"
 )
 
@@ -64,7 +58,7 @@ type session struct {
 	caps   terminal.CapabilityProfile
 	scene  terminal.Backdrop
 	start  time.Time
-	ptmx   *os.File
+	tty    shellTTY
 	emu    *vt.Emulator
 	w, h   int
 	cursor struct {
@@ -123,41 +117,35 @@ func run(opts options) (int, error) {
 	}
 	s.w, s.h = windowSize(int(s.out.Fd()))
 
-	state, err := driver.MakeRaw(int(s.in.Fd()))
+	restore, err := makeRaw(s.in, s.out)
 	if err != nil {
 		return 1, err
 	}
-	defer driver.Restore(int(s.in.Fd()), state)
+	defer restore()
 
 	fg, bg, typeahead := terminalColors(s.in, s.out)
 	s.termBg = bg
 	s.scene = fadeInto(opts.backdrop, bg, opts.opacity)
 
-	cmd := exec.Command(opts.argv[0], opts.argv[1:]...)
 	// The shell is told which terminal is the wrapper's: its own. A terminal
 	// window opened from inside it inherits the variable but has a terminal
 	// of its own, and so gets a background of its own.
-	ptmx, tty, err := pty.Open()
+	tty, err := openShellTTY(s.w, s.h)
 	if err != nil {
 		return 1, err
 	}
-	_ = pty.Setsize(ptmx, &pty.Winsize{Cols: uint16(s.w), Rows: uint16(s.h)})
 	exe, _ := os.Executable()
-	cmd.Env = append(withOwnDir(os.Environ(), exe), envNested+"="+tty.Name(), envSocket+"="+controlSocket())
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
-	if err := cmd.Start(); err != nil {
-		ptmx.Close()
+	env := append(withOwnDir(os.Environ(), exe), envNested+"="+tty.Name(), envSocket+"="+controlSocket())
+	if err := tty.Start(opts.argv, env); err != nil {
 		tty.Close()
 		return 1, err
 	}
-	tty.Close()
-	s.ptmx = ptmx
+	s.tty = tty
 	// Named after the shell from the start; the shell's first output, by
 	// when it has surely replaced the forked copy of this process, is when
 	// its own name can be read (procname.go).
 	s.name.set(filepath.Base(opts.argv[0]))
-	defer s.ptmx.Close()
+	defer s.tty.Close()
 
 	s.emu = vt.NewEmulator(s.w, s.h)
 	s.emu.SetScrollbackSize(scrollbackLines)
@@ -194,17 +182,20 @@ func run(opts options) (int, error) {
 	defer s.write("\x1b[?1004l\x1b[?1049l\x1b[0 q\x1b[?25h" + resetForwardedModes())
 
 	output := make(chan []byte, 64)
-	go readPTY(s.ptmx, output)
-	go func() { _, _ = io.Copy(s.ptmx, s.emu) }() // the emulator's answers to the shell's queries
+	go readShell(s.tty, output)
+	go func() { _, _ = io.Copy(s.tty, s.emu) }() // the emulator's answers to the shell's queries
 	inputs := make(chan inputMsg, 16)
 	go s.readInput(inputs)
 	if len(typeahead) > 0 {
-		_, _ = s.ptmx.Write(typeahead)
+		_, _ = s.tty.Write(typeahead)
 	}
 
-	winch := make(chan os.Signal, 1)
-	signal.Notify(winch, syscall.SIGWINCH)
-	defer signal.Stop(winch)
+	// A terminal window changing size reaches Unix as SIGWINCH; Windows has
+	// to poll the console. Both feed the same check in the loop below.
+	resizes := make(chan struct{}, 1)
+	resizeDone := make(chan struct{})
+	defer close(resizeDone)
+	go watchResize(int(s.out.Fd()), resizes, resizeDone)
 
 	// Settings changed while running (backdrop-shell opacity, enable,
 	// reset) arrive here. Without the socket the terminal still works; it
@@ -272,10 +263,10 @@ func run(opts options) (int, error) {
 		select {
 		case data, ok := <-output:
 			if !ok {
-				return exitCode(cmd), nil
+				return s.tty.ExitCode(), nil
 			}
 			s.feed(data, output)
-			s.name.update(s.ptmx)
+			s.name.update(s.tty)
 			if since := time.Since(s.lastFrame); since < minFrame {
 				if settled == nil {
 					settle.Reset(minFrame - since)
@@ -298,7 +289,7 @@ func run(opts options) (int, error) {
 			s.draw()
 		case lc := <-lives:
 			s.connectLive(lc)
-		case <-winch:
+		case <-resizes:
 			s.resize()
 		case <-reloads:
 			s.reload()
@@ -457,7 +448,7 @@ func (s *session) handleInput(msg inputMsg) {
 				if ev.kind == inputFocusOut {
 					report = reportFocusOut
 				}
-				_, _ = s.ptmx.Write(report)
+				_, _ = s.tty.Write(report)
 			}
 		case inputOther:
 			if s.scroll > 0 {
@@ -481,7 +472,7 @@ func (s *session) resize() {
 	// lands on the reflowed screen.
 	s.reflow(w, h)
 	s.w, s.h = w, h
-	_ = pty.Setsize(s.ptmx, &pty.Winsize{Cols: uint16(w), Rows: uint16(h)})
+	_ = s.tty.Resize(w, h)
 	area := cell.NewRect(0, 0, uint16(w), uint16(h))
 	s.app.Resize(area)
 	s.bg.Resize(area)
@@ -659,10 +650,10 @@ func (s *session) readInput(inputs chan<- inputMsg) {
 			}
 			carry = append([]byte(nil), carry...)
 			if len(pass) > 0 {
-				_, _ = s.ptmx.Write(pass)
+				_, _ = s.tty.Write(pass)
 				if bytes.IndexByte(pass, '\r') >= 0 {
 					// A command may be starting; by then it has.
-					time.AfterFunc(150*time.Millisecond, func() { s.name.update(s.ptmx) })
+					time.AfterFunc(150*time.Millisecond, func() { s.name.update(s.tty) })
 				}
 			}
 			if len(events) > 0 {
@@ -675,11 +666,11 @@ func (s *session) readInput(inputs chan<- inputMsg) {
 	}
 }
 
-func readPTY(ptmx *os.File, output chan<- []byte) {
+func readShell(tty shellTTY, output chan<- []byte) {
 	defer close(output)
 	for {
 		buf := make([]byte, 32*1024)
-		n, err := ptmx.Read(buf)
+		n, err := tty.Read(buf)
 		if n > 0 {
 			output <- buf[:n]
 		}
@@ -712,16 +703,4 @@ func resetForwardedModes() string {
 		out += "\x1b[?" + strconv.Itoa(int(m)) + "l"
 	}
 	return out
-}
-
-func exitCode(cmd *exec.Cmd) int {
-	err := cmd.Wait()
-	var ee *exec.ExitError
-	if errors.As(err, &ee) {
-		return ee.ExitCode()
-	}
-	if err != nil {
-		return 1
-	}
-	return 0
 }

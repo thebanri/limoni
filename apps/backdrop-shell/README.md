@@ -58,6 +58,36 @@ The lines hand an interactive shell over to backdrop-shell, which starts the
 same shell again inside it. Scripts, SSH sessions and shells already inside
 are left alone, and if the binary is gone the shell starts as usual.
 
+## Windows
+
+The native build uses ConPTY and needs Windows 10 1809 or newer. From a
+checkout, install it with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Scene city -Opacity 0.3
+```
+
+That builds the binary into Go's bin directory and runs `backdrop-shell enable`.
+You can also build it yourself with `go build -o backdrop-shell.exe .` and run
+`backdrop-shell.exe`. With no command named it starts `pwsh.exe` or
+`powershell.exe`, falling back to `cmd.exe`.
+
+The settings commands (`opacity`, `enable` flags, `reset`, `status`) work, and
+changes reach open terminals through the same socket as on Unix (AF_UNIX,
+available since Windows 10 17063). Copying a selection uses `clip`.
+
+A few things are different, by necessity:
+
+- `enable` and `disable` write fish, bash and zsh start-up files as on Unix,
+  plus PowerShell's `Profile.ps1` for `pwsh` (7) and `powershell` (5.1).
+  cmd.exe has no start-up hook; start `backdrop-shell.exe` from there yourself.
+- A scene (`-scene-cmd`) and a live region keep drawing while the window is out
+  of focus: Windows has no SIGSTOP to pause a program.
+- Ending a scene stops the program itself. Ending everything it started would
+  need a job object, which this build does not use yet.
+- The terminal tab is not renamed after the foreground program.
+
 ## Turn it off, turn it on, remove it
 
 ```bash

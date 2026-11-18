@@ -1,0 +1,10 @@
+# build output: "go build" of the main package writes the binary here
+/backdrop-shell
+/backdrop-shell.exe
+/backdrop-shell-*
+*.test
+
+# editor and OS noise
+.vscode/
+*.swp
+Thumbs.db

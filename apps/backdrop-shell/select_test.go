@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -53,10 +55,18 @@ func testSession(t *testing.T, output string) (*session, *os.File) {
 	// fake clipboard tool of its own.
 	t.Setenv("WAYLAND_DISPLAY", "")
 	t.Setenv("DISPLAY", "")
+	// No clipboard tool either: these tests are about the text a selection
+	// takes, and they read the OSC 52 the wrapper falls back to. A tool in
+	// PATH — clip, on Windows — would take that path instead and copy nothing
+	// they can see.
+	t.Setenv("PATH", t.TempDir())
 	out, err := os.CreateTemp(t.TempDir(), "out")
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Windows cannot delete a file that is still open, and TempDir's cleanup
+	// removes the directory: close it before that runs, as cleanups are LIFO.
+	t.Cleanup(func() { _ = out.Close() })
 	s := &session{
 		w: 30, h: 6, out: out,
 		emu:        vt.NewEmulator(30, 6),
@@ -189,6 +199,9 @@ func TestTheMouseIsHandedToProgramsThatAskForIt(t *testing.T) {
 // terminal, any length — onto the clipboard and the primary selection; over
 // SSH it goes to the terminal as OSC 52.
 func TestCopyGoesThroughTheSystemClipboard(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake clipboard tool is a POSIX shell script; clip itself is exercised on Windows by hand")
+	}
 	dir := t.TempDir()
 	log := dir + "/calls"
 	tool := "#!/bin/sh\nprintf '%s|' \"$*\" >> '" + log + "'\n/bin/cat >> '" + log + "'\necho >> '" + log + "'\n"
@@ -229,7 +242,7 @@ func TestControlSocketFitsWhateverTheRuntimeDirectory(t *testing.T) {
 		t.Fatalf("socket path %d bytes: %s", len(p), p)
 	}
 	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
-	if controlDir() != "/run/user/1000/limoni-backdrop" {
-		t.Fatalf("a short runtime directory was not used: %s", controlDir())
+	if got, want := controlDir(), filepath.Join("/run/user/1000", "limoni-backdrop"); got != want {
+		t.Fatalf("a short runtime directory was not used: %s", got)
 	}
 }

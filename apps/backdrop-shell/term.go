@@ -7,17 +7,7 @@ import (
 	"time"
 
 	"github.com/thebanri/limoni/core/cell"
-	"golang.org/x/sys/unix"
 )
-
-// windowSize is the size of the terminal on fd, in cells.
-func windowSize(fd int) (w, h int) {
-	ws, err := unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
-	if err != nil || ws.Col == 0 || ws.Row == 0 {
-		return 80, 24
-	}
-	return int(ws.Col), int(ws.Row)
-}
 
 // terminalColors asks the terminal for its default foreground and
 // background (OSC 10 and 11), so the scene can fade into the real background
@@ -35,21 +25,15 @@ func terminalColors(in *os.File, out *os.File) (fg, bg cell.Color, rest []byte) 
 	var got []byte
 	buf := make([]byte, 256)
 	deadline := time.Now().Add(300 * time.Millisecond)
-	fd := int(in.Fd())
 	for {
 		wait := time.Until(deadline)
 		if wait <= 0 {
 			break
 		}
-		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
-		n, err := unix.Poll(fds, int(wait/time.Millisecond)+1)
-		if err == unix.EINTR {
-			continue
-		}
-		if err != nil || n == 0 {
+		if !waitReadable(in, wait) {
 			break
 		}
-		r, err := unix.Read(fd, buf)
+		r, err := in.Read(buf)
 		if err != nil || r <= 0 {
 			break
 		}

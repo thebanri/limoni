@@ -1,3 +1,5 @@
+//go:build unix
+
 package main
 
 import (
@@ -40,19 +42,6 @@ func waitFrame(t *testing.T, c *cmdScene, b *buffer.Buffer, y int, want string) 
 		}
 	}
 	t.Fatalf("row %d is %q, want it to start with %q", y, got, want)
-}
-
-func rowText(b *buffer.Buffer, y int) string {
-	w := int(b.Area.Width)
-	var s strings.Builder
-	for _, c := range b.Content[y*w : (y+1)*w] {
-		s.WriteRune(c.Content)
-	}
-	return strings.TrimRight(s.String(), " ")
-}
-
-func newBuf(w, h int) *buffer.Buffer {
-	return buffer.NewBuffer(cell.NewRect(0, 0, uint16(w), uint16(h)))
 }
 
 // The program is told the screen's size, and started again with the new one

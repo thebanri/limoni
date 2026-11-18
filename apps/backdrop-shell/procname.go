@@ -1,52 +1,24 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
-
-	"golang.org/x/sys/unix"
 )
 
 // Terminals that name a tab after the program running in it — Konsole's
 // default title is "%d : %n", the foreground process's directory and name —
 // find the wrapper there, not the shell, and the tab reads "backdrop-shell"
-// whatever runs inside. So the wrapper takes on the name of the program in
-// the foreground of its own terminal, as the kernel reports it in
-// /proc/<pid>/stat: bash at the prompt, htop while htop runs.
+// whatever runs inside. So the wrapper takes on the name of the program in the
+// foreground of its own terminal: bash at the prompt, htop while htop runs.
 //
-// Writing /proc/self/comm renames the main thread, which is the name the
-// process has in stat and ps; prctl(PR_SET_NAME) would rename only whichever
-// thread the goroutine happens to be on. Where there is no /proc (macOS)
-// nothing changes.
-
-// procName follows the foreground process group of the shell's terminal.
-// It is asked on the shell's output, and shortly after Enter, for a command
-// that starts without writing anything (sleep); never on a clock.
+// How the name is read and written is the platform's business: on Unix it is
+// /proc, which Windows does not have (platform_unix.go, platform_windows.go).
+// Where the trick does not apply, nothing changes.
 type procName struct {
 	mu   sync.Mutex
 	pgrp int    // the group last seen, 0 for none yet
 	name string // the name last given, "" for none
-}
-
-// update renames the wrapper after the foreground program of the terminal
-// behind ptmx, if that program changed since the last call: one ioctl when
-// it did not.
-func (p *procName) update(ptmx *os.File) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	pgrp, err := unix.IoctlGetInt(int(ptmx.Fd()), unix.TIOCGPGRP)
-	if err != nil || pgrp <= 0 || pgrp == p.pgrp {
-		return
-	}
-	p.pgrp = pgrp
-	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pgrp) + "/comm")
-	if err != nil {
-		return
-	}
-	p.setLocked(strings.TrimSpace(string(comm)))
 }
 
 // set renames the wrapper, if the name is new.
@@ -54,15 +26,6 @@ func (p *procName) set(name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.setLocked(name)
-}
-
-func (p *procName) setLocked(name string) {
-	if name == "" || name == p.name {
-		return
-	}
-	if os.WriteFile("/proc/self/comm", []byte(name), 0) == nil {
-		p.name = name
-	}
 }
 
 // withOwnDir returns env with the directory of this binary at the end of
