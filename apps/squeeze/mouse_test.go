@@ -283,6 +283,11 @@ func TestOpencodesPluginSignals(t *testing.T) {
 	if err := writeOpencodePlugin(dir); err != nil {
 		t.Fatal(err)
 	}
+	// opencode loads the plugin with Bun, which reads its import syntax in a
+	// .js file; Node before 22.7 (CI's) takes the file for CommonJS unless told.
+	if err := os.WriteFile(filepath.Join(opencodeDir(dir), "package.json"), []byte(`{"type":"module"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	drive := filepath.Join(dir, "drive.mjs")
 	script := `import { Squeeze } from "` + filepath.Join(opencodeDir(dir), "squeeze.js") + `"
 const h = await Squeeze()
