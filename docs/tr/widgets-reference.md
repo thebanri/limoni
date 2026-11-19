@@ -42,7 +42,7 @@ Modal diyaloglar, durum çubukları, etiketler ve metin satırları için geliş
 ```go
 lbl := widgets.NewLabel("OBJ modelini dışa aktarmak için [Ctrl+S]").
     WithStyle(cell.Style{
-        Fg: cell.ColorYellow,
+        Fg: limoni.ColorYellow,
         Bg: cell.NewColorRGB(30, 32, 48),
     })
 
@@ -50,7 +50,7 @@ f.RenderWidget(lbl, area)
 
 // Veya Lego Composable bileşeni olarak:
 badge := limoni.HStack(
-    limoni.Label("Durum: ", limoni.Fg(limoni.ColorGray)),
+    limoni.Label("Durum: ", limoni.Fg(limoni.RGB(140, 145, 160))),
     limoni.Label("HAZIR", limoni.Fg(limoni.ColorGreen).Bold()),
 )
 ```
@@ -58,16 +58,15 @@ badge := limoni.HStack(
 ---
 
 ### `Paragraph`
-Otomatik kelime kaydırma (word wrap), hizalama ve stil desteği sunan metin bloğu. **v0.2.4+** sürümünde arkaplan rengi atandığında tüm sınırlayıcı kutu doldurularak alttaki katmanların aradan sızması önlenir.
+Otomatik kelime kaydırma (word wrap) ve stil desteği sunan metin bloğu. **v0.2.4+** sürümünde arkaplan rengi atandığında tüm sınırlayıcı kutu doldurularak alttaki katmanların aradan sızması önlenir.
 
 ```go
 p := limoni.NewParagraph("Limoni sıfır bellek tahsisiyle 60-240 FPS akıcı hız sunar.").
     WithWrap(true).
     WithStyle(cell.Style{
-        Fg: cell.ColorWhite,
+        Fg: limoni.ColorWhite,
         Bg: cell.NewColorRGB(20, 24, 38),
-    }).
-    WithAlignment(limoni.AlignCenter)
+    })
 
 f.RenderWidget(p, area)
 ```
@@ -102,21 +101,23 @@ if biten != "" {
 ## 2. Listeler & Veri Tabloları
 
 ### `Table`
-Sütun kısıtlamaları, satır seçimi, zebra çizgileri ve ızgara desteği sunan tablo bileşeni.
+Sütun kısıtlamaları, satır seçimi ve ızgara desteği sunan tablo bileşeni.
 
 ```go
+tabloDurumu := limoni.NewTableState() // kareler arasında saklayın: seçim, kaydırma, sütun genişlikleri
+
 table := limoni.NewTable().
     WithHeaders("PID", "PROSES", "CPU %", "BELLEK").
     WithRow("1024", "nginx", "4.2%", "42 MB").
     WithRow("2048", "postgres", "12.8%", "256 MB").
     WithConstraints(
-        limoni.Fixed(8),
-        limoni.Fill(),
-        limoni.Fixed(10),
-        limoni.Fixed(12),
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 8},
+        widgets.TableConstraint{Type: widgets.ConstraintFill},
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 10},
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 12},
     ).
-    WithGrid(true).
-    WithSelected(seciliIndex)
+    WithDrawGrid(true).
+    WithState(tabloDurumu)
 
 f.RenderWidget(table, area)
 ```
@@ -144,9 +145,11 @@ f.RenderWidget(view, area)
 Özelleştirilebilir vurgulama sembolü ve akıcı zincirleme sunan liste bileşeni:
 
 ```go
+listeDurumu := limoni.NewListState() // kareler arasında saklayın; seçili öğe listeDurumu.Selected
+
 list := limoni.NewList("Genel Bakış", "Metrikler", "Ayarlar", "Kayıtlar").
     WithHighlightSymbol("👉 ").
-    WithSelected(seciliIndex).
+    WithState(listeDurumu).
     WithSelectedStyle(limoni.Fg(limoni.Hex("#00FFAA")).Bold())
 
 f.RenderWidget(list, area)
@@ -213,14 +216,13 @@ f.RenderWidget(input, area)
 ---
 
 ### `Checkbox` & `RadioButton`
-Onay kutuları ve grup bazlı radyo butonları:
+Onay kutuları ve grup bazlı radyo butonları. Tıklama, `Checked` alanının gösterdiği `bool` değerini tersine çevirir:
 
 ```go
 cb := widgets.Checkbox{
     ID:      "telemetry_cb",
     Label:   "Telemetri verilerini gönder",
-    Checked: isChecked,
-    OnToggle: func(val bool) { isChecked = val },
+    Checked: &isChecked,
 }
 f.RenderWidget(cb, area)
 ```
@@ -300,7 +302,7 @@ f.RenderWidget(widgets.BigText{Text: "12:04", Size: widgets.BigTextHalfHeight, A
 ## 5. Modallar, Dialoglar ve Katmanlar
 
 ### `Dialog`
-Işıltılı degrade kenarlıklar, gölge, taşınabilir başlık çubuğu ve klavye odak koruması sunan modern pencereler:
+Işıltılı degrade kenarlıklar, gölge ve klavye odak koruması sunan modern pencereler:
 
 ```go
 dialog := widgets.Dialog{

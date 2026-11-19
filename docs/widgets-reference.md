@@ -42,7 +42,7 @@ In **v0.2.4+**, `Label` guarantees solid background coverage: when a background 
 ```go
 lbl := widgets.NewLabel("Press [Ctrl+S] to export OBJ mesh").
     WithStyle(cell.Style{
-        Fg: cell.ColorYellow,
+        Fg: limoni.ColorYellow,
         Bg: cell.NewColorRGB(30, 32, 48),
     })
 
@@ -50,7 +50,7 @@ f.RenderWidget(lbl, area)
 
 // Or as an inline Lego Composable component:
 badge := limoni.HStack(
-    limoni.Label("Status: ", limoni.Fg(limoni.ColorGray)),
+    limoni.Label("Status: ", limoni.Fg(limoni.RGB(140, 145, 160))),
     limoni.Label("READY", limoni.Fg(limoni.ColorGreen).Bold()),
 )
 ```
@@ -58,16 +58,15 @@ badge := limoni.HStack(
 ---
 
 ### `Paragraph`
-Text rendering widget with automatic word wrapping, alignment, and style inheritance. In **v0.2.4+**, setting a background color fills the entire bounding box so underlying modal/window content is reliably occluded.
+Text rendering widget with automatic word wrapping and style inheritance. In **v0.2.4+**, setting a background color fills the entire bounding box so underlying modal/window content is reliably occluded.
 
 ```go
 p := limoni.NewParagraph("Limoni delivers 60-240 FPS zero-allocation rendering.").
     WithWrap(true).
     WithStyle(cell.Style{
-        Fg: cell.ColorWhite,
+        Fg: limoni.ColorWhite,
         Bg: cell.NewColorRGB(20, 24, 38),
-    }).
-    WithAlignment(limoni.AlignCenter)
+    })
 
 f.RenderWidget(p, area)
 ```
@@ -108,11 +107,11 @@ Fine-grained multi-styled formatted text composition:
 ```go
 text := limoni.NewText(
     limoni.NewLine(
-        limoni.NewSpan("Server Status: ").Bold(),
-        limoni.NewSpan("ONLINE").WithStyle(limoni.Fg(limoni.RGB(80, 220, 140)).Bold()),
+        limoni.NewSpan("Server Status: ", limoni.Bold()),
+        limoni.NewSpan("ONLINE", limoni.Fg(limoni.RGB(80, 220, 140)).Bold()),
     ),
     limoni.NewLine(
-        limoni.NewSpan("Latency: 14ms").Dim(),
+        limoni.NewSpan("Latency: 14ms", limoni.Dim()),
     ),
 )
 f.RenderWidget(text, area)
@@ -123,21 +122,23 @@ f.RenderWidget(text, area)
 ## 2. Collections & Data Presentation
 
 ### `Table`
-Structured tabular presentation with column constraints, row selection, zebra striping, and grid lines.
+Structured tabular presentation with column constraints, row selection, and grid lines.
 
 ```go
+tableState := limoni.NewTableState() // keep it across frames: selection, scroll, column widths
+
 table := limoni.NewTable().
     WithHeaders("PID", "NAME", "CPU %", "MEMORY").
     WithRow("1024", "nginx", "4.2%", "42 MB").
     WithRow("2048", "postgres", "12.8%", "256 MB").
     WithConstraints(
-        limoni.Fixed(8),
-        limoni.Fill(),
-        limoni.Fixed(10),
-        limoni.Fixed(12),
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 8},
+        widgets.TableConstraint{Type: widgets.ConstraintFill},
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 10},
+        widgets.TableConstraint{Type: widgets.ConstraintFixed, Value: 12},
     ).
-    WithGrid(true).
-    WithSelected(selectedIndex)
+    WithDrawGrid(true).
+    WithState(tableState)
 
 f.RenderWidget(table, area)
 ```
@@ -165,9 +166,11 @@ f.RenderWidget(view, area)
 Interactive scrollable list with custom highlight symbols and item selection:
 
 ```go
+listState := limoni.NewListState() // keep it across frames; listState.Selected is the selection
+
 list := limoni.NewList("Dashboard", "Analytics", "Settings", "Logs").
     WithHighlightSymbol("👉 ").
-    WithSelected(selectedIndex).
+    WithState(listState).
     WithSelectedStyle(limoni.Fg(limoni.Hex("#00FFAA")).Bold())
 
 f.RenderWidget(list, area)
@@ -179,9 +182,19 @@ f.RenderWidget(list, area)
 Collapsible hierarchical tree with nested nodes, icon symbols, and expand/collapse state:
 
 ```go
-tree := widgets.NewTreeView(rootNode).
-    WithIcons("📁 ", "📄 ").
-    WithSelectedStyle(limoni.Fg(limoni.Hex("#00FFAA")).Bold())
+treeState := widgets.NewTreeViewState() // keep it across frames: selection, scroll, expanded nodes
+
+tree := widgets.TreeView{
+    ID: "files",
+    Roots: []widgets.TreeNode{
+        {ID: "src", Label: "src", Icon: "📁 ", Expanded: true, Children: []widgets.TreeNode{
+            {ID: "src/main.go", Label: "main.go", Icon: "📄 "},
+        }},
+    },
+    State:         treeState,
+    ShowGuides:    true,
+    SelectedStyle: limoni.Fg(limoni.Hex("#00FFAA")).Bold(),
+}
 
 f.RenderWidget(tree, area)
 ```
@@ -223,15 +236,20 @@ High-resolution ASCII and TrueColor charts:
 ```go
 // Bar Chart
 barchart := widgets.BarChart{
-    Data:   []float64{12, 34, 56, 89, 45},
-    Labels: []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
-    Color:  cell.NewColorRGB(0, 210, 255),
+    Data: []widgets.BarData{
+        {Label: "Mon", Value: 12},
+        {Label: "Tue", Value: 34},
+        {Label: "Wed", Value: 56},
+        {Label: "Thu", Value: 89},
+        {Label: "Fri", Value: 45},
+    },
+    DefaultColor: cell.NewColorRGB(0, 210, 255), // for bars without their own Color
 }
 f.RenderWidget(barchart, area)
 
 // Pie Chart
 pie := widgets.PieChart{
-    Slices: []widgets.PieSlice{
+    Data: []widgets.PieSlice{
         {Label: "CPU", Value: 40, Color: cell.NewColorRGB(255, 90, 90)},
         {Label: "RAM", Value: 35, Color: cell.NewColorRGB(80, 220, 140)},
         {Label: "Disk", Value: 25, Color: cell.NewColorRGB(100, 200, 255)},
@@ -292,14 +310,13 @@ f.RenderWidget(input, area)
 ---
 
 ### `Checkbox` & `RadioButton`
-Toggle and mutually exclusive selection controls:
+Toggle and mutually exclusive selection controls. A click flips the `bool` that `Checked` points to:
 
 ```go
 cb := widgets.Checkbox{
     ID:      "telemetry_cb",
     Label:   "Enable OpenTelemetry exports",
-    Checked: isChecked,
-    OnToggle: func(val bool) { isChecked = val },
+    Checked: &isChecked,
 }
 f.RenderWidget(cb, area)
 ```
@@ -379,7 +396,7 @@ f.RenderWidget(widgets.BigText{Text: "12:04", Size: widgets.BigTextHalfHeight, A
 ## 6. Modals, Dialogs & Overlays
 
 ### `Dialog`
-Glassmorphism modal dialog featuring glowing gradient borders, drop shadow, draggable title bar, and keyboard focus routing:
+Glassmorphism modal dialog featuring glowing gradient borders, drop shadow, and keyboard focus routing:
 
 ```go
 dialog := widgets.Dialog{
@@ -409,16 +426,25 @@ f.RenderWidget(dialog, modalArea)
 ---
 
 ### `CommandPalette`
-Fuzzy-search command palette (similar to VSCode / Sublime Text `Ctrl+P`):
+Fuzzy-search command palette (similar to VSCode / Sublime Text `Ctrl+P`). The commands and the query live in a `CommandPaletteState` kept across frames; the palette draws only while the state is open.
 
 ```go
-palette := widgets.CommandPalette{
-    Items: []widgets.CommandItem{
-        {Label: "Git: Commit", Category: "Version Control", Handler: doCommit},
-        {Label: "View: Toggle Fullscreen", Category: "Display", Handler: toggleFull},
-    },
+palette := widgets.NewCommandPaletteState()
+palette.AllItems = []widgets.CommandItem{
+    {Label: "Git: Commit", Category: "Version Control", Handler: doCommit},
+    {Label: "View: Toggle Fullscreen", Detail: "F11", Category: "Display", Handler: toggleFull},
 }
-f.RenderWidget(palette, area)
+
+// in the event handler: Ctrl+P opens it; while it is open, HandleKey filters
+// as the user types, moves with ↑/↓, runs the handler on Enter and closes on Esc
+if ev.Key.Type == driver.KeyRune && ev.Key.Ch == 'p' && ev.Key.Ctrl && !palette.IsOpen {
+    palette.Open()
+} else {
+    palette.HandleKey(ev.Key) // true when the open palette used the key
+}
+
+// in the draw function: give it the whole screen; the panel is placed inside it
+f.RenderWidget(widgets.CommandPalette{ID: "palette", State: palette}, area)
 ```
 
 ---
