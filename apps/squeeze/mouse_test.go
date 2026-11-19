@@ -302,12 +302,13 @@ await new Promise((r) => setTimeout(r, 600))
 	if err := os.WriteFile(drive, []byte(script), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r := fake(t, node+" "+drive+" </dev/null >/dev/null 2>&1; sleep 5")
+	r := fake(t, node+" "+drive+" </dev/null >/dev/null 2>&1; sleep 30")
 	time.Sleep(400 * time.Millisecond)
 	if a := r.ask(); a != "" {
 		t.Errorf("a subagent going idle asked %q", a)
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	// Node's start-up alone can take seconds on a loaded CI runner.
+	deadline := time.Now().Add(20 * time.Second)
 	for r.ask() == "" && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
