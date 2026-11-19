@@ -211,6 +211,13 @@ func NewCommandPalettePosition() *CommandPalettePosition {
 }
 
 // CommandPalette is the command palette overlay widget.
+//
+// Under a frame theme, the parts whose styles are unset take its roles: the
+// panel is drawn on surface with the search box on background, the border and
+// separator take border, the title, the selection marker and the matched
+// letters take primary, and the placeholder, details and result count take
+// muted. The selected row is the surface tinted towards the focus colour.
+// Without a theme the palette keeps its own dark colours.
 type CommandPalette struct {
 	ID            string
 	State         *CommandPaletteState
@@ -226,6 +233,72 @@ type CommandPalette struct {
 	// Placeholder is shown while the query is empty. Empty means
 	// "Search commands...".
 	Placeholder string
+}
+
+// commandPalettePalette is the colours a CommandPalette draws in where its
+// styles are unset.
+type commandPalettePalette struct {
+	bg, fg           cell.Color
+	border, title    cell.Color
+	inputFg, inputBg cell.Color
+	placeholder, sep cell.Color
+	item             cell.Color
+	selFg, selBg     cell.Color
+	detail, count    cell.Color
+	// accent draws the selection marker and the matched letters.
+	accent cell.Color
+}
+
+// commandPaletteDefaultPalette is a dark slate panel with cyan accents.
+var commandPaletteDefaultPalette = commandPalettePalette{
+	bg:          cell.NewColorRGB(30, 30, 40),
+	fg:          cell.NewColorRGB(220, 220, 230),
+	border:      cell.NewColorRGB(100, 200, 255),
+	title:       cell.NewColorRGB(100, 200, 255),
+	inputFg:     cell.NewColorRGB(255, 255, 255),
+	inputBg:     cell.NewColorRGB(50, 50, 65),
+	placeholder: cell.NewColorRGB(120, 120, 140),
+	sep:         cell.NewColorRGB(60, 60, 80),
+	item:        cell.NewColorRGB(200, 200, 210),
+	selFg:       cell.NewColorRGB(255, 255, 255),
+	selBg:       cell.NewColorRGB(50, 100, 200),
+	detail:      cell.NewColorRGB(120, 120, 150),
+	count:       cell.NewColorRGB(80, 80, 100),
+	accent:      cell.NewColorRGB(100, 200, 255),
+}
+
+// commandPaletteColors returns the palette's own colours, or under a frame
+// theme those of its roles. A role without a colour leaves the palette's own
+// in place.
+func commandPaletteColors(ctx cell.Context) commandPalettePalette {
+	p := commandPaletteDefaultPalette
+	if ctx.ThemeStyle == nil {
+		return p
+	}
+	surface := ctx.ThemeStyle("surface")
+	p.bg = colorOr(surface.Bg, p.bg)
+	p.fg = colorOr(surface.Fg, p.fg)
+	p.item, p.inputFg, p.selFg = p.fg, p.fg, p.fg
+	p.inputBg = colorOr(ctx.ThemeStyle("background").Bg, p.inputBg)
+	p.border = colorOr(ctx.ThemeStyle("border").Fg, p.border)
+	p.sep = p.border
+	p.title = colorOr(ctx.ThemeStyle("primary").Fg, p.title)
+	p.accent = p.title
+	muted := ctx.ThemeStyle("muted").Fg
+	p.placeholder = colorOr(muted, p.placeholder)
+	p.detail, p.count = colorOr(muted, p.detail), colorOr(muted, p.count)
+	// The selected row is the surface tinted a quarter of the way to the
+	// focus colour, a bar the accent still shows on. Only RGB colours blend;
+	// otherwise the row is filled with the focus colour, its text in the
+	// surface colour.
+	if focus := ctx.ThemeStyle("focus").Fg; focus.Type() != cell.ColorDefault {
+		if p.bg.Type() == cell.ColorRGB && focus.Type() == cell.ColorRGB {
+			p.selBg = blendWithColor(p.bg, focus, 0.25)
+		} else {
+			p.selFg, p.selBg = p.bg, focus
+		}
+	}
+	return p
 }
 
 func (cp CommandPalette) panelArea(area cell.Rect) cell.Rect {
@@ -320,6 +393,8 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	startX := int(panel.X)
 	startY := int(panel.Y)
 
+	pal := commandPaletteColors(ctx)
+
 	// Shadow effect (on the right and bottom edges)
 	shadowStyle := cell.Style{Bg: cell.NewColorRGB(15, 15, 15), Fg: cell.NewColorRGB(15, 15, 15)}
 	for dy := 1; dy <= paletH; dy++ {
@@ -344,8 +419,8 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Background
 	bgStyle := cp.Style
 	if bgStyle.Bg == 0 {
-		bgStyle.Bg = cell.NewColorRGB(30, 30, 40)
-		bgStyle.Fg = cell.NewColorRGB(220, 220, 230)
+		bgStyle.Bg = pal.bg
+		bgStyle.Fg = pal.fg
 	}
 
 	// To keep native graphics (Kitty/Sixel/iTerm2) in the background from showing through,
@@ -382,7 +457,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	// Top/bottom border (rounded)
-	borderStyle := cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg}
+	borderStyle := cell.Style{Fg: pal.border, Bg: bgStyle.Bg}
 	// Top line
 	if c := buf.Get(uint16(startX), uint16(startY)); c != nil {
 		c.Content = '╭'
@@ -403,7 +478,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	if title == "" {
 		title = " ⌘ Commands "
 	}
-	titleStyle := cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
+	titleStyle := cell.Style{Fg: pal.title, Bg: bgStyle.Bg, Modifier: cell.ModifierBold}
 	setEllipsized(buf, uint16(startX+2), uint16(startY), title, titleStyle, paletW-3, "…")
 
 	// Bottom line
@@ -439,8 +514,8 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	inputY := startY + 1
 	inputStyle := cp.InputStyle
 	if inputStyle.Fg == 0 {
-		inputStyle.Fg = cell.NewColorRGB(255, 255, 255)
-		inputStyle.Bg = cell.NewColorRGB(50, 50, 65)
+		inputStyle.Fg = pal.inputFg
+		inputStyle.Bg = pal.inputBg
 	}
 
 	// Icon: mark the wide character's continuation cell too; otherwise the old frame's
@@ -464,7 +539,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if placeholder == "" {
 			placeholder = "Search commands..."
 		}
-		phStyle := cell.Style{Fg: cell.NewColorRGB(120, 120, 140), Bg: inputStyle.Bg}
+		phStyle := cell.Style{Fg: pal.placeholder, Bg: inputStyle.Bg}
 		setEllipsized(buf, uint16(textX), uint16(inputY), placeholder, phStyle, textW, "…")
 	} else {
 		buf.SetStringWithin(uint16(textX), uint16(inputY), cp.State.Query.Value(), inputStyle, uint16(max(textW, 0)))
@@ -483,7 +558,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	// Separator line (y = startY + 2)
 	sepY := startY + 2
-	sepStyle := cell.Style{Fg: cell.NewColorRGB(60, 60, 80), Bg: bgStyle.Bg}
+	sepStyle := cell.Style{Fg: pal.sep, Bg: bgStyle.Bg}
 	if c := buf.Get(uint16(startX), uint16(sepY)); c != nil {
 		c.Content = '├'
 		c.Style = sepStyle
@@ -502,17 +577,17 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	// Result list (y = startY + 3 ... )
 	itemStyle := cp.ItemStyle
 	if itemStyle.Fg == 0 {
-		itemStyle.Fg = cell.NewColorRGB(200, 200, 210)
+		itemStyle.Fg = pal.item
 		itemStyle.Bg = bgStyle.Bg
 	}
 	selStyle := cp.SelectedStyle
 	if selStyle.Fg == 0 {
-		selStyle.Fg = cell.NewColorRGB(255, 255, 255)
-		selStyle.Bg = cell.NewColorRGB(50, 100, 200)
+		selStyle.Fg = pal.selFg
+		selStyle.Bg = pal.selBg
 	}
 	detailStyle := cp.DetailStyle
 	if detailStyle.Fg == 0 {
-		detailStyle.Fg = cell.NewColorRGB(120, 120, 150)
+		detailStyle.Fg = pal.detail
 		detailStyle.Bg = bgStyle.Bg
 	}
 
@@ -530,6 +605,13 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if isSelected {
 			rowStyle = selStyle
 		}
+		// The accent marks the selection and the matched letters; on a row
+		// filled with the accent colour itself, they take the row's text
+		// colour instead.
+		accent := pal.accent
+		if accent == rowStyle.Bg {
+			accent = rowStyle.Fg
+		}
 
 		// Background
 		for dx := 1; dx < paletW-1; dx++ {
@@ -543,7 +625,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if isSelected {
 			if c := buf.Get(uint16(startX+1), uint16(y)); c != nil {
 				c.Content = '▸'
-				c.Style = cell.Style{Fg: cell.NewColorRGB(100, 200, 255), Bg: rowStyle.Bg}
+				c.Style = cell.Style{Fg: accent, Bg: rowStyle.Bg}
 			}
 		}
 
@@ -551,7 +633,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		labelStart := startX + 3
 		labelLimit := startX + paletW - 1
 		matchStyle := rowStyle
-		matchStyle.Fg = cell.NewColorRGB(100, 200, 255)
+		matchStyle.Fg = accent
 		matchStyle.Modifier = cell.ModifierBold
 		labelEnd := drawHighlighted(buf, labelStart, y, labelLimit, item.Label, cp.State.Query.Value(), rowStyle, matchStyle)
 
@@ -589,7 +671,7 @@ func (cp CommandPalette) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	count = append(count, "  "...)
 	countStart := startX + paletW - 2 - len(count)
 	if countStart > startX+1 {
-		countStyle := cell.Style{Fg: cell.NewColorRGB(80, 80, 100), Bg: bgStyle.Bg}
+		countStyle := cell.Style{Fg: pal.count, Bg: bgStyle.Bg}
 		for i, ch := range count {
 			if c := buf.Get(uint16(countStart+i), uint16(bottomY)); c != nil {
 				c.Content = rune(ch)
