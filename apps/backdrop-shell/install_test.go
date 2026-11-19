@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -71,8 +72,12 @@ func TestHookBlocksAreAddedOnceAndRemovedCleanly(t *testing.T) {
 	if fi, _ := os.Lstat(link); fi.Mode()&os.ModeSymlink == 0 {
 		t.Fatal("the symlink was replaced by a file")
 	}
-	if fi, _ := os.Stat(real); fi.Mode().Perm() != 0o600 {
-		t.Fatalf("permissions changed to %v", fi.Mode().Perm())
+	// Windows has no mode bits: a file's access is its ACL's, and Go reports
+	// 0666 for every writable file there.
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(real); fi.Mode().Perm() != 0o600 {
+			t.Fatalf("permissions changed to %v", fi.Mode().Perm())
+		}
 	}
 	if removed, err := h.remove(); !removed || err != nil {
 		t.Fatalf("remove = %v, %v", removed, err)
@@ -88,6 +93,9 @@ func TestHookBlocksAreAddedOnceAndRemovedCleanly(t *testing.T) {
 // The hooks are run by real shells: an interactive one hands itself over to
 // the binary with the right arguments; one already inside does not.
 func TestHooksHandOverInRealShells(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("these hooks hand a POSIX shell over to the wrapper; Windows gets a profile hook of its own")
+	}
 	dir := t.TempDir()
 	markerFile := filepath.Join(dir, "ran")
 	bin := filepath.Join(dir, "fake-backdrop-shell")

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -161,12 +162,20 @@ func TestLocalScenesAreFoundByName(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("fireflies.py", 0o755)
-	write("cosmos/cosmos", 0o755)
-	write("cosmos/main.go", 0o644)
+	// What counts as a program is the platform's: an extension Windows starts,
+	// a permission bit elsewhere. The scene's name is the file's without it.
+	prog := func(base string) string {
+		if runtime.GOOS == "windows" {
+			return base + ".cmd"
+		}
+		return base
+	}
+	write(prog("fireflies"), 0o755)
+	write(filepath.Join("cosmos", prog("cosmos")), 0o755)
+	write(filepath.Join("cosmos", "main.go"), 0o644)
 	write("notes.txt", 0o644)
 	got := localScenes()
-	want := map[string]string{"fireflies": filepath.Join(dir, "fireflies.py"), "cosmos": filepath.Join(dir, "cosmos", "cosmos")}
+	want := map[string]string{"fireflies": filepath.Join(dir, prog("fireflies")), "cosmos": filepath.Join(dir, "cosmos", prog("cosmos"))}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("localScenes = %v, want %v", got, want)
 	}

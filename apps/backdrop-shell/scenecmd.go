@@ -2,20 +2,16 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"image/color"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
 	"github.com/thebanri/limoni/core/buffer"
 	"github.com/thebanri/limoni/core/cell"
 )
@@ -53,7 +49,8 @@ type cmdScene struct {
 
 	// Owned by the session's goroutine, which calls Render and Pause.
 	w, h   int
-	proc   *os.Process
+	tty    sceneTTY    // the program this scene started, which it owns
+	proc   *os.Process // a live region's program, which the shell started
 	paused bool
 
 	// Shared with the goroutine reading the program's output.
@@ -80,12 +77,11 @@ var frameStarts = [][]byte{[]byte("\x1b[H"), []byte("\x1b[1;1H"), []byte("\x1b[2
 // only when the scene is first drawn, so checking a setting starts nothing.
 func newCmdScene(path string) (*cmdScene, error) {
 	path = expandHome(path)
-	st, err := os.Stat(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		return nil, err
 	}
-	if !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
-		return nil, fmt.Errorf("%s is not an executable file; make it one with: chmod +x %s", path, path)
+	if !isRunnable(path) {
+		return nil, notRunnable(path)
 	}
 	return &cmdScene{path: path, changed: make(chan struct{}, 1), cellOf: sceneCell}, nil
 }
@@ -126,43 +122,35 @@ func (c *cmdScene) start(w, h int) {
 	if w == 0 || h == 0 {
 		return
 	}
-	cmd := exec.Command(c.path)
+	argv := []string{c.path}
 	cols, rows := strconv.Itoa(w), strconv.Itoa(h)
-	cmd.Env = append(withoutEnv(os.Environ(), envNested), "LIMONI_COLS="+cols, "LIMONI_ROWS="+rows)
-	cmd.Stderr = io.Discard
-	// pty gives it a session of its own, so stopping and killing the group
-	// reaches whatever it started too — the sleep in a shell loop, say.
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(w), Rows: uint16(h)})
+	env := append(withoutEnv(os.Environ(), envNested), "LIMONI_COLS="+cols, "LIMONI_ROWS="+rows)
+	// The terminal gives it a session of its own, so stopping and killing the
+	// group reaches whatever it started too — the sleep in a shell loop, say.
+	tty, err := startSceneTTY(argv, env, w, h)
 	if err != nil {
 		return // the scene stays empty; the shell is what matters
 	}
-	c.proc = cmd.Process
+	c.tty = tty
 	if c.paused {
-		c.signal(syscall.SIGSTOP)
+		tty.Pause(true)
 	}
 	go func() {
-		c.read(gen, ptmx, w, h)
-		ptmx.Close()
-		_ = cmd.Wait()
+		c.read(gen, tty, w, h)
+		tty.Close()
 	}()
 }
 
 // stop ends the running program and everything it started: asked first,
 // then killed a second later if it is still there.
 func (c *cmdScene) stop() {
-	if c.proc == nil {
-		return
+	if c.tty != nil {
+		c.tty.Kill()
+		c.tty = nil
 	}
-	c.signal(syscall.SIGTERM)
-	c.signal(syscall.SIGCONT) // a stopped process acts on SIGTERM only once it runs
-	pgid := c.proc.Pid
-	time.AfterFunc(time.Second, func() { _ = syscall.Kill(-pgid, syscall.SIGKILL) })
-	c.proc = nil
-}
-
-func (c *cmdScene) signal(sig syscall.Signal) {
 	if c.proc != nil {
-		_ = syscall.Kill(-c.proc.Pid, sig)
+		terminateProcess(c.proc)
+		c.proc = nil
 	}
 }
 
@@ -173,11 +161,11 @@ func (c *cmdScene) Pause(p bool) {
 		return
 	}
 	c.paused = p
-	if p {
-		c.signal(syscall.SIGSTOP)
-	} else {
-		c.signal(syscall.SIGCONT)
+	if c.tty != nil {
+		c.tty.Pause(p)
+		return
 	}
+	pauseProcess(c.proc, p)
 }
 
 // Close ends the program for good.

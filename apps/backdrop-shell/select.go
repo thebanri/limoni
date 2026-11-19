@@ -218,7 +218,7 @@ func (s *session) wheel(up bool) {
 		if s.childModes[ansi.ModeCursorKeys] {
 			key = "\x1bO" + key[2:]
 		}
-		_, _ = s.ptmx.Write([]byte(strings.Repeat(key, 3)))
+		_, _ = s.tty.Write([]byte(strings.Repeat(key, 3)))
 		return
 	}
 	if up {
@@ -232,13 +232,13 @@ func (s *session) wheel(up bool) {
 // copySelection puts the selected text on the clipboard.
 //
 // On this machine, it goes through the system's own clipboard tool —
-// wl-copy on Wayland, xclip or xsel on X11, pbcopy on macOS — onto both the
-// clipboard (Ctrl+V) and the primary selection (middle-click elsewhere), as
-// a terminal's own selection does. That works in every terminal and for any
-// length: OSC 52 is ignored by some terminals, and copying fastfetch's
-// output that way failed in Alacritty while it worked in kitty. Over SSH, or
-// with no tool, the text goes to the terminal with OSC 52, the only way it
-// can reach the machine the user sits at.
+// wl-copy on Wayland, xclip or xsel on X11, pbcopy on macOS, clip on
+// Windows — onto both the clipboard (Ctrl+V) and the primary selection
+// (middle-click elsewhere), as a terminal's own selection does. That works
+// in every terminal and for any length: OSC 52 is ignored by some terminals,
+// and copying fastfetch's output that way failed in Alacritty while it
+// worked in kitty. Over SSH, or with no tool, the text goes to the terminal
+// with OSC 52, the only way it can reach the machine the user sits at.
 func (s *session) copySelection() {
 	text := s.selectedText()
 	if text == "" {
@@ -252,15 +252,18 @@ func (s *session) copySelection() {
 }
 
 // clipboardTools are the commands that set the clipboard and the primary
-// selection, per display system, in the order they are tried.
+// selection, per display system, in the order they are tried. Windows has no
+// primary selection: clip sets the clipboard and nothing else.
 var clipboardTools = []struct {
 	env                string // the variable that says this display is in use
+	goos               string // the only system the tool exists on, "" for any
 	clipboard, primary []string
 }{
-	{"WAYLAND_DISPLAY", []string{"wl-copy"}, []string{"wl-copy", "--primary"}},
-	{"DISPLAY", []string{"xclip", "-selection", "clipboard"}, []string{"xclip", "-selection", "primary"}},
-	{"DISPLAY", []string{"xsel", "--clipboard", "--input"}, []string{"xsel", "--primary", "--input"}},
-	{"", []string{"pbcopy"}, nil},
+	{"WAYLAND_DISPLAY", "", []string{"wl-copy"}, []string{"wl-copy", "--primary"}},
+	{"DISPLAY", "", []string{"xclip", "-selection", "clipboard"}, []string{"xclip", "-selection", "primary"}},
+	{"DISPLAY", "", []string{"xsel", "--clipboard", "--input"}, []string{"xsel", "--primary", "--input"}},
+	{"", "darwin", []string{"pbcopy"}, nil},
+	{"", "windows", []string{"clip"}, nil},
 }
 
 // copyLocal copies with the first clipboard tool that works here, and
@@ -271,10 +274,10 @@ func copyLocal(text string) bool {
 		return false
 	}
 	for _, t := range clipboardTools {
-		if t.env != "" && os.Getenv(t.env) == "" {
+		if t.goos != "" && runtime.GOOS != t.goos {
 			continue
 		}
-		if t.env == "" && runtime.GOOS != "darwin" {
+		if t.env != "" && os.Getenv(t.env) == "" {
 			continue
 		}
 		if _, err := exec.LookPath(t.clipboard[0]); err != nil {
@@ -310,7 +313,7 @@ func (s *session) paste(text string) {
 	if s.childModes[ansi.ModeBracketedPaste] {
 		text = "\x1b[200~" + text + "\x1b[201~"
 	}
-	_, _ = s.ptmx.Write([]byte(text))
+	_, _ = s.tty.Write([]byte(text))
 }
 
 // clearSelection drops the highlight, as typing does.

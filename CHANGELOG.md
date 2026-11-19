@@ -16,6 +16,14 @@ a patch bump (`v0.x.y`) does not.
 
 ### Added
 
+- `backdrop-shell` now builds and runs natively on Windows: ConPTY for the
+  shell and the scene terminals, console resize polling for window changes,
+  a PowerShell `Profile.ps1` hook for `enable`/`disable`, and `install.ps1`
+  alongside `install.sh`. The Unix path is unchanged. On Windows a scene
+  cannot be paused without SIGSTOP, the terminal tab is not renamed after
+  the foreground program, and ending a scene stops the program itself, not
+  a job object holding everything it started (#133).
+
 - `LogView` draws the ANSI escapes a program printed: SGR colours (16, 256
   and truecolour, in `;` and `:` forms) and attributes are drawn, a reset
   returns to the line's own level style, and every other sequence (cursor

@@ -135,11 +135,11 @@ func hooks() []hook {
 	if zdot == "" {
 		zdot = home
 	}
-	return []hook{
+	return append([]hook{
 		{shell: "fish", file: filepath.Join(configDir(), "fish", "conf.d", "limoni-backdrop.fish"), own: true},
 		{shell: "bash", file: filepath.Join(home, ".bashrc")},
 		{shell: "zsh", file: filepath.Join(zdot, ".zshrc")},
-	}
+	}, platformHooks()...)
 }
 
 // hookText is the hand-over for a shell: an interactive shell that is not
@@ -171,6 +171,22 @@ if [[ -o interactive && ${LIMONI_BACKDROP_SHELL-} != "$(tty 2>/dev/null)" && -z 
     if [[ -o login ]]; then exec ` + q + ` -- zsh -l; else exec ` + q + ` -- zsh; fi
 fi
 ` + blockEnd + "\n"
+	case "pwsh", "powershell":
+		// A profile also runs for scripts, so hand over only in an
+		// interactive session with a real console, and only from the profile
+		// itself: $PSCommandPath names the profile while it is running.
+		// The marker makes the shell the wrapper starts skip its own
+		// profile's hook; otherwise each hand-over would start another one.
+		return blockStart + ` added by "backdrop-shell enable"; "backdrop-shell disable" removes it
+if (-not $Env:LIMONI_BACKDROP_HOOK -and -not $Env:SSH_TTY -and -not $Env:SSH_CONNECTION -and
+    -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected -and
+    ([string]::IsNullOrEmpty($PSCommandPath) -or $PSCommandPath -eq $PROFILE.CurrentUserAllHosts) -and
+    (Test-Path -LiteralPath ` + q + `)) {
+    $Env:LIMONI_BACKDROP_HOOK = '1'
+    & ` + q + ` -- (Get-Command ` + shell + `).Source
+    [Environment]::Exit($LASTEXITCODE)
+}
+` + blockEnd + "\n"
 	}
 	return ""
 }
@@ -201,6 +217,11 @@ func writeInPlace(path, text string) error {
 	mode := fs.FileMode(0o644)
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
+	}
+	// A profile's directory may never have been created: PowerShell keeps
+	// its profiles in Documents, which a new account need not have used.
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
 	tmp := path + ".limoni-tmp"
 	if err := os.WriteFile(tmp, []byte(text), mode); err != nil {
@@ -340,7 +361,7 @@ func cmdEnable(args []string) error {
 	fl.StringVar(&s.Art, "art", s.Art, "a text file of ASCII art instead of a scene")
 	fl.StringVar(&s.SceneCmd, "scene-cmd", s.SceneCmd, "a program that draws the scene, in any language")
 	fl.BoolVar(&s.Select, "select", s.Select, "select and copy with the mouse without the background")
-	shells := fl.String("shells", "", "comma-separated shells to hook (default: fish, bash and zsh, those installed)")
+	shells := fl.String("shells", "", "comma-separated shells to hook (default: fish, bash, zsh, pwsh, powershell, those installed)")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -401,7 +422,7 @@ func cmdEnable(args []string) error {
 		done++
 	}
 	if done == 0 {
-		return errors.New("no shell to hook: none of fish, bash, zsh found (or named with -shells)")
+		return errors.New("no shell to hook: none of fish, bash, zsh, pwsh or powershell found (or named with -shells)")
 	}
 	fmt.Printf("Settings: %s\n", tilde(settingsPath()))
 	reportReload()

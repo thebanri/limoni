@@ -41,16 +41,13 @@ import (
 	"image/color"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/thebanri/limoni/backdrop"
 	"github.com/thebanri/limoni/core/terminal"
-	"golang.org/x/sys/unix"
 )
 
 // envNested names the terminal of a running backdrop-shell, for the shell
@@ -63,21 +60,7 @@ const envNested = "LIMONI_BACKDROP_SHELL"
 // backdrop-shell already.
 func nested() bool {
 	v := os.Getenv(envNested)
-	return v != "" && v == stdinTTY()
-}
-
-// stdinTTY is the name of the terminal on standard input, "" if none.
-func stdinTTY() string {
-	if name, err := os.Readlink("/proc/self/fd/0"); err == nil {
-		return name
-	}
-	cmd := exec.Command("tty")
-	cmd.Stdin = os.Stdin
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	return v != "" && v == ttyName(os.Stdin)
 }
 
 func main() {
@@ -119,11 +102,7 @@ func main() {
 	}
 	opts.argv = flag.Args()
 	if len(opts.argv) == 0 {
-		shell := os.Getenv("SHELL")
-		if shell == "" {
-			shell = "/bin/sh"
-		}
-		opts.argv = []string{shell}
+		opts.argv = defaultShell()
 	}
 
 	// The plain shell wherever a scene cannot or should not be drawn: inside
@@ -203,6 +182,8 @@ func sceneNames() []string {
 // which -scene names like the built-in ones: an executable file there is
 // named without its extension (fireflies.py is "fireflies"), and a folder
 // holding an executable of its own name (cosmos/cosmos) by the folder's.
+// What counts as executable is the platform's: a permission bit on Unix, a
+// PATHEXT extension on Windows (platform_unix.go, platform_windows.go).
 func localScenes() map[string]string {
 	dir := filepath.Join(configDir(), "limoni", "scenes")
 	entries, _ := os.ReadDir(dir)
@@ -210,11 +191,14 @@ func localScenes() map[string]string {
 	for _, e := range entries {
 		name, path := e.Name(), filepath.Join(dir, e.Name())
 		if e.IsDir() {
-			path = filepath.Join(path, name)
-		} else {
-			name = strings.TrimSuffix(name, filepath.Ext(name))
+			if path = sceneProgramIn(path, name); path == "" {
+				continue // a folder with no program of its name is not a scene
+			}
+			found[name] = path
+			continue
 		}
-		if st, err := os.Stat(path); err == nil && st.Mode().IsRegular() && st.Mode().Perm()&0o111 != 0 {
+		name = strings.TrimSuffix(name, filepath.Ext(name))
+		if isRunnable(path) {
 			found[name] = path
 		}
 	}
@@ -280,17 +264,12 @@ func nestedHint(set []*flag.Flag) string {
 }
 
 func execPlain(argv []string) {
-	path, err := exec.LookPath(argv[0])
-	if err == nil {
-		err = syscall.Exec(path, argv, os.Environ())
+	code, err := execProcess(argv)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "backdrop-shell:", err)
+		os.Exit(127)
 	}
-	fmt.Fprintln(os.Stderr, "backdrop-shell:", err)
-	os.Exit(127)
-}
-
-func isTerminal(f *os.File) bool {
-	_, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
-	return err == nil
+	os.Exit(code)
 }
 
 func rgba(r, g, b uint8) color.Color { return color.RGBA{r, g, b, 0xff} }

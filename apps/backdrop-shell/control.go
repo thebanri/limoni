@@ -35,7 +35,7 @@ func controlDir() string {
 	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" && len(d) <= room {
 		return filepath.Join(d, "limoni-backdrop")
 	}
-	return filepath.Join(os.TempDir(), "limoni-backdrop-"+strconv.Itoa(os.Getuid()))
+	return filepath.Join(os.TempDir(), "limoni-backdrop-"+strconv.Itoa(userID()))
 }
 
 // controlSocket is this wrapper's socket.
@@ -51,8 +51,8 @@ func listenControl(reload chan<- struct{}, live chan<- liveConn) (stop func(), e
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	if st, err := os.Stat(dir); err != nil || st.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("%s is open to other users; not listening there", dir)
+	if err := checkPrivateDir(dir); err != nil {
+		return nil, err
 	}
 	path := controlSocket()
 	_ = os.Remove(path) // left by an earlier process with this number
