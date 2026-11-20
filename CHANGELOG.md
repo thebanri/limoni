@@ -62,6 +62,16 @@ a patch bump (`v0.x.y`) does not.
 
 ### Changed
 
+- `FuzzyMatch` scores the best alignment of the query instead of the first
+  one: it tries each position where the first query character occurs and
+  keeps the highest score. The scoring rules are unchanged. For `split`,
+  `widgets/splitpane.go` scored 32 because the match began at the `s` of
+  `widgets`; it now scores 48 and ranks above `apps/pikap/library_test.go`.
+  This changes the order of `FuzzyFilter`, `FuzzyFilterBy`,
+  `FuzzyFilterByFields` and `Autocomplete` results, and the command palette
+  highlights the characters that were scored. Still 0 allocs per frame
+  (#82).
+
 - `Viewer3D{Pixels: true}` renders the model at the terminal's cell size in
   pixels instead of a fixed 8×16, which stays the fallback where the frame
   does not know it. On a HiDPI screen with 16×32 cells the picture was

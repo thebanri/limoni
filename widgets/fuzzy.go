@@ -25,9 +25,10 @@ func FuzzyMatch(query, target string) (score int, matched bool) {
 // offset of the start that scores highest (the earliest one on a tie). It
 // does not allocate, so the draw path can use it to highlight the same
 // characters that were scored.
-// ponytail: O(len(target) x occurrences of the first query rune); a DP over
-// (query index, target index) would also cover gaps later in the query, but
-// the growing consecutive bonus makes its state larger than it is worth here.
+// This costs O(len(target) x occurrences of the first query rune). A DP over
+// (query index, target index) would also choose the best position for the
+// later query characters, but the growing consecutive bonus makes its state
+// larger than it is worth here.
 func fuzzyBest(query, target string) (start, score int, matched bool) {
 	first, _ := utf8.DecodeRuneInString(query)
 	first = unicode.ToLower(first)
