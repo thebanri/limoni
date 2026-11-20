@@ -139,6 +139,14 @@ a patch bump (`v0.x.y`) does not.
   `Block` does, and `focus` while the pane is focused and no
   `FocusedDividerStyle` is set. An explicit style still wins, and without
   a theme both draw as before.
+- `CommandPalette` draws in the frame's theme (#97). With its styles
+  unset, the panel takes the theme's `surface` role and the search box
+  `background`. The border and separator take `border`, as `Block` does.
+  The title, the selection marker and the matched letters take `primary`,
+  and the placeholder, details and result count take `muted`. The
+  selected row is the surface tinted towards the `focus` colour. An
+  explicit style still wins, and without a theme the palette keeps its own
+  dark slate and cyan.
 
 ### Fixed
 
