@@ -265,6 +265,10 @@ type FilePicker struct {
 	HideHeader bool
 	HideSizes  bool
 
+	// Style is the whole picker's. Under a frame theme, while it is unset,
+	// the parts whose own styles are unset take the theme's roles: the path
+	// row muted (error after a failed Load), directories primary, sizes
+	// muted, and the selected entry the focus colour, reversed.
 	Style         cell.Style
 	HeaderStyle   cell.Style
 	DirStyle      cell.Style
@@ -284,6 +288,27 @@ func (fp FilePicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		ctx.RegisterFocus(fp.ID)
 	}
 	base := ctx.Style.Merge(fp.Style)
+	header, dir, sizes, selected, errStyle := fp.HeaderStyle, fp.DirStyle, fp.SizeStyle, fp.SelectedStyle, fp.ErrorStyle
+	if fp.Style == (cell.Style{}) && ctx.ThemeStyle != nil {
+		if header == (cell.Style{}) {
+			header = ctx.ThemeStyle("muted")
+		}
+		if dir == (cell.Style{}) {
+			dir = ctx.ThemeStyle("primary")
+		}
+		if sizes == (cell.Style{}) {
+			sizes = ctx.ThemeStyle("muted")
+		}
+		if selected == (cell.Style{}) {
+			selected = ctx.ThemeStyle("focus")
+		}
+		if errStyle == (cell.Style{}) {
+			errStyle = ctx.ThemeStyle("error")
+		}
+	}
+	if fp.SelectedStyle == (cell.Style{}) {
+		selected = selected.Reverse()
+	}
 	for y := area.Y; y < area.Y+area.Height; y++ {
 		for x := area.X; x < area.X+area.Width; x++ {
 			buf.SetCell(x, y, cell.Cell{Content: ' ', Style: base})
@@ -292,9 +317,9 @@ func (fp FilePicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 
 	y := area.Y
 	if !fp.HideHeader {
-		style := base.Merge(fp.HeaderStyle)
+		style := base.Merge(header)
 		if s.Err != nil {
-			style = base.Merge(fp.ErrorStyle)
+			style = base.Merge(errStyle)
 		}
 		setLeftClipped(buf, area.X, y, s.Dir, style, int(area.Width))
 		y++
@@ -312,16 +337,12 @@ func (fp FilePicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 	s.Offset = max(0, min(s.Offset, len(s.Entries)-rows))
 
-	selected := fp.SelectedStyle
-	if selected == (cell.Style{}) {
-		selected = cell.Style{}.Reverse()
-	}
 	for i := 0; i < rows && s.Offset+i < len(s.Entries); i++ {
 		e := s.Entries[s.Offset+i]
 		row := y + uint16(i)
 		style := base
 		if e.IsDir {
-			style = style.Merge(fp.DirStyle)
+			style = style.Merge(dir)
 		}
 		if s.Offset+i == s.Selected {
 			style = style.Merge(selected)
@@ -349,6 +370,11 @@ func (fp FilePicker) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		if len(size) > 0 && int(area.Width) > len(size) {
 			sx := area.X + area.Width - uint16(len(size))
 			sizeStyle := style.Merge(fp.SizeStyle)
+			if s.Offset+i != s.Selected {
+				// The theme's muted sizes stay off the selected entry, so
+				// its bar is one colour.
+				sizeStyle = style.Merge(sizes)
+			}
 			for j, ch := range size {
 				buf.SetCell(sx+uint16(j), row, cell.Cell{Content: rune(ch), Style: sizeStyle})
 			}
