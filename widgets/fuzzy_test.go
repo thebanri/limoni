@@ -108,3 +108,22 @@ func TestFuzzyFilter_NoResults(t *testing.T) {
 		t.Fatalf("expected 0 results, got %d", len(result))
 	}
 }
+
+// FuzzyMatch scores the best alignment, not the first one: for "split" the
+// match starting at "/splitpane" earns the word-start and consecutive bonuses
+// that the "s" at the end of "widgets" misses (#82).
+func TestFuzzyMatch_BestAlignment(t *testing.T) {
+	// The two splitpane paths tie at 48, so input order breaks the tie.
+	paths := []string{
+		"apps/pikap/library_test.go",
+		"widgets/splitpane.go",
+		"widgets/splitpane_test.go",
+	}
+	got := FuzzyFilterBy("split", paths, func(s string) string { return s })
+	if len(got) != 3 || got[0] != "widgets/splitpane.go" || got[2] != "apps/pikap/library_test.go" {
+		t.Fatalf("ranking = %v, want widgets/splitpane.go first and apps/pikap/library_test.go last", got)
+	}
+	if score, _ := FuzzyMatch("split", "widgets/splitpane.go"); score != 48 {
+		t.Fatalf("widgets/splitpane.go scored %d, want 48", score)
+	}
+}

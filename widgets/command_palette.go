@@ -705,11 +705,16 @@ func drawRune(buf *buffer.Buffer, x, y int, r rune, style cell.Style) int {
 
 // drawHighlighted draws label from x, stopping before limit, and styles the
 // clusters that the query matches as a case-insensitive subsequence — the
-// fuzzy match the palette filters by. It returns the column after the label.
+// same alignment FuzzyMatch scores. It returns the column after the label.
 // It does not allocate; the previous version built a map and lowered both
 // strings for every row on every frame.
 func drawHighlighted(buf *buffer.Buffer, x, y, limit int, label, query string, style, match cell.Style) int {
+	start := 0
+	if query != "" {
+		start, _, _ = fuzzyBest(query, label)
+	}
 	for rest := label; rest != ""; {
+		offset := len(label) - len(rest)
 		cluster, w, next := cell.NextCluster(rest)
 		rest = next
 		if w == 0 {
@@ -719,7 +724,7 @@ func drawHighlighted(buf *buffer.Buffer, x, y, limit int, label, query string, s
 			break
 		}
 		st := style
-		if query != "" {
+		if query != "" && offset >= start {
 			q, qsize := utf8.DecodeRuneInString(query)
 			c, _ := utf8.DecodeRuneInString(cluster)
 			if unicode.ToLower(c) == unicode.ToLower(q) {
