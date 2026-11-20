@@ -372,6 +372,17 @@ func TestDrawHighlightedMarksTheFuzzyMatch(t *testing.T) {
 		}
 	}
 
+	// The highlight follows the alignment FuzzyMatch scores: "/split", not
+	// the "s" at the end of "widgets".
+	buf = buffer.NewBuffer(cell.NewRect(0, 0, 30, 1))
+	drawHighlighted(buf, 0, 0, 30, "widgets/splitpane.go", "split", plain, match)
+	for x := uint16(0); x < 20; x++ {
+		want := x >= 8 && x <= 12
+		if got := buf.Get(x, 0).Style.Modifier&cell.ModifierBold != 0; got != want {
+			t.Errorf("splitpane column %d highlighted = %v, want %v", x, got, want)
+		}
+	}
+
 	buf = buffer.NewBuffer(cell.NewRect(0, 0, 30, 1))
 	drawHighlighted(buf, 0, 0, 30, "any text", "", plain, match)
 	for x := uint16(0); x < 8; x++ {

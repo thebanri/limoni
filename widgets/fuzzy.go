@@ -2,70 +2,98 @@ package widgets
 
 import (
 	"sort"
-	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // FuzzyMatch looks for every character of query, in order, in target, and
 // returns a match score and whether it matched.
 // It is case-insensitive.
 // Consecutive matches earn bonus points (as in VS Code).
+// When the query can match in more than one place, the best-scoring
+// alignment wins (see fuzzyBest).
 func FuzzyMatch(query, target string) (score int, matched bool) {
 	if query == "" {
 		return 0, true
 	}
+	_, score, matched = fuzzyBest(query, target)
+	return score, matched
+}
 
-	queryLower := strings.ToLower(query)
-	targetLower := strings.ToLower(target)
-
-	queryRunes := []rune(queryLower)
-	targetRunes := []rune(targetLower)
-	originalRunes := []rune(target)
-
-	qi := 0 // query index
-	consecutive := 0
-	totalScore := 0
-
-	for ti := 0; ti < len(targetRunes) && qi < len(queryRunes); ti++ {
-		if targetRunes[ti] == queryRunes[qi] {
-			// Base match score
-			points := 1
-
-			// Consecutive match bonus (growing)
-			consecutive++
-			points += consecutive * 2
-
-			// Word start bonus (first character, or after a space/hyphen/underscore)
-			if ti == 0 {
-				points += 10
-			} else {
-				prev := targetRunes[ti-1]
-				if prev == ' ' || prev == '-' || prev == '_' || prev == '/' {
-					points += 8
-				}
-				// CamelCase bonusu
-				if unicode.IsUpper(originalRunes[ti]) && unicode.IsLower(originalRunes[ti-1]) {
-					points += 6
-				}
-			}
-
-			// Exact match bonus (same case)
-			if originalRunes[ti] == []rune(query)[qi] {
-				points += 1
-			}
-
-			totalScore += points
-			qi++
-		} else {
-			consecutive = 0
+// fuzzyBest tries each position of target where the first query character
+// occurs, matches the rest of query greedily from there, and returns the byte
+// offset of the start that scores highest (the earliest one on a tie). It
+// does not allocate, so the draw path can use it to highlight the same
+// characters that were scored.
+// This costs O(len(target) x occurrences of the first query rune). A DP over
+// (query index, target index) would also choose the best position for the
+// later query characters, but the growing consecutive bonus makes its state
+// larger than it is worth here.
+func fuzzyBest(query, target string) (start, score int, matched bool) {
+	first, _ := utf8.DecodeRuneInString(query)
+	first = unicode.ToLower(first)
+	for i, r := range target {
+		if unicode.ToLower(r) != first {
+			continue
+		}
+		s, ok := fuzzyScoreAt(query, target, i)
+		if !ok {
+			// A later start sees a suffix of this one, so it cannot match either.
+			break
+		}
+		if !matched || s > score {
+			start, score, matched = i, s, true
 		}
 	}
+	return start, score, matched
+}
 
-	if qi < len(queryRunes) {
-		return 0, false
+// fuzzyScoreAt scores query against target with the first query character
+// matched at byte offset start of target and the rest matched greedily.
+func fuzzyScoreAt(query, target string, start int) (score int, matched bool) {
+	prev, _ := utf8.DecodeLastRuneInString(target[:start])
+	consecutive := 0
+	for i, orig := range target[start:] {
+		if query == "" {
+			break
+		}
+		ti := start + i
+		q, qsize := utf8.DecodeRuneInString(query)
+		if unicode.ToLower(orig) != unicode.ToLower(q) {
+			consecutive = 0
+			prev = orig
+			continue
+		}
+		// Base match score
+		points := 1
+
+		// Consecutive match bonus (growing)
+		consecutive++
+		points += consecutive * 2
+
+		// Word start bonus (first character, or after a space/hyphen/underscore/slash)
+		if ti == 0 {
+			points += 10
+		} else {
+			if prev == ' ' || prev == '-' || prev == '_' || prev == '/' {
+				points += 8
+			}
+			// CamelCase bonus
+			if unicode.IsUpper(orig) && unicode.IsLower(prev) {
+				points += 6
+			}
+		}
+
+		// Exact match bonus (same case)
+		if orig == q {
+			points += 1
+		}
+
+		score += points
+		query = query[qsize:]
+		prev = orig
 	}
-
-	return totalScore, true
+	return score, query == ""
 }
 
 // FuzzyFilterBy filters arbitrary values using their searchable text.
