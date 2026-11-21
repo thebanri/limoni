@@ -44,6 +44,9 @@ v1.0 şu koşullar sağlanınca etiketlenecek:
    geliştirilmekte olan işletim sistemi [residual](https://git.merith.xyz/residual/)
    ekranlarını `uitest` ile test ediyor. Geri bildirimi `uitest`'e
    `ToHaveStyle`'ı getirdi; turun geri kalanı açık.
+   [RogerAI](https://rogerai.fm), roger CLI'ının Edge filo ve sağlık
+   ekranlarını Limoni ile çiziyor ve 51 testte `uitest.Run` ile test ediyor;
+   v0.9.2'den v0.16.0'a yükseltmesi hiçbir kod değişikliği gerektirmedi.
 
 v1.0'dan sonra kırıcı değişiklikler, Go modüllerinin gerektirdiği gibi yeni bir
 major sürüm (`/v2`) ister.

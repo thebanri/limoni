@@ -40,6 +40,9 @@ v1.0 will be tagged when:
    work-in-progress OS whose terminal tools were ported from Bubble Tea in
    October 2026, tests its screens with `uitest`. Its feedback gave `uitest`
    `ToHaveStyle`; the rest of that round is still open.
+   [RogerAI](https://rogerai.fm) draws the Edge fleet and health screens of
+   its roger CLI with Limoni and tests them with `uitest.Run` in 51 tests;
+   its upgrade from v0.9.2 to v0.16.0 needed no code changes.
 
 After v1.0, breaking changes need a new major version (`/v2`), as Go modules require.
 
