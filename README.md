@@ -314,6 +314,7 @@ pikap ~/Music    # or play files
   from-scratch Go userspace.
 - [**TuiSense**](https://github.com/Phobby/TuiSense) — controller management and diagnostics in the
   terminal (DualSense first), with a rotating 3D controller.
+- [**RogerAI**](https://rogerai.fm) — the Edge fleet and health screens in the roger CLI.
 
 ---
 

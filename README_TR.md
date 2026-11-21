@@ -298,6 +298,7 @@ pikap ~/Music    # ya da dosyaları çal
   Alpine tabanlı, geliştirilmekte olan bir işletim sistemi.
 - [**TuiSense**](https://github.com/Phobby/TuiSense) — terminalde oyun kolu yönetimi ve tanılama
   (önce DualSense), dönen bir 3D kol ile.
+- [**RogerAI**](https://rogerai.fm) — roger CLI'daki Edge filo ve sağlık ekranları.
 
 ---
 
