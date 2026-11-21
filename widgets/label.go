@@ -9,6 +9,7 @@ import (
 )
 
 // Label is a lightweight stateless widget for rendering single- or multi-line text.
+// When Style sets no foreground colour, the text takes the frame theme's text role.
 type Label struct {
 	Text  string
 	Style cell.Style
@@ -33,16 +34,21 @@ func (l Label) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	mergedStyle := ctx.Style.Merge(l.Style)
+	// A text colour the user left unset follows the frame theme.
+	if l.Style.Fg.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+		mergedStyle = ctx.Style.Merge(ctx.ThemeStyle("text")).Merge(l.Style)
+	}
 	bg := mergedStyle.Bg
 	if bg.Type() == cell.ColorDefault && ctx.Style.Bg.Type() != cell.ColorDefault {
 		bg = ctx.Style.Bg
 	}
 
-	lines := strings.Split(l.Text, "\n")
-	for i, line := range lines {
-		if uint16(i) >= area.Height {
-			break
-		}
+	// Walk the lines in place: strings.Split would allocate on every frame.
+	rest, n := l.Text, 0
+	for more := true; more && uint16(n) < area.Height; n++ {
+		var line string
+		line, rest, more = strings.Cut(rest, "\n")
+		i := n
 		currY := area.Y + uint16(i)
 		written := buf.SetStringWithin(area.X, currY, line, mergedStyle, area.Width)
 		if bg.Type() != cell.ColorDefault {
@@ -55,7 +61,7 @@ func (l Label) Draw(ctx cell.Context, buf *buffer.Buffer) {
 		}
 	}
 	if bg.Type() != cell.ColorDefault {
-		for i := len(lines); uint16(i) < area.Height; i++ {
+		for i := n; uint16(i) < area.Height; i++ {
 			currY := area.Y + uint16(i)
 			for x := area.X; x < area.X+area.Width; x++ {
 				if c := buf.Get(x, currY); c != nil {

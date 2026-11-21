@@ -384,3 +384,27 @@ func BenchmarkHelpOverlayDraw(b *testing.B) {
 		help.Draw(ctx, buf)
 	}
 }
+
+func BenchmarkLabelDrawTheme(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	theme := DarkTheme()
+	ctx.ThemeStyle = theme.RoleStyle
+	w := NewLabel("Lorem ipsum dolor sit amet")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}
+
+func BenchmarkParagraphDrawTheme(b *testing.B) {
+	buf, ctx := prepareBenchmarkEnv()
+	theme := DarkTheme()
+	ctx.ThemeStyle = theme.RoleStyle
+	w := NewParagraph("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w.Draw(ctx, buf)
+	}
+}

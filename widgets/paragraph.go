@@ -11,6 +11,8 @@ import (
 
 // Paragraph shows multi-line text.
 // It supports wrapping the text word by word to the area's bounds (word wrap).
+// When Style sets no foreground colour, the text takes the frame theme's text
+// role, and a focused paragraph without a FocusedStyle takes its focus role.
 type Paragraph struct {
 	// ID is the widget's focus ID.
 	ID string
@@ -86,8 +88,16 @@ func (p *Paragraph) Draw(ctx cell.Context, buf *buffer.Buffer) {
 	}
 
 	mergedStyle := ctx.Style.Merge(p.Style)
+	// A text colour the user left unset follows the frame theme.
+	if p.Style.Fg.Type() == cell.ColorDefault && ctx.ThemeStyle != nil {
+		mergedStyle = ctx.Style.Merge(ctx.ThemeStyle("text")).Merge(p.Style)
+	}
 	if ctx.IsFocused(p.ID) {
-		mergedStyle = mergedStyle.Merge(p.FocusedStyle)
+		if p.FocusedStyle == (cell.Style{}) && ctx.ThemeStyle != nil {
+			mergedStyle = mergedStyle.Merge(ctx.ThemeStyle("focus"))
+		} else {
+			mergedStyle = mergedStyle.Merge(p.FocusedStyle)
+		}
 	}
 
 	lines := p.lines(area.Width)
