@@ -160,6 +160,11 @@ a patch bump (`v0.x.y`) does not.
 
 ### Fixed
 
+- `Label` and `Paragraph` now follow the frame theme (`Frame.SetTheme`): text
+  whose `Style` sets no foreground takes the theme's `text` role, and a
+  focused `Paragraph` without a `FocusedStyle` takes the `focus` role. An
+  explicit style still wins, and without a theme both draw as before.
+  `Label.Draw` no longer allocates on every frame (#97).
 - `Slider`: its `Style` and `FocusedStyle` reached the track, the filled
   part and the thumb only when the frame had no style of its own, so
   inside a styled block or a themed frame they were dropped and a slider
