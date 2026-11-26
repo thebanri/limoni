@@ -16,6 +16,22 @@ a patch bump (`v0.x.y`) does not.
 
 ### Added
 
+- The capability handshake asks the kitty graphics query (a 1×1 picture,
+  never shown) and picks kitty's protocol when the terminal answers OK,
+  whatever it is called. kwi, KDE's terminal on libghostty, names itself
+  `Kwi (libghostty 1.0.2)`, which no table knew, and lists no Sixel, so its
+  pictures were half blocks. A terminal that does not know APC prints the
+  query where the handshake's measurements go, and it is erased with them.
+
+- `Frame.ClearImageRegions` drops the pictures placed so far in a frame, for
+  a scene drawn over the whole screen. The field it replaces became private
+  in v0.16.0 with no way left to do this.
+
+- `termimg` shows sixel and iTerm2 pictures with the terminal's own kitty
+  protocol when the terminal has one (kwi, Ghostty): no overlay window, so it
+  works on Wayland, where kwi has no X11 window and pictures fell back to
+  half blocks. The program's own kitty commands then pass through unchanged.
+
 - `backdrop-shell` now builds and runs natively on Windows: ConPTY for the
   shell and the scene terminals, console resize polling for window changes,
   a PowerShell `Profile.ps1` hook for `enable`/`disable`, and `install.ps1`
