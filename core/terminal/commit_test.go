@@ -104,7 +104,7 @@ func (v *lineTerm) feed(out string) {
 			default:
 				v.unhandled = append(v.unhandled, params+string(final))
 			}
-		case r == 0x1b && i+1 < len(rs) && rs[i+1] == ']':
+		case r == 0x1b && i+1 < len(rs) && (rs[i+1] == ']' || rs[i+1] == '_'): // OSC, and APC (the kitty graphics query)
 			for i < len(rs) && rs[i] != 0x07 && !(rs[i] == 0x1b && i+1 < len(rs) && rs[i+1] == '\\') {
 				i++
 			}

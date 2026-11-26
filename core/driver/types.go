@@ -140,6 +140,8 @@ const (
 	// CSI 6 n. The same bytes are what some terminals send for a modified F3,
 	// which Limoni has never delivered as a key; they are read as a report.
 	ReplyCursor
+	// ReplyKittyGraphics is an OK to the kitty graphics query (APC G i=31 ; OK ST).
+	ReplyKittyGraphics
 )
 
 // ReplyEvent carries a terminal's answer to a query.

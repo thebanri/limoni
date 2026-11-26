@@ -20,6 +20,12 @@ import (
 //     emoji. Many terminals draw clusters as units without implementing mode
 //     2027; others advance per code point. The cells are erased and the
 //     cursor restored before anything else is drawn.
+//   - The kitty graphics query (a=q, a 1×1 picture that is never shown): a
+//     terminal that answers OK draws kitty pictures, whatever it is called —
+//     libghostty-based terminals such as kwi name themselves after nothing
+//     Limoni knows. A terminal without the protocol ignores the APC; one that
+//     does not know APC at all prints it, at the start of the line the
+//     measurements use, and it is erased with them.
 //   - DA1 (CSI c), last. Every terminal answers DA1 and answers in order, so
 //     its reply means every query before it has been answered or never will be.
 //
@@ -30,9 +36,14 @@ const ProbeQueries = "\x1b[>0q" + "\x1b[?2026$p" + "\x1b[?2027$p" + "\x1b[?u" +
 	"\x1b7" + // save the cursor
 	"\r \x1b[1b\x1b[6n" + // a space, REP once: column 3 if REP works, 2 if not
 	"\r" + probeCluster + "\x1b[6n" + // column 3 if the cluster is drawn two wide
-	"\r\x1b[8X" + // erase what was written
+	"\r\x1b_Gi=" + probeKittyID + ",s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\" + // printed by a terminal that does not know APC (the Linux console) …
+	"\r\x1b[40X" + // … so it is erased with what the measurements wrote
 	"\x1b8" + // restore the cursor
 	"\x1b[c"
+
+// probeKittyID is the picture id of the kitty graphics query. Limoni's own
+// pictures are sent with q=2, so no other OK carries it.
+const probeKittyID = "31"
 
 // probeCluster is the cluster measured: man, ZWJ, woman, ZWJ, girl. A
 // terminal that measures code points draws it six columns wide.
@@ -112,6 +123,8 @@ type TerminalReport struct {
 	KittyFlags    int
 	// Sixel is DA1 attribute 4.
 	Sixel bool
+	// KittyGraphics is true if the terminal answered the kitty graphics query OK.
+	KittyGraphics bool
 	// Repeat is the measured answer to whether REP works.
 	Repeat Answer
 	// ClusterWidth is the measured width of a ZWJ family emoji: 2 where the
@@ -177,6 +190,8 @@ func (c *replyCollector) record(ev Event) bool {
 		}
 	case ReplyVersion:
 		r.Name, r.Version = splitVersion(ev.Reply.Version)
+	case ReplyKittyGraphics:
+		r.KittyGraphics = true
 	case ReplyKittyKeyboard:
 		r.KittyKeyboard = true
 		r.KittyFlags = ev.Reply.Flags

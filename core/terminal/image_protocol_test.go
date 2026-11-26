@@ -23,6 +23,8 @@ func TestWithReportChoosesTheImageProtocol(t *testing.T) {
 		{"no sixel in DA1", half, driver.TerminalReport{Answered: true}, "", graphics.ProtocolHalfBlock},
 		{"kitty by name over ssh", half, driver.TerminalReport{Answered: true, Name: "kitty"}, "", graphics.ProtocolKitty},
 		{"ghostty by name", half, driver.TerminalReport{Answered: true, Name: "ghostty"}, "", graphics.ProtocolKitty},
+		{"kitty graphics query answered OK (kwi: libghostty, no sixel in DA1)", half, driver.TerminalReport{Answered: true, Name: "Kwi", KittyGraphics: true}, "", graphics.ProtocolKitty},
+		{"the kitty answer beats DA1", half, driver.TerminalReport{Answered: true, KittyGraphics: true, Sixel: true}, "", graphics.ProtocolKitty},
 		{"iterm2 by name", half, driver.TerminalReport{Answered: true, Name: "iTerm2"}, "", graphics.ProtocolIterm2},
 		{"a name beats DA1", half, driver.TerminalReport{Answered: true, Name: "wezterm", Sixel: true}, "", graphics.ProtocolKitty},
 		{"an environment guess stays", CapabilityProfile{GraphicsProto: graphics.ProtocolKitty}, driver.TerminalReport{Answered: true, Sixel: true}, "", graphics.ProtocolKitty},

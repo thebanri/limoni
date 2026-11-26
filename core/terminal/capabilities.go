@@ -310,12 +310,14 @@ func (p CapabilityProfile) WithReport(r driver.TerminalReport) CapabilityProfile
 	}
 	// The environment cannot see through SSH, tmux or su, so a terminal that
 	// was guessed to have no image protocol may still have one: its name says
-	// so, or its DA1 answer lists Sixel (xterm -ti vt340, mlterm, foot in
+	// so, it answered the kitty graphics query, or its DA1 answer lists Sixel (xterm -ti vt340, mlterm, foot in
 	// tmux). Only the half-block guess is upgraded, and LIMONI_GRAPHICS still
 	// wins.
 	if p.GraphicsProto == graphics.ProtocolHalfBlock && os.Getenv("LIMONI_GRAPHICS") == "" {
 		if known := knownTerminals[strings.ToLower(r.Name)]; known.images != graphics.ProtocolAuto {
 			p.GraphicsProto = known.images
+		} else if r.KittyGraphics {
+			p.GraphicsProto = graphics.ProtocolKitty
 		} else if r.Sixel {
 			p.GraphicsProto = graphics.ProtocolSixel
 		}

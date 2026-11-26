@@ -24,6 +24,7 @@ func TestParseTerminalReplies(t *testing.T) {
 		{"XTVERSION ST", "\x1bP>|kitty(0.39.1)\x1b\\", ReplyEvent{Kind: ReplyVersion, Version: "kitty(0.39.1)"}},
 		{"XTVERSION BEL", "\x1bP>|tmux 3.5a\x07", ReplyEvent{Kind: ReplyVersion, Version: "tmux 3.5a"}},
 		{"cursor position", "\x1b[12;40R", ReplyEvent{Kind: ReplyCursor, Row: 12, Col: 40}},
+		{"kitty graphics OK", "\x1b_Gi=31;OK\x1b\\", ReplyEvent{Kind: ReplyKittyGraphics}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ev, n := ParseEvent([]byte(tc.input))
@@ -41,12 +42,13 @@ func TestParseTerminalReplies(t *testing.T) {
 // marker, "CSI ? 97 u" — Kitty flags, had they been 97 — came out as the key 'a'.
 func TestRepliesAreNotKeys(t *testing.T) {
 	for _, in := range []string{
-		"\x1b[?97u",           // kitty flags that happen to be a printable code point
-		"\x1b[>1;4000;15c",    // DA2, never queried but sometimes volunteered
-		"\x1b[?1;2;3;4;5$y",   // malformed DECRPM
-		"\x1bP>|\x1b\\",       // empty XTVERSION
-		"\x1bP1$r0m\x1b\\",    // DECRQSS reply
-		"\x1b]11;rgb:0/0/0\a", // OSC 11 background colour
+		"\x1b[?97u",                            // kitty flags that happen to be a printable code point
+		"\x1b[>1;4000;15c",                     // DA2, never queried but sometimes volunteered
+		"\x1b[?1;2;3;4;5$y",                    // malformed DECRPM
+		"\x1bP>|\x1b\\",                        // empty XTVERSION
+		"\x1bP1$r0m\x1b\\",                     // DECRQSS reply
+		"\x1b]11;rgb:0/0/0\a",                  // OSC 11 background colour
+		"\x1b_Gi=31;ENOENT:no such file\x1b\\", // kitty graphics error
 	} {
 		ev, n := ParseEvent([]byte(in))
 		if n != len(in) {

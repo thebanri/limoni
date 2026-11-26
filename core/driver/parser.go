@@ -615,11 +615,14 @@ func parseStringSequence(buf []byte) (Event, int) {
 }
 
 // stringSequenceEvent interprets a complete string sequence, without its
-// terminator. Only the XTVERSION reply (DCS > | text) carries anything Limoni
-// uses; every other one is consumed silently.
+// terminator. Only the XTVERSION reply (DCS > | text) and an OK to the kitty
+// graphics query carry anything Limoni uses; every other one is consumed silently.
 func stringSequenceEvent(seq []byte) Event {
 	if len(seq) >= 4 && seq[1] == 'P' && seq[2] == '>' && seq[3] == '|' {
 		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyVersion, Version: string(seq[4:])}}
+	}
+	if string(seq) == "\x1b_Gi="+probeKittyID+";OK" {
+		return Event{Type: EventReply, Reply: ReplyEvent{Kind: ReplyKittyGraphics}}
 	}
 	return Event{Type: EventNone}
 }
