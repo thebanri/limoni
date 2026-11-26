@@ -173,3 +173,29 @@ func TestKittyKeepsMovingTilesApart(t *testing.T) {
 		}
 	}
 }
+
+// A scene drawn over the whole screen clears the pictures placed under it,
+// and the terminal takes them down.
+func TestClearImageRegionsTakesThePicturesDown(t *testing.T) {
+	term, io := kittyTerminal(t)
+	img := picture(16, 16)
+	draw := func(clear bool) string {
+		before := len(io.Output())
+		if err := term.Draw(func(f *Frame) {
+			f.RegisterImageRegion(ImageRegion{Area: cell.NewRect(0, 1, 2, 1), Img: img})
+			if clear {
+				f.ClearImageRegions()
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return string(io.Output()[before:])
+	}
+	if got := draw(false); !strings.Contains(got, "a=p,") {
+		t.Fatalf("the picture was not placed: %q", got)
+	}
+	got := draw(true)
+	if strings.Contains(got, "a=p,") || !strings.Contains(got, "a=d,") {
+		t.Fatalf("cleared, the picture was not taken down: %q", got)
+	}
+}

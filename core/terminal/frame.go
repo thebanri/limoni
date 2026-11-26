@@ -558,6 +558,15 @@ func (f *Frame) RegisterImageRegion(region ImageRegion) {
 	f.imageRegions = append(f.imageRegions, region)
 }
 
+// ClearImageRegions drops the pictures placed so far this frame: for a
+// scene drawn over the whole screen, which pictures sent after the cells
+// (kitty, Sixel, the overlay's windows) would otherwise cover.
+func (f *Frame) ClearImageRegions() {
+	if f != nil {
+		f.imageRegions = f.imageRegions[:0]
+	}
+}
+
 // ImageRegionsSnapshot returns a copy of image registrations for assertions.
 func (f *Frame) ImageRegionsSnapshot() []ImageRegion {
 	if f == nil {
