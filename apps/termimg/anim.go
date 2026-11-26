@@ -111,6 +111,8 @@ func (s *session) tick() {
 	s.dirty = false
 	s.animate()
 	if s.dirty {
+		s.buf = s.buf[:0]
 		s.show()
+		s.flush()
 	}
 }

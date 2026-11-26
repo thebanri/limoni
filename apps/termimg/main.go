@@ -1,10 +1,11 @@
 //go:build unix
 
 // termimg runs a shell, or a command, so that the sixel pictures programs
-// print show in a terminal without sixel: in a window of their own inside
-// the terminal's X11 window, every pixel kept (internal/overlay), or in half
-// blocks where there is no X11 window. Programs are told the terminal has
-// sixel, and its size in pixels.
+// print show in a terminal without sixel: with the terminal's own kitty
+// protocol where it has one (kwi, Ghostty; kittyout.go, Wayland too), else
+// in a window of their own inside the terminal's X11 window, every pixel
+// kept (internal/overlay), or in half blocks where there is no X11 window.
+// Programs are told the terminal has sixel, and its size in pixels.
 //
 //	termimg              the shell, $SHELL
 //	termimg yazi         one command
@@ -60,10 +61,12 @@ func run(argv []string) (int, error) {
 	if state, err := driver.MakeRaw(in); err == nil {
 		defer driver.Restore(in, state)
 		var bg color.RGBA
-		var ok bool
+		var ok, kitty bool
 		var at image.Point
-		bg, ok, at, typed = queryTerminal(os.Stdin, os.Stdout)
-		if ok && s.ov != nil {
+		bg, ok, at, kitty, typed = queryTerminal(os.Stdin, os.Stdout)
+		if kitty {
+			s.useKitty()
+		} else if ok && s.ov != nil {
 			s.ov.SetBackground(bg)
 		}
 		// The shadow screen starts where the real cursor is, not at the

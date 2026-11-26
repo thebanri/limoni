@@ -23,15 +23,20 @@ import (
 // colour, whether the terminal said, the cursor (0-based, the top left if
 // the terminal did not say), and what else came in meanwhile (keys typed),
 // for the program.
-func queryTerminal(in, out *os.File) (color.RGBA, bool, image.Point, []byte) {
-	c, ok, rest := queryBackground(in, out)
-	at, rest := cursorReply(rest)
-	return c, ok, at, rest
+//
+// It asks too whether the terminal has kitty's graphics protocol (kitty).
+func queryTerminal(in, out *os.File) (bg color.RGBA, ok bool, at image.Point, kitty bool, rest []byte) {
+	bg, ok, rest = queryBackground(in, out)
+	at, rest = cursorReply(rest)
+	kitty, rest = kittyAnswer(rest)
+	return bg, ok, at, kitty, rest
 }
 
 // queryBackground sends the questions and waits for the DA1 answer.
 func queryBackground(in, out *os.File) (color.RGBA, bool, []byte) {
-	if _, err := out.WriteString("\x1b]11;?\x1b\\\x1b[6n\x1b[c"); err != nil {
+	// The kitty query comes after the cursor's: a terminal that does not
+	// know APC prints it, and it is erased.
+	if _, err := out.WriteString("\x1b]11;?\x1b\\\x1b[6n\x1b7" + kittyQuery + "\x1b8\x1b[K\x1b[c"); err != nil {
 		return color.RGBA{}, false, nil
 	}
 	var b []byte

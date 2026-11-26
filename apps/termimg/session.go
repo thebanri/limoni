@@ -30,7 +30,8 @@ type session struct {
 	ptmx  *os.File
 	emu   *vt.Emulator
 	pics  pictures
-	ov    *overlay.Overlay // nil: half blocks
+	ov    *overlay.Overlay // nil: half blocks, or kout
+	kout  *kittyOut        // non-nil: pictures go to the terminal as kitty's
 	parse parser
 	cols  int
 	rows  int
@@ -112,7 +113,31 @@ func (s *session) resize() {
 		X: uint16(s.cols * s.cellW), Y: uint16(s.rows * s.cellH),
 	})
 	s.pics.update()
+	s.buf = s.buf[:0]
 	s.show()
+	s.flush()
+}
+
+// flush writes what show made outside output, which writes its own.
+func (s *session) flush() {
+	if len(s.buf) > 0 {
+		_, _ = s.out.Write(s.buf)
+		s.buf = s.buf[:0]
+	}
+}
+
+// useKitty sends pictures with the terminal's own kitty protocol from now
+// on, which it says it has: better than an overlay window, and the
+// program's own kitty commands then reach it unchanged.
+func (s *session) useKitty() {
+	s.mu.Lock()
+	if s.ov != nil {
+		_ = s.ov.Close()
+		s.ov = nil
+	}
+	s.kout = &kittyOut{placed: map[*picture]*kittyPlaced{}}
+	s.mu.Unlock()
+	s.resize() // the cell size now comes from the terminal
 }
 
 // keepCursor scrolls the shadow screen up as a terminal does when it gets
@@ -359,16 +384,18 @@ func (s *session) put(img image.Image, cols, rows, move int, sticky bool) *pictu
 	return s.place(img, at.X, top, cols, rows, sticky)
 }
 
-// place shows img over cols×rows cells at col, top: in the overlay, or in
-// half blocks without one.
+// place shows img over cols×rows cells at col, top: in the overlay, with
+// the terminal's kitty protocol, or in half blocks without either.
 func (s *session) place(img image.Image, col, top, cols, rows int, sticky bool) *picture {
-	if s.ov == nil {
+	if s.ov == nil && s.kout == nil {
 		s.halfBlocks(img, col, top, cols, rows)
 		return nil
 	}
-	img, dx, dy := opaque(img)
-	if img == nil {
-		return nil // nothing to see
+	dx, dy := 0, 0
+	if s.ov != nil { // the terminal shows kitty's transparency itself
+		if img, dx, dy = opaque(img); img == nil {
+			return nil // nothing to see
+		}
 	}
 	s.dirty = true
 	pic := s.pics.byID[s.pics.add(img, col, top, cols, rows, sticky)]
@@ -414,8 +441,13 @@ func opaque(img image.Image) (image.Image, int, int) {
 	return subImage(img, seen), seen.Min.X - b.Min.X, seen.Min.Y - b.Min.Y
 }
 
-// show puts the overlay's windows where the pictures are now.
+// show puts the overlay's windows, or the terminal's kitty placements,
+// where the pictures are now.
 func (s *session) show() {
+	if s.kout != nil {
+		s.showKitty()
+		return
+	}
 	if s.ov == nil {
 		return
 	}

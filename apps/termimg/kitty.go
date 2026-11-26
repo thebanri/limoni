@@ -60,8 +60,8 @@ type kittyShown struct {
 
 // apc takes kitty graphics commands, ESC _ G keys ; payload ESC \.
 func (s *session) apc(body []byte) bool {
-	if len(body) == 0 || body[0] != 'G' {
-		return false
+	if len(body) == 0 || body[0] != 'G' || s.kout != nil {
+		return false // with kout, the terminal itself does kitty's
 	}
 	keys, payload := kittyKeys(body[1:])
 	k := &s.kitty
